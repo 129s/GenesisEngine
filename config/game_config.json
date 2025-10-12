@@ -1,0 +1,85 @@
+{
+  "display": {
+    "window": {
+      "width": 1120,
+      "height": 720,
+      "title": "Genesis Engine - Debug Mode"
+    },
+    "game_area": {
+      "width": 720,
+      "height": 720,
+      "tile_size": 16
+    },
+    "debug_ui": {
+      "width": 400,
+      "enabled": true
+    }
+  },
+  "ai": {
+    "wander": {
+      "trigger_interval_seconds": 2.5,
+      "movement_speed": 1.0,
+      "direction_choices": 5,
+      "stop_probability": 0.2
+    },
+    "movement": {
+      "move_interval_seconds": 0.5,
+      "tiles_per_move": 1
+    }
+  },
+  "needs": {
+    "physiological": {
+      "hunger_increase_rate": 0.02,
+      "initial_hunger_level": 0.8,
+      "hunger_threshold": 0.7,
+      "critical_hunger_threshold": 0.9
+    },
+    "fatigue": {
+      "activity_increase_rate": 0.03,
+      "night_activity_bonus": 0.02,
+      "rest_recovery_rate": 0.05,
+      "initial_fatigue_level": 0.3,
+      "fatigue_threshold": 0.7,
+      "critical_fatigue_threshold": 0.9
+    },
+    "social": {
+      "increase_rate": 0.01,
+      "initial_social_level": 0.8,
+      "social_threshold": 0.6
+    }
+  },
+  "food": {
+    "default_nutrition_value": 0.5,
+    "min_nutrition_value": 0.3,
+    "max_nutrition_value": 0.7
+  },
+  "world": {
+    "entities": {
+      "food_count": 8,
+      "npc_count": 5,
+      "residence_count": 5
+    },
+    "zones": {
+      "residence": {
+        "width": 4,
+        "height": 4
+      },
+      "tavern": {
+        "width": 8,
+        "height": 6
+      },
+      "market": {
+        "width": 6,
+        "height": 5
+      }
+    }
+  },
+  "time": {
+    "ticks_per_update": 1,
+    "hours_per_tick": 1
+  },
+  "debugging": {
+    "enable_console_output": true,
+    "enable_debug_ui": true
+  }
+}

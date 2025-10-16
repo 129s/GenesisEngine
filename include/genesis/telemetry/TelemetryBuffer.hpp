@@ -31,11 +31,23 @@ struct PlannerSnapshot {
     float score{0.0f};
 };
 
+struct ActionSnapshot {
+    std::uint32_t entityId{0};
+    std::string currentAction;
+    std::uint32_t queueLength{0};
+    genesis::world::LocationId target{genesis::world::InvalidLocation};
+    float speed{0.0f};
+    genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
+    std::uint32_t amount{0};
+    float reliefPerUnit{0.0f};
+};
+
 struct TickTelemetry {
     std::uint64_t step{0};
     std::vector<ResourceSnapshot> resources;
     std::vector<NeedSnapshot> needs;
     std::vector<PlannerSnapshot> plannerDecisions;
+    std::vector<ActionSnapshot> actions;
 };
 
 class TelemetryBuffer {

@@ -210,6 +210,35 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
         tick.plannerDecisions.push_back(std::move(snapshot));
     }
 
+    auto actionView = m_registry.view<genesis::agents::ActionQueue>();
+    actionView.each([&](auto entity, const genesis::agents::ActionQueue& queue) {
+        telemetry::ActionSnapshot snapshot{};
+        snapshot.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        snapshot.queueLength = static_cast<std::uint32_t>(queue.tasks.size());
+        if (!queue.tasks.empty()) {
+            const auto& task = queue.tasks.front();
+            switch (task.type) {
+            case genesis::agents::ActionType::MoveTo:
+                snapshot.currentAction = "MoveTo";
+                break;
+            case genesis::agents::ActionType::ConsumeResource:
+                snapshot.currentAction = "ConsumeResource";
+                break;
+            default:
+                snapshot.currentAction = "Unknown";
+                break;
+            }
+            snapshot.target = task.location;
+            snapshot.speed = task.speed;
+            snapshot.resource = task.resource;
+            snapshot.amount = task.amount;
+            snapshot.reliefPerUnit = task.reliefPerUnit;
+        } else {
+            snapshot.currentAction = "Idle";
+        }
+        tick.actions.push_back(std::move(snapshot));
+    });
+
     m_hungerDecisions.clear();
 
     m_telemetry.push(std::move(tick));
@@ -259,8 +288,19 @@ void Engine::reportTelemetry(std::uint64_t stepIndex) {
     }
     const float travelAvg = latest.plannerDecisions.empty() ? 0.0f : travelSum / static_cast<float>(latest.plannerDecisions.size());
 
-    spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}, travel avg={:.2f}",
-        stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical, travelAvg);
+    float queueSum = 0.0f;
+    std::uint32_t consumingCount = 0;
+    for (const auto& action : latest.actions) {
+        queueSum += static_cast<float>(action.queueLength);
+        if (action.currentAction == "ConsumeResource") {
+            ++consumingCount;
+        }
+    }
+    const std::uint32_t actionQueues = static_cast<std::uint32_t>(latest.actions.size());
+    const float queueAvg = actionQueues == 0 ? 0.0f : queueSum / static_cast<float>(actionQueues);
+
+    spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}, travel avg={:.2f}, actions={} consuming={}, queue avg={:.2f}",
+        stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical, travelAvg, actionQueues, consumingCount, queueAvg);
 }
 } // namespace genesis::core
 

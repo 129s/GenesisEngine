@@ -6,10 +6,10 @@
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/planner/HungerPlanner.hpp"
 #include "genesis/world/WorldRegistry.hpp"
-#include "genesis/world/system/ResourceSystem.hpp"
+#include "genesis/world/WorldTypes.hpp"
 #include "genesis/world/components/ResourceInventory.hpp"
 #include "genesis/world/components/ResourceSpawn.hpp"
-#include "genesis/world/WorldTypes.hpp"
+#include "genesis/world/system/ResourceSystem.hpp"
 #include "genesis/messaging/EventBus.hpp"
 
 using namespace genesis;
@@ -25,22 +25,8 @@ world::LocationGraph makeGraph() {
     graph.edges.push_back({world::LocationId{1}, world::LocationId{2}, 1.0f, true});
     graph.edges.push_back({world::LocationId{2}, world::LocationId{3}, 1.0f, true});
 
-    world::ResourceSpawn tavern{};
-    tavern.name = "Tavern";
-    tavern.type = world::ResourceType::Food;
-    tavern.location = world::LocationId{2};
-    tavern.capacity = 5;
-    tavern.ratePerStep = 0;
-
-    world::ResourceSpawn bakery{};
-    bakery.name = "Bakery";
-    bakery.type = world::ResourceType::Food;
-    bakery.location = world::LocationId{3};
-    bakery.capacity = 5;
-    bakery.ratePerStep = 0;
-
-    graph.spawns.push_back(tavern);
-    graph.spawns.push_back(bakery);
+    graph.spawns.push_back({"Tavern", world::ResourceType::Food, world::LocationId{2}, 5, 0});
+    graph.spawns.push_back({"Bakery", world::ResourceType::Food, world::LocationId{3}, 5, 0});
 
     return graph;
 }
@@ -54,6 +40,13 @@ agents::NeedDescriptor hungerDescriptor() {
     hunger.satisfiedThreshold = 25.0f;
     hunger.criticalThreshold = 75.0f;
     return hunger;
+}
+
+void configureAgent(entt::registry& registry, agents::NeedSystem& needs, entt::entity agent, world::LocationId loc) {
+    auto& component = registry.emplace<agents::NeedComponent>(agent);
+    needs.applyDefaults(component);
+    component.needs.setState(agents::NeedType::Hunger, 90.0f);
+    registry.emplace<agents::components::AgentLocation>(agent, agents::components::AgentLocation{loc});
 }
 
 } // namespace
@@ -73,8 +66,7 @@ TEST(HungerPlannerTest, ChoosesNearestAvailableSpawn) {
         const auto& spawn = view.get<world::components::ResourceSpawn>(entity);
         if (spawn.location == world::LocationId{2}) {
             inventory.current = 0;
-        }
-        if (spawn.location == world::LocationId{3}) {
+        } else {
             inventory.current = 4;
         }
     }
@@ -83,24 +75,67 @@ TEST(HungerPlannerTest, ChoosesNearestAvailableSpawn) {
     needSystem.setDefaultDescriptor(hungerDescriptor());
 
     auto agent = registry.create();
-    auto& needComponent = registry.emplace<agents::NeedComponent>(agent);
-    needSystem.applyDefaults(needComponent);
-    needComponent.needs.setState(agents::NeedType::Hunger, 90.0f);
-    registry.emplace<agents::components::AgentLocation>(agent, agents::components::AgentLocation{world::LocationId{1}});
+    configureAgent(registry, needSystem, agent, world::LocationId{1});
 
     planner::PlannerContext context{registry, world, resourceSystem};
-    planner::HungerPlanner planner({});
+    planner::HungerPlanner planner({.hungerUnitsPerRequest = 2, .hungerReliefPerUnit = 10.0f});
     planner.evaluate(0, context);
 
-    std::uint32_t bakeryStock = 0;
+    std::uint32_t bakerStock = 0;
     for (auto entity : view) {
         const auto& inventory = view.get<world::components::ResourceInventory>(entity);
         const auto& spawn = view.get<world::components::ResourceSpawn>(entity);
         if (spawn.location == world::LocationId{3}) {
+            bakerStock = inventory.current;
+        }
+    }
+
+    EXPECT_EQ(bakerStock, 2U);
+}
+
+TEST(HungerPlannerTest, PrefersLessCongestedEvenIfFarther) {
+    world::WorldRegistry world;
+    world.setGraph(makeGraph());
+
+    entt::registry registry;
+    messaging::EventBus bus;
+    world::system::ResourceSystem resourceSystem(world, bus);
+    resourceSystem.initialize(registry);
+
+    auto view = registry.view<world::components::ResourceInventory, world::components::ResourceSpawn>();
+    for (auto entity : view) {
+        auto& inventory = view.get<world::components::ResourceInventory>(entity);
+        inventory.current = 4;
+    }
+
+    // Add congestion at tavern (location 2).
+    for (int i = 0; i < 5; ++i) {
+        auto npc = registry.create();
+        registry.emplace<agents::components::AgentLocation>(npc, agents::components::AgentLocation{world::LocationId{2}});
+    }
+
+    agents::NeedSystem needSystem;
+    needSystem.setDefaultDescriptor(hungerDescriptor());
+
+    auto agent = registry.create();
+    configureAgent(registry, needSystem, agent, world::LocationId{1});
+
+    planner::PlannerContext context{registry, world, resourceSystem};
+    planner::HungerPlanner planner({.hungerUnitsPerRequest = 2, .hungerReliefPerUnit = 10.0f});
+    planner.evaluate(0, context);
+
+    std::uint32_t tavernStock = 0;
+    std::uint32_t bakeryStock = 0;
+    for (auto entity : view) {
+        const auto& inventory = view.get<world::components::ResourceInventory>(entity);
+        const auto& spawn = view.get<world::components::ResourceSpawn>(entity);
+        if (spawn.location == world::LocationId{2}) {
+            tavernStock = inventory.current;
+        } else if (spawn.location == world::LocationId{3}) {
             bakeryStock = inventory.current;
         }
     }
 
+    EXPECT_EQ(tavernStock, 4U);
     EXPECT_EQ(bakeryStock, 2U);
 }
-

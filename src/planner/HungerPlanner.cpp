@@ -9,6 +9,8 @@
 #include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
+#include "genesis/world/components/ResourceInventory.hpp"
+#include "genesis/world/components/ResourceSpawn.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 
 namespace genesis::planner {
@@ -26,42 +28,92 @@ world::LocationId defaultHungerLocator(PlannerContext& context, entt::entity age
     for (auto entity : resourceView) {
         const auto& inventory = resourceView.get<genesis::world::components::ResourceInventory>(entity);
         const auto& spawn = resourceView.get<genesis::world::components::ResourceSpawn>(entity);
-        if (inventory.current > 0) {
-            available.emplace(spawn.location, inventory.current);
-        }
+        available[spawn.location] = inventory.current;
     }
 
     if (available.empty()) {
         return genesis::world::InvalidLocation;
     }
 
-    std::queue<std::pair<genesis::world::LocationId, std::uint32_t>> frontier;
-    std::unordered_map<genesis::world::LocationId, std::uint32_t, genesis::world::LocationIdHasher> visited;
+    std::unordered_map<genesis::world::LocationId, std::uint32_t, genesis::world::LocationIdHasher> occupancy;
+    auto agentView = context.registry.view<genesis::agents::components::AgentLocation>();
+    for (auto [entityId, agentLoc] : agentView.each()) {
+        ++occupancy[agentLoc.location];
+    }
 
-    frontier.emplace(location->location, 0);
-    visited.emplace(location->location, 0);
+    auto occupancyPenalty = [&](genesis::world::LocationId loc) -> float {
+        auto it = occupancy.find(loc);
+        if (it == occupancy.end()) {
+            return 0.0f;
+        }
+        return static_cast<float>(it->second) * 0.75f;
+    };
+
+    auto stockPenalty = [&](genesis::world::LocationId loc) -> float {
+        auto it = available.find(loc);
+        if (it == available.end()) {
+            return 1000.0f;
+        }
+        if (it->second == 0) {
+            return 1000.0f;
+        }
+        if (it->second <= 1) {
+            return 3.0f;
+        }
+        return 0.0f;
+    };
+
+    using Node = std::pair<float, genesis::world::LocationId>;
+    auto cmp = [](const Node& lhs, const Node& rhs) { return lhs.first > rhs.first; };
+    std::priority_queue<Node, std::vector<Node>, decltype(cmp)> frontier(cmp);
+
+    std::unordered_map<genesis::world::LocationId, float, genesis::world::LocationIdHasher> bestCost;
+    frontier.emplace(0.0f, location->location);
+    bestCost[location->location] = 0.0f;
 
     genesis::world::LocationId bestLocation = genesis::world::InvalidLocation;
-    std::uint32_t bestDistance = std::numeric_limits<std::uint32_t>::max();
+    float bestScore = std::numeric_limits<float>::max();
 
     while (!frontier.empty()) {
-        const auto [current, distance] = frontier.front();
+        const auto [pathCost, current] = frontier.top();
         frontier.pop();
 
-        if (auto it = available.find(current); it != available.end()) {
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestLocation = current;
-            }
+        if (pathCost > bestCost[current] + 1e-4f) {
             continue;
         }
 
-        for (const auto& edge : context.world.edgesFrom(current)) {
-            if (!visited.contains(edge.to)) {
-                visited.emplace(edge.to, distance + 1);
-                frontier.emplace(edge.to, distance + 1);
+        if (auto it = available.find(current); it != available.end() && it->second > 0) {
+            const float score = pathCost + occupancyPenalty(current) + stockPenalty(current);
+            if (score < bestScore) {
+                bestScore = score;
+                bestLocation = current;
             }
         }
+
+        for (const auto& edge : context.world.edgesFrom(current)) {
+            const float nextCost = pathCost + edge.cost;
+            auto [it, inserted] = bestCost.emplace(edge.to, nextCost);
+            if (!inserted) {
+                if (nextCost + 1e-4f < it->second) {
+                    it->second = nextCost;
+                } else {
+                    continue;
+                }
+            }
+            frontier.emplace(nextCost, edge.to);
+        }
+    }
+
+    if (bestLocation == genesis::world::InvalidLocation) {
+        genesis::world::LocationId fallback = genesis::world::InvalidLocation;
+        std::uint32_t bestStock = 0;
+        for (const auto& [loc, stock] : available) {
+            if (stock > bestStock) {
+                bestStock = stock;
+                fallback = loc;
+            }
+        }
+        return fallback;
     }
 
     return bestLocation;

@@ -10,6 +10,7 @@
 #include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
+#include "genesis/telemetry/TelemetryBuffer.hpp"
 
 namespace genesis::core {
 
@@ -35,11 +36,14 @@ public:
 
     ResourceRequestResult requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation);
 
+    [[nodiscard]] const telemetry::TelemetryBuffer& telemetry() const noexcept { return m_telemetry; }
+
 private:
     void processStep(std::uint64_t stepIndex);
     void loadInitialWorld();
     void configureNeedDefaults();
     void spawnDemoAgents();
+    void captureTelemetry(std::uint64_t stepIndex);
 
     SimulationClock m_clock;
     messaging::EventBus m_eventBus;
@@ -48,6 +52,7 @@ private:
     agents::NeedSystem m_needSystem;
     agents::NeedSatisfier m_needSatisfier;
     world::system::ResourceSystem m_resourceSystem;
+    telemetry::TelemetryBuffer m_telemetry;
 };
 
 } // namespace genesis::core

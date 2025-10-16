@@ -2,11 +2,14 @@
 
 #include <chrono>
 #include <filesystem>
+#include <utility>
 
 #include <spdlog/spdlog.h>
 
 #include "genesis/world/WorldBootstrap.hpp"
 #include "genesis/world/WorldLoader.hpp"
+#include "genesis/world/components/ResourceInventory.hpp"
+#include "genesis/world/components/ResourceSpawn.hpp"
 
 namespace genesis::core {
 
@@ -36,7 +39,8 @@ std::filesystem::path findDataFile(const std::filesystem::path& relative) {
 Engine::Engine()
     : m_clock(SimulationClock::duration{500})
     , m_needSatisfier({})
-    , m_resourceSystem(m_world, m_eventBus) {
+    , m_resourceSystem(m_world, m_eventBus)
+    , m_telemetry(512) {
     spdlog::info("GenesisEngine core initialized");
     loadInitialWorld();
     m_resourceSystem.initialize(m_registry);
@@ -150,4 +154,42 @@ Engine::ResourceRequestResult Engine::requestResource(world::ResourceType type, 
     result.fulfilled = consumed;
     return result;
 }
+
+void Engine::captureTelemetry(std::uint64_t stepIndex) {
+    telemetry::TickTelemetry tick{};
+    tick.step = stepIndex;
+
+    auto resourceView = m_registry.view<genesis::world::components::ResourceInventory, genesis::world::components::ResourceSpawn>();
+    resourceView.each([&](auto, const auto& inventory, const auto& spawn) {
+        telemetry::ResourceSnapshot snapshot{};
+        snapshot.name = spawn.name;
+        snapshot.type = spawn.type;
+        snapshot.location = spawn.location;
+        snapshot.current = inventory.current;
+        snapshot.capacity = inventory.capacity;
+        tick.resources.push_back(std::move(snapshot));
+    });
+
+    auto needView = m_registry.view<genesis::agents::NeedComponent>();
+    needView.each([&](auto entity, const genesis::agents::NeedComponent& component) {
+        const auto* hungerState = component.needs.state(genesis::agents::NeedType::Hunger);
+        const auto* hungerDescriptor = component.needs.descriptor(genesis::agents::NeedType::Hunger);
+        if (!hungerState || !hungerDescriptor) {
+            return;
+        }
+
+        telemetry::NeedSnapshot hunger{};
+        hunger.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        hunger.needName = "Hunger";
+        hunger.value = hungerState->value;
+        hunger.critical = hungerState->value >= hungerDescriptor->criticalThreshold;
+        tick.needs.push_back(std::move(hunger));
+    });
+
+    m_telemetry.push(std::move(tick));
+}
 } // namespace genesis::core
+
+
+
+

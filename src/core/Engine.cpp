@@ -35,7 +35,7 @@ std::filesystem::path findDataFile(const std::filesystem::path& relative) {
 
 Engine::Engine()
     : m_clock(SimulationClock::duration{500})
-    , m_resourceSystem(m_world) {
+    , m_resourceSystem(m_world, m_eventBus) {
     spdlog::info("GenesisEngine core initialized");
     loadInitialWorld();
     m_resourceSystem.initialize(m_registry);
@@ -136,4 +136,18 @@ void Engine::spawnDemoAgents() {
     spdlog::info("Spawned demo agent with baseline needs");
 }
 
+Engine::ResourceRequestResult Engine::requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation) {
+    Engine::ResourceRequestResult result{};
+    result.requested = amount;
+
+    if (amount == 0U) {
+        return result;
+    }
+
+    const auto consumed = m_resourceSystem.consume(m_registry, type, amount, preferredLocation);
+    result.fulfilled = consumed;
+    return result;
+}
 } // namespace genesis::core
+
+

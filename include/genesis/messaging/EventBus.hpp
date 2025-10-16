@@ -29,11 +29,6 @@ public:
         m_dispatcher.update();
     }
 
-    template <typename Event>
-    [[nodiscard]] entt::sink<Event> sink() {
-        return m_dispatcher.sink<Event>();
-    }
-
     [[nodiscard]] entt::dispatcher& raw() noexcept { return m_dispatcher; }
     [[nodiscard]] const entt::dispatcher& raw() const noexcept { return m_dispatcher; }
 

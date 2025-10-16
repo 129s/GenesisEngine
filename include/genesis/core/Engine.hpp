@@ -14,6 +14,11 @@ namespace genesis::core {
 
 class Engine {
 public:
+    struct ResourceRequestResult {
+        std::uint32_t fulfilled{0};
+        std::uint32_t requested{0};
+    };
+
     Engine();
 
     void run(std::uint64_t maxSteps);
@@ -26,6 +31,8 @@ public:
 
     [[nodiscard]] world::WorldRegistry& world() noexcept { return m_world; }
     [[nodiscard]] const world::WorldRegistry& world() const noexcept { return m_world; }
+
+    ResourceRequestResult requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation);
 
 private:
     void processStep(std::uint64_t stepIndex);

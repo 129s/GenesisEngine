@@ -29,6 +29,9 @@ public:
     [[nodiscard]] std::size_t locationCount() const noexcept { return m_locations.size(); }
     [[nodiscard]] std::size_t resourceSpawnCount() const noexcept { return m_resourceSpawns.size(); }
 
+    [[nodiscard]] std::vector<ResourceSpawn> spawnsAt(LocationId location) const;
+    [[nodiscard]] const std::vector<ResourceSpawn>& allSpawns() const noexcept { return m_resourceSpawns; }
+
 private:
     using LocationMap = std::unordered_map<LocationId, LocationNode, LocationIdHasher>;
     using EdgeMap = std::unordered_map<LocationId, std::vector<PathEdge>, LocationIdHasher>;

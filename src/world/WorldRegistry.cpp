@@ -98,4 +98,16 @@ const std::vector<PathEdge>& WorldRegistry::edgesFrom(LocationId id) const {
     return s_emptyEdges;
 }
 
+std::vector<ResourceSpawn> WorldRegistry::spawnsAt(LocationId location) const {
+    std::vector<ResourceSpawn> results;
+    for (const auto& spawn : m_resourceSpawns) {
+        if (spawn.location == location) {
+            results.push_back(spawn);
+        }
+    }
+    return results;
+}
+
 } // namespace genesis::world
+
+

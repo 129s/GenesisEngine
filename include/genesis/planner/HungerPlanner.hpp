@@ -9,13 +9,17 @@ namespace genesis::planner {
 
 class HungerPlanner : public IPlanner {
 public:
-    explicit HungerPlanner(genesis::agents::NeedSatisfierConfig config);
+    HungerPlanner(genesis::agents::NeedSatisfierConfig config, world::LocationId (*locator)(PlannerContext&, entt::entity) = nullptr);
 
     void evaluate(std::uint64_t step, PlannerContext& context) override;
 
 private:
+    PlannerContext* m_currentContext{nullptr};
+    world::LocationId (*m_locator)(PlannerContext&, entt::entity);
     genesis::agents::NeedSatisfier m_satisfier;
 };
 
 } // namespace genesis::planner
+
+
 

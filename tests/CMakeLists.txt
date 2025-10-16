@@ -4,6 +4,7 @@ add_executable(genesis_engine_tests
     test_needs.cpp
     test_resource_system.cpp
     test_need_satisfier.cpp
+    test_hunger_planner.cpp
     test_telemetry.cpp
 )
 
@@ -15,4 +16,5 @@ target_link_libraries(genesis_engine_tests
 
 include(GoogleTest)
 gtest_discover_tests(genesis_engine_tests)
+
 

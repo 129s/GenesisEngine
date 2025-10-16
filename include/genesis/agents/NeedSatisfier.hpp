@@ -11,6 +11,8 @@
 
 namespace genesis::agents {
 
+class ActionExecutor;
+
 struct NeedSatisfierConfig {
     std::uint32_t hungerUnitsPerRequest{2};
     float hungerReliefPerUnit{12.0f};
@@ -21,7 +23,7 @@ class NeedSatisfier {
 public:
     explicit NeedSatisfier(NeedSatisfierConfig config = {});
 
-    void update(entt::registry& registry, world::system::ResourceSystem& resourceSystem) const;
+    void update(entt::registry& registry, world::system::ResourceSystem& resourceSystem, ActionExecutor* actionExecutor = nullptr) const;
 
 private:
     NeedSatisfierConfig m_config;

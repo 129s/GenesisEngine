@@ -7,6 +7,7 @@
 #include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/agents/AgentComponents.hpp"
+#include "genesis/agents/ActionSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/WorldTypes.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
@@ -78,12 +79,15 @@ TEST(NeedSatisfierTest, ConsumesFoodAndReducesHunger) {
     auto& location = registry.emplace<genesis::agents::components::AgentLocation>(entity);
     location.location = LocationId{1};
 
+    genesis::agents::ActionExecutor executor(world, resourceSystem);
+
     NeedSatisfierConfig config{};
     config.hungerUnitsPerRequest = 2;
     config.hungerReliefPerUnit = 10.0f;
     config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
     NeedSatisfier satisfier{config};
-    satisfier.update(registry, resourceSystem);
+    satisfier.update(registry, resourceSystem, &executor);
+    executor.update(registry, 0.1f);
 
     auto view = registry.view<genesis::world::components::ResourceInventory, genesis::world::components::ResourceSpawn>();
     std::uint32_t currentStock = 0;
@@ -121,12 +125,15 @@ TEST(NeedSatisfierTest, HandlesPartialConsumptionWhenStockLow) {
     auto& location = registry.emplace<genesis::agents::components::AgentLocation>(entity);
     location.location = LocationId{1};
 
+    genesis::agents::ActionExecutor executor(world, resourceSystem);
+
     NeedSatisfierConfig config{};
     config.hungerUnitsPerRequest = 3;
     config.hungerReliefPerUnit = 5.0f;
     config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
     NeedSatisfier satisfier{config};
-    satisfier.update(registry, resourceSystem);
+    satisfier.update(registry, resourceSystem, &executor);
+    executor.update(registry, 0.1f);
 
     auto* hungerState = needs.needs.state(NeedType::Hunger);
     ASSERT_NE(hungerState, nullptr);
@@ -193,13 +200,16 @@ TEST(NeedSatisfierTest, FallsBackWhenPreferredEmpty) {
     auto& location = registry.emplace<genesis::agents::components::AgentLocation>(agent);
     location.location = LocationId{1};
 
+    genesis::agents::ActionExecutor executor(world, resourceSystem);
+
     NeedSatisfierConfig config{};
     config.hungerUnitsPerRequest = 2;
     config.hungerReliefPerUnit = 8.0f;
     config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
     NeedSatisfier satisfier{config};
 
-    satisfier.update(registry, resourceSystem);
+    satisfier.update(registry, resourceSystem, &executor);
+    executor.update(registry, 0.1f);
 
     std::uint32_t homeStock = 0;
     std::uint32_t bakeryStock = 0;
@@ -253,12 +263,21 @@ TEST(NeedSatisfierTest, RequestsMovementWhenAwayFromPreferred) {
     auto& agentLocation = registry.emplace<AgentLocation>(entity);
     agentLocation.location = LocationId{2};
 
+    genesis::agents::ActionExecutor executor(world, resourceSystem);
+
     NeedSatisfierConfig config{};
     config.hungerUnitsPerRequest = 2;
     config.hungerReliefPerUnit = 10.0f;
     config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
     NeedSatisfier satisfier{config};
-    satisfier.update(registry, resourceSystem);
+    satisfier.update(registry, resourceSystem, &executor);
+
+    auto* queue = registry.try_get<genesis::agents::ActionQueue>(entity);
+    ASSERT_NE(queue, nullptr);
+    ASSERT_FALSE(queue->tasks.empty());
+    EXPECT_EQ(queue->tasks.front().type, genesis::agents::ActionType::MoveTo);
+
+    executor.update(registry, 0.1f);
 
     auto* intent = registry.try_get<genesis::agents::components::MovementIntent>(entity);
     ASSERT_NE(intent, nullptr);

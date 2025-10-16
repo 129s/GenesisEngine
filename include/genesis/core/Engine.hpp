@@ -11,6 +11,7 @@
 #include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/agents/MovementSystem.hpp"
+#include "genesis/agents/ActionSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
@@ -56,8 +57,9 @@ private:
     entt::registry m_registry;
     agents::NeedSystem m_needSystem;
     agents::MovementSystem m_movementSystem;
-    planner::HungerPlanner m_hungerPlanner;
     world::system::ResourceSystem m_resourceSystem;
+    agents::ActionExecutor m_actionExecutor;
+    planner::HungerPlanner m_hungerPlanner;
     telemetry::TelemetryBuffer m_telemetry;
     std::vector<planner::HungerDecision> m_hungerDecisions;
     std::uint64_t m_lastTelemetryReportStep{0};

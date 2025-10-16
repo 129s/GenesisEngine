@@ -151,7 +151,7 @@ HungerPlanner::HungerPlanner(genesis::agents::NeedSatisfierConfig config, Locati
 void HungerPlanner::evaluate(std::uint64_t /*step*/, PlannerContext& context) {
     m_currentContext = &context;
     m_decisions = context.hungerDecisions;
-    m_satisfier.update(context.registry, context.resourceSystem);
+    m_satisfier.update(context.registry, context.resourceSystem, context.actionExecutor);
     m_decisions = nullptr;
     m_currentContext = nullptr;
 }

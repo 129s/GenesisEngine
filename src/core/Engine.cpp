@@ -39,6 +39,8 @@ std::filesystem::path findDataFile(const std::filesystem::path& relative) {
 Engine::Engine()
     : m_clock(SimulationClock::duration{500})
     , m_movementSystem(m_world)
+    , m_resourceSystem(m_world, m_eventBus)
+    , m_actionExecutor(m_world, m_resourceSystem)
     , m_hungerPlanner(genesis::agents::NeedSatisfierConfig{
           .hungerUnitsPerRequest = 2,
           .hungerReliefPerUnit = 12.0f,
@@ -46,7 +48,6 @@ Engine::Engine()
               return genesis::world::InvalidLocation;
           },
       })
-    , m_resourceSystem(m_world, m_eventBus)
     , m_telemetry(512) {
     spdlog::info("GenesisEngine core initialized");
     loadInitialWorld();
@@ -77,9 +78,10 @@ void Engine::processStep(std::uint64_t stepIndex) {
     const float deltaSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
     m_movementSystem.update(m_registry, deltaSeconds);
     m_resourceSystem.tick(m_registry, stepIndex);
+    m_actionExecutor.update(m_registry, deltaSeconds);
     m_needSystem.update(m_registry, deltaSeconds);
     m_hungerDecisions.clear();
-    genesis::planner::PlannerContext plannerContext{m_registry, m_world, m_resourceSystem, &m_hungerDecisions};
+    genesis::planner::PlannerContext plannerContext{m_registry, m_world, m_resourceSystem, &m_hungerDecisions, &m_actionExecutor};
     m_hungerPlanner.evaluate(stepIndex, plannerContext);
     eventBus().updateAll();
 }

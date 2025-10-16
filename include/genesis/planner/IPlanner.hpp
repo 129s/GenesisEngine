@@ -8,6 +8,10 @@
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 
+namespace genesis::agents {
+class ActionExecutor;
+}
+
 namespace genesis::planner {
 
 struct HungerDecision;
@@ -17,6 +21,7 @@ struct PlannerContext {
     world::WorldRegistry& world;
     world::system::ResourceSystem& resourceSystem;
     std::vector<HungerDecision>* hungerDecisions{nullptr};
+    agents::ActionExecutor* actionExecutor{nullptr};
 };
 
 class IPlanner {

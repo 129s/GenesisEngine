@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <optional>
 
+#include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/world/WorldTypes.hpp"
@@ -36,7 +37,7 @@ NeedSatisfier::NeedSatisfier(NeedSatisfierConfig config)
     }
 }
 
-void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSystem& resourceSystem) const {
+void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSystem& resourceSystem, ActionExecutor* actionExecutor) const {
     auto view = registry.view<NeedComponent>();
 
     for (auto entity : view) {
@@ -54,6 +55,11 @@ void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSyst
 
         const auto preferredLocation = m_config.hungerPreferredLocator(entity);
         if (preferredLocation == world::InvalidLocation) {
+            continue;
+        }
+
+        if (actionExecutor) {
+            actionExecutor->requestConsume(entity, preferredLocation, world::ResourceType::Food, m_config.hungerUnitsPerRequest, m_config.hungerReliefPerUnit, registry);
             continue;
         }
 

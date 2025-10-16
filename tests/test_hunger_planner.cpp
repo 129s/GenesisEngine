@@ -4,6 +4,7 @@
 
 #include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/NeedSystem.hpp"
+#include "genesis/agents/ActionSystem.hpp"
 #include "genesis/planner/HungerPlanner.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/WorldTypes.hpp"
@@ -77,15 +78,25 @@ TEST(HungerPlannerTest, ChoosesNearestAvailableSpawn) {
     auto agent = registry.create();
     configureAgent(registry, needSystem, agent, world::LocationId{1});
 
+    agents::ActionExecutor executor(world, resourceSystem);
+
     planner::PlannerContext context{registry, world, resourceSystem};
     std::vector<planner::HungerDecision> decisions;
     context.hungerDecisions = &decisions;
+    context.actionExecutor = &executor;
     planner::HungerPlanner planner({.hungerUnitsPerRequest = 2, .hungerReliefPerUnit = 10.0f});
     planner.evaluate(0, context);
 
     ASSERT_EQ(decisions.size(), 1U);
     EXPECT_EQ(decisions.front().target, world::LocationId{3});
     EXPECT_GT(decisions.front().travelCost, 0.0f);
+
+    auto* queue = registry.try_get<agents::ActionQueue>(agent);
+    ASSERT_NE(queue, nullptr);
+    ASSERT_FALSE(queue->tasks.empty());
+    EXPECT_EQ(queue->tasks.front().type, agents::ActionType::MoveTo);
+
+    executor.update(registry, 0.1f);
 
     auto* intent = registry.try_get<agents::components::MovementIntent>(agent);
     ASSERT_NE(intent, nullptr);
@@ -130,15 +141,25 @@ TEST(HungerPlannerTest, PrefersLessCongestedEvenIfFarther) {
     auto agent = registry.create();
     configureAgent(registry, needSystem, agent, world::LocationId{1});
 
+    agents::ActionExecutor executor(world, resourceSystem);
+
     planner::PlannerContext context{registry, world, resourceSystem};
     std::vector<planner::HungerDecision> decisions;
     context.hungerDecisions = &decisions;
+    context.actionExecutor = &executor;
     planner::HungerPlanner planner({.hungerUnitsPerRequest = 2, .hungerReliefPerUnit = 10.0f});
     planner.evaluate(0, context);
 
     ASSERT_EQ(decisions.size(), 1U);
     EXPECT_EQ(decisions.front().target, world::LocationId{3});
     EXPECT_GT(decisions.front().travelCost, 0.0f);
+
+    auto* queue = registry.try_get<agents::ActionQueue>(agent);
+    ASSERT_NE(queue, nullptr);
+    ASSERT_FALSE(queue->tasks.empty());
+    EXPECT_EQ(queue->tasks.front().type, agents::ActionType::MoveTo);
+
+    executor.update(registry, 0.1f);
 
     auto* intent = registry.try_get<agents::components::MovementIntent>(agent);
     ASSERT_NE(intent, nullptr);

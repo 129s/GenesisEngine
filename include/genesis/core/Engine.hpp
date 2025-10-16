@@ -10,6 +10,7 @@
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/NeedSatisfier.hpp"
+#include "genesis/agents/MovementSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
@@ -54,6 +55,7 @@ private:
     world::WorldRegistry m_world;
     entt::registry m_registry;
     agents::NeedSystem m_needSystem;
+    agents::MovementSystem m_movementSystem;
     planner::HungerPlanner m_hungerPlanner;
     world::system::ResourceSystem m_resourceSystem;
     telemetry::TelemetryBuffer m_telemetry;

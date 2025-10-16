@@ -6,6 +6,7 @@ add_executable(genesis_engine_tests
     test_need_satisfier.cpp
     test_hunger_planner.cpp
     test_telemetry.cpp
+    test_movement_system.cpp
 )
 
 target_link_libraries(genesis_engine_tests

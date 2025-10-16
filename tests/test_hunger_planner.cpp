@@ -87,6 +87,10 @@ TEST(HungerPlannerTest, ChoosesNearestAvailableSpawn) {
     EXPECT_EQ(decisions.front().target, world::LocationId{3});
     EXPECT_GT(decisions.front().travelCost, 0.0f);
 
+    auto* intent = registry.try_get<agents::components::MovementIntent>(agent);
+    ASSERT_NE(intent, nullptr);
+    EXPECT_EQ(intent->target, world::LocationId{3});
+
     std::uint32_t bakerStock = 0;
     for (auto entity : view) {
         const auto& inventory = view.get<world::components::ResourceInventory>(entity);
@@ -96,7 +100,7 @@ TEST(HungerPlannerTest, ChoosesNearestAvailableSpawn) {
         }
     }
 
-    EXPECT_EQ(bakerStock, 2U);
+    EXPECT_EQ(bakerStock, 4U);
 }
 
 TEST(HungerPlannerTest, PrefersLessCongestedEvenIfFarther) {
@@ -136,6 +140,10 @@ TEST(HungerPlannerTest, PrefersLessCongestedEvenIfFarther) {
     EXPECT_EQ(decisions.front().target, world::LocationId{3});
     EXPECT_GT(decisions.front().travelCost, 0.0f);
 
+    auto* intent = registry.try_get<agents::components::MovementIntent>(agent);
+    ASSERT_NE(intent, nullptr);
+    EXPECT_EQ(intent->target, world::LocationId{3});
+
     std::uint32_t tavernStock = 0;
     std::uint32_t bakeryStock = 0;
     for (auto entity : view) {
@@ -149,6 +157,6 @@ TEST(HungerPlannerTest, PrefersLessCongestedEvenIfFarther) {
     }
 
     EXPECT_EQ(tavernStock, 4U);
-    EXPECT_EQ(bakeryStock, 2U);
+    EXPECT_EQ(bakeryStock, 4U);
 }
 

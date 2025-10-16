@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <optional>
 
+#include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/world/WorldTypes.hpp"
 
@@ -52,6 +53,29 @@ void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSyst
         }
 
         const auto preferredLocation = m_config.hungerPreferredLocator(entity);
+        if (preferredLocation == world::InvalidLocation) {
+            continue;
+        }
+
+        auto* location = registry.try_get<components::AgentLocation>(entity);
+        if (!location) {
+            location = &registry.emplace<components::AgentLocation>(entity);
+        }
+
+        if (location->location != preferredLocation) {
+            auto* intent = registry.try_get<components::MovementIntent>(entity);
+            if (!intent) {
+                intent = &registry.emplace<components::MovementIntent>(entity);
+            }
+            if (intent->target != preferredLocation) {
+                intent->target = preferredLocation;
+            }
+            if (intent->speed <= 0.0f) {
+                intent->speed = 1.0f;
+            }
+            continue;
+        }
+
         const auto consumed = resourceSystem.consume(registry, world::ResourceType::Food, m_config.hungerUnitsPerRequest, preferredLocation);
         if (consumed == 0U) {
             continue;

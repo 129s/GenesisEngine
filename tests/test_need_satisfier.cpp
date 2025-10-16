@@ -6,6 +6,7 @@
 
 #include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/agents/NeedSystem.hpp"
+#include "genesis/agents/AgentComponents.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/WorldTypes.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
@@ -74,6 +75,9 @@ TEST(NeedSatisfierTest, ConsumesFoodAndReducesHunger) {
     needSystem.applyDefaults(needs);
     needs.needs.setState(NeedType::Hunger, 90.0f);
 
+    auto& location = registry.emplace<genesis::agents::components::AgentLocation>(entity);
+    location.location = LocationId{1};
+
     NeedSatisfierConfig config{};
     config.hungerUnitsPerRequest = 2;
     config.hungerReliefPerUnit = 10.0f;
@@ -113,6 +117,9 @@ TEST(NeedSatisfierTest, HandlesPartialConsumptionWhenStockLow) {
     auto& needs = registry.emplace<NeedComponent>(entity);
     needSystem.applyDefaults(needs);
     needs.needs.setState(NeedType::Hunger, 90.0f);
+
+    auto& location = registry.emplace<genesis::agents::components::AgentLocation>(entity);
+    location.location = LocationId{1};
 
     NeedSatisfierConfig config{};
     config.hungerUnitsPerRequest = 3;
@@ -183,6 +190,9 @@ TEST(NeedSatisfierTest, FallsBackWhenPreferredEmpty) {
     needSystem.applyDefaults(needs);
     needs.needs.setState(NeedType::Hunger, 90.0f);
 
+    auto& location = registry.emplace<genesis::agents::components::AgentLocation>(agent);
+    location.location = LocationId{1};
+
     NeedSatisfierConfig config{};
     config.hungerUnitsPerRequest = 2;
     config.hungerReliefPerUnit = 8.0f;
@@ -206,4 +216,60 @@ TEST(NeedSatisfierTest, FallsBackWhenPreferredEmpty) {
 
     EXPECT_EQ(homeStock, 0U);
     EXPECT_EQ(bakeryStock, 2U);
+}
+
+TEST(NeedSatisfierTest, RequestsMovementWhenAwayFromPreferred) {
+    using genesis::agents::components::AgentLocation;
+
+    LocationGraph graph;
+    graph.nodes.push_back(LocationNode{LocationId{1}, genesis::world::InvalidLocation, "Kitchen", LocationKind::Room, true});
+    graph.nodes.push_back(LocationNode{LocationId{2}, genesis::world::InvalidLocation, "Dorm", LocationKind::Room, true});
+    graph.edges.push_back(genesis::world::PathEdge{LocationId{2}, LocationId{1}, 1.0f, true});
+
+    ResourceSpawn spawn{};
+    spawn.name = "Kitchen";
+    spawn.type = ResourceType::Food;
+    spawn.location = LocationId{1};
+    spawn.capacity = 5;
+    spawn.ratePerStep = 0;
+    graph.spawns.push_back(spawn);
+
+    genesis::world::WorldRegistry world;
+    world.setGraph(graph);
+
+    entt::registry registry;
+    genesis::messaging::EventBus bus;
+    genesis::world::system::ResourceSystem resourceSystem(world, bus);
+    resourceSystem.initialize(registry);
+
+    NeedSystem needSystem;
+    needSystem.setDefaultDescriptor(hungerDescriptor());
+
+    auto entity = registry.create();
+    auto& needs = registry.emplace<NeedComponent>(entity);
+    needSystem.applyDefaults(needs);
+    needs.needs.setState(NeedType::Hunger, 90.0f);
+
+    auto& agentLocation = registry.emplace<AgentLocation>(entity);
+    agentLocation.location = LocationId{2};
+
+    NeedSatisfierConfig config{};
+    config.hungerUnitsPerRequest = 2;
+    config.hungerReliefPerUnit = 10.0f;
+    config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
+    NeedSatisfier satisfier{config};
+    satisfier.update(registry, resourceSystem);
+
+    auto* intent = registry.try_get<genesis::agents::components::MovementIntent>(entity);
+    ASSERT_NE(intent, nullptr);
+    EXPECT_EQ(intent->target.value, 1U);
+
+    auto* hungerState = needs.needs.state(NeedType::Hunger);
+    ASSERT_NE(hungerState, nullptr);
+    EXPECT_FLOAT_EQ(hungerState->value, 90.0f);
+
+    auto view = registry.view<genesis::world::components::ResourceInventory>();
+    for (auto [spawnEntity, inventory] : view.each()) {
+        EXPECT_EQ(inventory.current, 5U);
+    }
 }

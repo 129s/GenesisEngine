@@ -38,6 +38,7 @@ std::filesystem::path findDataFile(const std::filesystem::path& relative) {
 
 Engine::Engine()
     : m_clock(SimulationClock::duration{500})
+    , m_movementSystem(m_world)
     , m_hungerPlanner(genesis::agents::NeedSatisfierConfig{
           .hungerUnitsPerRequest = 2,
           .hungerReliefPerUnit = 12.0f,
@@ -74,6 +75,7 @@ void Engine::run(std::uint64_t maxSteps) {
 void Engine::processStep(std::uint64_t stepIndex) {
     spdlog::debug("Processing simulation step {}", stepIndex);
     const float deltaSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
+    m_movementSystem.update(m_registry, deltaSeconds);
     m_resourceSystem.tick(m_registry, stepIndex);
     m_needSystem.update(m_registry, deltaSeconds);
     m_hungerDecisions.clear();
@@ -142,6 +144,9 @@ void Engine::spawnDemoAgents() {
     auto entity = m_registry.create();
     auto& needs = m_registry.emplace<genesis::agents::NeedComponent>(entity);
     m_needSystem.applyDefaults(needs);
+
+    auto& location = m_registry.emplace<genesis::agents::components::AgentLocation>(entity);
+    location.location = genesis::world::LocationId{6};
 
     needs.needs.setState(NeedType::Hunger, 10.0f);
     needs.needs.setState(NeedType::Energy, 25.0f);

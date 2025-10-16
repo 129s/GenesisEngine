@@ -8,7 +8,7 @@
 - **移动系统**：新增 MovementSystem，通过 MovementIntent/MovementState 驱动 Agent 沿图搜索路径移动，同时调整 NeedSatisfier 仅在抵达目标后执行资源消耗，并补充对应单元测试。
 - **任务执行**：落地 ActionExecutor 及 ActionQueue，将 Planner 决策映射到移动/消耗任务，联动 MovementSystem、ResourceSystem 与 Needs，补充单元测试验证任务调度与饥饿恢复。
 - **遥测与日志**：引入 TelemetryBuffer 捕获资源快照、需求状态、规划决策，并新增行动队列与代理位置快照；周期性输出资源/饥饿/平均旅行成本等核心指标，并支持导出 JSON 驱动 ASCII 播放器。
-- **测试覆盖**：补充 SimulationClock、WorldRegistry/Loader、ResourceSystem、NeedSatisfier、HungerPlanner 以及 TelemetryBuffer 的单元测试，维持自动化构建通过。
+- **测试覆盖**：补充 SimulationClock、WorldRegistry/Loader、ResourceSystem、NeedSatisfier、HungerPlanner 以及 TelemetryBuffer 的单元测试，维持自动化构建通过；提供 `scripts/run_ascii_demo.ps1` 脚本快速生成并回放 ASCII 模拟。
 - **规划路线**：整理 Utility Planner 迭代路线图，明确各阶段目标、风险与依赖。
 
 ## 未完成与待推进事项

@@ -1,4 +1,5 @@
 set(GENESIS_ENGINE_SOURCES
+    agents/NeedSystem.cpp
     core/SimulationClock.cpp
     core/Engine.cpp
     world/WorldRegistry.cpp

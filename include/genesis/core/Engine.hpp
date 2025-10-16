@@ -2,8 +2,11 @@
 
 #include <cstdint>
 
+#include <entt/entt.hpp>
+
 #include "genesis/core/SimulationClock.hpp"
 #include "genesis/messaging/EventBus.hpp"
+#include "genesis/agents/NeedSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 
 namespace genesis::core {
@@ -26,10 +29,14 @@ public:
 private:
     void processStep(std::uint64_t stepIndex);
     void loadInitialWorld();
+    void configureNeedDefaults();
+    void spawnDemoAgents();
 
     SimulationClock m_clock;
     messaging::EventBus m_eventBus;
     world::WorldRegistry m_world;
+    entt::registry m_registry;
+    agents::NeedSystem m_needSystem;
 };
 
 } // namespace genesis::core

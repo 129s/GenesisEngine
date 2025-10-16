@@ -1,6 +1,7 @@
 add_executable(genesis_engine_tests
     test_simulation_clock.cpp
     test_world_registry.cpp
+    test_needs.cpp
 )
 
 target_link_libraries(genesis_engine_tests

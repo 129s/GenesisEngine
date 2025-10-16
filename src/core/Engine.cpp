@@ -73,6 +73,17 @@ void Engine::run(std::uint64_t maxSteps) {
     }
 }
 
+void Engine::step(std::uint64_t steps) {
+    const auto delta = m_clock.stepDuration();
+    for (std::uint64_t processed = 0; processed < steps; ++processed) {
+        m_clock.advance(delta);
+        while (m_clock.stepReady()) {
+            const auto current = m_clock.consumeStep();
+            processStep(current);
+        }
+    }
+}
+
 void Engine::processStep(std::uint64_t stepIndex) {
     spdlog::debug("Processing simulation step {}", stepIndex);
     const float deltaSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
@@ -313,12 +324,13 @@ void Engine::reportTelemetry(std::uint64_t stepIndex) {
     spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}, travel avg={:.2f}, actions={} consuming={}, queue avg={:.2f}, agents={}",
         stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical, travelAvg, actionQueues, consumingCount, queueAvg, agentCount);
 }
+const genesis::telemetry::TickTelemetry* Engine::latestTelemetry() const noexcept {
+    const auto& entries = m_telemetry.entries();
+    if (entries.empty()) {
+        return nullptr;
+    }
+    return &entries.back();
+}
+
 } // namespace genesis::core
-
-
-
-
-
-
-
 

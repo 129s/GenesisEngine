@@ -19,6 +19,26 @@ target_link_libraries(genesis_engine_tests
 include(GoogleTest)
 gtest_discover_tests(genesis_engine_tests)
 
+add_executable(genesis_runtime_tests
+    test_runtime.cpp
+)
+
+target_link_libraries(genesis_runtime_tests
+    PRIVATE
+        Genesis::Runtime
+        GTest::gtest_main
+)
+
+add_custom_command(TARGET genesis_runtime_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:genesis_runtime> $<TARGET_FILE_DIR:genesis_runtime_tests>
+)
+
+add_test(
+    NAME GenesisRuntime_Smoke
+    COMMAND ${CMAKE_COMMAND} -E env "PATH=${CMAKE_BINARY_DIR}/tests;${CMAKE_BINARY_DIR}/src;$ENV{PATH}" genesis_runtime_tests
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+)
+
 set(GENESIS_ENGINE_APP_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-engine${CMAKE_EXECUTABLE_SUFFIX})
 set(GENESIS_ASCII_VIEWER_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-ascii-viewer${CMAKE_EXECUTABLE_SUFFIX})
 

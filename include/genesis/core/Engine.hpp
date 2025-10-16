@@ -29,6 +29,7 @@ public:
     Engine();
 
     void run(std::uint64_t maxSteps);
+    void step(std::uint64_t steps = 1);
 
     [[nodiscard]] SimulationClock& clock() noexcept { return m_clock; }
     [[nodiscard]] const SimulationClock& clock() const noexcept { return m_clock; }
@@ -42,6 +43,7 @@ public:
     ResourceRequestResult requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation);
 
     [[nodiscard]] const telemetry::TelemetryBuffer& telemetry() const noexcept { return m_telemetry; }
+    [[nodiscard]] const telemetry::TickTelemetry* latestTelemetry() const noexcept;
 
 private:
     void processStep(std::uint64_t stepIndex);

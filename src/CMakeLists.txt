@@ -34,6 +34,27 @@ set_target_properties(genesis_engine PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
+add_library(genesis_runtime SHARED
+    runtime/Runtime.cpp
+)
+add_library(Genesis::Runtime ALIAS genesis_runtime)
+
+target_include_directories(genesis_runtime
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_runtime
+    PUBLIC
+        Genesis::Engine
+)
+
+set_target_properties(genesis_runtime PROPERTIES
+    OUTPUT_NAME "genesis_runtime"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
 add_executable(genesis_engine_app
     main.cpp
 )

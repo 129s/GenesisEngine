@@ -1,0 +1,16 @@
+# Build artifacts
+/build/
+/out/
+/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+/logs/
+
+# Misc
+*.cache
+*.user

@@ -1,0 +1,12 @@
+add_executable(genesis_engine_tests
+    test_simulation_clock.cpp
+)
+
+target_link_libraries(genesis_engine_tests
+    PRIVATE
+        Genesis::Engine
+        GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(genesis_engine_tests)

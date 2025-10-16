@@ -35,6 +35,7 @@ std::filesystem::path findDataFile(const std::filesystem::path& relative) {
 
 Engine::Engine()
     : m_clock(SimulationClock::duration{500})
+    , m_needSatisfier({})
     , m_resourceSystem(m_world, m_eventBus) {
     spdlog::info("GenesisEngine core initialized");
     loadInitialWorld();
@@ -65,6 +66,7 @@ void Engine::processStep(std::uint64_t stepIndex) {
     const float deltaSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
     m_resourceSystem.tick(m_registry, stepIndex);
     m_needSystem.update(m_registry, deltaSeconds);
+    m_needSatisfier.update(m_registry, m_resourceSystem);
     eventBus().updateAll();
 }
 
@@ -149,5 +151,3 @@ Engine::ResourceRequestResult Engine::requestResource(world::ResourceType type, 
     return result;
 }
 } // namespace genesis::core
-
-

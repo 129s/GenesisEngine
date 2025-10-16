@@ -3,6 +3,7 @@ add_executable(genesis_engine_tests
     test_world_registry.cpp
     test_needs.cpp
     test_resource_system.cpp
+    test_need_satisfier.cpp
 )
 
 target_link_libraries(genesis_engine_tests

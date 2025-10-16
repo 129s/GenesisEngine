@@ -7,6 +7,7 @@
 #include "genesis/core/SimulationClock.hpp"
 #include "genesis/messaging/EventBus.hpp"
 #include "genesis/agents/NeedSystem.hpp"
+#include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 
@@ -45,6 +46,7 @@ private:
     world::WorldRegistry m_world;
     entt::registry m_registry;
     agents::NeedSystem m_needSystem;
+    agents::NeedSatisfier m_needSatisfier;
     world::system::ResourceSystem m_resourceSystem;
 };
 

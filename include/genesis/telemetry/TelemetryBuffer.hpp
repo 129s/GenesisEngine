@@ -24,10 +24,18 @@ struct NeedSnapshot {
     bool critical{false};
 };
 
+struct PlannerSnapshot {
+    std::uint32_t entityId{0};
+    genesis::world::LocationId target{genesis::world::InvalidLocation};
+    float travelCost{0.0f};
+    float score{0.0f};
+};
+
 struct TickTelemetry {
     std::uint64_t step{0};
     std::vector<ResourceSnapshot> resources;
     std::vector<NeedSnapshot> needs;
+    std::vector<PlannerSnapshot> plannerDecisions;
 };
 
 class TelemetryBuffer {

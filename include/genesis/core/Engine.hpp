@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include <entt/entt.hpp>
 
@@ -56,10 +57,9 @@ private:
     planner::HungerPlanner m_hungerPlanner;
     world::system::ResourceSystem m_resourceSystem;
     telemetry::TelemetryBuffer m_telemetry;
+    std::vector<planner::HungerDecision> m_hungerDecisions;
     std::uint64_t m_lastTelemetryReportStep{0};
     static constexpr std::uint64_t kTelemetryReportInterval = 120;
 };
 
 } // namespace genesis::core
-
-

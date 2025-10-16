@@ -76,7 +76,8 @@ void Engine::processStep(std::uint64_t stepIndex) {
     const float deltaSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
     m_resourceSystem.tick(m_registry, stepIndex);
     m_needSystem.update(m_registry, deltaSeconds);
-    genesis::planner::PlannerContext plannerContext{m_registry, m_world, m_resourceSystem};
+    m_hungerDecisions.clear();
+    genesis::planner::PlannerContext plannerContext{m_registry, m_world, m_resourceSystem, &m_hungerDecisions};
     m_hungerPlanner.evaluate(stepIndex, plannerContext);
     eventBus().updateAll();
 }
@@ -193,6 +194,17 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
         tick.needs.push_back(std::move(hunger));
     });
 
+    for (const auto& decision : m_hungerDecisions) {
+        telemetry::PlannerSnapshot snapshot{};
+        snapshot.entityId = static_cast<std::uint32_t>(entt::to_integral(decision.agent));
+        snapshot.target = decision.target;
+        snapshot.travelCost = decision.travelCost;
+        snapshot.score = decision.score;
+        tick.plannerDecisions.push_back(std::move(snapshot));
+    }
+
+    m_hungerDecisions.clear();
+
     m_telemetry.push(std::move(tick));
     reportTelemetry(stepIndex);
 }
@@ -234,10 +246,18 @@ void Engine::reportTelemetry(std::uint64_t stepIndex) {
 
     const float hungerAvg = latest.needs.empty() ? 0.0f : hungerSum / static_cast<float>(latest.needs.size());
 
-    spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}",
-        stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical);
+    float travelSum = 0.0f;
+    for (const auto& decision : latest.plannerDecisions) {
+        travelSum += decision.travelCost;
+    }
+    const float travelAvg = latest.plannerDecisions.empty() ? 0.0f : travelSum / static_cast<float>(latest.plannerDecisions.size());
+
+    spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}, travel avg={:.2f}",
+        stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical, travelAvg);
 }
 } // namespace genesis::core
+
+
 
 
 

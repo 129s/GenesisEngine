@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include <entt/entt.hpp>
 
@@ -9,10 +10,13 @@
 
 namespace genesis::planner {
 
+struct HungerDecision;
+
 struct PlannerContext {
     entt::registry& registry;
     world::WorldRegistry& world;
     world::system::ResourceSystem& resourceSystem;
+    std::vector<HungerDecision>* hungerDecisions{nullptr};
 };
 
 class IPlanner {

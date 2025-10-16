@@ -17,10 +17,10 @@ namespace genesis::planner {
 
 namespace {
 
-world::LocationId defaultHungerLocator(PlannerContext& context, entt::entity agent) {
+LocationChoice defaultHungerLocator(PlannerContext& context, entt::entity agent) {
     const auto* location = context.registry.try_get<genesis::agents::components::AgentLocation>(agent);
     if (!location || location->location == genesis::world::InvalidLocation) {
-        return genesis::world::InvalidLocation;
+        return {genesis::world::InvalidLocation, 0.0f, 0.0f};
     }
 
     std::unordered_map<genesis::world::LocationId, std::uint32_t, genesis::world::LocationIdHasher> available;
@@ -32,7 +32,7 @@ world::LocationId defaultHungerLocator(PlannerContext& context, entt::entity age
     }
 
     if (available.empty()) {
-        return genesis::world::InvalidLocation;
+        return {genesis::world::InvalidLocation, 0.0f, 0.0f};
     }
 
     std::unordered_map<genesis::world::LocationId, std::uint32_t, genesis::world::LocationIdHasher> occupancy;
@@ -73,6 +73,7 @@ world::LocationId defaultHungerLocator(PlannerContext& context, entt::entity age
 
     genesis::world::LocationId bestLocation = genesis::world::InvalidLocation;
     float bestScore = std::numeric_limits<float>::max();
+    float bestTravelCost = 0.0f;
 
     while (!frontier.empty()) {
         const auto [pathCost, current] = frontier.top();
@@ -86,6 +87,7 @@ world::LocationId defaultHungerLocator(PlannerContext& context, entt::entity age
             const float score = pathCost + occupancyPenalty(current) + stockPenalty(current);
             if (score < bestScore) {
                 bestScore = score;
+                bestTravelCost = pathCost;
                 bestLocation = current;
             }
         }
@@ -107,28 +109,40 @@ world::LocationId defaultHungerLocator(PlannerContext& context, entt::entity age
     if (bestLocation == genesis::world::InvalidLocation) {
         genesis::world::LocationId fallback = genesis::world::InvalidLocation;
         std::uint32_t bestStock = 0;
+        float fallbackCost = 0.0f;
         for (const auto& [loc, stock] : available) {
             if (stock > bestStock) {
                 bestStock = stock;
                 fallback = loc;
+                if (auto it = bestCost.find(loc); it != bestCost.end()) {
+                    fallbackCost = it->second;
+                }
             }
         }
-        return fallback;
+        return {fallback, fallbackCost, fallbackCost + occupancyPenalty(fallback) + stockPenalty(fallback)};
     }
 
-    return bestLocation;
+    return {bestLocation, bestTravelCost, bestScore};
 }
-
 } // namespace
 
-HungerPlanner::HungerPlanner(genesis::agents::NeedSatisfierConfig config, world::LocationId (*locator)(PlannerContext&, entt::entity))
+HungerPlanner::HungerPlanner(genesis::agents::NeedSatisfierConfig config, LocationChoice (*locator)(PlannerContext&, entt::entity))
     : m_locator(locator ? locator : defaultHungerLocator)
     , m_satisfier([&]() {
           config.hungerPreferredLocator = [this](entt::entity entity) {
               if (!m_currentContext) {
                   return genesis::world::InvalidLocation;
               }
-              return m_locator(*m_currentContext, entity);
+              const auto choice = m_locator(*m_currentContext, entity);
+              if (m_decisions) {
+                  m_decisions->push_back(HungerDecision{
+                      .agent = entity,
+                      .target = choice.target,
+                      .travelCost = choice.travelCost,
+                      .score = choice.score,
+                  });
+              }
+              return choice.target;
           };
           return genesis::agents::NeedSatisfier(config);
       }()) {
@@ -136,9 +150,15 @@ HungerPlanner::HungerPlanner(genesis::agents::NeedSatisfierConfig config, world:
 
 void HungerPlanner::evaluate(std::uint64_t /*step*/, PlannerContext& context) {
     m_currentContext = &context;
+    m_decisions = context.hungerDecisions;
     m_satisfier.update(context.registry, context.resourceSystem);
+    m_decisions = nullptr;
     m_currentContext = nullptr;
 }
 
 } // namespace genesis::planner
+
+
+
+
 

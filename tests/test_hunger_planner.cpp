@@ -78,8 +78,14 @@ TEST(HungerPlannerTest, ChoosesNearestAvailableSpawn) {
     configureAgent(registry, needSystem, agent, world::LocationId{1});
 
     planner::PlannerContext context{registry, world, resourceSystem};
+    std::vector<planner::HungerDecision> decisions;
+    context.hungerDecisions = &decisions;
     planner::HungerPlanner planner({.hungerUnitsPerRequest = 2, .hungerReliefPerUnit = 10.0f});
     planner.evaluate(0, context);
+
+    ASSERT_EQ(decisions.size(), 1U);
+    EXPECT_EQ(decisions.front().target, world::LocationId{3});
+    EXPECT_GT(decisions.front().travelCost, 0.0f);
 
     std::uint32_t bakerStock = 0;
     for (auto entity : view) {
@@ -121,8 +127,14 @@ TEST(HungerPlannerTest, PrefersLessCongestedEvenIfFarther) {
     configureAgent(registry, needSystem, agent, world::LocationId{1});
 
     planner::PlannerContext context{registry, world, resourceSystem};
+    std::vector<planner::HungerDecision> decisions;
+    context.hungerDecisions = &decisions;
     planner::HungerPlanner planner({.hungerUnitsPerRequest = 2, .hungerReliefPerUnit = 10.0f});
     planner.evaluate(0, context);
+
+    ASSERT_EQ(decisions.size(), 1U);
+    EXPECT_EQ(decisions.front().target, world::LocationId{3});
+    EXPECT_GT(decisions.front().travelCost, 0.0f);
 
     std::uint32_t tavernStock = 0;
     std::uint32_t bakeryStock = 0;
@@ -139,3 +151,4 @@ TEST(HungerPlannerTest, PrefersLessCongestedEvenIfFarther) {
     EXPECT_EQ(tavernStock, 4U);
     EXPECT_EQ(bakeryStock, 2U);
 }
+

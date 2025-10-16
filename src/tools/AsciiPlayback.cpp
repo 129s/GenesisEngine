@@ -10,6 +10,10 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#ifdef _WIN32
+#    include <windows.h>
+#endif
+
 namespace {
 
 struct LayoutNode {
@@ -29,10 +33,11 @@ struct CliOptions {
     std::string layoutFile{"data/ascii_layout.json"};
     int delayMs{150};
     int maxFrames{-1};
+    bool clearScreen{true};
 };
 
 void printUsage() {
-    std::cout << "Usage: genesis_ascii_viewer --telemetry=<file> [--layout=<file>] [--delay=<ms>] [--frames=<count>]\n"
+    std::cout << "Usage: genesis_ascii_viewer --telemetry=<file> [--layout=<file>] [--delay=<ms>] [--frames=<count>] [--no-clear]\n"
               << "Renders telemetry playback as ASCII frames.\n";
 }
 
@@ -77,6 +82,8 @@ std::optional<CliOptions> parseOptions(int argc, char** argv) {
                 return std::nullopt;
             }
             options.maxFrames = std::stoi(argv[++i]);
+        } else if (arg == "--no-clear") {
+            options.clearScreen = false;
         } else {
             spdlog::error("Unknown argument {}", arg);
             return std::nullopt;
@@ -203,7 +210,7 @@ void renderFrame(const nlohmann::json& tick, const Layout& layout, std::size_t f
         }
     }
 
-    std::cout << "\nFrame " << (frameIndex + 1) << "/" << totalFrames << " | Step " << tick.value("step", 0) << "\n";
+    std::cout << "Frame " << (frameIndex + 1) << "/" << totalFrames << " | Step " << tick.value("step", 0) << "\n";
     for (const auto& row : grid) {
         std::cout << row << "\n";
     }
@@ -252,10 +259,41 @@ void renderFrame(const nlohmann::json& tick, const Layout& layout, std::size_t f
 
 } // namespace
 
+#ifdef _WIN32
+bool enableVirtualTerminal() {
+    HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    DWORD mode = 0;
+    if (!GetConsoleMode(handle, &mode)) {
+        return false;
+    }
+
+    if (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) {
+        return true;
+    }
+
+    DWORD newMode = mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    return SetConsoleMode(handle, newMode) != 0;
+}
+#else
+bool enableVirtualTerminal() {
+    return true;
+}
+#endif
+
 int main(int argc, char** argv) {
     auto options = parseOptions(argc, argv);
     if (!options) {
         return 1;
+    }
+
+    bool vtSupported = enableVirtualTerminal();
+    if (!vtSupported && options->clearScreen) {
+        spdlog::warn("Terminal does not support ANSI escape codes, disabling screen clearing");
+        options->clearScreen = false;
     }
 
     const Layout layout = loadLayout(options->layoutFile);
@@ -271,11 +309,26 @@ int main(int argc, char** argv) {
         ? totalFrames
         : std::min<std::size_t>(static_cast<std::size_t>(options->maxFrames), totalFrames);
 
+    bool cursorHidden = false;
     for (std::size_t idx = 0; idx < framesToShow; ++idx) {
+        if (options->clearScreen) {
+            if (!cursorHidden) {
+                std::cout << "\x1b[?25l";
+                cursorHidden = true;
+            }
+            std::cout << "\x1b[H\x1b[2J";
+        } else if (idx > 0) {
+            std::cout << "\n";
+        }
         renderFrame(ticks.at(idx), layout, idx, totalFrames);
+        std::cout.flush();
         if (options->delayMs > 0 && idx + 1 < framesToShow) {
             std::this_thread::sleep_for(std::chrono::milliseconds(options->delayMs));
         }
+    }
+
+    if (cursorHidden) {
+        std::cout << "\x1b[?25h" << std::flush;
     }
 
     return 0;

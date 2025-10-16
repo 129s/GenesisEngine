@@ -1,0 +1,21 @@
+{
+  "locations": [
+    { "id": 1, "parent": 0, "name": "Town Center", "kind": "Region", "navigable": true },
+    { "id": 2, "parent": 1, "name": "The Copper Mug Tavern", "kind": "Building", "navigable": true },
+    { "id": 3, "parent": 2, "name": "Tavern Kitchen", "kind": "Room", "navigable": false },
+    { "id": 4, "parent": 2, "name": "Tavern Common Hall", "kind": "Room", "navigable": true },
+    { "id": 5, "parent": 1, "name": "Residential Block A", "kind": "Building", "navigable": true },
+    { "id": 6, "parent": 5, "name": "Shared Dormitory", "kind": "Room", "navigable": true }
+  ],
+  "edges": [
+    { "from": 1, "to": 2, "cost": 1.0, "bidirectional": true },
+    { "from": 1, "to": 5, "cost": 1.2, "bidirectional": true },
+    { "from": 2, "to": 4, "cost": 0.5, "bidirectional": true },
+    { "from": 2, "to": 3, "cost": 0.3, "bidirectional": false },
+    { "from": 5, "to": 6, "cost": 0.4, "bidirectional": true }
+  ],
+  "spawns": [
+    { "name": "Tavern Food Prep", "type": "Food", "location": 3, "capacity": 24, "rate_per_step": 3 },
+    { "name": "Tavern Hospitality", "type": "Social", "location": 4, "capacity": 12, "rate_per_step": 2 }
+  ]
+}

@@ -26,6 +26,13 @@ CPMAddPackage(
     VERSION 3.13.0
 )
 
+CPMAddPackage(
+    NAME nlohmann_json
+    GITHUB_REPOSITORY nlohmann/json
+    VERSION 3.11.3
+    OPTIONS "JSON_Install OFF"
+)
+
 if(GENESISENGINE_ENABLE_TESTS)
     CPMAddPackage(
         NAME GTest

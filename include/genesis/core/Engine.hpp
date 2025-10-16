@@ -25,6 +25,7 @@ public:
 
 private:
     void processStep(std::uint64_t stepIndex);
+    void loadInitialWorld();
 
     SimulationClock m_clock;
     messaging::EventBus m_eventBus;

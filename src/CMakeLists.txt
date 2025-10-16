@@ -3,6 +3,7 @@ set(GENESIS_ENGINE_SOURCES
     core/Engine.cpp
     world/WorldRegistry.cpp
     world/WorldBootstrap.cpp
+    world/WorldLoader.cpp
 )
 
 add_library(genesis_engine STATIC ${GENESIS_ENGINE_SOURCES})
@@ -17,6 +18,7 @@ target_link_libraries(genesis_engine
     PUBLIC
         spdlog::spdlog
         EnTT::EnTT
+        nlohmann_json::nlohmann_json
 )
 
 set_target_properties(genesis_engine PROPERTIES

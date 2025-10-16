@@ -84,6 +84,7 @@ void Engine::processStep(std::uint64_t stepIndex) {
     genesis::planner::PlannerContext plannerContext{m_registry, m_world, m_resourceSystem, &m_hungerDecisions, &m_actionExecutor};
     m_hungerPlanner.evaluate(stepIndex, plannerContext);
     eventBus().updateAll();
+    captureTelemetry(stepIndex);
 }
 
 void Engine::loadInitialWorld() {

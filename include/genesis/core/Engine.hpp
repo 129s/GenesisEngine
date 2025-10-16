@@ -4,6 +4,7 @@
 
 #include "genesis/core/SimulationClock.hpp"
 #include "genesis/messaging/EventBus.hpp"
+#include "genesis/world/WorldRegistry.hpp"
 
 namespace genesis::core {
 
@@ -19,11 +20,15 @@ public:
     [[nodiscard]] messaging::EventBus& eventBus() noexcept { return m_eventBus; }
     [[nodiscard]] const messaging::EventBus& eventBus() const noexcept { return m_eventBus; }
 
+    [[nodiscard]] world::WorldRegistry& world() noexcept { return m_world; }
+    [[nodiscard]] const world::WorldRegistry& world() const noexcept { return m_world; }
+
 private:
     void processStep(std::uint64_t stepIndex);
 
     SimulationClock m_clock;
     messaging::EventBus m_eventBus;
+    world::WorldRegistry m_world;
 };
 
 } // namespace genesis::core

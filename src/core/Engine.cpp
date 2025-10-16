@@ -2,11 +2,16 @@
 
 #include <spdlog/spdlog.h>
 
+#include "genesis/world/WorldBootstrap.hpp"
+
 namespace genesis::core {
 
 Engine::Engine()
     : m_clock(SimulationClock::duration{500}) {
     spdlog::info("GenesisEngine core initialized");
+    m_world.setGraph(genesis::world::createDemoWorldGraph());
+    spdlog::info("Demo world loaded ({} locations, {} spawns)",
+        m_world.locationCount(), m_world.resourceSpawnCount());
 }
 
 void Engine::run(std::uint64_t maxSteps) {

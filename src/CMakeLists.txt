@@ -7,6 +7,7 @@ set(GENESIS_ENGINE_SOURCES
     world/WorldBootstrap.cpp
     world/WorldLoader.cpp
     world/system/ResourceSystem.cpp
+    planner/HungerPlanner.cpp
     telemetry/TelemetryBuffer.cpp
 )
 
@@ -44,4 +45,5 @@ target_link_libraries(genesis_engine_app
 set_target_properties(genesis_engine_app PROPERTIES
     OUTPUT_NAME "genesis-engine"
 )
+
 

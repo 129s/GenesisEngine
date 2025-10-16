@@ -38,7 +38,13 @@ std::filesystem::path findDataFile(const std::filesystem::path& relative) {
 
 Engine::Engine()
     : m_clock(SimulationClock::duration{500})
-    , m_needSatisfier({})
+    , m_hungerPlanner(genesis::agents::NeedSatisfierConfig{
+          .hungerUnitsPerRequest = 2,
+          .hungerReliefPerUnit = 12.0f,
+          .hungerPreferredLocator = [](entt::entity) {
+              return genesis::world::InvalidLocation;
+          },
+      })
     , m_resourceSystem(m_world, m_eventBus)
     , m_telemetry(512) {
     spdlog::info("GenesisEngine core initialized");
@@ -70,7 +76,8 @@ void Engine::processStep(std::uint64_t stepIndex) {
     const float deltaSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
     m_resourceSystem.tick(m_registry, stepIndex);
     m_needSystem.update(m_registry, deltaSeconds);
-    m_needSatisfier.update(m_registry, m_resourceSystem);
+    genesis::planner::PlannerContext plannerContext{m_registry, m_world, m_resourceSystem};
+    m_hungerPlanner.evaluate(stepIndex, plannerContext);
     eventBus().updateAll();
 }
 
@@ -231,6 +238,7 @@ void Engine::reportTelemetry(std::uint64_t stepIndex) {
         stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical);
 }
 } // namespace genesis::core
+
 
 
 

@@ -11,6 +11,7 @@
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
+#include "genesis/planner/HungerPlanner.hpp"
 
 namespace genesis::core {
 
@@ -51,7 +52,7 @@ private:
     world::WorldRegistry m_world;
     entt::registry m_registry;
     agents::NeedSystem m_needSystem;
-    agents::NeedSatisfier m_needSatisfier;
+    planner::HungerPlanner m_hungerPlanner;
     world::system::ResourceSystem m_resourceSystem;
     telemetry::TelemetryBuffer m_telemetry;
     std::uint64_t m_lastTelemetryReportStep{0};
@@ -59,3 +60,4 @@ private:
 };
 
 } // namespace genesis::core
+

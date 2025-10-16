@@ -44,6 +44,7 @@ private:
     void configureNeedDefaults();
     void spawnDemoAgents();
     void captureTelemetry(std::uint64_t stepIndex);
+    void reportTelemetry(std::uint64_t stepIndex);
 
     SimulationClock m_clock;
     messaging::EventBus m_eventBus;
@@ -53,6 +54,8 @@ private:
     agents::NeedSatisfier m_needSatisfier;
     world::system::ResourceSystem m_resourceSystem;
     telemetry::TelemetryBuffer m_telemetry;
+    std::uint64_t m_lastTelemetryReportStep{0};
+    static constexpr std::uint64_t kTelemetryReportInterval = 120;
 };
 
 } // namespace genesis::core

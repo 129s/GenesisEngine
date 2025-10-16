@@ -27,7 +27,12 @@ NeedSample ensureSample(const NeedComponent& component, NeedType type, const Nee
 } // namespace
 
 NeedSatisfier::NeedSatisfier(NeedSatisfierConfig config)
-    : m_config(config) {
+    : m_config(std::move(config)) {
+    if (!m_config.hungerPreferredLocator) {
+        m_config.hungerPreferredLocator = [](entt::entity) {
+            return genesis::world::InvalidLocation;
+        };
+    }
 }
 
 void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSystem& resourceSystem) const {
@@ -46,7 +51,8 @@ void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSyst
             continue;
         }
 
-        const auto consumed = resourceSystem.consume(registry, world::ResourceType::Food, m_config.hungerUnitsPerRequest, world::InvalidLocation);
+        const auto preferredLocation = m_config.hungerPreferredLocator(entity);
+        const auto consumed = resourceSystem.consume(registry, world::ResourceType::Food, m_config.hungerUnitsPerRequest, preferredLocation);
         if (consumed == 0U) {
             continue;
         }

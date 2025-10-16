@@ -187,6 +187,48 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
     });
 
     m_telemetry.push(std::move(tick));
+    reportTelemetry(stepIndex);
+}
+
+void Engine::reportTelemetry(std::uint64_t stepIndex) {
+    if (stepIndex - m_lastTelemetryReportStep < kTelemetryReportInterval) {
+        return;
+    }
+
+    m_lastTelemetryReportStep = stepIndex;
+
+    const auto& entries = m_telemetry.entries();
+    if (entries.empty()) {
+        return;
+    }
+
+    const auto& latest = entries.back();
+
+    std::uint32_t resourceCount = 0;
+    std::uint32_t lowStockCount = 0;
+    for (const auto& snapshot : latest.resources) {
+        ++resourceCount;
+        const auto threshold = static_cast<std::uint32_t>(snapshot.capacity * 0.2f);
+        if (snapshot.current <= threshold) {
+            ++lowStockCount;
+        }
+    }
+
+    float hungerSum = 0.0f;
+    std::uint32_t hungerCritical = 0;
+    for (const auto& need : latest.needs) {
+        if (need.needName == "Hunger") {
+            hungerSum += need.value;
+            if (need.critical) {
+                ++hungerCritical;
+            }
+        }
+    }
+
+    const float hungerAvg = latest.needs.empty() ? 0.0f : hungerSum / static_cast<float>(latest.needs.size());
+
+    spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}",
+        stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical);
 }
 } // namespace genesis::core
 

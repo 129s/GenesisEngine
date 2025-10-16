@@ -74,7 +74,11 @@ TEST(NeedSatisfierTest, ConsumesFoodAndReducesHunger) {
     needSystem.applyDefaults(needs);
     needs.needs.setState(NeedType::Hunger, 90.0f);
 
-    NeedSatisfier satisfier{NeedSatisfierConfig{.hungerUnitsPerRequest = 2, .hungerReliefPerUnit = 10.0f}};
+    NeedSatisfierConfig config{};
+    config.hungerUnitsPerRequest = 2;
+    config.hungerReliefPerUnit = 10.0f;
+    config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
+    NeedSatisfier satisfier{config};
     satisfier.update(registry, resourceSystem);
 
     auto view = registry.view<genesis::world::components::ResourceInventory, genesis::world::components::ResourceSpawn>();
@@ -110,7 +114,11 @@ TEST(NeedSatisfierTest, HandlesPartialConsumptionWhenStockLow) {
     needSystem.applyDefaults(needs);
     needs.needs.setState(NeedType::Hunger, 90.0f);
 
-    NeedSatisfier satisfier{NeedSatisfierConfig{.hungerUnitsPerRequest = 3, .hungerReliefPerUnit = 5.0f}};
+    NeedSatisfierConfig config{};
+    config.hungerUnitsPerRequest = 3;
+    config.hungerReliefPerUnit = 5.0f;
+    config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
+    NeedSatisfier satisfier{config};
     satisfier.update(registry, resourceSystem);
 
     auto* hungerState = needs.needs.state(NeedType::Hunger);
@@ -123,3 +131,79 @@ TEST(NeedSatisfierTest, HandlesPartialConsumptionWhenStockLow) {
     }
 }
 
+
+TEST(NeedSatisfierTest, FallsBackWhenPreferredEmpty) {
+    LocationGraph graph;
+    graph.nodes.push_back(LocationNode{LocationId{1}, genesis::world::InvalidLocation, "Home", LocationKind::Building, true});
+    graph.nodes.push_back(LocationNode{LocationId{2}, genesis::world::InvalidLocation, "Bakery", LocationKind::Building, true});
+
+    ResourceSpawn emptySpawn{};
+    emptySpawn.name = "Empty Home";
+    emptySpawn.type = ResourceType::Food;
+    emptySpawn.location = LocationId{1};
+    emptySpawn.capacity = 0;
+    emptySpawn.ratePerStep = 0;
+
+    ResourceSpawn fullSpawn{};
+    fullSpawn.name = "Bakery";
+    fullSpawn.type = ResourceType::Food;
+    fullSpawn.location = LocationId{2};
+    fullSpawn.capacity = 5;
+    fullSpawn.ratePerStep = 0;
+
+    graph.spawns.push_back(emptySpawn);
+    graph.spawns.push_back(fullSpawn);
+
+    genesis::world::WorldRegistry world;
+    world.setGraph(graph);
+
+    entt::registry registry;
+    genesis::messaging::EventBus bus;
+    genesis::world::system::ResourceSystem resourceSystem(world, bus);
+    resourceSystem.initialize(registry);
+
+    // Ensure home spawn remains empty while bakery has resources.
+    auto resourceView = registry.view<genesis::world::components::ResourceInventory, genesis::world::components::ResourceSpawn>();
+    for (auto entity : resourceView) {
+        auto& inventory = resourceView.get<genesis::world::components::ResourceInventory>(entity);
+        const auto& spawn = resourceView.get<genesis::world::components::ResourceSpawn>(entity);
+        if (spawn.name == "Empty Home") {
+            inventory.current = 0;
+        }
+        if (spawn.name == "Bakery") {
+            inventory.current = 4;
+        }
+    }
+
+    NeedSystem needSystem;
+    needSystem.setDefaultDescriptor(hungerDescriptor());
+
+    auto agent = registry.create();
+    auto& needs = registry.emplace<NeedComponent>(agent);
+    needSystem.applyDefaults(needs);
+    needs.needs.setState(NeedType::Hunger, 90.0f);
+
+    NeedSatisfierConfig config{};
+    config.hungerUnitsPerRequest = 2;
+    config.hungerReliefPerUnit = 8.0f;
+    config.hungerPreferredLocator = [](entt::entity) { return LocationId{1}; };
+    NeedSatisfier satisfier{config};
+
+    satisfier.update(registry, resourceSystem);
+
+    std::uint32_t homeStock = 0;
+    std::uint32_t bakeryStock = 0;
+    for (auto entity : resourceView) {
+        const auto& inventory = resourceView.get<genesis::world::components::ResourceInventory>(entity);
+        const auto& spawn = resourceView.get<genesis::world::components::ResourceSpawn>(entity);
+        if (spawn.name == "Empty Home") {
+            homeStock = inventory.current;
+        }
+        if (spawn.name == "Bakery") {
+            bakeryStock = inventory.current;
+        }
+    }
+
+    EXPECT_EQ(homeStock, 0U);
+    EXPECT_EQ(bakeryStock, 2U);
+}

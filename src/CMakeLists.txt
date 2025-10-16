@@ -48,4 +48,18 @@ set_target_properties(genesis_engine_app PROPERTIES
     OUTPUT_NAME "genesis-engine"
 )
 
+add_executable(genesis_ascii_viewer
+    tools/AsciiPlayback.cpp
+)
+
+target_link_libraries(genesis_ascii_viewer
+    PRIVATE
+        spdlog::spdlog
+        nlohmann_json::nlohmann_json
+)
+
+set_target_properties(genesis_ascii_viewer PROPERTIES
+    OUTPUT_NAME "genesis-ascii-viewer"
+)
+
 

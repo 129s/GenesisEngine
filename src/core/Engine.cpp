@@ -239,6 +239,14 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
         tick.actions.push_back(std::move(snapshot));
     });
 
+    auto agentView = m_registry.view<genesis::agents::components::AgentLocation>();
+    agentView.each([&](auto entity, const genesis::agents::components::AgentLocation& location) {
+        telemetry::AgentSnapshot snapshot{};
+        snapshot.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        snapshot.location = location.location;
+        tick.agents.push_back(std::move(snapshot));
+    });
+
     m_hungerDecisions.clear();
 
     m_telemetry.push(std::move(tick));
@@ -299,8 +307,10 @@ void Engine::reportTelemetry(std::uint64_t stepIndex) {
     const std::uint32_t actionQueues = static_cast<std::uint32_t>(latest.actions.size());
     const float queueAvg = actionQueues == 0 ? 0.0f : queueSum / static_cast<float>(actionQueues);
 
-    spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}, travel avg={:.2f}, actions={} consuming={}, queue avg={:.2f}",
-        stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical, travelAvg, actionQueues, consumingCount, queueAvg);
+    const std::uint32_t agentCount = static_cast<std::uint32_t>(latest.agents.size());
+
+    spdlog::info("Telemetry step {}: resources={} low-stock={}, hunger avg={:.2f} critical={}, travel avg={:.2f}, actions={} consuming={}, queue avg={:.2f}, agents={}",
+        stepIndex, resourceCount, lowStockCount, hungerAvg, hungerCritical, travelAvg, actionQueues, consumingCount, queueAvg, agentCount);
 }
 } // namespace genesis::core
 

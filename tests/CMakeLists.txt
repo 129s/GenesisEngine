@@ -19,4 +19,20 @@ target_link_libraries(genesis_engine_tests
 include(GoogleTest)
 gtest_discover_tests(genesis_engine_tests)
 
+set(GENESIS_ENGINE_APP_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-engine${CMAKE_EXECUTABLE_SUFFIX})
+set(GENESIS_ASCII_VIEWER_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-ascii-viewer${CMAKE_EXECUTABLE_SUFFIX})
+
+add_test(
+    NAME GenesisEngine_E2E
+    COMMAND ${GENESIS_ENGINE_APP_EXECUTABLE} --steps=60 --telemetry-file ${CMAKE_BINARY_DIR}/telemetry_e2e.json
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+add_test(
+    NAME GenesisAsciiPlayback_Smoke
+    COMMAND ${GENESIS_ASCII_VIEWER_EXECUTABLE} --telemetry ${CMAKE_BINARY_DIR}/telemetry_e2e.json --layout ${CMAKE_SOURCE_DIR}/data/ascii_layout.json --frames=5 --delay=0
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+set_tests_properties(GenesisAsciiPlayback_Smoke PROPERTIES DEPENDS GenesisEngine_E2E)
 

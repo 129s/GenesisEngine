@@ -5,6 +5,7 @@ set(GENESIS_ENGINE_SOURCES
     world/WorldRegistry.cpp
     world/WorldBootstrap.cpp
     world/WorldLoader.cpp
+    world/system/ResourceSystem.cpp
 )
 
 add_library(genesis_engine STATIC ${GENESIS_ENGINE_SOURCES})

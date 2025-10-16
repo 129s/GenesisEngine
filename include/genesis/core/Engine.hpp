@@ -8,6 +8,7 @@
 #include "genesis/messaging/EventBus.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
+#include "genesis/world/system/ResourceSystem.hpp"
 
 namespace genesis::core {
 
@@ -37,6 +38,7 @@ private:
     world::WorldRegistry m_world;
     entt::registry m_registry;
     agents::NeedSystem m_needSystem;
+    world::system::ResourceSystem m_resourceSystem;
 };
 
 } // namespace genesis::core

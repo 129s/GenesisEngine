@@ -20,11 +20,12 @@ std::string trim(const std::string& value) {
 
 namespace sandbox::cli {
 
-CliApp::CliApp(Layout layout, FrameOptions frameOptions, genesis::runtime::RuntimeConfig config)
+CliApp::CliApp(Layout layout, FrameOptions frameOptions, bool autoRun, genesis::runtime::RuntimeConfig config)
     : m_layout(std::move(layout))
     , m_frameOptions(frameOptions)
     , m_runtime(config)
-    , m_renderer(m_layout, m_frameOptions) {
+    , m_renderer(m_layout, m_frameOptions)
+    , m_autoRun(autoRun) {
     // seed an initial snapshot for rendering
     m_runtime.step(1);
 }
@@ -45,6 +46,23 @@ int CliApp::run(const std::vector<std::string>& scriptedCommands) {
                 break;
             }
             processAndAdvance(command, true);
+        }
+        if (!m_autoRun) {
+            return 0;
+        }
+    }
+
+    if (m_autoRun && m_running) {
+        std::cout << "Sandbox CLI auto-run mode (Ctrl+C to quit, use scripted commands to pause/resume/quit).\n";
+        render();
+        while (m_running) {
+            if (!m_paused) {
+                enforceFrameRate(true);
+                m_runtime.step(1);
+                render();
+            } else {
+                std::this_thread::sleep_for(desiredFrameInterval());
+            }
         }
         return 0;
     }

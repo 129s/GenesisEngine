@@ -37,7 +37,7 @@
 - [x] 基于生成的布局 JSON 渲染 ASCII 网格，显示 `A/M/C/F` 状态。
 - [x] 补充文档与截图/录屏指引，便于快速验证渲染效果。
 
-> 结果：CLI 渲染新增 `Legend` 行及 `MoveTo/ConsumeResource` 摘要，配合 `run_sandbox_cli.ps1 -UseGeneratedWorld -NoClear` 可观测地图变化；`docs/guides/noise-world-generation.md` 更新了截屏/录屏指引。
+> 结果：CLI 渲染新增 `Legend` 行及 `MoveTo/ConsumeResource` 摘要，`genesis-sandbox-cli --generate-noise --auto-run` 支持一键生成并持续运行；文档补充了截屏/录屏指引。
 
 ### 验收回归清单
 - [ ] 相同 seed 下生成文件一致，不同 seed 产生差异。
@@ -45,3 +45,4 @@
 - [ ] `ResourceSpawn.current` 随时间趋近 `capacity`，消费时正确下降。
 - [ ] NPC 在若干步内完成一次 `MoveTo` + `ConsumeResource` 循环。
 - [ ] CLI 渲染对齐生成布局，可观察状态随时间变化。
+

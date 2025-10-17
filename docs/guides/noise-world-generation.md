@@ -35,6 +35,17 @@ build/src/genesis-noise-generator.exe --seed=1337 --width=64 --height=64 \
 - 命令行参数与脚本一致，均支持 `key=value` 形式。
 - 运行目录建议置于仓库根目录，方便直接写入 `data/`。
 
+## Sandbox CLI 快速运行
+
+```bash
+cmake --build build --target genesis_sandbox_cli
+build/src/genesis-sandbox-cli --generate-noise --auto-run --no-clear --fps 0
+```
+
+- `--generate-noise` 使用默认参数即时生成噪声世界（可通过 `--noise-*` 系列参数调整种子、尺寸与资源配置）。
+- `--auto-run` 连续推进模拟，适合观察完整 NPC 生命周期；需要停止时使用 `Ctrl+C` 或在 `--commands` 中追加 `quit`。
+- `--no-clear`/`--fps 0` 便于录像或快速回放，可按需移除以降低刷新频率。
+- CLI 会自动读取生成的布局并在 Legend 行标注 `A/M/C/F` 符号。
 ## CMake 集成目标
 
 ```bash

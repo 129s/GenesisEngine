@@ -11,7 +11,7 @@ namespace sandbox::cli {
 
 class CliApp {
 public:
-    CliApp(Layout layout, FrameOptions frameOptions, genesis::runtime::RuntimeConfig config = {});
+    CliApp(Layout layout, FrameOptions frameOptions, bool autoRun = false, genesis::runtime::RuntimeConfig config = {});
 
     int run(const std::vector<std::string>& scriptedCommands = {});
 
@@ -27,6 +27,7 @@ private:
     CliRenderer m_renderer;
     bool m_running{true};
     bool m_paused{false};
+    bool m_autoRun{false};
     std::chrono::steady_clock::time_point m_lastFrameTime{};
 };
 

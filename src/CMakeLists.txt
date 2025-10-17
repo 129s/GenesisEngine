@@ -46,7 +46,7 @@ target_include_directories(genesis_runtime
 )
 
 target_link_libraries(genesis_runtime
-    PUBLIC
+    PRIVATE
         Genesis::Engine
 )
 
@@ -95,6 +95,7 @@ set_target_properties(genesis_sandbox_cli PROPERTIES
 add_executable(genesis_sandbox_gui
     apps/sandbox_gui/Main.cpp
     sandbox/gui/AppHost.cpp
+    sandbox/gui/RuntimeBridge.cpp
 )
 
 target_include_directories(genesis_sandbox_gui
@@ -104,7 +105,8 @@ target_include_directories(genesis_sandbox_gui
 
 target_link_libraries(genesis_sandbox_gui
     PRIVATE
-        spdlog::spdlog
+        Genesis::Runtime
+        spdlog::spdlog_header_only
         imgui::imgui
         glfw
 )

@@ -61,6 +61,26 @@
 - GUI 与渲染线程同线程运行，验证窗口生命周期、SwapInterval/VSync 控制、主菜单/欢迎面板基础交互。
 - `docs/guides/sandbox_gui_smoke.md` 记录构建/运行/已知问题；下一阶段聚焦 RuntimeBridge 与世界渲染接入。
 
+### 当前阶段（里程碑 2 · RuntimeBridge + 静态世界视图）
+- [x] `RuntimeBridge`：后台线程推进 `Genesis::Runtime`，支持暂停/单步/倍率控制接口，使用线程安全快照缓冲。
+- [x] `WorldAtlas`：提取世界拓扑（Location/Edge/Spawn），生成静态 2D 布局数据供渲染使用。
+- [x] 世界视图面板：利用 ImDrawList 绘制节点/边/资源占位符；显示模拟步数、代理/资源统计。
+- [x] Telemetry 面板雏形：展示最近一帧的关键指标，验证快照读取正确性。
+- [x] 指南更新：补充运行线程模型、已知限制（单线程渲染 + 后台模拟）、调试建议。
+
+**阶段产出（RuntimeBridge）**
+- `RuntimeBridge` 后台线程 + 快照环形缓冲，提供 Pause/Resume/Step/Speed 控制接口。
+- 静态 `WorldAtlas` 布局：按层级生成节点坐标、资源标记，世界视图面板即时绘制。
+- 新增 Telemetry/状态栏面板，展示当前快照数据；Welcome 面板整合播放控制与摘要。
+- `docs/guides/sandbox_gui_smoke.md` 扩展至里程碑 1&2 的构建、运行与限制说明。
+
+### 下一阶段（里程碑 3 · 控制台板 & HUD 指标）进行中
+- [ ] 将 Playback 控件拆分为专用 Control Panel（快捷键、自动运行预设）。
+- [ ] HUD 指标：运行时帧耗、模拟耗时、快照延迟等性能可视化。
+- [ ] 快照统计：展示历史步长/代理/需求趋势的迷你图或 sparkline。
+- [ ] RuntimeBridge：暴露性能计数器（处理耗时、快照生成耗时）。
+- [ ] 文档：新增调试/性能诊断章节，说明控制面板快捷键与指标含义。
+
 ## 风险与规避
 - 渲染跨平台兼容：以 OpenGL 3.x 为基线；提供禁用 MSAA/降级路径。
 - 线程安全：仅通过命令与快照交互；避免 UI 直接操作引擎内部结构。

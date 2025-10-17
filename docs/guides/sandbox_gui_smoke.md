@@ -1,6 +1,8 @@
-# Sandbox GUI · Smoke 快速上手
+# Sandbox GUI · Smoke & RuntimeBridge 快速上手
 
-本指南涵盖里程碑 1（引导工程与空白壳）的构建与运行流程，帮助你验证 GLFW/OpenGL/ImGui 集成是否正常工作。
+本指南涵盖：
+- 里程碑 1（Smoke）：验证 GLFW/OpenGL/ImGui 基础壳体。
+- 里程碑 2（RuntimeBridge）：后台推进 Runtime、静态世界视图与首批面板。
 
 ## 环境准备
 - CMake ≥ 3.21
@@ -25,18 +27,34 @@ cmake --build build --target genesis_sandbox_gui
 
 启动后可看到：
 - Docking 主视口（可自由拆分窗口）
-- 顶部菜单（File → Exit / View → Demo）
-- Welcome 面板（帧率、背景色、VSync 切换、阶段说明）
+- 顶部菜单（File / View），View 菜单可切换 Demo、World View、Telemetry
+- Welcome 面板：帧率、背景色、VSync、播放控制（Pause/Resume/Step/倍速）、最新快照摘要
+- World View 面板：静态世界拓扑图（节点/边/资源）
+- Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要
+- 底部状态栏：快速统计（Step/Agents/Resources/Actions）
 - 可选 Dear ImGui Demo 窗口（验证 Docking 与基础组件）
 
 > ⚠️ 远程或无图形环境运行时，窗口可能无法创建；请在本地含 GPU/桌面会话的环境中执行。
 
+## Runtime 控制与快照
+- Welcome 面板提供 Pause/Resume、Step、Step x10 按钮，以及 0.25x ~ 8x 速度调节。
+- RuntimeBridge 在后台线程持续推进 `Genesis::Runtime`，复制最新 `TickTelemetry` 快照（默认保留 96 帧）。
+- GUI 线程每帧从快照缓冲读取最新数据，更新世界视图、Telemetry 与状态栏。
+
+## World View 面板
+- 依据 `WorldRegistry` 中的 Location/Edge/Spawn 构建静态 2D 布局，按层级垂直排列。
+- 节点颜色区分 Region / Building / Room / Point；资源生成点以三角标识。
+- 当前为静态画布：暂不支持平移/缩放、选中或实时布局更新。
+
 ## 已知限制
-- 仍为 Smoke 验证：未接入 `Genesis::Runtime`，没有世界渲染与数据面板。
-- 单线程渲染循环；运行时 UI 帧率与模拟等价。
-- 未封装配置/命令行选项；后续阶段将补充。
+- World View 暂无摄像机/缩放/选中交互，布局为简单层级排布。
+- Telemetry 面板仅展示当前帧摘要，尚无历史曲线、筛选或导出功能。
+- RuntimeBridge 默认节流至 ~500Hz（2ms 休眠），缺少自适应帧率/实时性能指标。
+- 未封装命令行选项；运行期间也未暴露世界重新生成/热加载入口。
+- Headless 环境仍不支持运行（依赖 OpenGL 上下文）。
 
 ## 下一步
-- 里程碑 2：引入 RuntimeBridge（后台推进 Runtime、快照缓冲）。
-- 里程碑 3：构建控制面板（播放控制、HUD 指标）。
+- 里程碑 3：完善控制台板（播放/步进/倍率 UI）、HUD 指标与性能采样。
+- 里程碑 4：Inspector & Telemetry 曲线（实体选择、指标趋势）。
+- 里程碑 5：WorldGen 参数面板与世界热加载。
 - 请跟踪 `docs/roadmap/SANDBOX_GUI.md` 获取后续任务进度与待办。

@@ -1,7 +1,11 @@
 #pragma once
 
 #include <array>
+#include <memory>
+#include <optional>
 #include <string>
+
+#include "sandbox/gui/RuntimeBridge.hpp"
 
 struct GLFWwindow;
 
@@ -42,6 +46,11 @@ private:
     void drawDockspace();
     void drawMainMenuBar();
     void drawWelcomePanel();
+    void drawWorldViewPanel();
+    void drawTelemetryPanel();
+    void drawStatusBar();
+
+    void updateRuntimeSnapshot();
 
     AppHostConfig config_;
     GLFWwindow* window_{nullptr};
@@ -50,6 +59,11 @@ private:
     std::array<float, 4> clear_color_;
     bool glfw_initialized_{false};
     bool imgui_initialized_{false};
+    std::unique_ptr<RuntimeBridge> runtime_bridge_;
+    std::optional<RuntimeBridge::Snapshot> latest_snapshot_;
+    double speed_multiplier_ui_{1.0};
+    bool show_world_view_{true};
+    bool show_telemetry_{true};
 };
 
 } // namespace Genesis::Sandbox::Gui

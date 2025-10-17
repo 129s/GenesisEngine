@@ -8,6 +8,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#include <algorithm>
+#include <unordered_map>
 #include <utility>
 
 namespace Genesis::Sandbox::Gui
@@ -23,6 +25,10 @@ void FramebufferSizeCallback(GLFWwindow* /*window*/, int width, int height)
 AppHost::AppHost(AppHostConfig config)
     : config_(std::move(config))
     , clear_color_{0.07f, 0.07f, 0.10f, 1.0f}
+    , runtime_bridge_(std::make_unique<RuntimeBridge>())
+    , speed_multiplier_ui_(1.0)
+    , show_world_view_(true)
+    , show_telemetry_(true)
 {
 }
 
@@ -48,6 +54,18 @@ bool AppHost::initialize()
     {
         shutdown();
         return false;
+    }
+
+    if (runtime_bridge_)
+    {
+        if (!runtime_bridge_->start())
+        {
+            spdlog::error("Failed to start RuntimeBridge background thread");
+        }
+        else
+        {
+            speed_multiplier_ui_ = runtime_bridge_->speedMultiplier();
+        }
     }
 
     initialized_ = true;
@@ -173,6 +191,12 @@ bool AppHost::initializeImGui()
 
 void AppHost::shutdown()
 {
+    if (runtime_bridge_)
+    {
+        runtime_bridge_->stop();
+        latest_snapshot_.reset();
+    }
+
     if (imgui_initialized_)
     {
         ImGui_ImplOpenGL3_Shutdown();
@@ -205,9 +229,13 @@ void AppHost::beginFrame()
 
 void AppHost::renderGui()
 {
+    updateRuntimeSnapshot();
     drawDockspace();
     drawMainMenuBar();
     drawWelcomePanel();
+    drawWorldViewPanel();
+    drawTelemetryPanel();
+    drawStatusBar();
 
     if (show_demo_window_)
     {
@@ -261,6 +289,8 @@ void AppHost::drawMainMenuBar()
         if (ImGui::BeginMenu("View"))
         {
             ImGui::MenuItem("Dear ImGui Demo", nullptr, &show_demo_window_);
+            ImGui::MenuItem("World View", nullptr, &show_world_view_);
+            ImGui::MenuItem("Telemetry", nullptr, &show_telemetry_);
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
@@ -271,7 +301,7 @@ void AppHost::drawWelcomePanel()
 {
     ImGui::Begin("Welcome", nullptr, ImGuiWindowFlags_NoCollapse);
 
-    ImGui::TextUnformatted("Genesis Sandbox GUI · Smoke");
+    ImGui::TextUnformatted("Genesis Sandbox GUI · RuntimeBridge");
     ImGui::Separator();
 
     ImGuiIO& io = ImGui::GetIO();
@@ -284,11 +314,286 @@ void AppHost::drawWelcomePanel()
     }
 
     ImGui::Separator();
+    if (runtime_bridge_)
+    {
+        const bool paused = runtime_bridge_->paused();
+        if (paused)
+        {
+            if (ImGui::Button("Resume"))
+            {
+                runtime_bridge_->setPaused(false);
+            }
+        }
+        else
+        {
+            if (ImGui::Button("Pause"))
+            {
+                runtime_bridge_->setPaused(true);
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Step"))
+        {
+            runtime_bridge_->requestStep(1);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Step x10"))
+        {
+            runtime_bridge_->requestStep(10);
+        }
+
+        ImGui::Separator();
+        float speed = static_cast<float>(speed_multiplier_ui_);
+        if (ImGui::SliderFloat("Speed Multiplier", &speed, 0.25f, 8.0f, "%.2fx"))
+        {
+            speed_multiplier_ui_ = speed;
+            runtime_bridge_->setSpeedMultiplier(speed_multiplier_ui_);
+        }
+
+        if (latest_snapshot_)
+        {
+            const auto& tick = latest_snapshot_->telemetry;
+            ImGui::Text("Playback: %s", paused ? "Paused" : "Running");
+            ImGui::Text("Step: %llu", static_cast<unsigned long long>(tick.step));
+            ImGui::Text("Agents: %zu", tick.agents.size());
+            ImGui::Text("Resources: %zu", tick.resources.size());
+        }
+        else
+        {
+            ImGui::Text("Playback: %s", paused ? "Paused" : "Running");
+            ImGui::TextUnformatted("Waiting for first snapshot…");
+        }
+    }
+
+    ImGui::Separator();
     ImGui::TextWrapped(
-        "当前阶段目标：验证 GLFW/OpenGL/ImGui 集成、窗口生命周期与 Docking 工作流。"
-        "接下来将接入 Runtime 快照与世界渲染。");
+        "阶段焦点：RuntimeBridge 后台推进 Runtime，提供单步/暂停控制，输出最新快照；世界视图绘制静态拓扑。"
+        "后续将接入实时指标与交互式世界参数调节。");
 
     ImGui::End();
+}
+
+void AppHost::drawWorldViewPanel()
+{
+    if (!show_world_view_)
+    {
+        return;
+    }
+
+    if (!ImGui::Begin("World View", &show_world_view_))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (!runtime_bridge_)
+    {
+        ImGui::TextUnformatted("RuntimeBridge unavailable.");
+        ImGui::End();
+        return;
+    }
+
+    const auto& atlas = runtime_bridge_->atlas();
+    const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
+    const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
+    const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
+    drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
+    drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
+
+    if (!atlas.nodes.empty())
+    {
+        const float padding = 28.0f;
+        const float width = std::max(atlas.extent.x, 1.0f);
+        const float height = std::max(atlas.extent.y, 1.0f);
+        const float scaleX = (canvasMax.x - canvasPos.x - padding * 2.0f) / width;
+        const float scaleY = (canvasMax.y - canvasPos.y - padding * 2.0f) / height;
+
+        auto toScreen = [&](const RuntimeBridge::Vector2& pos) {
+            return ImVec2(
+                canvasPos.x + padding + pos.x * scaleX,
+                canvasPos.y + padding + pos.y * scaleY);
+        };
+
+        std::unordered_map<std::uint32_t, ImVec2> nodePositions;
+        nodePositions.reserve(atlas.nodes.size());
+        for (const auto& node : atlas.nodes)
+        {
+            nodePositions.emplace(node.id.value, toScreen(node.position));
+        }
+
+        const ImU32 edgeColor = ImGui::GetColorU32(ImVec4(0.45f, 0.47f, 0.58f, 1.0f));
+        for (const auto& edge : atlas.edges)
+        {
+            auto fromIt = nodePositions.find(edge.from.value);
+            auto toIt = nodePositions.find(edge.to.value);
+            if (fromIt == nodePositions.end() || toIt == nodePositions.end())
+            {
+                continue;
+            }
+            drawList->AddLine(fromIt->second, toIt->second, edgeColor, edge.bidirectional ? 1.6f : 1.2f);
+        }
+
+        for (const auto& node : atlas.nodes)
+        {
+            auto it = nodePositions.find(node.id.value);
+            if (it == nodePositions.end())
+            {
+                continue;
+            }
+
+            const float radius = 12.0f;
+            ImU32 fillColor = ImGui::GetColorU32(ImVec4(0.56f, 0.63f, 0.87f, 0.90f));
+            switch (node.kind)
+            {
+            case genesis::world::LocationKind::Region:
+                fillColor = ImGui::GetColorU32(ImVec4(0.36f, 0.62f, 0.51f, 0.90f));
+                break;
+            case genesis::world::LocationKind::Building:
+                fillColor = ImGui::GetColorU32(ImVec4(0.70f, 0.54f, 0.34f, 0.90f));
+                break;
+            case genesis::world::LocationKind::Room:
+                fillColor = ImGui::GetColorU32(ImVec4(0.83f, 0.68f, 0.43f, 0.90f));
+                break;
+            case genesis::world::LocationKind::Point:
+                fillColor = ImGui::GetColorU32(ImVec4(0.56f, 0.63f, 0.87f, 0.90f));
+                break;
+            }
+
+            drawList->AddCircleFilled(it->second, radius, fillColor, 20);
+            drawList->AddCircle(it->second, radius, ImGui::GetColorU32(ImGuiCol_Border), 20, 1.5f);
+
+            const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - ImGui::GetTextLineHeight() * 0.5f};
+            drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
+        }
+
+        for (const auto& spawn : atlas.spawns)
+        {
+            auto nodePosIt = nodePositions.find(spawn.resource.location.value);
+            ImVec2 markerBase = nodePosIt != nodePositions.end() ? nodePosIt->second : toScreen(spawn.position);
+            markerBase.y += 22.0f;
+            const ImVec2 a{markerBase.x - 6.0f, markerBase.y};
+            const ImVec2 b{markerBase.x + 6.0f, markerBase.y};
+            const ImVec2 c{markerBase.x, markerBase.y + 10.0f};
+            const ImU32 markerColor = ImGui::GetColorU32(ImVec4(0.92f, 0.66f, 0.27f, 1.0f));
+            drawList->AddTriangleFilled(a, b, c, markerColor);
+            drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.2f);
+        }
+    }
+    else
+    {
+        ImGui::TextUnformatted("World data not available.");
+    }
+
+    ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
+    ImGui::End();
+}
+
+void AppHost::drawTelemetryPanel()
+{
+    if (!show_telemetry_)
+    {
+        return;
+    }
+
+    if (!ImGui::Begin("Telemetry", &show_telemetry_))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (!latest_snapshot_)
+    {
+        ImGui::TextUnformatted("Waiting for telemetry…");
+        ImGui::End();
+        return;
+    }
+
+    const auto& tick = latest_snapshot_->telemetry;
+    ImGui::Text("Step: %llu", static_cast<unsigned long long>(tick.step));
+    ImGui::Text("Agents: %zu", tick.agents.size());
+    ImGui::Text("Actions: %zu", tick.actions.size());
+    ImGui::Text("Needs: %zu", tick.needs.size());
+
+    if (!tick.needs.empty())
+    {
+        float hungerSum = 0.0f;
+        std::uint32_t critical = 0;
+        for (const auto& need : tick.needs)
+        {
+            hungerSum += need.value;
+            if (need.critical)
+            {
+                ++critical;
+            }
+        }
+        const float average = hungerSum / static_cast<float>(tick.needs.size());
+        ImGui::Separator();
+        ImGui::Text("Avg Need: %.2f", average);
+        ImGui::Text("Critical Needs: %u", critical);
+    }
+
+    if (!tick.resources.empty())
+    {
+        ImGui::Separator();
+        for (const auto& resource : tick.resources)
+        {
+            ImGui::Text("#%u %s (%u/%u)",
+                resource.location.value,
+                resource.name.c_str(),
+                resource.current,
+                resource.capacity);
+        }
+    }
+
+    ImGui::End();
+}
+
+void AppHost::drawStatusBar()
+{
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float height = ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.y;
+
+    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - height));
+    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, height));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs;
+    if (ImGui::Begin("Status Bar", nullptr, flags))
+    {
+        if (latest_snapshot_)
+        {
+            const auto& tick = latest_snapshot_->telemetry;
+            ImGui::Text("Step %llu | Agents %zu | Resources %zu | Actions %zu",
+                static_cast<unsigned long long>(tick.step),
+                tick.agents.size(),
+                tick.resources.size(),
+                tick.actions.size());
+        }
+        else
+        {
+            ImGui::TextUnformatted("Simulation warming up…");
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+}
+
+void AppHost::updateRuntimeSnapshot()
+{
+    if (!runtime_bridge_)
+    {
+        latest_snapshot_.reset();
+        return;
+    }
+
+    if (auto snapshot = runtime_bridge_->latestSnapshot())
+    {
+        latest_snapshot_ = std::move(snapshot);
+    }
 }
 
 } // namespace Genesis::Sandbox::Gui

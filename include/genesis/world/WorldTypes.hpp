@@ -35,6 +35,7 @@ struct LocationNode {
     std::string name;
     LocationKind kind{LocationKind::Point};
     bool navigable{true};
+    std::string terrain;
 };
 
 struct PathEdge {

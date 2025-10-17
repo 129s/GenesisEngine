@@ -56,6 +56,7 @@ WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& reg
             node.parent = LocationId{nodeJson.value("parent", 0U)};
             node.name = nodeJson.value("name", std::string{});
             node.navigable = nodeJson.value("navigable", true);
+            node.terrain = nodeJson.value("terrain", std::string{});
 
             bool kindOk = true;
             node.kind = parseLocationKind(nodeJson.value("kind", std::string{"Point"}), kindOk);

@@ -3,11 +3,13 @@
 > 与 `docs/roadmap/MVP_NOISE_MAP.md` 对应的工作拆分，按依赖顺序列出后续动作。
 
 ## Phase 1 · 生成器基础
-- [ ] 实现 `NoiseGridGenerator`：封装 `seed,width,height,threshold` → 二值网格，保留相同 seed 决定性。
-- [ ] 将网格映射为 `LocationGraph`：节点带 `terrain` 标签，相邻可通行单元生成无向边，`cost=1.0`。
-- [ ] 采样资源点：在 `Soil` 节点上生成 `ResourceSpawn{Food,capacity,ratePerStep}`，确保密度/随机性可配置。
-- [ ] 导出 JSON：写入 `data/world/generated/noise_mvp.json` 与匹配的布局 `data/ascii_layout.json`。
-- [ ] 单元测试：覆盖 seed 决定性、地形占比统计、图连通性与资源生成约束。
+- [x] 实现 `NoiseGridGenerator`：封装 `seed,width,height,threshold` → 二值网格，保留相同 seed 决定性。
+- [x] 将网格映射为 `LocationGraph`：节点带 `terrain` 标签，相邻可通行单元生成无向边，`cost=1.0`。
+- [x] 采样资源点：在 `Soil` 节点上生成 `ResourceSpawn{Food,capacity,ratePerStep}`，确保密度/随机性可配置。
+- [x] 导出 JSON：写入 `data/world/generated/noise_mvp.json` 与匹配的布局 `data/ascii_layout.json`。
+- [x] 单元测试：覆盖 seed 决定性、地形占比统计、图连通性与资源生成约束。
+
+> 结果：新增 `NoiseGridGenerator`（`include/src/world/generation`），产出带 `terrain` 标签的 `LocationGraph` 与布局数据；`tests/test_noise_grid_generator.cpp` 覆盖 Determinism/Distribution/Edges/Spawns/Layouts。
 
 ## Phase 2 · 命令与自动化
 - [ ] 在 `scripts/` 增加命令（PowerShell/Python）触发生成流程，支持参数 `--seed/--width/--height/--threshold`。

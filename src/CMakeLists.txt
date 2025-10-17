@@ -8,6 +8,7 @@ set(GENESIS_ENGINE_SOURCES
     world/WorldRegistry.cpp
     world/WorldBootstrap.cpp
     world/WorldLoader.cpp
+    world/generation/NoiseGridGenerator.cpp
     world/system/ResourceSystem.cpp
     planner/HungerPlanner.cpp
     telemetry/TelemetryBuffer.cpp

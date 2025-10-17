@@ -75,11 +75,16 @@
 - 集成 Log Console 面板捕获 `spdlog` 日志，并在 Windows 环境下隐藏控制台窗口。
 - `docs/guides/sandbox_gui_smoke.md` 扩展至里程碑 1&2 的构建、运行与限制说明。
 
-### 下一阶段（里程碑 3 · Inspector + 名称标签 + 时间语义）
-- [ ] Inspector 面板（前置）：实体列表/搜索、详情（OCEAN/Needs/ActionQueue/Location）、高亮与跟随。
-- [ ] World View：仅展示 Agent 名称标签（默认不绘制路径/轨迹，保留 Debug 开关）。
-- [ ] Step 语义化：按 `SimulationClock` 在 HUD/状态栏显示模拟时间（HH:MM:SS），提供倍率配置。
-- [ ] 文档：更新指南与调试说明，记录可视化取舍（小图 Tile View 呈现行动，大图 Node 图做最小化概览）。
+### 下一阶段（里程碑 3 · OCEAN + 名称标签 + 时间语义 + 第二食物点）
+- [ ] 人格：新增 `AgentPersonalityBig5` 组件与 3 个示例画像；在 HungerPlanner 中做通用权重映射（觅食）。
+- [ ] 命名/暴露：为 3 名 Agent 赋名，并在 Telemetry 中暴露 `name` 字段；World View 仅显示名称标签。
+- [ ] Step 语义化：按 `SimulationClock` 在 HUD/状态栏显示模拟时间（HH:MM:SS），倍率初值与参数暂用凑数值。
+- [ ] 数据：在 demo 小镇新增一个 Food 产出点（用于差异验证）。
+- [ ] 文档：更新指南与可视化取舍（小图 Tile View 呈现行动，大图 Node 图做最小化概览）。
+
+### 里程碑 4 · Inspector 面板（调试）
+- [ ] 实体列表/搜索、详情（OCEAN/Needs/ActionQueue/Location）、高亮与跟随。
+- [ ] 与 World View/Tile View 联动（选中/跳转）。
 
 ## 风险与规避
 - 渲染跨平台兼容：以 OpenGL 3.x 为基线；提供禁用 MSAA/降级路径。
@@ -90,3 +95,4 @@
 - 人格模型采用大五（OCEAN），并在 Planner 中做通用映射，适配非饥饿行为域。
 - 数据：同意在 demo 小镇新增一个 Food 产出点用于差异验证。
 - 可视化策略：Node 图仅做概览/小地图，默认仅展示名称；路径/轨迹为低优先级 Debug 功能；微观行动信息由 Tile View 呈现。
+- Inspector 不作为 MVP，推迟到后续里程碑。

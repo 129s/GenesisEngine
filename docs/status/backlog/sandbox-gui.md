@@ -15,10 +15,10 @@
 3) WorldView & Controls
 - [ ] 加载布局并渲染节点/边/资源/代理；摄像机平移缩放。
 - [ ] 控制面板（播放、暂停、步进、速度倍率、无限运行）。
-- [ ] Legend/HUD 与帧率/步进速率显示。
+- [ ] 名称标签与 Step 语义化（HUD：HH:MM:SS）。
 
-4) Inspector & Telemetry
-- [ ] 选择实体、显示详情与高亮路径。
+4) Inspector & Telemetry（后续里程碑）
+- [ ] 选择实体、显示详情与高亮（Inspector）。
 - [ ] 曲线/表格：Hunger、库存、队列长度、帧耗、步进耗时。
 
 5) WorldGen 面板
@@ -31,8 +31,6 @@
 7) 打包与文档
 - [ ] 二进制打包脚本（Win/Linux）；指南与截图、录屏建议。
 
-## 验收
-- 1h 稳定运行无泄漏；
-- 10k+ 节点视图流畅（>30FPS），Inspector/Telemetry/WorldGen 功能可用；
-- 热生成功能可用且不中断模拟（或有短暂停顿但 UI 不冻结）。
-
+## 验收（阶段性）
+- MVP：1h 稳定运行无泄漏；10k+ 节点视图流畅（>30FPS）；名称标签与时间语义化可用；三名 OCEAN 画像的 Agent 可见差异选择；新增食物点生效。
+- 后续：Inspector/Telemetry/WorldGen 可用；热生成功能不中断模拟（或短暂停顿但 UI 不冻结）。

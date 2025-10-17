@@ -23,11 +23,11 @@
 - 快照与指标：最新帧摘要（已具备），后续可扩展历史曲线（非本阶段必需）。
 - 长时间稳定：1h+ 运行稳定、UI 解耦（已契合设计，需以验证为准）。
 
-2) 多性格 Agents（核心）
-- 建模：为 Agent 增加“大五人格组件（OCEAN）”，在各类行为（觅食/社交/休息/探索/工作等）评分函数中注入通用权重与偏好。
-- 生成：Engine 启动时生成 3 个带不同 OCEAN 画像的 Agent。
+2) 多性格 Agents（核心，MVP 范围）
+- 建模：为 Agent 增加“大五人格组件（OCEAN）”，在觅食等评分函数中注入通用权重与偏好（其他行为后续扩展）。
+- 生成：Engine 启动时生成 3 个带不同 OCEAN 画像的 Agent（名称随意，后续引入名称生成器）。
 - 可视化：World View 仅展示 Agent 名称标签（不展示轨迹，默认关闭复杂叠加）。
-- 调试：提供实体 Inspector 面板作为前置，便于查看选中 Agent 的 OCEAN、Needs、当前行动与队列、所在位置等。
+- 调试：Inspector 不作为 MVP 交付，列入后续里程碑；MVP 以日志与名称标签辅助验证。
 
 ## 人格建模（大五 · OCEAN）
 - 组件：`AgentPersonalityBig5 { openness, conscientiousness, extraversion, agreeableness, neuroticism }`，取值 0.0~1.0。
@@ -53,9 +53,9 @@
 - Engine：`spawnDemoAgents()` 生成 3 个 Agent，并为其附加不同 Personality；按需设置初始 needs 状态差异以增强对比。
 
 ## Telemetry/GUI 增量
-- Inspector（前置任务）：显示并可跟随选中实体，字段含 OCEAN、Needs、ActionQueue、Location、日志片段等。
+- Telemetry：为 `AgentSnapshot` 增加 `name` 字段（暴露名称）；
 - World View：仅显示代理名称（隐藏轨迹/路径，保留 Debug 切换）。
-- Step 语义化：按 `SimulationClock` 将 step 映射到“模拟时间”（如 1 step = 0.5s），在 HUD/状态栏显示 HH:MM:SS。
+- Step 语义化：按 `SimulationClock` 将 step 映射到“模拟时间”（默认先用 0.5s/step 的凑数值），在 HUD/状态栏显示 HH:MM:SS。
 - 插值（低优先级）：保留 Telemetry 扩展接口设计，但默认不在 World View 上渲染大规模路径/轨迹；小图场景建议在 Tile View 呈现微观行动。
 
 ## 验收标准（本阶段）
@@ -68,18 +68,18 @@
 - 同意新增一个 Food 产出点：建议加于 `Town Center`（近/低容量/高拥挤）或 `Residential Block A`（远/高容量/低拥挤），用于验证 OCEAN 对距离/拥挤/存量的权衡影响。
 
 ## 里程碑计划（实现顺序）
-1) 引入 `AgentPersonalityBig5` 组件与 3 个示例画像；Engine 侧生成并命名三名 Agent。
+1) 引入 `AgentPersonalityBig5` 组件与 3 个示例画像；Engine 侧生成并命名三名 Agent（名称暴露至 Telemetry）。
 2) HungerPlanner 定制 locator：从 OCEAN 计算通用权重，评分并选址；NeedSatisfier 透传。
-3) Inspector 面板：实体列表/搜索、详情、跟随、高亮；World View 显示名称标签。
-4) Step 语义化：状态栏/HUD 显示模拟时间；配置入口。
-5) 增加第二个 Food spawn（数据文件更新），并记录 A/B 实验建议。
-6) 文档与指南更新：使用说明、验收步骤、已知限制。
+3) World View 名称标签与 Step 语义化：状态栏/HUD 显示模拟时间；提供倍率配置（初值先凑数）。
+4) 增加第二个 Food spawn（数据文件更新），并记录 A/B 实验建议。
+5) 文档与指南更新：使用说明、验收步骤、已知限制。
+6) Inspector 面板：后续里程碑实现（非 MVP）。
 
 ## 设计取舍小结
 - 人格采用大五（OCEAN），并以通用映射影响多类行为，不局限于觅食。
 - World View 作为概览/小地图：仅名称与概况，不在大图渲染大规模路径。
 - 微观行动信息通过 Tile View 呈现；路径插值为低优先级 Debug 能力。
-- Inspector 为前置调试工具，支撑参数调优与行为验证。
+- Inspector 延后至后续里程碑，MVP 使用名称标签与日志完成验证。
 
 ---
 参考文档：

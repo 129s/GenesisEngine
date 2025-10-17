@@ -22,11 +22,11 @@
 - Atlas：位置/拓扑仅通过 WorldAtlas 读取（避免跨线程访问 ECS）。
 
 ## 交互与集成
-- 与 World View 联动：
+- 与 Map View 联动：
   - 选中实体时，高亮对应节点/代理；
   - “Follow” 时相机定位到对应节点/代理（仅平移，不缩放）。
-- 与 Tile View（后续）联动：
-  - 若实体处于具备 Tilemap 的节点，Inspector 支持一键跳转到 Tile View。
+- 与 Scene View（后续）联动：
+  - 若实体处于具备 Tilemap 的节点，Inspector 支持一键跳转到 Scene View。
 
 ## 性能与并发
 - UI 线程仅消费最新快照，不跨线程访问 ECS。
@@ -35,6 +35,5 @@
 ## 验收
 - 能列出、检索并选中 3 个 Demo Agents；
 - 能显示其 OCEAN、Needs、当前行动与目标、所在 LocationId；
-- World View 可高亮并可选择跟随；
+- Map View 可高亮并可选择跟随；
 - 运行 30 分钟稳定无错误。
-

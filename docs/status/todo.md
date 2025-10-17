@@ -18,7 +18,7 @@
 ## Sandbox GUI（新）
 - [ ] GUI 框架引导（GLFW + OpenGL + ImGui），新目标 `genesis_sandbox_gui`。
 - [ ] RuntimeBridge：后台线程推进 + 快照环缓冲；基础控制面板。
-- [ ] WorldView：布局渲染/摄像机/Legend；Inspector/Telemetry。
+- [ ] MapView：布局渲染/摄像机/Legend；Inspector/Telemetry。
 - [ ] WorldGen 面板与热生成；大图性能优化。
 
 ## Tooling & Docs

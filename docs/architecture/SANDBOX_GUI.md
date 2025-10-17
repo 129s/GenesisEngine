@@ -7,7 +7,8 @@
   - 责任：在后台线程推进 `Genesis::Runtime`；提供线程安全的 `TickTelemetry` 读取接口（双缓冲/固定大小环形缓冲）。
   - 命令通道：UI 调用 `play/pause/step(n)/setSpeed(x)/regenWorld(params)` 等指令，桥接到 Runtime 线程执行。
 - Panels（ImGui）
-  - WorldView：渲染世界图（节点/边/资源/代理），摄像机控制（平移、缩放、重置），显示 Legend/HUD；仅渲染视野内对象。
+  - MapView（原 WorldView）：渲染世界图（节点/边/资源/代理），摄像机控制（平移、缩放、重置），显示 Legend/HUD；仅渲染视野内对象。
+  - SceneView（原 TileView，主观察）：基于 Tilemap 的场景渲染与交互（平移/缩放/图层/网格），与 MapView 节点联动。
   - Inspector：显示选中实体（Agent/Location/Spawn）的详情，支持高亮与跟随。
   - Telemetry：曲线/表格（Hunger/库存/队列长度/帧耗）。
   - Controls：播放控制与速度倍率；步数无限运行切换；截图/导出。
@@ -32,7 +33,6 @@
 - CMake：`add_executable(genesis_sandbox_gui ...)`；使用 CPM/FetchContent 获取第三方依赖；分平台编译选项与拷贝资源。
 
 ## 路线图映射
-- MVP：WorldView + Controls + RuntimeBridge（Play/Pause/Step/Speed）
+- MVP：MapView + Controls + RuntimeBridge（Play/Pause/Step/Speed）
 - P1：Inspector + Telemetry；WorldGen 面板热生成
 - P2：大图优化与绘制性能；录屏/截图优化；多窗口布局保存
-

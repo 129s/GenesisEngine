@@ -5,7 +5,7 @@
 ## 当前实现摘要
 - 线程/数据流
   - RuntimeBridge：后台线程推进 `genesis::runtime::Runtime`，支持 Pause/Step/Speed，多帧快照环形缓冲（默认 96）。
-  - GUI 线程：消费最新 `TickTelemetry` 快照，渲染 World View / Telemetry / Log / Status Bar。
+  - GUI 线程：消费最新 `TickTelemetry` 快照，渲染 Map View / Telemetry / Log / Status Bar。
 - 世界/可视化
   - WorldAtlas：基于 `WorldRegistry` 的分层节点布局（Region/Building/Room/Point），渲染节点/边/资源生成点。
   - Agent Overlay：按快照绘制 Agent 标记与（可选）轨迹，Action 状态着色（Move/Consume/Idle/Other）。
@@ -26,7 +26,7 @@
 2) 多性格 Agents（核心，MVP 范围）
 - 建模：为 Agent 增加“大五人格组件（OCEAN）”，在觅食等评分函数中注入通用权重与偏好（其他行为后续扩展）。
 - 生成：Engine 启动时生成 3 个带不同 OCEAN 画像的 Agent（名称随意，后续引入名称生成器）。
-- 可视化：World View 仅展示 Agent 名称标签（不展示轨迹，默认关闭复杂叠加）。
+- 可视化：Map View 仅展示 Agent 名称标签（不展示轨迹，默认关闭复杂叠加）。
 - 调试：Inspector 不作为 MVP 交付，列入后续里程碑；MVP 以日志与名称标签辅助验证。
 
 ## 人格建模（大五 · OCEAN）
@@ -54,9 +54,9 @@
 
 ## Telemetry/GUI 增量
 - Telemetry：为 `AgentSnapshot` 增加 `name` 字段（暴露名称）；
-- World View：仅显示代理名称（隐藏轨迹/路径，保留 Debug 切换）。
+- Map View：仅显示代理名称（隐藏轨迹/路径，保留 Debug 切换）。
 - Step 语义化：按 `SimulationClock` 将 step 映射到“模拟时间”（默认先用 0.5s/step 的凑数值），在 HUD/状态栏显示 HH:MM:SS。
-- 插值（低优先级）：保留 Telemetry 扩展接口设计，但默认不在 World View 上渲染大规模路径/轨迹；小图场景建议在 Tile View 呈现微观行动。
+- 插值（低优先级）：保留 Telemetry 扩展接口设计，但默认不在 Map View 上渲染大规模路径/轨迹；小图场景建议在 Scene View 呈现微观行动。
 
 ## 验收标准（本阶段）
 - 启动 Sandbox GUI 后：
@@ -70,15 +70,15 @@
 ## 里程碑计划（实现顺序）
 1) 引入 `AgentPersonalityBig5` 组件与 3 个示例画像；Engine 侧生成并命名三名 Agent（名称暴露至 Telemetry）。
 2) HungerPlanner 定制 locator：从 OCEAN 计算通用权重，评分并选址；NeedSatisfier 透传。
-3) World View 名称标签与 Step 语义化：状态栏/HUD 显示模拟时间；提供倍率配置（初值先凑数）。
+3) Map View 名称标签与 Step 语义化：状态栏/HUD 显示模拟时间；提供倍率配置（初值先凑数）。
 4) 增加第二个 Food spawn（数据文件更新），并记录 A/B 实验建议。
 5) 文档与指南更新：使用说明、验收步骤、已知限制。
 6) Inspector 面板：后续里程碑实现（非 MVP）。
 
 ## 设计取舍小结
 - 人格采用大五（OCEAN），并以通用映射影响多类行为，不局限于觅食。
-- World View 作为概览/小地图：仅名称与概况，不在大图渲染大规模路径。
-- 微观行动信息通过 Tile View 呈现；路径插值为低优先级 Debug 能力。
+- Map View 作为概览/小地图：仅名称与概况，不在大图渲染大规模路径。
+- 微观行动信息通过 Scene View 呈现；路径插值为低优先级 Debug 能力。
 - Inspector 延后至后续里程碑，MVP 使用名称标签与日志完成验证。
 
 ---
@@ -86,3 +86,18 @@
 - `docs/architecture/SANDBOX_GUI.md`
 - `docs/roadmap/SANDBOX_GUI.md`
 - `docs/guides/sandbox_gui_smoke.md`
+
+## 位置与时间语义（设计建议）
+- 单位规范：
+  - `edge.cost` 表示基础路段代价（推荐作为“时间秒数”或“标准距离”）；
+  - `speed` 为倍率（路段时间 = cost / speed），或映射到“距离/秒”的速度标量（需统一度量）。
+- 进度编码：
+  - Runtime 已有 `MovementState { segmentLength, traveledAlongEdge }` 内部态；建议在 Telemetry 暴露 `movement_progress { entityId, from, to, t01 }`，其中 `t01 = traveledAlongEdge / segmentLength`。
+  - 如此即可在 Map View 做边上插值位置，在 Scene View 做入场/离场插值（无须跨线程读 ECS）。
+- 节点→场景入口（Portal/Anchor）：
+  - 为具备 Tilemap 的节点定义入口/出口锚点（局部坐标），与图上的边对齐；
+  - `WorldAtlas::tilemaps` 增补 `portals[{ edgeId|toId, anchor(x,y) }]` 元数据，Scene View 能据此将图边行进投影到局部坐标。
+- 纯节点仿真的可行退路：
+  - 若无进度与锚点，Map View 以节点中心渲染（当前做法）；
+  - Scene View 仅在选中节点时显示静态场景，Agent 统一落在节点中心/默认锚点；
+  - 等到需要更高可视化精度时，再增量引入 `movement_progress` 与 `portals`。

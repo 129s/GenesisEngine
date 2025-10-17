@@ -1,11 +1,11 @@
-# Sandbox GUI · Tilemap 渲染计划（原型参考实现）
+# Sandbox GUI · Scene View（原 Tile View）渲染计划（原型参考实现）
 
-目标：在 sandbox_gui 内新增 Tilemap 渲染与交互，作为后续游戏场景的原型与参考实现；坚持“前端只读 Telemetry/Atlas，不跨线程访问 ECS”的并发边界。
+目标：在 sandbox_gui 内新增 Scene View（基于 Tilemap 的主观察视图）与交互，作为后续游戏场景的原型与参考实现；坚持“前端只读 Telemetry/Atlas，不跨线程访问 ECS”的并发边界。
 
 ## 1) 范围与目标
 - 展示与调试：在 GUI 中可视化与某些 Room/Point 绑定的局部 Tilemap（瓦片布局、阻挡与门洞）。
-- 交互与导航：提供平移/缩放/网格开关、图层可见性切换；支持从 World View 点击节点跳转到对应 Tilemap 视图。
-- Agents 覆盖：在具备本地坐标的前提下绘制 Agents 的局部位置；无本地坐标时回退到节点中心。
+- 交互与导航：提供平移/缩放/网格开关、图层可见性切换；支持从 Map View 点击节点跳转到对应 Scene View。
+- Agents 覆盖：在具备本地坐标的前提下绘制 Agents 的局部位置；无本地坐标时回退到节点中心。（可选扩展：使用 movement_progress 做边上插值）
 - 性能与工程：视口裁剪、纹理缓存、简洁接口；不引入 ECS 跨线程读。
 
 非目标（后续扩展）：
@@ -25,9 +25,10 @@
 ## 3) Runtime API 合同（增量）
 - Atlas 扩展：
   - `WorldAtlas::tilemaps: [{ nodeId, width, height, tileSize, layersMeta, tilesetMeta }]`
-  - GUI 可据此决定是否能渲染某节点的 tile 视图（无需 ECS）。
+  - GUI 可据此决定是否能渲染某节点的场景视图（无需 ECS）。
 - Telemetry 扩展（可选，供插值/覆盖）：
   - `movement_local: [{ entityId, nodeId, x, y }]`（局部坐标，像素或格）
+  - `movement_progress: [{ entityId, from, to, t01 }]`（图边行进进度 0..1，用于从 Map→Scene 的插值桥接）
   - 若无该字段，GUI 仅按节点中心绘制代理。
 
 并发与一致性：
@@ -50,12 +51,12 @@
   - 可选网格与坐标显示；
   - Agents 覆盖：将 Telemetry 中 `movement_local` 转为屏幕坐标绘制标记。
 - 面板集成：
-  - 新增 “Tile View” 面板：下拉选择节点或跟随 World View 选中；
+  - 新增 “Scene View” 面板：下拉选择节点或跟随 Map View 选中；
   - 图层列表（多选显示）、网格开关、缩放滑条、重置视图按钮。
 
-## 6) 与现有 World View 的联动
-- 选中 Graph 中的 Room/Point 节点时，Tile View 自动切换到对应 tilemap；
-- Portal 可视化：在 Tile View 中高亮出入锚点（并显示连接的目标节点名）。
+## 6) 与 Map View 的联动
+- 选中 Graph 中的 Room/Point 节点时，Scene View 自动切换到对应 tilemap；
+- Portal 可视化：在 Scene View 中高亮出入锚点（并显示连接的目标节点名）。
 
 ## 7) 性能与内存
 - MVP：每帧快速裁剪 + 批量提交（每 tile 一次 AddImage 调用足够小图）。
@@ -72,7 +73,7 @@
 - M3 Agents 覆盖（1 天）
   - Telemetry 增加 `movement_local`（或先由 Runtime 在进入 tilemap 时投影节点中心）；按 zoom 自适应标记大小与标签。
 - M4 联动与 Portal（1-2 天）
-  - World View 选中节点 → Tile View 跟随；Portal 可视化与跳转。
+  - Map View 选中节点 → Scene View 跟随；Portal 可视化与跳转。
 - M5 性能与打磨（1-2 天）
   - 视口裁剪优化、纹理缓存、烘焙静态层；交互与 UX 细节。
 
@@ -86,7 +87,7 @@
 ## 10) 验收标准
 - 在 demo 场景中可加载 64×64、32px 瓦片地图，60 FPS 以上；
 - 图层可见性/网格开关/缩放平滑；
-- World View 与 Tile View 联动可靠；
+- Map View 与 Scene View 联动可靠；
 - 不跨线程访问 ECS，Atlas/Telemetry 版本一致，UI 线程仅读。
 
 ## 11) 后续可选项
@@ -94,4 +95,3 @@
 - 贴图九宫格/自动连接；
 - 复杂碰撞与 A* 局部寻路展示；
 - 编辑器或外部工具链（Tiled）的一键导入脚本。
-

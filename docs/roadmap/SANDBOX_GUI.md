@@ -15,7 +15,7 @@
 - AppHost：窗口/渲染循环/输入分发，ImGui 框架初始化（含 Docking）。
 - RuntimeBridge：在后台线程运行 `Genesis::Runtime`；产出双缓冲/环形缓冲的 `TickTelemetry` 快照，供 UI 线程无锁读取。
 - Panels：
-  - WorldView：世界/布局渲染（节点/边/资源/代理、摄像机平移缩放、可见性裁剪）。
+  - MapView（原 WorldView）：世界/布局渲染（节点/边/资源/代理、摄像机平移缩放、可见性裁剪）。
   - Inspector：选中代理/地点/资源，展示属性与关联信息。
   - Telemetry：折线/柱状图观察 Hunger/库存/队列长度等指标。
   - Controls：播放/暂停/步进/速度倍率、Step 限制（支持“无限”持续运行）。
@@ -43,7 +43,7 @@
 
 ## 里程碑
 1) 引导工程与空白壳：GLFW+OpenGL+ImGui，渲染帧/输入回调/Docking（Smoke）。
-2) RuntimeBridge：后台线程推进 Runtime，快照环形缓冲；WorldView 渲染节点/边（静态图）。
+2) RuntimeBridge：后台线程推进 Runtime，快照环形缓冲；MapView 渲染节点/边（静态图）。
 3) 控制台板：Play/Pause/Step/Speed；`--auto-run` 与 CLI 等价；HUD 显示基本指标。
 4) Inspector & Telemetry：选择实体、绘制指标曲线；性能采样（帧耗、步进耗时）。
 5) WorldGen 面板：噪声参数 UI、生成与热加载布局，保存/导入世界。

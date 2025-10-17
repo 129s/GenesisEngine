@@ -1,54 +1,56 @@
 param(
-    [string] = "build",
-    [int] = 120,
-    [switch],
-    [switch],
-    [switch],
-    [switch]
+    [string]$BuildDir = "build",
+    [int]$Steps = 120,
+    [switch]$Reconfigure,
+    [switch]$Rebuild,
+    [switch]$NoClear,
+    [switch]$Interactive
 )
 
 Set-StrictMode -Version Latest
-Continue = "Stop"
+$ErrorActionPreference = "Stop"
 
- = Resolve-Path -LiteralPath (Join-Path  "..")
- = Join-Path  
+$repoRoot = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")
+$buildPath = Join-Path $repoRoot $BuildDir
 
-if (-not (Test-Path )) {
-    New-Item -ItemType Directory -Path  | Out-Null
+if (-not (Test-Path $buildPath)) {
+    New-Item -ItemType Directory -Path $buildPath | Out-Null
 }
 
-if ( -or -not (Test-Path (Join-Path  "CMakeCache.txt"))) {
-    Write-Host "Configuring CMake project in ..." -ForegroundColor Cyan
-    & cmake -S  -B 
+if ($Reconfigure -or -not (Test-Path (Join-Path $buildPath "CMakeCache.txt"))) {
+    Write-Host "Configuring CMake project in $BuildDir..." -ForegroundColor Cyan
+    & cmake -S $repoRoot -B $buildPath
 }
 
-if ( -or ) {
-    Write-Host "Building project..." -ForegroundColor Cyan
-    & cmake --build  --target genesis_sandbox_cli
+Write-Host "Building sandbox CLI..." -ForegroundColor Cyan
+$buildArgs = @('--target','genesis_sandbox_cli')
+if ($Reconfigure -or $Rebuild) {
+    & cmake --build $buildPath @buildArgs
 } else {
-    & cmake --build  --target genesis_sandbox_cli | Out-Null
+    & cmake --build $buildPath @buildArgs | Out-Null
 }
 
- = Join-Path  "src/genesis-sandbox-cli.exe"
-if (-not (Test-Path )) {
-    throw "Failed to locate genesis-sandbox-cli.exe in /src"
+$cliExe = Join-Path $buildPath "src/genesis-sandbox-cli.exe"
+if (-not (Test-Path $cliExe)) {
+    throw "Failed to locate genesis-sandbox-cli.exe in $buildPath/src"
 }
 
- = Join-Path  "data/ascii_layout.json"
+$layoutPath = Join-Path $repoRoot "data/ascii_layout.json"
 
 Write-Host "Launching sandbox CLI..." -ForegroundColor Green
 
- = @()
-if (Test-Path ) {
-     += "--layout"
-     += 
+$cliArgs = @()
+if (Test-Path $layoutPath) {
+    $cliArgs += "--layout"
+    $cliArgs += $layoutPath
 }
-if () {
-     += "--no-clear"
+if ($NoClear) {
+    $cliArgs += "--no-clear"
 }
-if (-not ) {
-     += "--commands"
-     += "step ;quit"
+if (-not $Interactive) {
+    $cliArgs += "--commands"
+    $cliArgs += "step $Steps;quit"
 }
 
-&  @cliArgs
+$env:PATH = "{0};{1};{2}" -f (Join-Path $buildPath "src"), (Join-Path $buildPath "tests"), $env:PATH
+& $cliExe @cliArgs

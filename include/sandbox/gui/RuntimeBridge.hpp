@@ -33,6 +33,7 @@ public:
     {
         genesis::telemetry::TickTelemetry telemetry;
         std::chrono::steady_clock::time_point capturedAt{};
+        std::vector<RuntimeBridge::Vector2> agentPositions;
     };
 
     struct WorldAtlas
@@ -102,6 +103,7 @@ public:
 private:
     void runLoop();
     void captureSnapshot();
+    RuntimeBridge::Vector2 resolveAgentPosition(const genesis::telemetry::AgentSnapshot& agent) const;
     static WorldAtlas buildWorldAtlas(const genesis::core::Engine& engine);
 
     genesis::runtime::Runtime runtime_;

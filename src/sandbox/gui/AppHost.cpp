@@ -461,6 +461,7 @@ void AppHost::drawWorldViewPanel()
     }
 
     const auto& atlas = runtime_bridge_->atlas();
+    const auto* agentPositionsPtr = latest_snapshot_ ? &latest_snapshot_->agentPositions : nullptr;
 
     ImGui::Checkbox("Agents", &show_agent_overlay_);
     ImGui::SameLine();
@@ -714,15 +715,19 @@ void AppHost::drawWorldViewPanel()
                 }
             };
 
-            for (const auto& agent : latest_snapshot_->telemetry.agents)
+            for (std::size_t i = 0; i < latest_snapshot_->telemetry.agents.size(); ++i)
             {
-                auto posIt = nodePositions.find(agent.location.value);
-                if (posIt == nodePositions.end())
+                const auto& agent = latest_snapshot_->telemetry.agents[i];
+                RuntimeBridge::Vector2 agentPos = atlas.nodePosition(agent.location).value_or(RuntimeBridge::Vector2{});
+                if (agentPositionsPtr && i < agentPositionsPtr->size())
                 {
-                    continue;
+                    agentPos = (*agentPositionsPtr)[i];
                 }
 
-                const ImVec2 screenPos = posIt->second;
+                ImVec2 screenPos = toScreen(agentPos);
+                screenPos = ImVec2(std::floor(screenPos.x) + 0.5f, std::floor(screenPos.y) + 0.5f);
+
+                auto posIt = nodePositions.find(agent.location.value);
                 const auto state = agentStates.contains(agent.entityId) ? agentStates[agent.entityId] : AgentState::Idle;
                 const ImU32 fillColor = colorForState(state);
                 drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
@@ -735,9 +740,11 @@ void AppHost::drawWorldViewPanel()
                     {
                         const auto& trail = trailIt->second;
                         ImVec2 previous = toScreen(trail.front());
+                        previous = ImVec2(std::floor(previous.x) + 0.5f, std::floor(previous.y) + 0.5f);
                         for (std::size_t i = 1; i < trail.size(); ++i)
                         {
                             ImVec2 current = toScreen(trail[i]);
+                            current = ImVec2(std::floor(current.x) + 0.5f, std::floor(current.y) + 0.5f);
                             drawList->AddLine(previous, current, fillColor, 2.0f);
                             previous = current;
                         }
@@ -922,23 +929,28 @@ void AppHost::updateAgentTrails(const RuntimeBridge::Snapshot& snapshot)
     }
 
     const auto& atlas = runtime_bridge_->atlas();
+    const auto* agentPositionsPtr = &snapshot.agentPositions;
     std::unordered_set<std::uint32_t> observed;
     observed.reserve(snapshot.telemetry.agents.size());
 
-    for (const auto& agent : snapshot.telemetry.agents)
+    for (std::size_t i = 0; i < snapshot.telemetry.agents.size(); ++i)
     {
+        const auto& agent = snapshot.telemetry.agents[i];
         observed.insert(agent.entityId);
-        if (auto nodePos = atlas.nodePosition(agent.location))
+        RuntimeBridge::Vector2 position = atlas.nodePosition(agent.location).value_or(RuntimeBridge::Vector2{});
+        if (agentPositionsPtr && i < agentPositionsPtr->size())
         {
-            auto& trail = agent_trails_[agent.entityId];
-            if (trail.empty() || std::fabs(trail.back().x - nodePos->x) > std::numeric_limits<float>::epsilon() ||
-                std::fabs(trail.back().y - nodePos->y) > std::numeric_limits<float>::epsilon())
+            position = (*agentPositionsPtr)[i];
+        }
+
+        auto& trail = agent_trails_[agent.entityId];
+        if (trail.empty() || std::fabs(trail.back().x - position.x) > std::numeric_limits<float>::epsilon() ||
+            std::fabs(trail.back().y - position.y) > std::numeric_limits<float>::epsilon())
+        {
+            trail.push_back(position);
+            while (trail.size() > agent_trail_samples_)
             {
-                trail.push_back(*nodePos);
-                while (trail.size() > agent_trail_samples_)
-                {
-                    trail.pop_front();
-                }
+                trail.pop_front();
             }
         }
     }

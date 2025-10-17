@@ -20,6 +20,8 @@ struct MovementState {
     std::vector<genesis::world::LocationId> path;
     std::size_t currentIndex{0};
     float distanceRemaining{0.0f};
+    std::vector<float> accumulatedDistances;
+    float traveledAlongEdge{0.0f};
     bool blocked{false};
 };
 

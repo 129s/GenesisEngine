@@ -1,6 +1,7 @@
 param(
     [string]$BuildDir = "build",
     [int]$Steps = 120,
+    [int]$Fps = 60,
     [switch]$Reconfigure,
     [switch]$Rebuild,
     [switch]$NoClear,
@@ -15,6 +16,10 @@ $buildPath = Join-Path $repoRoot $BuildDir
 
 if (-not (Test-Path $buildPath)) {
     New-Item -ItemType Directory -Path $buildPath | Out-Null
+}
+
+if ($Fps -lt 0) {
+    throw "Fps must be greater than or equal to zero."
 }
 
 if ($Reconfigure -or -not (Test-Path (Join-Path $buildPath "CMakeCache.txt"))) {
@@ -46,6 +51,13 @@ if (Test-Path $layoutPath) {
 }
 if ($NoClear) {
     $cliArgs += "--no-clear"
+}
+if ($Fps -gt 0) {
+    $cliArgs += "--fps"
+    $cliArgs += $Fps
+} elseif ($Fps -eq 0) {
+    $cliArgs += "--fps"
+    $cliArgs += "0"
 }
 if (-not $Interactive) {
     $cliArgs += "--commands"

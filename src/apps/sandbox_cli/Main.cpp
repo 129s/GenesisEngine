@@ -1,7 +1,9 @@
 #include "sandbox/CliApp.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -23,6 +25,8 @@ struct Options {
     bool noClear{false};
     std::vector<std::string> commands;
     bool showHelp{false};
+    std::optional<int> fps;
+    std::optional<int> frameTimeMs;
 };
 
 std::string trim(const std::string& value) {
@@ -66,6 +70,34 @@ Options parseArgs(int argc, char** argv) {
         } else if (arg == "--commands" && i + 1 < argc) {
             auto more = splitCommands(argv[++i]);
             options.commands.insert(options.commands.end(), more.begin(), more.end());
+        } else if (arg.rfind("--fps=", 0) == 0) {
+            try {
+                options.fps = std::stoi(arg.substr(6));
+            } catch (const std::exception&) {
+                std::cerr << "Invalid fps value: " << arg.substr(6) << "\n";
+                options.showHelp = true;
+            }
+        } else if (arg == "--fps" && i + 1 < argc) {
+            try {
+                options.fps = std::stoi(argv[++i]);
+            } catch (const std::exception&) {
+                std::cerr << "Invalid fps value: " << argv[i] << "\n";
+                options.showHelp = true;
+            }
+        } else if (arg.rfind("--frame-time-ms=", 0) == 0) {
+            try {
+                options.frameTimeMs = std::stoi(arg.substr(15));
+            } catch (const std::exception&) {
+                std::cerr << "Invalid frame time value: " << arg.substr(15) << "\n";
+                options.showHelp = true;
+            }
+        } else if (arg == "--frame-time-ms" && i + 1 < argc) {
+            try {
+                options.frameTimeMs = std::stoi(argv[++i]);
+            } catch (const std::exception&) {
+                std::cerr << "Invalid frame time value: " << argv[i] << "\n";
+                options.showHelp = true;
+            }
         } else {
             std::cerr << "Unknown argument: " << arg << "\n";
             options.showHelp = true;
@@ -165,6 +197,8 @@ void printUsage() {
     std::cout << "sandbox-cli usage:\n"
               << "  --layout <path>     layout JSON (defaults to data/ascii_layout.json)\n"
               << "  --commands <list>   semicolon-separated command script (non-interactive)\n"
+              << "  --fps <value>       target render frame rate (0 disables limit, default 60)\n"
+              << "  --frame-time-ms <n> override minimum frame time in milliseconds\n"
               << "  --no-clear          disable ANSI screen clearing\n"
               << "  --help              show this message\n";
 }
@@ -180,6 +214,22 @@ int main(int argc, char** argv) {
 
     sandbox::cli::FrameOptions frameOptions{};
     frameOptions.clearScreen = !options.noClear;
+    if (options.frameTimeMs) {
+        if (*options.frameTimeMs <= 0) {
+            frameOptions.limitFrameRate = false;
+        } else {
+            frameOptions.limitFrameRate = true;
+            frameOptions.minFrameTime = std::chrono::milliseconds(*options.frameTimeMs);
+        }
+    } else if (options.fps) {
+        if (*options.fps <= 0) {
+            frameOptions.limitFrameRate = false;
+        } else {
+            const auto frameMs = std::max(1, static_cast<int>(std::lround(1000.0 / static_cast<double>(*options.fps))));
+            frameOptions.limitFrameRate = true;
+            frameOptions.minFrameTime = std::chrono::milliseconds(frameMs);
+        }
+    }
 
     std::string layoutPath = options.layoutPath;
     if (layoutPath.empty()) {

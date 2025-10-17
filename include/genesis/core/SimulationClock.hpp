@@ -10,7 +10,7 @@ public:
     using clock = std::chrono::steady_clock;
     using duration = std::chrono::milliseconds;
 
-    explicit SimulationClock(duration step = duration{500}, duration maxCatchUp = duration{5000});
+    explicit SimulationClock(duration step = duration{16}, duration maxCatchUp = duration{160});
 
     void advance(duration delta);
 

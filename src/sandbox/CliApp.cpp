@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <iostream>
 #include <sstream>
+#include <thread>
 
 namespace {
 std::string trim(const std::string& value) {
@@ -28,9 +30,10 @@ CliApp::CliApp(Layout layout, FrameOptions frameOptions, genesis::runtime::Runti
 }
 
 int CliApp::run(const std::vector<std::string>& scriptedCommands) {
-    auto processAndAdvance = [&](const std::string& command) {
-        const bool handled = processInput(command);
+    auto processAndAdvance = [&](const std::string& command, bool allowSleep) {
+        const bool handled = processInput(command, allowSleep);
         if (!handled && m_running && !m_paused) {
+            enforceFrameRate(allowSleep);
             m_runtime.step(1);
             render();
         }
@@ -41,7 +44,7 @@ int CliApp::run(const std::vector<std::string>& scriptedCommands) {
             if (!m_running) {
                 break;
             }
-            processAndAdvance(command);
+            processAndAdvance(command, true);
         }
         return 0;
     }
@@ -51,13 +54,45 @@ int CliApp::run(const std::vector<std::string>& scriptedCommands) {
 
     std::string line;
     while (m_running && std::getline(std::cin, line)) {
-        processAndAdvance(line);
+        processAndAdvance(line, false);
     }
 
     return 0;
 }
 
-bool CliApp::processInput(const std::string& line) {
+std::chrono::steady_clock::duration CliApp::desiredFrameInterval() const {
+    auto interval = m_frameOptions.minFrameTime;
+    if (interval <= std::chrono::milliseconds::zero()) {
+        interval = m_runtime.engine().clock().stepDuration();
+    }
+    return std::chrono::duration_cast<std::chrono::steady_clock::duration>(interval);
+}
+
+void CliApp::enforceFrameRate(bool allowSleep) {
+    if (!allowSleep || !m_frameOptions.limitFrameRate) {
+        return;
+    }
+
+    const auto interval = desiredFrameInterval();
+    if (interval <= std::chrono::steady_clock::duration::zero()) {
+        return;
+    }
+
+    if (m_lastFrameTime == std::chrono::steady_clock::time_point{}) {
+        return;
+    }
+
+    const auto targetTime = m_lastFrameTime + interval;
+    const auto now = std::chrono::steady_clock::now();
+    if (now < targetTime) {
+        std::this_thread::sleep_until(targetTime);
+        m_lastFrameTime = targetTime;
+    } else {
+        m_lastFrameTime = now;
+    }
+}
+
+bool CliApp::processInput(const std::string& line, bool allowSleep) {
     const std::string trimmed = trim(line);
     if (trimmed.empty()) {
         return false;
@@ -106,8 +141,11 @@ bool CliApp::processInput(const std::string& line) {
                 return true;
             }
         }
-        m_runtime.step(steps);
-        render();
+        for (std::uint64_t processed = 0; processed < steps && m_running; ++processed) {
+            enforceFrameRate(allowSleep);
+            m_runtime.step(1);
+            render();
+        }
         return true;
     }
 
@@ -118,6 +156,7 @@ bool CliApp::processInput(const std::string& line) {
 void CliApp::render() {
     if (const auto* snapshot = m_runtime.latestSnapshot()) {
         m_renderer.render(*snapshot);
+        m_lastFrameTime = std::chrono::steady_clock::now();
     } else {
         std::cout << "(no telemetry yet)\n";
     }

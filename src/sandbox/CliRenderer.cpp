@@ -2,6 +2,7 @@
 
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 
 namespace sandbox::cli {
 
@@ -31,28 +32,34 @@ void CliRenderer::stamp(std::vector<std::string>& grid, int x, int y, char symbo
     }
 }
 
-void CliRenderer::printSummary(const genesis::telemetry::TickTelemetry& tick) const {
+void CliRenderer::printSummary(const genesis::telemetry::TickTelemetry& tick, std::ostream& out) const {
+    const auto previousFlags = out.flags();
+    const auto previousPrecision = out.precision();
+
     if (!tick.actions.empty()) {
-        std::cout << "Actions:\n";
+        out << "Actions:\n";
         for (const auto& action : tick.actions) {
-            std::cout << "  #" << action.entityId
-                      << " action=" << action.currentAction
-                      << " queue=" << action.queueLength
-                      << " target=" << action.target.value
-                      << " speed=" << action.speed
-                      << "\n";
+            out << "  #" << action.entityId
+                << " action=" << action.currentAction
+                << " queue=" << action.queueLength
+                << " target=" << action.target.value
+                << " speed=" << action.speed
+                << "\n";
         }
     }
 
     if (!tick.needs.empty()) {
-        std::cout << "Needs:\n";
+        out << "Needs:\n";
         for (const auto& need : tick.needs) {
-            std::cout << "  #" << need.entityId
-                      << " " << need.needName
-                      << "=" << std::fixed << std::setprecision(1) << need.value
-                      << (need.critical ? " !" : "") << "\n";
+            out << "  #" << need.entityId
+                << " " << need.needName
+                << "=" << std::fixed << std::setprecision(1) << need.value
+                << (need.critical ? " !" : "") << "\n";
         }
     }
+
+    out.flags(previousFlags);
+    out.precision(previousPrecision);
 }
 
 void CliRenderer::render(const genesis::telemetry::TickTelemetry& tick) {
@@ -79,22 +86,30 @@ void CliRenderer::render(const genesis::telemetry::TickTelemetry& tick) {
         stampNode(agent.location, 'A');
     }
 
+    std::ostringstream frame;
+
     if (m_options.clearScreen) {
         if (!m_cursorHidden) {
-            std::cout << "\x1b[?25l";
+            frame << "\x1b[?25l";
             m_cursorHidden = true;
         }
-        std::cout << "\x1b[H\x1b[2J";
+        frame << "\x1b[H";
     } else {
-        std::cout << "\n";
+        frame << "\n";
     }
 
-    std::cout << "Step " << tick.step << "\n";
+    frame << "Step " << tick.step << "\n";
     for (const auto& row : grid) {
-        std::cout << row << "\n";
+        frame << row << "\n";
     }
 
-    printSummary(tick);
+    printSummary(tick, frame);
+
+    if (m_options.clearScreen) {
+        frame << "\x1b[J";
+    }
+
+    std::cout << frame.str();
     std::cout.flush();
 }
 

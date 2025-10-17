@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+#include <iosfwd>
 #include <map>
 #include <string>
 #include <vector>
@@ -22,6 +24,8 @@ struct Layout {
 
 struct FrameOptions {
     bool clearScreen{true};
+    bool limitFrameRate{true};
+    std::chrono::milliseconds minFrameTime{16};
 };
 
 class CliRenderer {
@@ -37,7 +41,7 @@ private:
     bool m_cursorHidden{false};
 
     void stamp(std::vector<std::string>& grid, int x, int y, char symbol) const;
-    void printSummary(const genesis::telemetry::TickTelemetry& tick) const;
+    void printSummary(const genesis::telemetry::TickTelemetry& tick, std::ostream& out) const;
 };
 
 } // namespace sandbox::cli

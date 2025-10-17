@@ -72,6 +72,7 @@
 - `RuntimeBridge` 后台线程 + 快照环形缓冲，提供 Pause/Resume/Step/Speed 控制接口。
 - 静态 `WorldAtlas` 布局：按层级生成节点坐标、资源标记，世界视图面板即时绘制。
 - 新增 Telemetry/状态栏面板，展示当前快照数据；Welcome 面板整合播放控制与摘要。
+- 集成 Log Console 面板捕获 `spdlog` 日志，并在 Windows 环境下隐藏控制台窗口。
 - `docs/guides/sandbox_gui_smoke.md` 扩展至里程碑 1&2 的构建、运行与限制说明。
 
 ### 下一阶段（里程碑 3 · 控制台板 & HUD 指标）进行中

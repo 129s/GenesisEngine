@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <cstddef>
 
 #include "sandbox/gui/RuntimeBridge.hpp"
 
@@ -11,6 +12,8 @@ struct GLFWwindow;
 
 namespace Genesis::Sandbox::Gui
 {
+
+class ImGuiLogSink;
 
 struct AppHostConfig
 {
@@ -48,6 +51,7 @@ private:
     void drawWelcomePanel();
     void drawWorldViewPanel();
     void drawTelemetryPanel();
+    void drawLogPanel();
     void drawStatusBar();
 
     void updateRuntimeSnapshot();
@@ -64,6 +68,10 @@ private:
     double speed_multiplier_ui_{1.0};
     bool show_world_view_{true};
     bool show_telemetry_{true};
+    bool show_logs_{true};
+    bool log_auto_scroll_{true};
+    std::shared_ptr<ImGuiLogSink> log_sink_;
+    std::size_t log_last_line_count_{0};
 };
 
 } // namespace Genesis::Sandbox::Gui

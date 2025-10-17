@@ -32,6 +32,7 @@ cmake --build build --target genesis_sandbox_gui
 - World View 面板：静态世界拓扑图（节点/边/资源）
 - Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要
 - 底部状态栏：快速统计（Step/Agents/Resources/Actions）
+- Log Console 面板：捕获 `spdlog` 输出并持续滚动（默认开启，支持手动关闭/自动滚动）。
 - 可选 Dear ImGui Demo 窗口（验证 Docking 与基础组件）
 
 > ⚠️ 远程或无图形环境运行时，窗口可能无法创建；请在本地含 GPU/桌面会话的环境中执行。
@@ -52,6 +53,7 @@ cmake --build build --target genesis_sandbox_gui
 - RuntimeBridge 默认节流至 ~500Hz（2ms 休眠），缺少自适应帧率/实时性能指标。
 - 未封装命令行选项；运行期间也未暴露世界重新生成/热加载入口。
 - Headless 环境仍不支持运行（依赖 OpenGL 上下文）。
+- Windows 下默认隐藏控制台窗口，若需查看原始日志请使用 Log Console 或附加自定义 sink。
 
 ## 下一步
 - 里程碑 3：完善控制台板（播放/步进/倍率 UI）、HUD 指标与性能采样。

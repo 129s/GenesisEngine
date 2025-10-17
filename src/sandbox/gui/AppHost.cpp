@@ -1,6 +1,7 @@
 #include "sandbox/gui/AppHost.hpp"
 
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/base_sink.h>
 
 #include <GLFW/glfw3.h>
 
@@ -9,13 +10,59 @@
 #include <imgui_impl_opengl3.h>
 
 #include <algorithm>
+#include <deque>
+#include <mutex>
+#include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace Genesis::Sandbox::Gui
 {
+
+class ImGuiLogSink : public spdlog::sinks::base_sink<std::mutex>
+{
+public:
+    explicit ImGuiLogSink(std::size_t maxEntries = 256)
+        : max_entries_(std::max<std::size_t>(1, maxEntries))
+    {
+    }
+
+    std::vector<std::string> snapshot()
+    {
+        std::lock_guard<std::mutex> lock(this->mutex_);
+        return {entries_.begin(), entries_.end()};
+    }
+
+protected:
+    void sink_it_(const spdlog::details::log_msg& msg) override
+    {
+        spdlog::memory_buf_t formatted;
+        this->formatter_->format(msg, formatted);
+        std::string line(formatted.data(), formatted.size());
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
+        {
+            line.pop_back();
+        }
+
+        std::lock_guard<std::mutex> lock(this->mutex_);
+        entries_.push_back(std::move(line));
+        if (entries_.size() > max_entries_)
+        {
+            entries_.pop_front();
+        }
+    }
+
+    void flush_() override {}
+
+private:
+    std::size_t max_entries_;
+    std::deque<std::string> entries_;
+};
+
 namespace
 {
+
 void FramebufferSizeCallback(GLFWwindow* /*window*/, int width, int height)
 {
     glViewport(0, 0, width, height);
@@ -29,7 +76,14 @@ AppHost::AppHost(AppHostConfig config)
     , speed_multiplier_ui_(1.0)
     , show_world_view_(true)
     , show_telemetry_(true)
+    , show_logs_(true)
+    , log_auto_scroll_(true)
 {
+    if (auto logger = spdlog::default_logger())
+    {
+        log_sink_ = std::make_shared<ImGuiLogSink>(512);
+        logger->sinks().push_back(log_sink_);
+    }
 }
 
 AppHost::~AppHost()
@@ -191,6 +245,16 @@ bool AppHost::initializeImGui()
 
 void AppHost::shutdown()
 {
+    if (log_sink_)
+    {
+        if (auto logger = spdlog::default_logger())
+        {
+            auto& sinks = logger->sinks();
+            sinks.erase(std::remove(sinks.begin(), sinks.end(), log_sink_), sinks.end());
+        }
+        log_sink_.reset();
+    }
+
     if (runtime_bridge_)
     {
         runtime_bridge_->stop();
@@ -235,6 +299,7 @@ void AppHost::renderGui()
     drawWelcomePanel();
     drawWorldViewPanel();
     drawTelemetryPanel();
+    drawLogPanel();
     drawStatusBar();
 
     if (show_demo_window_)
@@ -291,6 +356,7 @@ void AppHost::drawMainMenuBar()
             ImGui::MenuItem("Dear ImGui Demo", nullptr, &show_demo_window_);
             ImGui::MenuItem("World View", nullptr, &show_world_view_);
             ImGui::MenuItem("Telemetry", nullptr, &show_telemetry_);
+            ImGui::MenuItem("Log Console", nullptr, &show_logs_);
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
@@ -367,8 +433,9 @@ void AppHost::drawWelcomePanel()
 
     ImGui::Separator();
     ImGui::TextWrapped(
-        "阶段焦点：RuntimeBridge 后台推进 Runtime，提供单步/暂停控制，输出最新快照；世界视图绘制静态拓扑。"
-        "后续将接入实时指标与交互式世界参数调节。");
+        "Focus: RuntimeBridge advances the simulation in a background thread, exposes pause/step/speed controls, and "
+        "feeds the world/telemetry panels with the latest snapshot. Next milestones will add live metrics, inspector "
+        "tools, and interactive world regeneration.");
 
     ImGui::End();
 }
@@ -551,6 +618,51 @@ void AppHost::drawTelemetryPanel()
     ImGui::End();
 }
 
+void AppHost::drawLogPanel()
+{
+    if (!show_logs_)
+    {
+        return;
+    }
+
+    if (!ImGui::Begin("Log Console", &show_logs_))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (!log_sink_)
+    {
+        ImGui::TextUnformatted("Log sink unavailable.");
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Checkbox("Auto-scroll", &log_auto_scroll_);
+    ImGui::Separator();
+
+    const auto lines = log_sink_->snapshot();
+
+    ImGui::BeginChild("LogConsole.ScrollRegion", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_HorizontalScrollbar);
+    const bool stickToBottom = log_auto_scroll_ &&
+        (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f || log_last_line_count_ == 0);
+
+    for (const auto& line : lines)
+    {
+        ImGui::TextUnformatted(line.c_str());
+    }
+
+    if (stickToBottom && !lines.empty())
+    {
+        ImGui::SetScrollHereY(1.0f);
+    }
+
+    log_last_line_count_ = lines.size();
+
+    ImGui::EndChild();
+    ImGui::End();
+}
+
 void AppHost::drawStatusBar()
 {
     ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -558,10 +670,13 @@ void AppHost::drawStatusBar()
 
     ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - height));
     ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, height));
+    ImGui::SetNextWindowViewport(viewport->ID);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 4.0f));
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs;
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs |
+        ImGuiWindowFlags_NoDocking;
     if (ImGui::Begin("Status Bar", nullptr, flags))
     {
         if (latest_snapshot_)
@@ -579,7 +694,7 @@ void AppHost::drawStatusBar()
         }
     }
     ImGui::End();
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar(3);
 }
 
 void AppHost::updateRuntimeSnapshot()

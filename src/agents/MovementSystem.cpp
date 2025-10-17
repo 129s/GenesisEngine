@@ -52,7 +52,6 @@ void MovementSystem::update(entt::registry& registry, float deltaSeconds) {
             state->path = buildPath(location.location, intent.target);
             state->currentIndex = 0;
             state->distanceRemaining = 0.0f;
-            state->accumulatedDistances.clear();
             state->traveledAlongEdge = 0.0f;
             state->blocked = false;
 
@@ -73,13 +72,7 @@ void MovementSystem::update(entt::registry& registry, float deltaSeconds) {
 
             state->currentIndex = 1U;
             state->distanceRemaining = edgeCost(state->path[0], state->path[1]);
-            state->accumulatedDistances.resize(state->path.size());
-            state->accumulatedDistances[0] = 0.0f;
-            float cumulative = 0.0f;
-            for (std::size_t i = 1; i < state->path.size(); ++i) {
-                cumulative += edgeCost(state->path[i - 1], state->path[i]);
-                state->accumulatedDistances[i] = cumulative;
-            }
+            state->segmentLength = state->distanceRemaining;
             state->traveledAlongEdge = 0.0f;
         }
 
@@ -110,13 +103,15 @@ void MovementSystem::update(entt::registry& registry, float deltaSeconds) {
                 const auto from = location.location;
                 const auto to = state->path[state->currentIndex];
                 state->distanceRemaining = edgeCost(from, to);
+                state->segmentLength = state->distanceRemaining;
                 state->traveledAlongEdge = 0.0f;
                 continue;
             }
 
             if (travel + kEpsilon >= state->distanceRemaining) {
-                travel -= state->distanceRemaining;
-                state->traveledAlongEdge += state->distanceRemaining;
+                const float consumed = state->distanceRemaining;
+                travel -= consumed;
+                state->traveledAlongEdge += consumed;
                 state->distanceRemaining = 0.0f;
                 continue;
             }
@@ -141,6 +136,7 @@ void MovementSystem::update(entt::registry& registry, float deltaSeconds) {
                 const auto from = location.location;
                 const auto to = state->path[state->currentIndex];
                 state->distanceRemaining = edgeCost(from, to);
+                state->segmentLength = state->distanceRemaining;
                 state->traveledAlongEdge = 0.0f;
             }
         }

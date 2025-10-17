@@ -397,7 +397,7 @@ RuntimeBridge::Vector2 RuntimeBridge::resolveAgentPosition(const genesis::teleme
             return result;
         }
 
-        const float edgeLength = state->distanceRemaining + state->traveledAlongEdge;
+        const float edgeLength = state->segmentLength;
         const float t = edgeLength > 0.0f ? std::clamp(state->traveledAlongEdge / edgeLength, 0.0f, 1.0f) : 0.0f;
         result.x = fromPos->x + (toPos->x - fromPos->x) * t;
         result.y = fromPos->y + (toPos->y - fromPos->y) * t;

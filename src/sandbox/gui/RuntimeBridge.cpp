@@ -217,80 +217,124 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
     {
         return atlas;
     }
-
-    std::unordered_map<genesis::world::LocationId, genesis::world::LocationNode, genesis::world::LocationIdHasher> nodeLookup;
-    nodeLookup.reserve(nodes.size());
+    // Compute positions from global grid coordinates if provided; otherwise simple layered fallback layout.
+    bool hasAllGlobal = true;
+    int minX = std::numeric_limits<int>::max();
+    int minY = std::numeric_limits<int>::max();
+    int maxX = std::numeric_limits<int>::min();
+    int maxY = std::numeric_limits<int>::min();
     for (const auto& node : nodes)
     {
-        nodeLookup.emplace(node.id, node);
-    }
-
-    std::unordered_map<genesis::world::LocationId, int, genesis::world::LocationIdHasher> depthTable;
-    depthTable.reserve(nodes.size());
-
-    std::function<int(genesis::world::LocationId)> computeDepth = [&](genesis::world::LocationId id) -> int {
-        if (id == genesis::world::InvalidLocation)
+        if (!node.coord_global.has_value())
         {
-            return 0;
+            hasAllGlobal = false;
+            break;
         }
-        if (auto it = depthTable.find(id); it != depthTable.end())
-        {
-            return it->second;
-        }
-        int depth = 0;
-        if (auto itNode = nodeLookup.find(id); itNode != nodeLookup.end())
-        {
-            depth = 1 + computeDepth(itNode->second.parent);
-        }
-        depthTable.emplace(id, depth);
-        return depth;
-    };
-
-    std::map<int, std::vector<genesis::world::LocationNode>> levels;
-    for (const auto& node : nodes)
-    {
-        const int depth = computeDepth(node.id);
-        levels[depth].push_back(node);
+        minX = std::min(minX, node.coord_global->first);
+        minY = std::min(minY, node.coord_global->second);
+        maxX = std::max(maxX, node.coord_global->first);
+        maxY = std::max(maxY, node.coord_global->second);
     }
-
-    std::size_t maxPerLevel = 0;
-    for (auto& [level, group] : levels)
-    {
-        std::sort(group.begin(), group.end(), [](const auto& lhs, const auto& rhs) {
-            return lhs.id.value < rhs.id.value;
-        });
-        maxPerLevel = std::max(maxPerLevel, group.size());
-    }
-
-    atlas.extent = computeExtent(maxPerLevel, levels.size());
 
     std::unordered_map<genesis::world::LocationId, Vector2, genesis::world::LocationIdHasher> positions;
     positions.reserve(nodes.size());
 
-    std::size_t levelIndex = 0;
-    for (auto& [level, group] : levels)
+    if (hasAllGlobal)
     {
-        const float y = static_cast<float>(levelIndex) * kVerticalSpacing;
-        const std::size_t count = group.size();
-        const float width = atlas.extent.x;
+        const float width = static_cast<float>(std::max(1, maxX - minX + 1));
+        const float height = static_cast<float>(std::max(1, maxY - minY + 1));
+        atlas.extent = Vector2{std::max(width, 1.0f), std::max(height, 1.0f)};
 
-        for (std::size_t index = 0; index < count; ++index)
+        for (const auto& node : nodes)
         {
-            const float x = (static_cast<float>(index + 1) * width) / static_cast<float>(count + 1);
-            Vector2 position{x, y};
-            positions.emplace(group[index].id, position);
-
+            const int gx = node.coord_global->first - minX;
+            const int gy = node.coord_global->second - minY;
+            Vector2 position{static_cast<float>(gx), static_cast<float>(gy)};
+            positions.emplace(node.id, position);
             atlas.nodes.push_back(WorldAtlas::Node{
-                .id = group[index].id,
-                .parent = group[index].parent,
-                .kind = group[index].kind,
-                .name = group[index].name,
+                .id = node.id,
+                .parent = node.parent,
+                .kind = node.kind,
+                .name = node.name,
                 .position = position,
             });
-            atlas.nodeLookup.emplace(group[index].id.value, position);
+            atlas.nodeLookup.emplace(node.id.value, position);
+        }
+    }
+    else
+    {
+        // Fallback to layered layout for development-time worlds lacking coordinates
+        std::unordered_map<genesis::world::LocationId, genesis::world::LocationNode, genesis::world::LocationIdHasher> nodeLookup;
+        nodeLookup.reserve(nodes.size());
+        for (const auto& node : nodes)
+        {
+            nodeLookup.emplace(node.id, node);
         }
 
-        ++levelIndex;
+        std::unordered_map<genesis::world::LocationId, int, genesis::world::LocationIdHasher> depthTable;
+        depthTable.reserve(nodes.size());
+
+        std::function<int(genesis::world::LocationId)> computeDepth = [&](genesis::world::LocationId id) -> int {
+            if (id == genesis::world::InvalidLocation)
+            {
+                return 0;
+            }
+            if (auto it = depthTable.find(id); it != depthTable.end())
+            {
+                return it->second;
+            }
+            int depth = 0;
+            if (auto itNode = nodeLookup.find(id); itNode != nodeLookup.end())
+            {
+                depth = 1 + computeDepth(itNode->second.parent);
+            }
+            depthTable.emplace(id, depth);
+            return depth;
+        };
+
+        std::map<int, std::vector<genesis::world::LocationNode>> levels;
+        for (const auto& node : nodes)
+        {
+            const int depth = computeDepth(node.id);
+            levels[depth].push_back(node);
+        }
+
+        std::size_t maxPerLevel = 0;
+        for (auto& [level, group] : levels)
+        {
+            std::sort(group.begin(), group.end(), [](const auto& lhs, const auto& rhs) {
+                return lhs.id.value < rhs.id.value;
+            });
+            maxPerLevel = std::max(maxPerLevel, group.size());
+        }
+
+        atlas.extent = computeExtent(maxPerLevel, levels.size());
+
+        std::size_t levelIndex = 0;
+        for (auto& [level, group] : levels)
+        {
+            const float y = static_cast<float>(levelIndex) * kVerticalSpacing;
+            const std::size_t count = group.size();
+            const float width2 = atlas.extent.x;
+
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                const float x = (static_cast<float>(index + 1) * width2) / static_cast<float>(count + 1);
+                Vector2 position{x, y};
+                positions.emplace(group[index].id, position);
+
+                atlas.nodes.push_back(WorldAtlas::Node{
+                    .id = group[index].id,
+                    .parent = group[index].parent,
+                    .kind = group[index].kind,
+                    .name = group[index].name,
+                    .position = position,
+                });
+                atlas.nodeLookup.emplace(group[index].id.value, position);
+            }
+
+            ++levelIndex;
+        }
     }
 
     std::set<std::pair<std::uint32_t, std::uint32_t>> seenEdges;
@@ -319,7 +363,6 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
         if (auto it = positions.find(spawn.location); it != positions.end())
         {
             position = it->second;
-            position.y += 24.0f;
         }
 
         atlas.spawns.push_back(WorldAtlas::Spawn{

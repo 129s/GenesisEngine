@@ -44,6 +44,13 @@ ResourceType parseResourceType(const std::string& value, bool& ok) {
 
 WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& registry) {
     LocationGraph graph;
+    if (data.contains("schema_version")) {
+        try {
+            graph.schemaVersion = data.at("schema_version").get<std::uint32_t>();
+        } catch (const nlohmann::json::exception&) {
+            // ignore malformed schema_version; keep default 0
+        }
+    }
 
     if (!data.contains("locations") || !data["locations"].is_array()) {
         return {false, "Missing 'locations' array"};
@@ -81,6 +88,28 @@ WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& reg
                 edge.to = LocationId{edgeJson.at("to").get<std::uint32_t>()};
                 edge.cost = edgeJson.value("cost", 1.0f);
                 edge.bidirectional = edgeJson.value("bidirectional", true);
+                // anchors: { at_from:[x,y], at_to:[x,y] }
+                if (edgeJson.contains("anchors")) {
+                    const auto& anchors = edgeJson.at("anchors");
+                    auto parseCoord = [](const nlohmann::json& arr) -> std::optional<std::pair<int, int>> {
+                        if (!arr.is_array() || arr.size() != 2) return std::nullopt;
+                        return std::make_pair(arr[0].get<int>(), arr[1].get<int>());
+                    };
+                    if (anchors.contains("at_from")) {
+                        edge.anchor_at_from = parseCoord(anchors.at("at_from"));
+                    }
+                    if (anchors.contains("at_to")) {
+                        edge.anchor_at_to = parseCoord(anchors.at("at_to"));
+                    }
+                }
+                // polyline: [[x,y], ...]
+                if (edgeJson.contains("polyline") && edgeJson.at("polyline").is_array()) {
+                    for (const auto& pt : edgeJson.at("polyline")) {
+                        if (pt.is_array() && pt.size() == 2) {
+                            edge.polyline.emplace_back(pt[0].get<int>(), pt[1].get<int>());
+                        }
+                    }
+                }
             } catch (const nlohmann::json::exception& ex) {
                 return {false, std::string{"Invalid edge entry: "} + ex.what()};
             }
@@ -107,12 +136,44 @@ WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& reg
                 if (!typeOk) {
                     return {false, "Unknown resource type: " + spawnJson.value("type", std::string{})};
                 }
+                if (spawnJson.contains("local_coord")) {
+                    const auto& lc = spawnJson.at("local_coord");
+                    if (lc.is_array() && lc.size() == 2) {
+                        spawn.local_coord = std::make_pair(lc[0].get<int>(), lc[1].get<int>());
+                    }
+                }
             } catch (const nlohmann::json::exception& ex) {
                 return {false, std::string{"Invalid spawn entry: "} + ex.what()};
             }
 
             graph.spawns.push_back(spawn);
         }
+    }
+
+    // Parse location coord_global last so we can validate if needed
+    for (auto& node : graph.nodes) {
+        // find raw json node again to parse coord_global if present
+        // We cannot easily map here; re-scan data.locations
+    }
+    // Better: re-iterate input JSON to enrich nodes with coord_global
+    try {
+        const auto& arr = data.at("locations");
+        for (const auto& nodeJson : arr) {
+            const auto id = LocationId{nodeJson.at("id").get<std::uint32_t>()};
+            if (nodeJson.contains("coord_global")) {
+                const auto& cg = nodeJson.at("coord_global");
+                if (cg.is_array() && cg.size() == 2) {
+                    for (auto& n : graph.nodes) {
+                        if (n.id == id) {
+                            n.coord_global = std::make_pair(cg[0].get<int>(), cg[1].get<int>());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (const nlohmann::json::exception&) {
+        // ignore
     }
 
     registry.setGraph(std::move(graph));

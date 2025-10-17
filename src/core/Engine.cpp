@@ -1,6 +1,7 @@
 #include "genesis/core/Engine.hpp"
 
 #include <array>
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -13,6 +14,7 @@
 #include "genesis/world/WorldLoader.hpp"
 #include "genesis/world/components/ResourceInventory.hpp"
 #include "genesis/world/components/ResourceSpawn.hpp"
+#include "genesis/agents/AgentComponents.hpp"
 
 namespace genesis::core {
 
@@ -221,24 +223,28 @@ void Engine::configureNeedDefaults() {
 void Engine::spawnDemoAgents() {
     using genesis::agents::NeedType;
 
-    auto entity = m_registry.create();
-    auto& needs = m_registry.emplace<genesis::agents::NeedComponent>(entity);
-    m_needSystem.applyDefaults(needs);
-
-    auto& location = m_registry.emplace<genesis::agents::components::AgentLocation>(entity);
     const auto spawnLocation = selectSpawnLocation(m_world);
     if (spawnLocation == genesis::world::InvalidLocation) {
-        spdlog::warn("Unable to find navigable spawn location; demo agent will not be placed");
-        m_registry.destroy(entity);
+        spdlog::warn("Unable to find navigable spawn location; demo agents will not be placed");
         return;
     }
-    location.location = spawnLocation;
 
-    needs.needs.setState(NeedType::Hunger, 10.0f);
-    needs.needs.setState(NeedType::Energy, 25.0f);
-    needs.needs.setState(NeedType::Social, 5.0f);
+    auto spawnOne = [&](std::string name, float hunger, float energy, float social) {
+        auto entity = m_registry.create();
+        auto& needs = m_registry.emplace<genesis::agents::NeedComponent>(entity);
+        m_needSystem.applyDefaults(needs);
+        auto& location = m_registry.emplace<genesis::agents::components::AgentLocation>(entity);
+        location.location = spawnLocation;
+        m_registry.emplace<genesis::agents::components::AgentName>(entity, genesis::agents::components::AgentName{std::move(name)});
+        needs.needs.setState(NeedType::Hunger, hunger);
+        needs.needs.setState(NeedType::Energy, energy);
+        needs.needs.setState(NeedType::Social, social);
+        spdlog::info("Spawned demo agent '{}' at location {}", m_registry.get<genesis::agents::components::AgentName>(entity).name, spawnLocation.value);
+    };
 
-    spdlog::info("Spawned demo agent at location {} with baseline needs", spawnLocation.value);
+    spawnOne("Ava", 10.0f, 25.0f, 5.0f);
+    spawnOne("Ben", 15.0f, 20.0f, 8.0f);
+    spawnOne("Chloe", 8.0f, 30.0f, 12.0f);
 }
 
 Engine::ResourceRequestResult Engine::requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation) {
@@ -257,6 +263,7 @@ Engine::ResourceRequestResult Engine::requestResource(world::ResourceType type, 
 void Engine::captureTelemetry(std::uint64_t stepIndex) {
     telemetry::TickTelemetry tick{};
     tick.step = stepIndex;
+    tick.stepSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
 
     auto resourceView = m_registry.view<genesis::world::components::ResourceInventory, genesis::world::components::ResourceSpawn>();
     resourceView.each([&](auto, const auto& inventory, const auto& spawn) {
@@ -327,8 +334,30 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
     agentView.each([&](auto entity, const genesis::agents::components::AgentLocation& location) {
         telemetry::AgentSnapshot snapshot{};
         snapshot.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        if (const auto* name = m_registry.try_get<genesis::agents::components::AgentName>(entity)) {
+            snapshot.name = name->name;
+        }
         snapshot.location = location.location;
         tick.agents.push_back(std::move(snapshot));
+    });
+
+    // Movement progress for Map interpolation
+    auto moveView = m_registry.view<genesis::agents::components::MovementState, genesis::agents::components::AgentLocation>();
+    moveView.each([&](auto entity, const genesis::agents::components::MovementState& state, const genesis::agents::components::AgentLocation& loc) {
+        if (state.blocked || state.path.empty() || state.currentIndex >= state.path.size()) {
+            return;
+        }
+        telemetry::MovementProgressSnapshot mp{};
+        mp.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        // From is the last reached node (current location), to is current segment target
+        mp.from = loc.location;
+        mp.to = state.path[state.currentIndex];
+        if (state.segmentLength > 0.0f) {
+            mp.t01 = std::clamp(state.traveledAlongEdge / state.segmentLength, 0.0f, 1.0f);
+        } else {
+            mp.t01 = 0.0f;
+        }
+        tick.movementProgress.push_back(mp);
     });
 
     m_hungerDecisions.clear();

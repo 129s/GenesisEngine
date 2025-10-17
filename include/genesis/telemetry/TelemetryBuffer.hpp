@@ -44,16 +44,26 @@ struct ActionSnapshot {
 
 struct AgentSnapshot {
     std::uint32_t entityId{0};
+    std::string name;
     genesis::world::LocationId location{genesis::world::InvalidLocation};
+};
+
+struct MovementProgressSnapshot {
+    std::uint32_t entityId{0};
+    genesis::world::LocationId from{genesis::world::InvalidLocation};
+    genesis::world::LocationId to{genesis::world::InvalidLocation};
+    float t01{0.0f};
 };
 
 struct TickTelemetry {
     std::uint64_t step{0};
+    float stepSeconds{0.0f};
     std::vector<ResourceSnapshot> resources;
     std::vector<NeedSnapshot> needs;
     std::vector<PlannerSnapshot> plannerDecisions;
     std::vector<ActionSnapshot> actions;
     std::vector<AgentSnapshot> agents;
+    std::vector<MovementProgressSnapshot> movementProgress;
 };
 
 class TelemetryBuffer {

@@ -5,6 +5,8 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <optional>
+#include <utility>
 
 namespace genesis::world {
 
@@ -36,6 +38,9 @@ struct LocationNode {
     LocationKind kind{LocationKind::Point};
     bool navigable{true};
     std::string terrain;
+    // Map View global grid coordinate (tile index). When not provided, tools may synthesize,
+    // but runtime components assume presence after schema migration.
+    std::optional<std::pair<int, int>> coord_global;
 };
 
 struct PathEdge {
@@ -43,6 +48,10 @@ struct PathEdge {
     LocationId to;
     float cost{1.0f};
     bool bidirectional{true};
+    // Optional Map geometry for edge drawing (grid polyline) and Scene portal anchors.
+    std::vector<std::pair<int, int>> polyline; // grid coords in Map space (optional)
+    std::optional<std::pair<int, int>> anchor_at_from; // Scene local grid coord at 'from'
+    std::optional<std::pair<int, int>> anchor_at_to;   // Scene local grid coord at 'to'
 };
 
 enum class ResourceType : std::uint8_t {
@@ -57,12 +66,15 @@ struct ResourceSpawn {
     LocationId location;
     std::uint32_t capacity{0};
     std::uint32_t ratePerStep{0};
+    // Scene local grid coordinate of the interaction/resource point
+    std::optional<std::pair<int, int>> local_coord;
 };
 
 struct LocationGraph {
     std::vector<LocationNode> nodes;
     std::vector<PathEdge> edges;
     std::vector<ResourceSpawn> spawns;
+    std::uint32_t schemaVersion{0};
 };
 
 } // namespace genesis::world

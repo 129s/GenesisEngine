@@ -355,7 +355,7 @@ void AppHost::drawMainMenuBar()
         }
         if (ImGui::BeginMenu("View"))
         {
-            ImGui::MenuItem("World View", nullptr, &show_world_view_);
+            ImGui::MenuItem("Map View", nullptr, &show_world_view_);
             ImGui::MenuItem("Telemetry", nullptr, &show_telemetry_);
             ImGui::MenuItem("Log Console", nullptr, &show_logs_);
             ImGui::EndMenu();
@@ -447,7 +447,7 @@ void AppHost::drawWorldViewPanel()
         return;
     }
 
-    if (!ImGui::Begin("World View", &show_world_view_))
+    if (!ImGui::Begin("Map View", &show_world_view_))
     {
         ImGui::End();
         return;
@@ -733,6 +733,13 @@ void AppHost::drawWorldViewPanel()
                 drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
                 drawList->AddCircle(screenPos, 7.0f, borderColor, 16, 1.4f);
 
+                // Agent name label
+                if (!agent.name.empty())
+                {
+                    const ImVec2 namePos{screenPos.x + 9.0f, screenPos.y - ImGui::GetTextLineHeight() * 0.5f};
+                    drawList->AddText(namePos, ImGui::GetColorU32(ImGuiCol_Text), agent.name.c_str());
+                }
+
                 if (show_agent_trails_)
                 {
                     auto trailIt = agent_trails_.find(agent.entityId);
@@ -886,7 +893,15 @@ void AppHost::drawStatusBar()
         if (latest_snapshot_)
         {
             const auto& tick = latest_snapshot_->telemetry;
-            ImGui::Text("Step %llu | Agents %zu | Resources %zu | Actions %zu",
+            const double totalSeconds = static_cast<double>(tick.step) * static_cast<double>(tick.stepSeconds);
+            const std::uint64_t secs = static_cast<std::uint64_t>(totalSeconds);
+            const std::uint64_t h = secs / 3600ULL;
+            const std::uint64_t m = (secs % 3600ULL) / 60ULL;
+            const std::uint64_t s = secs % 60ULL;
+            ImGui::Text("Time %02llu:%02llu:%02llu | Step %llu | Agents %zu | Resources %zu | Actions %zu",
+                static_cast<unsigned long long>(h),
+                static_cast<unsigned long long>(m),
+                static_cast<unsigned long long>(s),
                 static_cast<unsigned long long>(tick.step),
                 tick.agents.size(),
                 tick.resources.size(),

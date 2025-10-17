@@ -25,5 +25,9 @@ struct MovementState {
     bool blocked{false};
 };
 
+struct AgentName {
+    std::string name;
+};
+
 } // namespace genesis::agents::components
 

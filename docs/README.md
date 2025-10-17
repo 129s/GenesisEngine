@@ -1,0 +1,29 @@
+# GenesisEngine 文档总览
+
+本文档目录汇总当前可用的技术文档、路线图与开发指引，便于快速定位信息与协作。
+
+## 目录结构
+- 架构（设计、原则、系统划分）：`docs/architecture/`（总览：`docs/architecture/README.md`）
+- 路线图（权威版、里程碑与历史）：`docs/roadmap/`（总览：`docs/roadmap/README.md`）
+- 指南（构建、运行、工具）：`docs/guides/`（CLI：`docs/guides/sandbox-cli.md`）
+- 状态（进度、待办）：`docs/status/`（进度：`docs/status/progress-summary.md`，待办：`docs/status/todo.md`）
+
+## 快速导航
+- 架构概览：`docs/architecture/README.md`
+- 愿景与设计原则：`docs/architecture/VISION.md`
+- 运行时与沙盒 CLI：`docs/guides/sandbox-cli.md`
+- 路线图（权威版）：`docs/roadmap/README.md`
+- 历史路线图：`docs/roadmap/history/`
+- 项目进度概览：`docs/status/progress-summary.md`
+- 临时待办（转向 Issue/里程碑前的过渡）：`docs/status/todo.md`
+
+## 使用与构建
+- 构建与运行沙盒 CLI：见 `docs/guides/sandbox-cli.md` 与 `scripts/run_sandbox_cli.ps1`。
+- 运行时封装：核心模拟逻辑以 `genesis_runtime` 动态库形式对外提供 API，前端二进制（如 CLI/GUI/Game）复用同一接口。
+
+## 文档约定
+- 路线图以 `docs/roadmap/README.md` 为权威来源。历史分篇保留于 `docs/roadmap/history/`。
+- 术语：实体组件（EnTT）、需求/行为（Needs/Actions）、事实/传闻（Fact/Rumor）、快照（SimulationSnapshot）。
+
+## 下一步建议
+- 将 `docs/status/todo.md` 中仍然有效的条目迁移到 Issue 与 Milestone，按 `docs/roadmap/README.md` 的阶段划分追踪。

@@ -1,5 +1,7 @@
 # Utility Planner Roadmap
 
+> Note: This document has been consolidated into the unified `../README.md`. It remains here for historical context and detailed notes. Please treat `../README.md` as the single source of truth.
+
 ## Vision
 - Establish a modular decision layer that evaluates needs, goals, and context to produce action queues for NPCs.
 - Support incremental complexity: begin with hunger-focused actions, expand to rest/social, then crimes/tasks.

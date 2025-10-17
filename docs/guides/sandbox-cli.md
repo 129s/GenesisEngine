@@ -76,3 +76,5 @@ Unless `-Interactive` is supplied, the script runs the CLI with the requested sc
 ## Roadmap
 
 Planned upgrades include richer inspection commands (agent detail cards, watch lists), runtime breakpoints, and integration with a GUI front-end that consumes the same runtime API.
+
+See also: `../roadmap/README.md` for the latest unified roadmap and milestones.

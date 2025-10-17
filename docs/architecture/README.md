@@ -1,5 +1,7 @@
 # GenesisEngine Architecture Overview
 
+> 相关文档：愿景与原则见 `VISION.md`；统一路线图见 `../roadmap/README.md`。
+
 ## Goals
 - 支撑可拓展的涌现式叙事模拟，便于引入新机制而不破坏既有系统。
 - 数据驱动，运行时可根据配置生成世界、NPC 与资源。

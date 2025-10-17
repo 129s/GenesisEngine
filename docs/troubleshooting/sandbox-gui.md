@@ -38,4 +38,4 @@
 1) 检查世界 JSON 是否包含上述字段（参见 `docs/architecture/WORLD_MODEL.md` 与迁移指南）。
 2) 确认 `schema_version` 与 Runtime/GUI 约定一致。
 3) 使用最小示例数据验证渲染（来自迁移指南的片段）。
-
+4) Loader 报错：自 2025-10 起，WorldLoader 将强校验上述必备字段，缺失会返回错误并拒绝加载（不再提供旧版回退路径）。

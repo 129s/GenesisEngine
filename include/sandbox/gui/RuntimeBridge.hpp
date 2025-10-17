@@ -58,6 +58,22 @@ public:
             std::optional<Vector2> anchorTo;
         };
 
+        struct Portal
+        {
+            genesis::world::LocationId to{}; // target node id
+            Vector2 anchor;                  // local grid coord in owning node's scene
+        };
+
+        struct Tilemap
+        {
+            std::uint32_t nodeId{0};
+            int width{0};   // in tiles (0 means unknown)
+            int height{0};  // in tiles
+            int tileW{1};   // tile pixel size hint (optional)
+            int tileH{1};
+            std::vector<Portal> portals;
+        };
+
         struct Spawn
         {
             genesis::world::ResourceSpawn resource;
@@ -69,6 +85,7 @@ public:
         std::vector<Spawn> spawns;
         std::unordered_map<std::uint32_t, Vector2> nodeLookup;
         Vector2 extent{800.0f, 600.0f};
+        std::vector<Tilemap> tilemaps;
 
         [[nodiscard]] std::optional<Vector2> nodePosition(genesis::world::LocationId id) const
         {

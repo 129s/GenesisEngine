@@ -892,16 +892,33 @@ void AppHost::drawSceneViewPanel()
         }
     }
 
-    // Determine grid bounds
+    // Determine grid bounds (prefer tilemap meta)
     int minX = 0, minY = 0, maxX = 9, maxY = 9; // default 10x10
+    for (const auto& tm : atlas.tilemaps)
+    {
+        if (tm.nodeId == scene_selected_node_ && tm.width > 0 && tm.height > 0)
+        {
+            minX = 0; minY = 0; maxX = tm.width - 1; maxY = tm.height - 1;
+            break;
+        }
+    }
     auto incorporate = [&](const ImVec2& p) {
         minX = std::min(minX, static_cast<int>(std::floor(p.x)));
         minY = std::min(minY, static_cast<int>(std::floor(p.y)));
         maxX = std::max(maxX, static_cast<int>(std::ceil(p.x)));
         maxY = std::max(maxY, static_cast<int>(std::ceil(p.y)));
     };
-    for (const auto& p : resourcePts) incorporate(p);
-    for (const auto& ap : anchorPts) incorporate(ap.first);
+    // If no tilemap meta, extend from points
+    bool hasMeta = false;
+    for (const auto& tm : atlas.tilemaps)
+    {
+        if (tm.nodeId == scene_selected_node_ && tm.width > 0 && tm.height > 0) { hasMeta = true; break; }
+    }
+    if (!hasMeta)
+    {
+        for (const auto& p : resourcePts) incorporate(p);
+        for (const auto& ap : anchorPts) incorporate(ap.first);
+    }
 
     const float cellPx = 24.0f * scene_cam_zoom_;
     auto toScreen = [&](float gx, float gy) {

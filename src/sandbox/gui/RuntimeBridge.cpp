@@ -388,6 +388,50 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
         });
     }
 
+    // Build simple tilemap metadata: collect portals per node and infer bounds from resource local coords
+    std::unordered_map<std::uint32_t, WorldAtlas::Tilemap> tilemapByNode;
+    // Portals from edges
+    for (const auto& e : atlas.edges)
+    {
+        if (e.anchorFrom.has_value())
+        {
+            auto& tm = tilemapByNode[e.from.value];
+            tm.nodeId = e.from.value;
+            tm.portals.push_back(WorldAtlas::Portal{.to = e.to, .anchor = *e.anchorFrom});
+        }
+        if (e.anchorTo.has_value())
+        {
+            auto& tm = tilemapByNode[e.to.value];
+            tm.nodeId = e.to.value;
+            tm.portals.push_back(WorldAtlas::Portal{.to = e.from, .anchor = *e.anchorTo});
+        }
+    }
+    // Bounds from spawns local coords
+    struct Bounds { int minx{INT_MAX}, miny{INT_MAX}, maxx{INT_MIN}, maxy{INT_MIN}; };
+    std::unordered_map<std::uint32_t, Bounds> bounds;
+    for (const auto& s : atlas.spawns)
+    {
+        if (!s.resource.local_coord.has_value()) continue;
+        auto& b = bounds[s.resource.location.value];
+        b.minx = std::min(b.minx, s.resource.local_coord->first);
+        b.miny = std::min(b.miny, s.resource.local_coord->second);
+        b.maxx = std::max(b.maxx, s.resource.local_coord->first);
+        b.maxy = std::max(b.maxy, s.resource.local_coord->second);
+    }
+    for (auto& [nodeId, tm] : tilemapByNode)
+    {
+        if (auto itb = bounds.find(nodeId); itb != bounds.end())
+        {
+            auto b = itb->second;
+            if (b.minx <= b.maxx && b.miny <= b.maxy)
+            {
+                tm.width = std::max(1, b.maxx - b.minx + 1);
+                tm.height = std::max(1, b.maxy - b.miny + 1);
+            }
+        }
+        atlas.tilemaps.push_back(std::move(tm));
+    }
+
     return atlas;
 }
 

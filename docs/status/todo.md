@@ -7,6 +7,9 @@
 - [x] 在 CMake 中导出 `genesis_runtime` 动态库，并调整现有目标依赖关系。
 - [ ] 设计/实现双缓冲 `SimulationSnapshot`，保证多线程安全。
 
+## Noise Map MVP
+- [ ] 按 `docs/status/backlog/noise-map-mvp.md` 执行 Phase 1～5，完成噪声地图生成、接入与验证。
+
 ## Sandbox CLI
 - [x] 重构现有 ASCII 播放器为 `sandbox_cli`，实时调用运行时 API。
 - [ ] 支持基本控制命令：`pause`、`resume`、`step`, `inspect agent <id>`。

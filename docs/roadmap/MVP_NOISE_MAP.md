@@ -54,3 +54,10 @@
 - 将 `terrain` 正式化为 `LocationNode` 扩展字段或标签集合（Loader/JSON 同步）。
 - 引入 `Area/Portal` 与 Tile 层（参考 `CHUNKED_TILE_GRAPH.md` 与 `TILEMAP_INTEGRATION.md`）。
 - 扩展资源类型（Drink/Social）与地形约束的资源分布规则。
+
+## 执行计划（Action Plan）
+- **Phase 1 · 生成器基础**：实现 `NoiseGridGenerator`，构建 `LocationGraph`、资源采样与 JSON 导出，并补齐单元测试。
+- **Phase 2 · 命令与自动化**：提供脚本/命令行一键生成噪声地图，接入构建流程并更新操作指南。
+- **Phase 3 · 运行时接入**：引擎加载生成地图、维持资源刷新，设置代理初始落点并做集成测试。
+- **Phase 4 · NPC 生命周期验证**：在 `sandbox_cli` 中使用固定脚本复现 `MoveTo → ConsumeResource` 闭环，记录 Telemetry。
+- **Phase 5 · CLI 可视化支持**：渲染 ASCII 布局、补充验证指引。详见 `docs/status/backlog/noise-map-mvp.md`。

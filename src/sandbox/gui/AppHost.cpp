@@ -11,9 +11,12 @@
 
 #include <algorithm>
 #include <deque>
+#include <limits>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -77,6 +80,9 @@ AppHost::AppHost(AppHostConfig config)
     , show_telemetry_(true)
     , show_logs_(true)
     , log_auto_scroll_(true)
+    , show_agent_overlay_(true)
+    , show_agent_trails_(false)
+    , agent_trail_samples_(24)
 {
     if (auto logger = spdlog::default_logger())
     {
@@ -460,6 +466,56 @@ void AppHost::drawWorldViewPanel()
     }
 
     const auto& atlas = runtime_bridge_->atlas();
+
+    ImGui::Checkbox("Agents", &show_agent_overlay_);
+    ImGui::SameLine();
+    ImGui::Checkbox("Trails", &show_agent_trails_);
+    if (show_agent_trails_)
+    {
+        ImGui::SameLine();
+        int trailSamples = static_cast<int>(agent_trail_samples_);
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::SliderInt("Trail Length", &trailSamples, 4, 64))
+        {
+            agent_trail_samples_ = static_cast<std::size_t>(trailSamples);
+            for (auto& [id, trail] : agent_trails_)
+            {
+                while (trail.size() > agent_trail_samples_)
+                {
+                    trail.pop_front();
+                }
+            }
+        }
+    }
+
+    const ImVec4 colorMove{0.30f, 0.63f, 0.96f, 1.0f};
+    const ImVec4 colorConsume{0.97f, 0.62f, 0.24f, 1.0f};
+    const ImVec4 colorIdle{0.66f, 0.66f, 0.66f, 1.0f};
+    const ImVec4 colorUnknown{0.82f, 0.52f, 0.90f, 1.0f};
+
+    if (show_agent_overlay_)
+    {
+        ImGui::Spacing();
+        auto legendEntry = [](const char* id, const char* text, const ImVec4& color) {
+            ImGui::ColorButton(id, color, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(12.0f, 12.0f));
+            ImGui::SameLine();
+            ImGui::TextUnformatted(text);
+        };
+        legendEntry("##legend_move", "MoveTo", colorMove);
+        ImGui::SameLine();
+        legendEntry("##legend_consume", "Consume", colorConsume);
+        ImGui::SameLine();
+        legendEntry("##legend_idle", "Idle", colorIdle);
+        ImGui::SameLine();
+        legendEntry("##legend_other", "Other", colorUnknown);
+        ImGui::Separator();
+    }
+    else
+    {
+        ImGui::Spacing();
+        ImGui::Separator();
+    }
+
     const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
     const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
     const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
@@ -546,6 +602,89 @@ void AppHost::drawWorldViewPanel()
             const ImU32 markerColor = ImGui::GetColorU32(ImVec4(0.92f, 0.66f, 0.27f, 1.0f));
             drawList->AddTriangleFilled(a, b, c, markerColor);
             drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.2f);
+        }
+
+        if (show_agent_overlay_ && latest_snapshot_)
+        {
+            enum class AgentState
+            {
+                Idle,
+                Move,
+                Consume,
+                Other
+            };
+
+            std::unordered_map<std::uint32_t, AgentState> agentStates;
+            agentStates.reserve(latest_snapshot_->telemetry.actions.size());
+            for (const auto& action : latest_snapshot_->telemetry.actions)
+            {
+                AgentState state = AgentState::Other;
+                if (action.currentAction == "MoveTo")
+                {
+                    state = AgentState::Move;
+                }
+                else if (action.currentAction == "ConsumeResource")
+                {
+                    state = AgentState::Consume;
+                }
+                else if (action.currentAction == "Idle")
+                {
+                    state = AgentState::Idle;
+                }
+                agentStates[action.entityId] = state;
+            }
+
+            const ImU32 moveColor = ImGui::GetColorU32(colorMove);
+            const ImU32 consumeColor = ImGui::GetColorU32(colorConsume);
+            const ImU32 idleColor = ImGui::GetColorU32(colorIdle);
+            const ImU32 otherColor = ImGui::GetColorU32(colorUnknown);
+            const ImU32 borderColor = ImGui::GetColorU32(ImGuiCol_Text);
+
+            auto colorForState = [&](AgentState state) -> ImU32 {
+                switch (state)
+                {
+                case AgentState::Move:
+                    return moveColor;
+                case AgentState::Consume:
+                    return consumeColor;
+                case AgentState::Idle:
+                    return idleColor;
+                case AgentState::Other:
+                default:
+                    return otherColor;
+                }
+            };
+
+            for (const auto& agent : latest_snapshot_->telemetry.agents)
+            {
+                auto posIt = nodePositions.find(agent.location.value);
+                if (posIt == nodePositions.end())
+                {
+                    continue;
+                }
+
+                const ImVec2 screenPos = posIt->second;
+                const auto state = agentStates.contains(agent.entityId) ? agentStates[agent.entityId] : AgentState::Idle;
+                const ImU32 fillColor = colorForState(state);
+                drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
+                drawList->AddCircle(screenPos, 7.0f, borderColor, 16, 1.4f);
+
+                if (show_agent_trails_)
+                {
+                    auto trailIt = agent_trails_.find(agent.entityId);
+                    if (trailIt != agent_trails_.end() && trailIt->second.size() > 1)
+                    {
+                        const auto& trail = trailIt->second;
+                        ImVec2 previous = toScreen(trail.front());
+                        for (std::size_t i = 1; i < trail.size(); ++i)
+                        {
+                            ImVec2 current = toScreen(trail[i]);
+                            drawList->AddLine(previous, current, fillColor, 2.0f);
+                            previous = current;
+                        }
+                    }
+                }
+            }
         }
     }
     else
@@ -701,12 +840,60 @@ void AppHost::updateRuntimeSnapshot()
     if (!runtime_bridge_)
     {
         latest_snapshot_.reset();
+        agent_trails_.clear();
         return;
     }
 
     if (auto snapshot = runtime_bridge_->latestSnapshot())
     {
         latest_snapshot_ = std::move(snapshot);
+        if (latest_snapshot_)
+        {
+            updateAgentTrails(*latest_snapshot_);
+        }
+    }
+}
+
+void AppHost::updateAgentTrails(const RuntimeBridge::Snapshot& snapshot)
+{
+    if (!runtime_bridge_)
+    {
+        agent_trails_.clear();
+        return;
+    }
+
+    const auto& atlas = runtime_bridge_->atlas();
+    std::unordered_set<std::uint32_t> observed;
+    observed.reserve(snapshot.telemetry.agents.size());
+
+    for (const auto& agent : snapshot.telemetry.agents)
+    {
+        observed.insert(agent.entityId);
+        if (auto nodePos = atlas.nodePosition(agent.location))
+        {
+            auto& trail = agent_trails_[agent.entityId];
+            if (trail.empty() || std::fabs(trail.back().x - nodePos->x) > std::numeric_limits<float>::epsilon() ||
+                std::fabs(trail.back().y - nodePos->y) > std::numeric_limits<float>::epsilon())
+            {
+                trail.push_back(*nodePos);
+                while (trail.size() > agent_trail_samples_)
+                {
+                    trail.pop_front();
+                }
+            }
+        }
+    }
+
+    for (auto it = agent_trails_.begin(); it != agent_trails_.end();)
+    {
+        if (!observed.contains(it->first))
+        {
+            it = agent_trails_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
     }
 }
 

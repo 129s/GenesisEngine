@@ -1,10 +1,12 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
-#include <cstddef>
+#include <unordered_map>
 
 #include "sandbox/gui/RuntimeBridge.hpp"
 
@@ -55,6 +57,7 @@ private:
     void drawStatusBar();
 
     void updateRuntimeSnapshot();
+    void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
 
     AppHostConfig config_;
     GLFWwindow* window_{nullptr};
@@ -72,6 +75,10 @@ private:
     bool log_auto_scroll_{true};
     std::shared_ptr<ImGuiLogSink> log_sink_;
     std::size_t log_last_line_count_{0};
+    bool show_agent_overlay_{true};
+    bool show_agent_trails_{false};
+    std::size_t agent_trail_samples_{24};
+    std::unordered_map<std::uint32_t, std::deque<RuntimeBridge::Vector2>> agent_trails_;
 };
 
 } // namespace Genesis::Sandbox::Gui

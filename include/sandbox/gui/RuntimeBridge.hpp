@@ -5,10 +5,11 @@
 #include <condition_variable>
 #include <deque>
 #include <memory>
-#include <optional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "genesis/runtime/Runtime.hpp"
@@ -61,7 +62,18 @@ public:
         std::vector<Node> nodes;
         std::vector<Edge> edges;
         std::vector<Spawn> spawns;
+        std::unordered_map<std::uint32_t, Vector2> nodeLookup;
         Vector2 extent{800.0f, 600.0f};
+
+        [[nodiscard]] std::optional<Vector2> nodePosition(genesis::world::LocationId id) const
+        {
+            auto it = nodeLookup.find(id.value);
+            if (it == nodeLookup.end())
+            {
+                return std::nullopt;
+            }
+            return it->second;
+        }
     };
 
     explicit RuntimeBridge(genesis::runtime::RuntimeConfig config = {}, std::size_t maxSnapshots = 96);

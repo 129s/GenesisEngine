@@ -278,6 +278,7 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
                 .name = group[index].name,
                 .position = position,
             });
+            atlas.nodeLookup.emplace(group[index].id.value, position);
         }
 
         ++levelIndex;

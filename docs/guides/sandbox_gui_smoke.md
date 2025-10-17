@@ -29,7 +29,7 @@ cmake --build build --target genesis_sandbox_gui
 - Docking 主视口（可自由拆分窗口）
 - 顶部菜单（File / View），View 菜单可切换 Demo、World View、Telemetry
 - Welcome 面板：帧率、背景色、VSync、播放控制（Pause/Resume/Step/倍速）、最新快照摘要
-- World View 面板：静态世界拓扑图（节点/边/资源）
+- World View 面板：静态世界拓扑图（节点/边/资源）与 Agent 覆盖层（支持移动轨迹、行动图例开关）
 - Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要
 - 底部状态栏：快速统计（Step/Agents/Resources/Actions）
 - Log Console 面板：捕获 `spdlog` 输出并持续滚动（默认开启，支持手动关闭/自动滚动）。
@@ -45,12 +45,15 @@ cmake --build build --target genesis_sandbox_gui
 ## World View 面板
 - 依据 `WorldRegistry` 中的 Location/Edge/Spawn 构建静态 2D 布局，按层级垂直排列。
 - 节点颜色区分 Region / Building / Room / Point；资源生成点以三角标识。
+- `Agents` 复选框可开启/关闭代理标记，`Trails` 控制是否绘制近期轨迹，支援 4~64 个采样点调节。
+- 行为图例区分 Move/Consume/Idle/Other 四类行动，标记颜色与 Log/Telemetry 信息保持一致。
 - 当前为静态画布：暂不支持平移/缩放、选中或实时布局更新。
 
 ## 已知限制
 - World View 暂无摄像机/缩放/选中交互，布局为简单层级排布。
 - Telemetry 面板仅展示当前帧摘要，尚无历史曲线、筛选或导出功能。
 - RuntimeBridge 默认节流至 ~500Hz（2ms 休眠），缺少自适应帧率/实时性能指标。
+- Agent Overlay 仅基于离散 LocationId，不含精确坐标/碰撞；多代理重叠时标记会遮挡。
 - 未封装命令行选项；运行期间也未暴露世界重新生成/热加载入口。
 - Headless 环境仍不支持运行（依赖 OpenGL 上下文）。
 - Windows 下默认隐藏控制台窗口，若需查看原始日志请使用 Log Console 或附加自定义 sink。

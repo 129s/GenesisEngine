@@ -113,7 +113,6 @@ target_link_libraries(genesis_sandbox_gui
 
 if(WIN32)
     target_link_libraries(genesis_sandbox_gui PRIVATE opengl32)
-    set_target_properties(genesis_sandbox_gui PROPERTIES WIN32_EXECUTABLE ON)
 else()
     find_package(OpenGL REQUIRED)
     target_link_libraries(genesis_sandbox_gui PRIVATE OpenGL::GL)

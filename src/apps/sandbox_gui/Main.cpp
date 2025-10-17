@@ -2,6 +2,10 @@
 
 #include <spdlog/spdlog.h>
 
+#ifdef _WIN32
+#    include <windows.h>
+#endif
+
 #include <cstdlib>
 #include <exception>
 
@@ -10,11 +14,15 @@ int main(int argc, char** argv)
     (void)argc;
     (void)argv;
 
+#ifdef _WIN32
+    FreeConsole();
+#endif
+
     spdlog::set_pattern("%H:%M:%S %^%l%$ [%n] %v");
     spdlog::set_level(spdlog::level::info);
-    spdlog::info("Starting Genesis Sandbox GUI…");
 
     Genesis::Sandbox::Gui::AppHost app;
+    spdlog::info("Starting Genesis Sandbox GUI…");
 
     try
     {

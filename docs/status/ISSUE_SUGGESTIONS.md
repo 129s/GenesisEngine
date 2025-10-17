@@ -25,7 +25,7 @@
   - 脚本化执行可断言命令行为；
   - 文档更新，新增 `inspect` 使用说明与输出示例。
 
-## 3) 指南：sandbox_ui / game 接入指引
+## 3) 指南：sandbox_gui / game 接入指引
 - Labels: `area/docs`, `P1`, `guides`
 - 参考：`docs/architecture/README.md`（运行时封装段）、`docs/guides/sandbox-cli.md`
 - 描述：

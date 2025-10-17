@@ -8,6 +8,8 @@
 - 指南（构建、运行、工具）：`docs/guides/`（CLI：`docs/guides/sandbox-cli.md`）
 - 状态（进度、待办）：`docs/status/`（进度：`docs/status/progress-summary.md`，待办：`docs/status/todo.md`）
 
+- 故障排查（GUI/运行时常见问题）：`docs/troubleshooting/`（GUI：`docs/troubleshooting/sandbox_gui.md`）
+
 - 文档组织与边界：`docs/handbook/DOCS_ORGANIZATION.md`
 - 架构概览：`docs/architecture/README.md`
 - 愿景与设计原则：`docs/architecture/VISION.md`

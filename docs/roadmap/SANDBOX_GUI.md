@@ -13,7 +13,7 @@
 
 ## 架构概览
 - AppHost：窗口/渲染循环/输入分发，ImGui 框架初始化（含 Docking）。
-- RuntimeBridge：在后台线程运行 `Genesis::Runtime`；产出双缓冲/环形缓冲的 `TickTelemetry` 快照，供 UI 线程无锁读取。
+- RuntimeBridge：在后台线程运行 `genesis::runtime::Runtime`；产出双缓冲/环形缓冲的 `TickTelemetry` 快照，供 UI 线程无锁读取。
 - Panels：
   - MapView（原 WorldView）：世界/布局渲染（节点/边/资源/代理、摄像机平移缩放、可见性裁剪）。
   - Inspector：选中代理/地点/资源，展示属性与关联信息。
@@ -62,7 +62,7 @@
 - `docs/guides/sandbox_gui_smoke.md` 记录构建/运行/已知问题；下一阶段聚焦 RuntimeBridge 与世界渲染接入。
 
 ### 当前阶段（里程碑 2 · RuntimeBridge + 静态世界视图）
-- [x] `RuntimeBridge`：后台线程推进 `Genesis::Runtime`，支持暂停/单步/倍率控制接口，使用线程安全快照缓冲。
+- [x] `RuntimeBridge`：后台线程推进 `genesis::runtime::Runtime`，支持暂停/单步/倍率控制接口，使用线程安全快照缓冲。
 - [x] `WorldAtlas`：提取世界拓扑（Location/Edge/Spawn），生成静态 2D 布局数据供渲染使用。
 - [x] 世界视图面板：利用 ImDrawList 绘制节点/边/资源占位符；显示模拟步数、代理/资源统计。
 - [x] Telemetry 面板雏形：展示最近一帧的关键指标，验证快照读取正确性。
@@ -75,7 +75,7 @@
 - 集成 Log Console 面板捕获 `spdlog` 日志，并在 Windows 环境下隐藏控制台窗口。
 - `docs/guides/sandbox_gui_smoke.md` 扩展至里程碑 1&2 的构建、运行与限制说明。
 
--### 下一阶段（里程碑 3 · OCEAN + 名称标签 + 时间语义 + 第二食物点）
+### 下一阶段（里程碑 3 · OCEAN + 名称标签 + 时间语义 + 第二食物点）
 - [x] 人格：新增 `AgentPersonalityBig5` 组件与 3 个示例画像；在 HungerPlanner 中做通用权重映射（觅食）。
 - [x] 命名/暴露：为 3 名 Agent 赋名，并在 Telemetry 中暴露 `name` 字段；Map View 仅显示名称标签。
 - [x] Step 语义化：按 `SimulationClock` 在 HUD/状态栏显示模拟时间（HH:MM:SS），倍率初值与参数暂用凑数值。

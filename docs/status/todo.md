@@ -24,7 +24,7 @@
 ## Tooling & Docs
 - [x] 更新测试，验证共享库加载及 CLI 运行。
 - [x] 扩写 `architecture.md`/`sandbox-cli.md` 中的运行时使用说明。
-- [ ] 预留后续 `sandbox_ui`/`game` 接入指引。
+- [ ] 预留后续 `sandbox_gui`/`game` 接入指引。
 
 ### 已拆分的 Backlog（便于迁移为 Issue）
 - 运行时重构：`docs/status/backlog/runtime-refactor.md`

@@ -21,4 +21,4 @@
 - CI 与长时模拟：计划中的 24 小时回归和指标比对尚未配置，仍需在 pipelines 中补全。
 - 性能优化：规划/遥测引入更多计算后，需要在后续阶段进行性能与内存分析。
 - 端到端测试：补充完整 E2E 场景，用以验证 Planner → ActionExecutor → Needs 的闭环行为。
-- 运行时封装：扩展 runtime API（快照对比、事件注入等），并实现 sandbox_ui、game 前端以复用统一模拟核心。
+- 运行时封装：扩展 runtime API（快照对比、事件注入等），并实现 sandbox_gui、game 前端以复用统一模拟核心。

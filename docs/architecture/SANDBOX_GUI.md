@@ -4,7 +4,7 @@
 - AppHost
   - 责任：GLFW 窗口与渲染循环、输入系统、ImGui 初始化（Docking/多视口可选）。
 - RuntimeBridge
-  - 责任：在后台线程推进 `Genesis::Runtime`；提供线程安全的 `TickTelemetry` 读取接口（双缓冲/固定大小环形缓冲）。
+- 责任：在后台线程推进 `genesis::runtime::Runtime`；提供线程安全的 `TickTelemetry` 读取接口（双缓冲/固定大小环形缓冲）。
   - 命令通道：UI 调用 `play/pause/step(n)/setSpeed(x)/regenWorld(params)` 等指令，桥接到 Runtime 线程执行。
 - Panels（ImGui）
   - MapView（原 WorldView）：渲染世界图（节点/边/资源/代理），摄像机控制（平移、缩放、重置），显示 Legend/HUD；仅渲染视野内对象。

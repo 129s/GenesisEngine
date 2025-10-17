@@ -27,9 +27,11 @@
 > 结果：`Engine` 支持 `GENESIS_WORLD_PATH` 覆盖与多级候选（demo→generated），缺失时降级到内置图；代理出生点自动选取首个可通行节点；`tests/test_runtime.cpp` 验证噪声世界加载，`ctest` 维持资源刷新用例通过。
 
 ## Phase 4 · NPC 生命周期验证
-- [ ] 准备脚本：在 `sandbox_cli` 中执行固定步骤序列（`step/pause/resume`）观察行为。
-- [ ] 记录指标：确认 `MoveTo`→`ConsumeResource` 循环出现，`Hunger` 需求下降后回升。
-- [ ] 添加调试/日志：必要时扩展 Telemetry 输出以便观察行为闭环。
+- [x] 准备脚本：在 `sandbox_cli` 中执行固定步骤序列（`step/pause/resume`）观察行为。
+- [x] 记录指标：确认 `MoveTo`→`ConsumeResource` 循环出现，`Hunger` 需求下降后回升。
+- [x] 添加调试/日志：必要时扩展 Telemetry 输出以便观察行为闭环。
+
+> 结果：`scripts/run_sandbox_cli.ps1 -UseGeneratedWorld -Commands "step 5;pause;resume;step 40;quit"` 可复现循环，CLI 渲染中输出 `MoveTo/ConsumeResource` 与 Hunger 数值；`tests/test_runtime.cpp` 增加噪声世界闭环断言（移动、消费与饥饿下降）。
 
 ## Phase 5 · CLI 可视化支持
 - [ ] 基于生成的布局 JSON 渲染 ASCII 网格，显示 `A/M/C/F` 状态。

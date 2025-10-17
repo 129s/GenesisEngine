@@ -56,3 +56,14 @@ cmake --build build --target generate_noise_world
 - 引擎启动时会按顺序查找 `data/world/demo_world.json` → `data/world/generated/noise_mvp.json`，两者均缺失时退回内置示例图。
 - 设置环境变量 `GENESIS_WORLD_PATH=<绝对或相对路径>` 可显式指定要加载的世界数据（测试脚本可复用 `tests/test_runtime.cpp` 中的查找逻辑）。
 - 当噪声世界被加载时，Demo 代理会自动选择首个可通行节点作为出生点，资源刷新逻辑保持不变。
+
+## 验证 NPC 闭环
+
+```powershell
+pwsh ./scripts/run_sandbox_cli.ps1 -UseGeneratedWorld `
+    -Commands "step 5;pause;resume;step 40;quit" -NoClear
+```
+
+- 该脚本会临时设置 `GENESIS_WORLD_PATH` 指向 `data/world/generated/noise_mvp.json` 并使用匹配的布局。
+- CLI 输出的 `Actions:` 区域可观察到 `MoveTo` → `ConsumeResource` 的循环，同时 `Needs:` 显示 Hunger 数值在消费后回落。
+- 自动化回归可参考 `tests/test_runtime.cpp` 中的 `AgentCompletesConsumeCycleOnNoiseWorld`，通过 Telemetry 验证移动与消费步骤及饥饿下降。

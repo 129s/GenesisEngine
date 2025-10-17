@@ -1,5 +1,7 @@
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
+#include <limits>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -86,4 +88,60 @@ TEST(RuntimeTest, LoadsNoiseWorldViaEnvironmentOverride) {
     genesis::core::Engine engine;
     EXPECT_GT(engine.world().locationCount(), 1000U);
     EXPECT_GT(engine.world().resourceSpawnCount(), 10U);
+}
+
+TEST(RuntimeTest, AgentCompletesConsumeCycleOnNoiseWorld) {
+    const auto noisePath = locateDataFile("data/world/generated/noise_mvp.json");
+    ASSERT_FALSE(noisePath.empty()) << "Unable to locate generated noise world data";
+
+    EnvironmentGuard guard("GENESIS_WORLD_PATH");
+    guard.set(noisePath.string());
+
+    genesis::core::Engine engine;
+
+    bool sawPlannerDecision = false;
+    bool sawResourceDip = false;
+    bool hungerReduced = false;
+    float maxHunger = std::numeric_limits<float>::lowest();
+
+    constexpr int kMaxSteps = 6000;
+    for (int step = 0; step < kMaxSteps; ++step) {
+        engine.step(1);
+        const auto& entries = engine.telemetry().entries();
+        if (entries.empty()) {
+            continue;
+        }
+
+        const auto& tick = entries.back();
+        if (!tick.plannerDecisions.empty()) {
+            sawPlannerDecision = true;
+        }
+
+        for (const auto& need : tick.needs) {
+            if (need.needName != "Hunger") {
+                continue;
+            }
+            if (need.value > maxHunger) {
+                maxHunger = need.value;
+            }
+            if (maxHunger - need.value > 5.0f) {
+                hungerReduced = true;
+            }
+        }
+
+        for (const auto& resource : tick.resources) {
+            if (resource.current < resource.capacity) {
+                sawResourceDip = true;
+                break;
+            }
+        }
+
+        if (sawPlannerDecision && sawResourceDip && hungerReduced) {
+            break;
+        }
+    }
+
+    EXPECT_TRUE(sawPlannerDecision);
+    EXPECT_TRUE(sawResourceDip);
+    EXPECT_TRUE(hungerReduced);
 }

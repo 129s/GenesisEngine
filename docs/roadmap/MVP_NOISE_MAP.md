@@ -59,5 +59,5 @@
 - **Phase 1 · 生成器基础**（已完成）：实现 `NoiseGridGenerator`，构建 `LocationGraph`、资源采样与 JSON 导出，并补齐单元测试。
 - **Phase 2 · 命令与自动化**（已交付 CLI `genesis-noise-generator` 与脚本 `scripts/generate_noise_world.ps1`）：提供脚本/命令行一键生成噪声地图，接入构建流程并更新操作指南。
 - **Phase 3 · 运行时接入**（已实现候选回退 + 自动择位）：引擎可通过 `GENESIS_WORLD_PATH` 或缺省顺序加载噪声地图，维持资源刷新，并自动挑选可通行节点投放初始代理。
-- **Phase 4 · NPC 生命周期验证**：在 `sandbox_cli` 中使用固定脚本复现 `MoveTo → ConsumeResource` 闭环，记录 Telemetry。
+- **Phase 4 · NPC 生命周期验证**（已完成：脚本化步骤 + Telemetry 校验）：在 `sandbox_cli` 中使用固定脚本复现 `MoveTo → ConsumeResource` 闭环，并通过自动化测试记录 Hunger 波动。
 - **Phase 5 · CLI 可视化支持**：渲染 ASCII 布局、补充验证指引。详见 `docs/status/backlog/noise-map-mvp.md`。

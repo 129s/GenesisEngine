@@ -5,7 +5,9 @@ param(
     [switch]$Reconfigure,
     [switch]$Rebuild,
     [switch]$NoClear,
-    [switch]$Interactive
+    [switch]$Interactive,
+    [switch]$UseGeneratedWorld,
+    [string]$Commands
 )
 
 Set-StrictMode -Version Latest
@@ -41,6 +43,19 @@ if (-not (Test-Path $cliExe)) {
 }
 
 $layoutPath = Join-Path $repoRoot "data/ascii_layout.json"
+$generatedWorldPath = Join-Path $repoRoot "data/world/generated/noise_mvp.json"
+$generatedLayoutPath = Join-Path $repoRoot "data/world/generated/noise_mvp_layout.json"
+
+if ($UseGeneratedWorld) {
+    if (-not (Test-Path $generatedWorldPath)) {
+        throw "Generated world JSON not found at $generatedWorldPath. Run scripts/generate_noise_world.ps1 first."
+    }
+    if (Test-Path $generatedLayoutPath) {
+        $layoutPath = $generatedLayoutPath
+    } else {
+        Write-Warning "Generated layout JSON not found at $generatedLayoutPath. Falling back to default layout."
+    }
+}
 
 Write-Host "Launching sandbox CLI..." -ForegroundColor Green
 
@@ -61,8 +76,29 @@ if ($Fps -gt 0) {
 }
 if (-not $Interactive) {
     $cliArgs += "--commands"
-    $cliArgs += "step $Steps;quit"
+    if (![string]::IsNullOrWhiteSpace($Commands)) {
+        $cliArgs += $Commands
+    } else {
+        $cliArgs += "step $Steps;quit"
+    }
 }
 
 $env:PATH = "{0};{1};{2}" -f (Join-Path $buildPath "src"), (Join-Path $buildPath "tests"), $env:PATH
-& $cliExe @cliArgs
+$previousWorldPath = [System.Environment]::GetEnvironmentVariable("GENESIS_WORLD_PATH", "Process")
+$hadPreviousWorld = $null -ne $previousWorldPath
+
+if ($UseGeneratedWorld) {
+    [System.Environment]::SetEnvironmentVariable("GENESIS_WORLD_PATH", $generatedWorldPath, "Process")
+}
+
+try {
+    & $cliExe @cliArgs
+} finally {
+    if ($UseGeneratedWorld) {
+        if ($hadPreviousWorld) {
+            [System.Environment]::SetEnvironmentVariable("GENESIS_WORLD_PATH", $previousWorldPath, "Process")
+        } else {
+            [System.Environment]::SetEnvironmentVariable("GENESIS_WORLD_PATH", $null, "Process")
+        }
+    }
+}

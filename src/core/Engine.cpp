@@ -1,6 +1,8 @@
 #include "genesis/core/Engine.hpp"
 
+#include <array>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <utility>
 
@@ -32,6 +34,41 @@ std::filesystem::path findDataFile(const std::filesystem::path& relative) {
     }
 
     return {};
+}
+
+const std::array<std::filesystem::path, 2> kWorldCandidates{
+    std::filesystem::path{"data/world/demo_world.json"},
+    std::filesystem::path{"data/world/generated/noise_mvp.json"},
+};
+
+std::filesystem::path resolveWorldCandidate(const std::filesystem::path& candidate) {
+    if (candidate.is_absolute()) {
+        return std::filesystem::exists(candidate) ? candidate : std::filesystem::path{};
+    }
+    return findDataFile(candidate);
+}
+
+genesis::world::LocationId selectSpawnLocation(const genesis::world::WorldRegistry& world) {
+    for (const auto& spawn : world.allSpawns()) {
+        if (const auto* node = world.findLocation(spawn.location); node && node->navigable) {
+            return spawn.location;
+        }
+    }
+
+    const auto nodes = world.locations();
+    for (const auto& node : nodes) {
+        if (node.navigable && node.kind == genesis::world::LocationKind::Point) {
+            return node.id;
+        }
+    }
+
+    for (const auto& node : nodes) {
+        if (node.navigable) {
+            return node.id;
+        }
+    }
+
+    return genesis::world::InvalidLocation;
 }
 
 } // namespace
@@ -99,9 +136,30 @@ void Engine::processStep(std::uint64_t stepIndex) {
 }
 
 void Engine::loadInitialWorld() {
-    static const std::filesystem::path defaultWorld{"data/world/demo_world.json"};
+    if (const char* envWorld = std::getenv("GENESIS_WORLD_PATH"); envWorld && envWorld[0] != '\0') {
+        std::filesystem::path configured{envWorld};
+        const auto located = resolveWorldCandidate(configured);
+        if (!located.empty()) {
+            spdlog::info("Loading world from GENESIS_WORLD_PATH={}", located.string());
+            const auto result = genesis::world::loadWorldFromFile(located, m_world);
+            if (result.success) {
+                spdlog::info("World loaded ({} locations, {} spawns)",
+                    m_world.locationCount(), m_world.resourceSpawnCount());
+                return;
+            }
+            spdlog::error("Failed to load configured world file {}: {}", located.string(), result.error);
+        } else {
+            spdlog::warn("Configured world path {} not found", configured.string());
+        }
+    }
 
-    if (const auto located = findDataFile(defaultWorld); !located.empty()) {
+    for (const auto& candidate : kWorldCandidates) {
+        const auto located = resolveWorldCandidate(candidate);
+        if (located.empty()) {
+            spdlog::warn("World file {} not found", candidate.string());
+            continue;
+        }
+
         spdlog::info("Loading world from {}", located.string());
         const auto result = genesis::world::loadWorldFromFile(located, m_world);
         if (result.success) {
@@ -110,11 +168,10 @@ void Engine::loadInitialWorld() {
             return;
         }
 
-        spdlog::error("Failed to load world file: {}", result.error);
-    } else {
-        spdlog::warn("World file {} not found, using built-in demo world", defaultWorld.string());
+        spdlog::error("Failed to load world file {}: {}", located.string(), result.error);
     }
 
+    spdlog::warn("No external world file available, using built-in demo world");
     m_world.setGraph(genesis::world::createDemoWorldGraph());
     spdlog::info("Fallback demo world loaded ({} locations, {} spawns)",
         m_world.locationCount(), m_world.resourceSpawnCount());
@@ -160,13 +217,19 @@ void Engine::spawnDemoAgents() {
     m_needSystem.applyDefaults(needs);
 
     auto& location = m_registry.emplace<genesis::agents::components::AgentLocation>(entity);
-    location.location = genesis::world::LocationId{6};
+    const auto spawnLocation = selectSpawnLocation(m_world);
+    if (spawnLocation == genesis::world::InvalidLocation) {
+        spdlog::warn("Unable to find navigable spawn location; demo agent will not be placed");
+        m_registry.destroy(entity);
+        return;
+    }
+    location.location = spawnLocation;
 
     needs.needs.setState(NeedType::Hunger, 10.0f);
     needs.needs.setState(NeedType::Energy, 25.0f);
     needs.needs.setState(NeedType::Social, 5.0f);
 
-    spdlog::info("Spawned demo agent with baseline needs");
+    spdlog::info("Spawned demo agent at location {} with baseline needs", spawnLocation.value);
 }
 
 Engine::ResourceRequestResult Engine::requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation) {

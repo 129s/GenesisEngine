@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -34,6 +35,19 @@ TEST(WorldRegistry, LoadsDemoGraph) {
 
     const auto& edges = world.edgesFrom(LocationId{1});
     EXPECT_EQ(edges.size(), 2);
+}
+
+TEST(WorldRegistry, EnumeratesLocations) {
+    WorldRegistry world;
+    world.setGraph(genesis::world::createDemoWorldGraph());
+
+    const auto nodes = world.locations();
+    EXPECT_EQ(nodes.size(), world.locationCount());
+
+    const bool containsRoot = std::any_of(nodes.begin(), nodes.end(), [](const LocationNode& node) {
+        return node.id == LocationId{1};
+    });
+    EXPECT_TRUE(containsRoot);
 }
 
 TEST(WorldRegistry, RejectsInvalidEntries) {

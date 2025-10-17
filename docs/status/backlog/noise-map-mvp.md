@@ -19,10 +19,12 @@
 > 结果：新增 `src/tools/NoiseGenMain.cpp` → `genesis-noise-generator` CLI，同步提供 `scripts/generate_noise_world.ps1` 包装脚本；CMake 自定义目标 `generate_noise_world` 默认写入 `data/world/generated/noise_mvp.json` 与 `noise_mvp_layout.json`。
 
 ## Phase 3 · 运行时接入
-- [ ] 引擎在缺少 `demo_world.json` 时回退加载 `generated/noise_mvp.json`，或提供配置开关。
-- [ ] 确认资源系统沿用 `ratePerStep` 的刷新逻辑，处理生成图的新资源点。
-- [ ] 设定代理初始落点：加载时挑选可通行节点并放置起始代理。
-- [ ] 集成测试：通过运行时 API 验证地图加载成功且资源刷新无异常。
+- [x] 引擎在缺少 `demo_world.json` 时回退加载 `generated/noise_mvp.json`，或提供配置开关。
+- [x] 确认资源系统沿用 `ratePerStep` 的刷新逻辑，处理生成图的新资源点。
+- [x] 设定代理初始落点：加载时挑选可通行节点并放置起始代理。
+- [x] 集成测试：通过运行时 API 验证地图加载成功且资源刷新无异常。
+
+> 结果：`Engine` 支持 `GENESIS_WORLD_PATH` 覆盖与多级候选（demo→generated），缺失时降级到内置图；代理出生点自动选取首个可通行节点；`tests/test_runtime.cpp` 验证噪声世界加载，`ctest` 维持资源刷新用例通过。
 
 ## Phase 4 · NPC 生命周期验证
 - [ ] 准备脚本：在 `sandbox_cli` 中执行固定步骤序列（`step/pause/resume`）观察行为。

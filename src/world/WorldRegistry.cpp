@@ -108,6 +108,15 @@ std::vector<ResourceSpawn> WorldRegistry::spawnsAt(LocationId location) const {
     return results;
 }
 
+std::vector<LocationNode> WorldRegistry::locations() const {
+    std::vector<LocationNode> nodes;
+    nodes.reserve(m_locations.size());
+    for (const auto& [id, node] : m_locations) {
+        nodes.push_back(node);
+    }
+    return nodes;
+}
+
 } // namespace genesis::world
 
 

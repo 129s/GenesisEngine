@@ -31,6 +31,7 @@ public:
 
     [[nodiscard]] std::vector<ResourceSpawn> spawnsAt(LocationId location) const;
     [[nodiscard]] const std::vector<ResourceSpawn>& allSpawns() const noexcept { return m_resourceSpawns; }
+    [[nodiscard]] std::vector<LocationNode> locations() const;
 
 private:
     using LocationMap = std::unordered_map<LocationId, LocationNode, LocationIdHasher>;

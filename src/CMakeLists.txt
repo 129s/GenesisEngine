@@ -92,6 +92,34 @@ set_target_properties(genesis_sandbox_cli PROPERTIES
     OUTPUT_NAME "genesis-sandbox-cli"
 )
 
+add_executable(genesis_sandbox_gui
+    apps/sandbox_gui/Main.cpp
+    sandbox/gui/AppHost.cpp
+)
+
+target_include_directories(genesis_sandbox_gui
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_sandbox_gui
+    PRIVATE
+        spdlog::spdlog
+        imgui::imgui
+        glfw
+)
+
+if(WIN32)
+    target_link_libraries(genesis_sandbox_gui PRIVATE opengl32)
+else()
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(genesis_sandbox_gui PRIVATE OpenGL::GL)
+endif()
+
+set_target_properties(genesis_sandbox_gui PROPERTIES
+    OUTPUT_NAME "genesis-sandbox-gui"
+)
+
 add_executable(genesis_noise_generator
     tools/NoiseGenMain.cpp
 )

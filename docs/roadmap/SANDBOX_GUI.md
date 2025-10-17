@@ -50,8 +50,18 @@
 6) 大图优化：裁剪/批次/抽样；支持 10k+ 节点流畅渲染。
 7) 打包与文档：二进制打包脚本（Win/Linux），用户指南与截图。
 
+### 当前阶段（里程碑 1 · 引导工程与空白壳）
+- [x] 建立 `genesis_sandbox_gui` 可执行程序目标，集成 GLFW/OpenGL 上下文创建。
+- [x] 引入 Dear ImGui，并启用 Docking/Viewport 支持，完成基础 UI 帧循环。
+- [x] 提供最简 Render 管线（清屏 + ImGui 渲染），验证输入回调与窗口 Resize。
+- [x] 补充开发者指南：构建/运行 GUI 沙盒的步骤与已知限制（Smoke 级别）。
+
+**阶段产出（Smoke）**
+- 新增 `genesis-sandbox-gui`：GLFW 3.3 + OpenGL Core + Dear ImGui Docking，提供 DockSpace + Welcome 面板 + Demo Window 切换。
+- GUI 与渲染线程同线程运行，验证窗口生命周期、SwapInterval/VSync 控制、主菜单/欢迎面板基础交互。
+- `docs/guides/sandbox_gui_smoke.md` 记录构建/运行/已知问题；下一阶段聚焦 RuntimeBridge 与世界渲染接入。
+
 ## 风险与规避
 - 渲染跨平台兼容：以 OpenGL 3.x 为基线；提供禁用 MSAA/降级路径。
 - 线程安全：仅通过命令与快照交互；避免 UI 直接操作引擎内部结构。
 - 依赖治理：通过 CPM/FetchContent 管理 glfw/imgui，防止版本漂移；CI 增加构建验证。
-

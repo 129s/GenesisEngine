@@ -30,8 +30,8 @@ NeedSample ensureSample(const NeedComponent& component, NeedType type, const Nee
 
 NeedSatisfier::NeedSatisfier(NeedSatisfierConfig config)
     : m_config(std::move(config)) {
-    if (m_config.hungerPrepareThresholdOffset < 0.0f) {
-        m_config.hungerPrepareThresholdOffset = 0.0f;
+    if (m_config.hungerPrepareMargin < 0.0f) {
+        m_config.hungerPrepareMargin = 0.0f;
     }
     if (!m_config.hungerPreferredLocator) {
         m_config.hungerPreferredLocator = [](entt::entity) {
@@ -52,9 +52,7 @@ void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSyst
         }
 
         const auto hungerSample = ensureSample(component, NeedType::Hunger, *hungerDescriptor, *hungerState);
-        const float prepareThreshold = std::max(
-            hungerDescriptor->satisfiedThreshold,
-            hungerDescriptor->criticalThreshold - m_config.hungerPrepareThresholdOffset);
+        const float prepareThreshold = hungerDescriptor->satisfiedThreshold + m_config.hungerPrepareMargin;
         if (hungerState->value < prepareThreshold && !hungerSample.critical) {
             continue;
         }

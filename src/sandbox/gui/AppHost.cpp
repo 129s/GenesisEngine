@@ -10,6 +10,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <deque>
 #include <limits>
@@ -307,11 +308,6 @@ void AppHost::renderGui()
     drawTelemetryPanel();
     drawLogPanel();
     drawStatusBar();
-
-    if (show_demo_window_)
-    {
-        ImGui::ShowDemoWindow(&show_demo_window_);
-    }
 }
 
 void AppHost::endFrame()
@@ -359,7 +355,6 @@ void AppHost::drawMainMenuBar()
         }
         if (ImGui::BeginMenu("View"))
         {
-            ImGui::MenuItem("Dear ImGui Demo", nullptr, &show_demo_window_);
             ImGui::MenuItem("World View", nullptr, &show_world_view_);
             ImGui::MenuItem("Telemetry", nullptr, &show_telemetry_);
             ImGui::MenuItem("Log Console", nullptr, &show_logs_);
@@ -379,7 +374,6 @@ void AppHost::drawWelcomePanel()
     ImGuiIO& io = ImGui::GetIO();
     ImGui::Text("Average %.2f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
     ImGui::ColorEdit4("Clear Color", clear_color_.data(), ImGuiColorEditFlags_NoInputs);
-    ImGui::Checkbox("Show Dear ImGui Demo", &show_demo_window_);
     if (ImGui::Checkbox("Enable VSync", &config_.vsync))
     {
         glfwSwapInterval(config_.vsync ? 1 : 0);
@@ -605,6 +599,7 @@ void AppHost::drawWorldViewPanel()
         {
             auto nodePosIt = nodePositions.find(spawn.resource.location.value);
             ImVec2 markerBase = nodePosIt != nodePositions.end() ? nodePosIt->second : toScreen(spawn.position);
+            markerBase = ImVec2(std::floor(markerBase.x) + 0.5f, std::floor(markerBase.y) + 0.5f);
             markerBase.y += 22.0f;
             const ImVec2 a{markerBase.x - 6.0f, markerBase.y};
             const ImVec2 b{markerBase.x + 6.0f, markerBase.y};
@@ -641,7 +636,7 @@ void AppHost::drawWorldViewPanel()
                     continue;
                 }
 
-                const ImVec2 basePos = posIt->second;
+                const ImVec2 basePos = ImVec2(std::floor(posIt->second.x) + 0.5f, std::floor(posIt->second.y) + 0.5f);
                 float offsetY = 20.0f;
 
                 for (const auto* resource : resources)
@@ -650,18 +645,18 @@ void AppHost::drawWorldViewPanel()
                     const float current = static_cast<float>(resource->current);
                     const float ratio = capacity > 0.0f ? std::clamp(current / capacity, 0.0f, 1.0f) : 0.0f;
 
-                    const ImVec2 barMin{basePos.x - 28.0f, basePos.y + offsetY};
-                    const ImVec2 barMax{basePos.x + 28.0f, barMin.y + 7.5f};
+                    const ImVec2 barMin{std::floor(basePos.x - 28.0f) + 0.5f, std::floor(basePos.y + offsetY) + 0.5f};
+                    const ImVec2 barMax{std::floor(basePos.x + 28.0f) + 0.5f, std::floor(barMin.y + 7.5f) + 0.5f};
                     drawList->AddRectFilled(barMin, barMax, barBackground, 3.0f);
                     const ImVec2 fillMax{barMin.x + (barMax.x - barMin.x) * ratio, barMax.y};
                     drawList->AddRectFilled(barMin, fillMax, colorForResource(resource->type), 3.0f);
                     drawList->AddRect(barMin, barMax, barBorder, 3.0f);
 
-                    char buffer[32];
-                    std::snprintf(buffer, sizeof(buffer), "%s %u/%u",
+                    char buffer[48];
+                    std::snprintf(buffer, sizeof(buffer), "%-12s %2u/%2u",
                         resource->name.c_str(), resource->current, resource->capacity);
-                    const ImVec2 textPos{barMin.x, barMax.y + 2.0f};
-                    drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 0.85f, textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
+                    const ImVec2 textPos{std::floor(barMin.x) + 0.5f, std::floor(barMax.y + 1.0f) + 0.5f};
+                    drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
 
                     offsetY += 22.0f;
                 }

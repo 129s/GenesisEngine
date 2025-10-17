@@ -89,7 +89,7 @@ Engine::Engine()
     , m_hungerPlanner(genesis::agents::NeedSatisfierConfig{
           .hungerUnitsPerRequest = 2,
           .hungerReliefPerUnit = 12.0f,
-          .hungerPrepareThresholdOffset = 15.0f,
+          .hungerPrepareMargin = 5.0f,
           .hungerPreferredLocator = [](entt::entity) {
               return genesis::world::InvalidLocation;
           },
@@ -194,7 +194,7 @@ void Engine::configureNeedDefaults() {
     hunger.type = NeedType::Hunger;
     hunger.minValue = 0.0f;
     hunger.maxValue = 100.0f;
-    hunger.decayPerSecond = 0.03f; // reaches critical in roughly 45 minutes real-time at default step
+    hunger.decayPerSecond = 0.15f; // accelerate decay so agents need to eat within a few minutes
     hunger.satisfiedThreshold = 20.0f;
     hunger.criticalThreshold = 75.0f;
     m_needSystem.setDefaultDescriptor(hunger);

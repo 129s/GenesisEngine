@@ -62,7 +62,6 @@ private:
     AppHostConfig config_;
     GLFWwindow* window_{nullptr};
     bool initialized_{false};
-    bool show_demo_window_{true};
     std::array<float, 4> clear_color_;
     bool glfw_initialized_{false};
     bool imgui_initialized_{false};

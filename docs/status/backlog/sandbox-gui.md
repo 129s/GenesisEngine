@@ -12,7 +12,7 @@
 - [ ] 后台线程推进 Runtime（Play/Pause/Step/Speed）。
 - [ ] 快照环形缓冲（UI 读、Runtime 写）与命令通道（UI→Runtime）。
 
-3) WorldView & Controls
+3) MapView & Controls
 - [ ] 加载布局并渲染节点/边/资源/代理；摄像机平移缩放。
 - [ ] 控制面板（播放、暂停、步进、速度倍率、无限运行）。
 - [ ] 名称标签与 Step 语义化（HUD：HH:MM:SS）。

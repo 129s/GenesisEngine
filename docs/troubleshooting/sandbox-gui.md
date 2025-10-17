@@ -23,3 +23,19 @@
 注意：
 - Windows 远程/无图形会话可能无法创建 OpenGL 上下文，仍建议在有桌面/驱动的环境运行，详见 `docs/guides/sandbox_gui_smoke.md`。
 
+## 2025-10-17 · 新数据契约下渲染缺失/错位
+
+症状：
+- Map View 不显示部分节点或位置错位；Scene View 无法渲染代理入/出场或资源点不见。
+
+根因（世界数据未满足新契约）：
+- `locations[i].coord_global` 缺失 → Map 无法定位节点。
+- `edges[i].anchors` 缺失或不合法 → Scene 入/出场锚点无参照。
+- `spawns[i].local_coord` 缺失 → 资源/交互点无局部坐标。
+- `schema_version` 不匹配 → 前端按旧协议解析导致字段缺省。
+
+排查与修复：
+1) 检查世界 JSON 是否包含上述字段（参见 `docs/architecture/WORLD_MODEL.md` 与迁移指南）。
+2) 确认 `schema_version` 与 Runtime/GUI 约定一致。
+3) 使用最小示例数据验证渲染（来自迁移指南的片段）。
+

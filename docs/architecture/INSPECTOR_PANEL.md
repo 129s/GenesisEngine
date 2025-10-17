@@ -6,8 +6,8 @@
 ## 功能范围（MVP）
 - 实体列表与搜索：按类型（Agent/Resource/Location）分组，支持名称/ID 过滤。
 - 选中与跟随：
-  - 选中后在 World View 高亮对应节点/代理；
-  - 提供“Follow”开关，World View/Tile View 视角可追随被选实体（后续 Tile View 接入）。
+  - 选中后在 Map View 高亮对应节点/代理；
+  - 提供“Follow”开关，Map View/Scene View 视角可追随被选实体（后续 Scene View 接入）。
 - 详情展示（Agent）：
   - 标识：`entityId`、`name`；
   - 人格（大五 OCEAN）：O/C/E/A/N；

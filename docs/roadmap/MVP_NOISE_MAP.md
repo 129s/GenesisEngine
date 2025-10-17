@@ -61,3 +61,4 @@
 - **Phase 3 · 运行时接入**（已实现候选回退 + 自动择位）：引擎可通过 `GENESIS_WORLD_PATH` 或缺省顺序加载噪声地图，维持资源刷新，并自动挑选可通行节点投放初始代理。
 - **Phase 4 · NPC 生命周期验证**（已完成：脚本化步骤 + Telemetry 校验）：在 `sandbox_cli` 中使用固定脚本复现 `MoveTo → ConsumeResource` 闭环，并通过自动化测试记录 Hunger 波动。
 - **Phase 5 · CLI 可视化支持**：渲染 ASCII 布局、补充验证指引。详见 `docs/status/backlog/noise-map-mvp.md`。
+

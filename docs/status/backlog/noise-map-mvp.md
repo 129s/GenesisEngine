@@ -34,8 +34,10 @@
 > 结果：`scripts/run_sandbox_cli.ps1 -UseGeneratedWorld -Commands "step 5;pause;resume;step 40;quit"` 可复现循环，CLI 渲染中输出 `MoveTo/ConsumeResource` 与 Hunger 数值；`tests/test_runtime.cpp` 增加噪声世界闭环断言（移动、消费与饥饿下降）。
 
 ## Phase 5 · CLI 可视化支持
-- [ ] 基于生成的布局 JSON 渲染 ASCII 网格，显示 `A/M/C/F` 状态。
-- [ ] 补充文档与截图/录屏指引，便于快速验证渲染效果。
+- [x] 基于生成的布局 JSON 渲染 ASCII 网格，显示 `A/M/C/F` 状态。
+- [x] 补充文档与截图/录屏指引，便于快速验证渲染效果。
+
+> 结果：CLI 渲染新增 `Legend` 行及 `MoveTo/ConsumeResource` 摘要，配合 `run_sandbox_cli.ps1 -UseGeneratedWorld -NoClear` 可观测地图变化；`docs/guides/noise-world-generation.md` 更新了截屏/录屏指引。
 
 ### 验收回归清单
 - [ ] 相同 seed 下生成文件一致，不同 seed 产生差异。

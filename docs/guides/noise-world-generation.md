@@ -66,4 +66,6 @@ pwsh ./scripts/run_sandbox_cli.ps1 -UseGeneratedWorld `
 
 - 该脚本会临时设置 `GENESIS_WORLD_PATH` 指向 `data/world/generated/noise_mvp.json` 并使用匹配的布局。
 - CLI 输出的 `Actions:` 区域可观察到 `MoveTo` → `ConsumeResource` 的循环，同时 `Needs:` 显示 Hunger 数值在消费后回落。
+- 建议加上 `-NoClear` 便于截屏或录屏，终端顶部的 Legend 行会标注 `A/M/C/F` 等符号含义，可直接用于文档截图。
 - 自动化回归可参考 `tests/test_runtime.cpp` 中的 `AgentCompletesConsumeCycleOnNoiseWorld`，通过 Telemetry 验证移动与消费步骤及饥饿下降。
+

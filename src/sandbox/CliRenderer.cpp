@@ -36,6 +36,8 @@ void CliRenderer::printSummary(const genesis::telemetry::TickTelemetry& tick, st
     const auto previousFlags = out.flags();
     const auto previousPrecision = out.precision();
 
+    out << "Legend: A=Agent M=MoveTo C=ConsumeResource F=Food #=collision" << "\n";
+
     if (!tick.actions.empty()) {
         out << "Actions:\n";
         for (const auto& action : tick.actions) {
@@ -86,6 +88,9 @@ void CliRenderer::render(const genesis::telemetry::TickTelemetry& tick) {
         stampNode(agent.location, 'A');
     }
 
+    std::ostringstream summary;
+    printSummary(tick, summary);
+
     std::ostringstream frame;
 
     if (m_options.clearScreen) {
@@ -103,7 +108,7 @@ void CliRenderer::render(const genesis::telemetry::TickTelemetry& tick) {
         frame << row << "\n";
     }
 
-    printSummary(tick, frame);
+    frame << summary.str();
 
     if (m_options.clearScreen) {
         frame << "\x1b[J";
@@ -114,3 +119,7 @@ void CliRenderer::render(const genesis::telemetry::TickTelemetry& tick) {
 }
 
 } // namespace sandbox::cli
+
+
+
+

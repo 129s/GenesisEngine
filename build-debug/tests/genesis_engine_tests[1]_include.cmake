@@ -1,5 +1,0 @@
-if(EXISTS "L:/CppProject/GenesisEngine/build-debug/tests/genesis_engine_tests[1]_tests.cmake")
-  include("L:/CppProject/GenesisEngine/build-debug/tests/genesis_engine_tests[1]_tests.cmake")
-else()
-  add_test(genesis_engine_tests_NOT_BUILT genesis_engine_tests_NOT_BUILT)
-endif()

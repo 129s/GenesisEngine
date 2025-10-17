@@ -51,3 +51,9 @@
 - 子系统通过接口注册到引擎，支持运行时开启/关闭。
 - 所有行为原型、数值参数与对话模板存放在 `data/` 下的配置文件。
 - 通过记录与回放 API 支持离线调试与可视化工具。
+
+## 相关文档
+- 世界模型概览：`docs/architecture/WORLD_MODEL.md`
+- 图到矩阵映射（CLI 展示）：`docs/architecture/GRAPH_TO_GRID.md`
+- Tilemap 融合方案（架构与落地）：`docs/architecture/TILEMAP_INTEGRATION.md`
+- 区块化 Tile 节点图（噪声/区块/门户）：`docs/architecture/CHUNKED_TILE_GRAPH.md`

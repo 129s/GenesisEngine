@@ -4602,3 +4602,5 @@ d
 `
 
 
+
+- 区块化 Tile 节点图：`docs/architecture/CHUNKED_TILE_GRAPH.md`

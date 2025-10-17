@@ -11,6 +11,7 @@
 ## 快速导航
 - 架构概览：`docs/architecture/README.md`
 - 愿景与设计原则：`docs/architecture/VISION.md`
+- 世界生成设计：`docs/architecture/WORLD_GENERATION.md`
 - 运行时与沙盒 CLI：`docs/guides/sandbox-cli.md`
 - 路线图（权威版）：`docs/roadmap/README.md`
 - 历史路线图：`docs/roadmap/history/`

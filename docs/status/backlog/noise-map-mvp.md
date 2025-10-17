@@ -12,9 +12,11 @@
 > 结果：新增 `NoiseGridGenerator`（`include/src/world/generation`），产出带 `terrain` 标签的 `LocationGraph` 与布局数据；`tests/test_noise_grid_generator.cpp` 覆盖 Determinism/Distribution/Edges/Spawns/Layouts。
 
 ## Phase 2 · 命令与自动化
-- [ ] 在 `scripts/` 增加命令（PowerShell/Python）触发生成流程，支持参数 `--seed/--width/--height/--threshold`。
-- [ ] 将生成产物加入构建/打包（CMake 或后处理）流程，保证默认 Demo 可直接使用。
-- [ ] 更新文档与示例命令，说明如何生成/刷新噪声地图数据。
+- [x] 在 `scripts/` 增加命令（PowerShell/Python）触发生成流程，支持参数 `--seed/--width/--height/--threshold`。
+- [x] 将生成产物加入构建/打包（CMake 或后处理）流程，保证默认 Demo 可直接使用。
+- [x] 更新文档与示例命令，说明如何生成/刷新噪声地图数据。
+
+> 结果：新增 `src/tools/NoiseGenMain.cpp` → `genesis-noise-generator` CLI，同步提供 `scripts/generate_noise_world.ps1` 包装脚本；CMake 自定义目标 `generate_noise_world` 默认写入 `data/world/generated/noise_mvp.json` 与 `noise_mvp_layout.json`。
 
 ## Phase 3 · 运行时接入
 - [ ] 引擎在缺少 `demo_world.json` 时回退加载 `generated/noise_mvp.json`，或提供配置开关。

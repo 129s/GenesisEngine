@@ -92,4 +92,23 @@ set_target_properties(genesis_sandbox_cli PROPERTIES
     OUTPUT_NAME "genesis-sandbox-cli"
 )
 
+add_executable(genesis_noise_generator
+    tools/NoiseGenMain.cpp
+)
+
+target_include_directories(genesis_noise_generator
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_noise_generator
+    PRIVATE
+        Genesis::Engine
+        nlohmann_json::nlohmann_json
+)
+
+set_target_properties(genesis_noise_generator PROPERTIES
+    OUTPUT_NAME "genesis-noise-generator"
+)
+
 

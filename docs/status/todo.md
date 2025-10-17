@@ -8,7 +8,7 @@
 - [ ] 设计/实现双缓冲 `SimulationSnapshot`，保证多线程安全。
 
 ## Noise Map MVP
-- [ ] Phase 2～5：参照 `docs/status/backlog/noise-map-mvp.md` 推进（Phase 1 已完成，生成器与测试落地）。
+- [ ] Phase 3～5：参照 `docs/status/backlog/noise-map-mvp.md` 推进（Phase 1～2 完成：生成器、脚本与自动化）。
 
 ## Sandbox CLI
 - [x] 重构现有 ASCII 播放器为 `sandbox_cli`，实时调用运行时 API。

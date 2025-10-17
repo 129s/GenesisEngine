@@ -15,7 +15,10 @@ int main(int argc, char** argv)
     (void)argv;
 
 #ifdef _WIN32
-    FreeConsole();
+    if (HWND console = GetConsoleWindow())
+    {
+        ShowWindow(console, SW_HIDE);
+    }
 #endif
 
     spdlog::set_pattern("%H:%M:%S %^%l%$ [%n] %v");

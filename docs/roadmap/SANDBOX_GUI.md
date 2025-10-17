@@ -75,11 +75,11 @@
 - 集成 Log Console 面板捕获 `spdlog` 日志，并在 Windows 环境下隐藏控制台窗口。
 - `docs/guides/sandbox_gui_smoke.md` 扩展至里程碑 1&2 的构建、运行与限制说明。
 
-### 下一阶段（里程碑 3 · OCEAN + 名称标签 + 时间语义 + 第二食物点）
-- [ ] 人格：新增 `AgentPersonalityBig5` 组件与 3 个示例画像；在 HungerPlanner 中做通用权重映射（觅食）。
-- [ ] 命名/暴露：为 3 名 Agent 赋名，并在 Telemetry 中暴露 `name` 字段；Map View 仅显示名称标签。
-- [ ] Step 语义化：按 `SimulationClock` 在 HUD/状态栏显示模拟时间（HH:MM:SS），倍率初值与参数暂用凑数值。
-- [ ] 数据：在 demo 小镇新增一个 Food 产出点（用于差异验证）。
+-### 下一阶段（里程碑 3 · OCEAN + 名称标签 + 时间语义 + 第二食物点）
+- [x] 人格：新增 `AgentPersonalityBig5` 组件与 3 个示例画像；在 HungerPlanner 中做通用权重映射（觅食）。
+- [x] 命名/暴露：为 3 名 Agent 赋名，并在 Telemetry 中暴露 `name` 字段；Map View 仅显示名称标签。
+- [x] Step 语义化：按 `SimulationClock` 在 HUD/状态栏显示模拟时间（HH:MM:SS），倍率初值与参数暂用凑数值。
+- [x] 数据：在 demo 小镇新增一个 Food 产出点（用于差异验证）。
 - [ ] 文档：更新指南与可视化取舍（小图 Scene View 呈现行动，大图 Node 图做最小化概览）。
 
 ### 里程碑 4 · Inspector 面板（调试）

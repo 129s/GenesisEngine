@@ -58,6 +58,10 @@ bool WorldRegistry::addEdge(const PathEdge& edge) {
 
     if (edge.bidirectional) {
         PathEdge reverse{edge.to, edge.from, edge.cost, true};
+        // Carry geometry and anchors, swapping endpoints
+        reverse.polyline = edge.polyline; // optional: kept same for drawing; direction-agnostic in Map
+        reverse.anchor_at_from = edge.anchor_at_to;
+        reverse.anchor_at_to = edge.anchor_at_from;
         auto& toBucket = m_edges[edge.to];
         toBucket.push_back(reverse);
     }

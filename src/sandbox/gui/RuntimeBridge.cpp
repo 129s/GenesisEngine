@@ -349,11 +349,28 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
                 continue;
             }
 
-            atlas.edges.push_back(WorldAtlas::Edge{
-                .from = edge.from,
-                .to = edge.to,
-                .bidirectional = edge.bidirectional,
-            });
+            WorldAtlas::Edge e{};
+            e.from = edge.from;
+            e.to = edge.to;
+            e.bidirectional = edge.bidirectional;
+            // Map polyline from grid ints to atlas Vector2 (use raw grid units)
+            if (!edge.polyline.empty())
+            {
+                e.polyline.reserve(edge.polyline.size());
+                for (const auto& pt : edge.polyline)
+                {
+                    e.polyline.push_back(Vector2{static_cast<float>(pt.first), static_cast<float>(pt.second)});
+                }
+            }
+            if (edge.anchor_at_from.has_value())
+            {
+                e.anchorFrom = Vector2{static_cast<float>(edge.anchor_at_from->first), static_cast<float>(edge.anchor_at_from->second)};
+            }
+            if (edge.anchor_at_to.has_value())
+            {
+                e.anchorTo = Vector2{static_cast<float>(edge.anchor_at_to->first), static_cast<float>(edge.anchor_at_to->second)};
+            }
+            atlas.edges.push_back(std::move(e));
         }
     }
 

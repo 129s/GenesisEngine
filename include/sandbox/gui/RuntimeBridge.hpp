@@ -52,6 +52,10 @@ public:
             genesis::world::LocationId from{};
             genesis::world::LocationId to{};
             bool bidirectional{true};
+            // Optional geometry and anchors (grid-based to be mapped as needed)
+            std::vector<Vector2> polyline;
+            std::optional<Vector2> anchorFrom;
+            std::optional<Vector2> anchorTo;
         };
 
         struct Spawn

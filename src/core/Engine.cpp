@@ -15,6 +15,7 @@
 #include "genesis/world/components/ResourceInventory.hpp"
 #include "genesis/world/components/ResourceSpawn.hpp"
 #include "genesis/agents/AgentComponents.hpp"
+#include "genesis/agents/Personality.hpp"
 
 namespace genesis::core {
 
@@ -229,22 +230,23 @@ void Engine::spawnDemoAgents() {
         return;
     }
 
-    auto spawnOne = [&](std::string name, float hunger, float energy, float social) {
+    auto spawnOne = [&](std::string name, float hunger, float energy, float social, genesis::agents::AgentPersonalityBig5 persona) {
         auto entity = m_registry.create();
         auto& needs = m_registry.emplace<genesis::agents::NeedComponent>(entity);
         m_needSystem.applyDefaults(needs);
         auto& location = m_registry.emplace<genesis::agents::components::AgentLocation>(entity);
         location.location = spawnLocation;
         m_registry.emplace<genesis::agents::components::AgentName>(entity, genesis::agents::components::AgentName{std::move(name)});
+        m_registry.emplace<genesis::agents::AgentPersonalityBig5>(entity, persona);
         needs.needs.setState(NeedType::Hunger, hunger);
         needs.needs.setState(NeedType::Energy, energy);
         needs.needs.setState(NeedType::Social, social);
         spdlog::info("Spawned demo agent '{}' at location {}", m_registry.get<genesis::agents::components::AgentName>(entity).name, spawnLocation.value);
     };
 
-    spawnOne("Ava", 10.0f, 25.0f, 5.0f);
-    spawnOne("Ben", 15.0f, 20.0f, 8.0f);
-    spawnOne("Chloe", 8.0f, 30.0f, 12.0f);
+    spawnOne("Ava", 10.0f, 25.0f, 5.0f, genesis::agents::AgentPersonalityBig5{.openness=0.8f, .conscientiousness=0.4f, .extraversion=0.6f, .agreeableness=0.5f, .neuroticism=0.3f});
+    spawnOne("Ben", 15.0f, 20.0f, 8.0f, genesis::agents::AgentPersonalityBig5{.openness=0.3f, .conscientiousness=0.8f, .extraversion=0.4f, .agreeableness=0.6f, .neuroticism=0.5f});
+    spawnOne("Chloe", 8.0f, 30.0f, 12.0f, genesis::agents::AgentPersonalityBig5{.openness=0.5f, .conscientiousness=0.5f, .extraversion=0.9f, .agreeableness=0.6f, .neuroticism=0.2f});
 }
 
 Engine::ResourceRequestResult Engine::requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation) {

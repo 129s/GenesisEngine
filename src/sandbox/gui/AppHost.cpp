@@ -666,6 +666,17 @@ void AppHost::drawWorldViewPanel()
 
         if (show_agent_overlay_ && latest_snapshot_)
         {
+            // Build movement progress map for interpolation
+            std::unordered_map<std::uint32_t, std::tuple<RuntimeBridge::Vector2, RuntimeBridge::Vector2, float>> progress;
+            if (!latest_snapshot_->telemetry.movementProgress.empty())
+            {
+                for (const auto& mp : latest_snapshot_->telemetry.movementProgress)
+                {
+                    auto fromPos = atlas.nodePosition(mp.from).value_or(RuntimeBridge::Vector2{});
+                    auto toPos = atlas.nodePosition(mp.to).value_or(fromPos);
+                    progress.emplace(mp.entityId, std::make_tuple(fromPos, toPos, std::clamp(mp.t01, 0.0f, 1.0f)));
+                }
+            }
             enum class AgentState
             {
                 Idle,
@@ -722,6 +733,12 @@ void AppHost::drawWorldViewPanel()
                 if (agentPositionsPtr && i < agentPositionsPtr->size())
                 {
                     agentPos = (*agentPositionsPtr)[i];
+                }
+                if (auto itp = progress.find(agent.entityId); itp != progress.end())
+                {
+                    const auto& [fromP, toP, t] = itp->second;
+                    agentPos.x = fromP.x + (toP.x - fromP.x) * t;
+                    agentPos.y = fromP.y + (toP.y - fromP.y) * t;
                 }
 
                 ImVec2 screenPos = toScreen(agentPos);

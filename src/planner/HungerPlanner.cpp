@@ -7,6 +7,7 @@
 #include <entt/entt.hpp>
 
 #include "genesis/agents/AgentComponents.hpp"
+#include "genesis/agents/Personality.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 #include "genesis/world/components/ResourceInventory.hpp"
@@ -40,6 +41,15 @@ LocationChoice defaultHungerLocator(PlannerContext& context, entt::entity agent)
     for (auto [entityId, agentLoc] : agentView.each()) {
         ++occupancy[agentLoc.location];
     }
+
+    // Personality-influenced weights
+    float O = 0.5f, C = 0.5f, E = 0.5f, N = 0.5f;
+    if (const auto* persona = context.registry.try_get<genesis::agents::AgentPersonalityBig5>(agent)) {
+        O = persona->openness; C = persona->conscientiousness; E = persona->extraversion; N = persona->neuroticism;
+    }
+    const float w_dist  = 1.4f + 0.8f * C - 0.8f * O;
+    const float w_occ   = 0.4f + 1.6f * N - 1.0f * E;
+    const float w_stock = 0.4f + 1.0f * N + 0.6f * C - 0.4f * O;
 
     auto occupancyPenalty = [&](genesis::world::LocationId loc) -> float {
         auto it = occupancy.find(loc);
@@ -84,7 +94,7 @@ LocationChoice defaultHungerLocator(PlannerContext& context, entt::entity agent)
         }
 
         if (auto it = available.find(current); it != available.end() && it->second > 0) {
-            const float score = pathCost + occupancyPenalty(current) + stockPenalty(current);
+            const float score = w_dist * pathCost + w_occ * occupancyPenalty(current) + w_stock * stockPenalty(current);
             if (score < bestScore) {
                 bestScore = score;
                 bestTravelCost = pathCost;
@@ -119,7 +129,7 @@ LocationChoice defaultHungerLocator(PlannerContext& context, entt::entity agent)
                 }
             }
         }
-        return {fallback, fallbackCost, fallbackCost + occupancyPenalty(fallback) + stockPenalty(fallback)};
+        return {fallback, fallbackCost, w_dist * fallbackCost + w_occ * occupancyPenalty(fallback) + w_stock * stockPenalty(fallback)};
     }
 
     return {bestLocation, bestTravelCost, bestScore};

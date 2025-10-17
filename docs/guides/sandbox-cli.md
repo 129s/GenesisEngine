@@ -73,6 +73,15 @@ If the layout file is missing or malformed, the CLI falls back to a small built-
 
 Unless `-Interactive` is supplied, the script runs the CLI with the requested scripted commands, then exits when they finish.
 
+
+## Graph-to-grid mapping
+
+CLI 渲染不会自动“从图生成几何布局”。它基于运行时快照中的 `LocationId`，借助布局 JSON 的 `id → (x,y)` 映射，将节点投影到字符网格：
+- 资源 → `'F'`（Food）/`'R'`（其他）
+- 行动 → `'C'`（ConsumeResource）/`'M'`（其他）
+- 代理 → `'A'`
+
+详见：`docs/architecture/GRAPH_TO_GRID.md`
 ## Roadmap
 
 Planned upgrades include richer inspection commands (agent detail cards, watch lists), runtime breakpoints, and integration with a GUI front-end that consumes the same runtime API.

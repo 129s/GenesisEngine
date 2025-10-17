@@ -8,7 +8,7 @@
 - 指南（构建、运行、工具）：`docs/guides/`（CLI：`docs/guides/sandbox-cli.md`）
 - 状态（进度、待办）：`docs/status/`（进度：`docs/status/progress-summary.md`，待办：`docs/status/todo.md`）
 
-## 快速导航
+- 文档组织与边界：`docs/handbook/DOCS_ORGANIZATION.md`
 - 架构概览：`docs/architecture/README.md`
 - 愿景与设计原则：`docs/architecture/VISION.md`
 - 世界模型概览：`docs/architecture/WORLD_MODEL.md`

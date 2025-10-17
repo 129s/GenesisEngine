@@ -67,3 +67,8 @@
 - MVP 阶段性目标：`history/mvp-roadmap.md`
 - 规划器细化：`history/planner-roadmap.md`
 - 进度与欠账：`../status/progress-summary.md`
+
+## Roadmap 与 Status 的边界
+- Roadmap：聚焦未来目标、主题与里程碑，不记录日常进展与细节任务。
+- Status：聚焦当前进展、风险与下一步，链接到 Issues/PR 和 Roadmap 的对应目标。
+- Backlog：以 Issue/Milestone 为准；`docs/status/todo.md` 仅作临时收集。

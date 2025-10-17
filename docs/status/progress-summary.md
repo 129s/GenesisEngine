@@ -1,3 +1,4 @@
+> 文档范围：面向当前/近期开发的进度与风险汇总；长期计划以 `docs/roadmap/README.md` 为准；具体任务请参考仓库 Issues/Milestones。
 # 项目进度概览
 
 ## 已完成工作

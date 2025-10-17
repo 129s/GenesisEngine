@@ -1148,3 +1148,5 @@ d
 踪
 。
 
+
+- 世界模型概览：`docs/architecture/WORLD_MODEL.md`

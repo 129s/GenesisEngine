@@ -89,6 +89,9 @@ AppHost::AppHost(AppHostConfig config)
     , scene_cam_offset_x_(0.0f)
     , scene_cam_offset_y_(0.0f)
     , scene_cam_zoom_(1.0f)
+    , scene_show_grid_(true)
+    , scene_show_anchors_(true)
+    , scene_show_resources_(true)
 {
     if (auto logger = spdlog::default_logger())
     {
@@ -602,6 +605,22 @@ void AppHost::drawWorldViewPanel()
 
             const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - ImGui::GetTextLineHeight() * 0.5f};
             drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
+
+            // Click to open Scene View on this node
+            if (ImGui::IsWindowHovered())
+            {
+                const ImVec2 mouse = ImGui::GetIO().MousePos;
+                const float dx = mouse.x - it->second.x;
+                const float dy = mouse.y - it->second.y;
+                if ((dx * dx + dy * dy) <= (radius * radius))
+                {
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    {
+                        scene_selected_node_ = node.id.value;
+                        show_scene_view_ = true;
+                    }
+                }
+            }
         }
 
         for (const auto& spawn : atlas.spawns)
@@ -847,6 +866,13 @@ void AppHost::drawSceneViewPanel()
         ImGui::EndCombo();
     }
 
+    // Toggles
+    ImGui::Checkbox("Grid", &scene_show_grid_);
+    ImGui::SameLine();
+    ImGui::Checkbox("Anchors", &scene_show_anchors_);
+    ImGui::SameLine();
+    ImGui::Checkbox("Resources", &scene_show_resources_);
+
     // Canvas setup
     const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
     const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
@@ -936,42 +962,51 @@ void AppHost::drawSceneViewPanel()
     const int cols = (maxX - minX + 1);
     const int rows = (maxY - minY + 1);
     const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.25f, 0.25f, 0.28f, 1.0f));
-    for (int x = 0; x <= cols; ++x)
+    if (scene_show_grid_)
     {
-        const ImVec2 a = toScreen(static_cast<float>(minX + x), static_cast<float>(minY));
-        const ImVec2 b = toScreen(static_cast<float>(minX + x), static_cast<float>(maxY + 1));
-        drawList->AddLine(a, b, gridColor, 1.0f);
-    }
-    for (int y = 0; y <= rows; ++y)
-    {
-        const ImVec2 a = toScreen(static_cast<float>(minX), static_cast<float>(minY + y));
-        const ImVec2 b = toScreen(static_cast<float>(maxX + 1), static_cast<float>(minY + y));
-        drawList->AddLine(a, b, gridColor, 1.0f);
+        for (int x = 0; x <= cols; ++x)
+        {
+            const ImVec2 a = toScreen(static_cast<float>(minX + x), static_cast<float>(minY));
+            const ImVec2 b = toScreen(static_cast<float>(minX + x), static_cast<float>(maxY + 1));
+            drawList->AddLine(a, b, gridColor, 1.0f);
+        }
+        for (int y = 0; y <= rows; ++y)
+        {
+            const ImVec2 a = toScreen(static_cast<float>(minX), static_cast<float>(minY + y));
+            const ImVec2 b = toScreen(static_cast<float>(maxX + 1), static_cast<float>(minY + y));
+            drawList->AddLine(a, b, gridColor, 1.0f);
+        }
     }
 
     // Draw resources
     const ImU32 foodColor = ImGui::GetColorU32(ImVec4(0.93f, 0.67f, 0.27f, 1.0f));
-    for (const auto& p : resourcePts)
+    if (scene_show_resources_)
     {
-        const ImVec2 center = toScreen(p.x + 0.5f, p.y + 0.5f);
-        const float r = std::max(3.0f, cellPx * 0.25f);
-        drawList->AddCircleFilled(center, r, foodColor, 12);
-        drawList->AddCircle(center, r, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.2f);
+        for (const auto& p : resourcePts)
+        {
+            const ImVec2 center = toScreen(p.x + 0.5f, p.y + 0.5f);
+            const float r = std::max(3.0f, cellPx * 0.25f);
+            drawList->AddCircleFilled(center, r, foodColor, 12);
+            drawList->AddCircle(center, r, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.2f);
+        }
     }
 
     // Draw anchors
     const ImU32 anchorColor = ImGui::GetColorU32(ImVec4(0.38f, 0.74f, 0.88f, 1.0f));
-    for (const auto& ap : anchorPts)
+    if (scene_show_anchors_)
     {
-        const ImVec2 base = toScreen(ap.first.x + 0.5f, ap.first.y + 0.5f);
-        const float w = std::max(4.0f, cellPx * 0.2f);
-        const ImVec2 a{base.x - w, base.y};
-        const ImVec2 b{base.x + w, base.y};
-        const ImVec2 c{base.x, base.y + w * 1.6f};
-        drawList->AddTriangleFilled(a, b, c, anchorColor);
-        drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
-        const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
-        drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), ap.second.c_str());
+        for (const auto& ap : anchorPts)
+        {
+            const ImVec2 base = toScreen(ap.first.x + 0.5f, ap.first.y + 0.5f);
+            const float w = std::max(4.0f, cellPx * 0.2f);
+            const ImVec2 a{base.x - w, base.y};
+            const ImVec2 b{base.x + w, base.y};
+            const ImVec2 c{base.x, base.y + w * 1.6f};
+            drawList->AddTriangleFilled(a, b, c, anchorColor);
+            drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
+            const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
+            drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), ap.second.c_str());
+        }
     }
 
     ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));

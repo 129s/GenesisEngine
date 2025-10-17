@@ -29,11 +29,12 @@ cmake --build build --target genesis_sandbox_gui
 - Docking 主视口（可自由拆分窗口）
 - 顶部菜单（File / View），View 菜单可切换 Demo、Map View、Telemetry
 - Welcome 面板：帧率、背景色、VSync、播放控制（Pause/Resume/Step/倍速）、最新快照摘要
-- Map View 面板：静态世界拓扑图（节点/边/资源）与 Agent 名称标签（可选轨迹/图例）。
+- Map View 面板：静态世界拓扑图（节点/边/资源）与 Agent 名称标签（可选插值/轨迹/图例）。
 - Scene View 面板：基于整数网格的场景观察（当前为网格占位渲染），支持：
   - 节点下拉选择（Room/Point/Building/Region）；
   - 资源点（local_coord）与锚点（anchors）标注；
   - 相机平移（右键拖拽）与缩放（滚轮）。
+  - 网格/锚点/资源显示开关。
 - Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要
 - 底部状态栏：快速统计（Step/Agents/Resources/Actions）
 - Log Console 面板：捕获 `spdlog` 输出并持续滚动（默认开启，支持手动关闭/自动滚动）。
@@ -54,7 +55,8 @@ cmake --build build --target genesis_sandbox_gui
 - 当前为静态画布：暂不支持平移/缩放、选中或实时布局更新。
 
 ## 已知限制
-- Map View 暂无摄像机/缩放/选中交互，布局使用 coord_global；位置插值依赖 movement_progress。
+- Map View 暂无摄像机/缩放交互，布局使用 coord_global；位置插值依赖 movement_progress（可切换 Interpolate）。
+  - 在 Map 上点击节点可打开 Scene View 并选中对应节点。
 
 ## Scene View 面板（占位版）
 - 以整数网格为单位渲染，像素 tileSize 仅影响可视大小；

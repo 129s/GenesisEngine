@@ -87,6 +87,9 @@ private:
     float scene_cam_offset_x_{0.0f};
     float scene_cam_offset_y_{0.0f};
     float scene_cam_zoom_{1.0f};
+    bool scene_show_grid_{true};
+    bool scene_show_anchors_{true};
+    bool scene_show_resources_{true};
 };
 
 } // namespace Genesis::Sandbox::Gui

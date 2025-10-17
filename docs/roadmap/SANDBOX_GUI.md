@@ -75,15 +75,18 @@
 - 集成 Log Console 面板捕获 `spdlog` 日志，并在 Windows 环境下隐藏控制台窗口。
 - `docs/guides/sandbox_gui_smoke.md` 扩展至里程碑 1&2 的构建、运行与限制说明。
 
-### 下一阶段（里程碑 3 · Agent 可视化 & HUD）
-- [ ] Agent Overlay：在 World View 内绘制代理位置/行动，并支持随快照更新。
-- [ ] Movement Trace：记录近期轨迹（折线或淡化尾迹），展示移动趋势。
-- [ ] 行为图例：区分 Move/Consume/Idle 状态的颜色与标记，面板上方提供 Legend。
-- [ ] RuntimeBridge：扩展快照记录历史位置与行动状态缓存。
-- [ ] HUD 指标扩展：展示平均移动速度、活跃行动数、代理分布等实时数据。
-- [ ] 文档：更新指南说明 Agent 可视化开关、图例和性能影响。
+### 下一阶段（里程碑 3 · Inspector + 名称标签 + 时间语义）
+- [ ] Inspector 面板（前置）：实体列表/搜索、详情（OCEAN/Needs/ActionQueue/Location）、高亮与跟随。
+- [ ] World View：仅展示 Agent 名称标签（默认不绘制路径/轨迹，保留 Debug 开关）。
+- [ ] Step 语义化：按 `SimulationClock` 在 HUD/状态栏显示模拟时间（HH:MM:SS），提供倍率配置。
+- [ ] 文档：更新指南与调试说明，记录可视化取舍（小图 Tile View 呈现行动，大图 Node 图做最小化概览）。
 
 ## 风险与规避
 - 渲染跨平台兼容：以 OpenGL 3.x 为基线；提供禁用 MSAA/降级路径。
 - 线程安全：仅通过命令与快照交互；避免 UI 直接操作引擎内部结构。
 - 依赖治理：通过 CPM/FetchContent 管理 glfw/imgui，防止版本漂移；CI 增加构建验证。
+
+## 对齐更新（2025-xx-xx）
+- 人格模型采用大五（OCEAN），并在 Planner 中做通用映射，适配非饥饿行为域。
+- 数据：同意在 demo 小镇新增一个 Food 产出点用于差异验证。
+- 可视化策略：Node 图仅做概览/小地图，默认仅展示名称；路径/轨迹为低优先级 Debug 功能；微观行动信息由 Tile View 呈现。

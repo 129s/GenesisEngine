@@ -4604,3 +4604,5 @@ d
 
 
 - 区块化 Tile 节点图：`docs/architecture/CHUNKED_TILE_GRAPH.md`
+
+- MVP：噪声随机地图 + 固定刷新资源 + NPC 循环：`docs/roadmap/MVP_NOISE_MAP.md`

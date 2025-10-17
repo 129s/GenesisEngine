@@ -12,6 +12,7 @@
 - 实时沙盒：抽象出 genesis_runtime 动态库，并基于其实现 sandbox_cli，提供实时步进/暂停与 ASCII 观测；新增 scripts/run_sandbox_cli.ps1 脚本快速启动调试会话。
 - 测试覆盖：补充 SimulationClock、WorldRegistry/Loader、ResourceSystem、NeedSatisfier、HungerPlanner 以及 TelemetryBuffer 的单元测试，维持自动化构建通过；扩展 ctest 增加 runtime/CLI 烟雾测试。
 - 规划路线：整理 Utility Planner 迭代路线图，明确各阶段目标、风险与依赖。
+- 工具链验证：在 MinGW 环境下确认 `gcc`/`g++` 15.2.0 与 `mingw32-make` 4.4.1 可用，为后续本地构建提供保障。
 
 ## 未完成与待推进事项
 - 多需求规划：仅实现饥饿规划，能量/社交等需求的 Utility 评估与行为链尚未落地。
@@ -21,4 +22,3 @@
 - 性能优化：规划/遥测引入更多计算后，需要在后续阶段进行性能与内存分析。
 - 端到端测试：补充完整 E2E 场景，用以验证 Planner → ActionExecutor → Needs 的闭环行为。
 - 运行时封装：扩展 runtime API（快照对比、事件注入等），并实现 sandbox_ui、game 前端以复用统一模拟核心。
-

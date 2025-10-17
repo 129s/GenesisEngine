@@ -198,6 +198,27 @@ WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& reg
         }
     }
 
+    // Optional tilemaps meta
+    if (data.contains("tilemaps")) {
+        if (!data["tilemaps"].is_array()) {
+            return {false, "'tilemaps' must be an array"};
+        }
+        for (const auto& tm : data["tilemaps"]) {
+            try {
+                TilemapMeta meta{};
+                meta.node = LocationId{tm.at("node").get<std::uint32_t>()};
+                meta.width = tm.value("width", 0);
+                meta.height = tm.value("height", 0);
+                const int s = tm.value("tileSize", 0);
+                meta.tileW = s;
+                meta.tileH = s;
+                graph.tilemaps.push_back(meta);
+            } catch (const nlohmann::json::exception& ex) {
+                return {false, std::string{"Invalid tilemap entry: "} + ex.what()};
+            }
+        }
+    }
+
     registry.setGraph(std::move(graph));
     return {true, {}};
 }

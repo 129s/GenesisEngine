@@ -24,6 +24,7 @@ public:
     [[nodiscard]] std::vector<LocationId> childrenOf(LocationId id) const;
     [[nodiscard]] const std::vector<PathEdge>& edgesFrom(LocationId id) const;
     [[nodiscard]] const std::vector<ResourceSpawn>& resourceSpawns() const noexcept { return m_resourceSpawns; }
+    [[nodiscard]] const std::vector<TilemapMeta>& tilemaps() const noexcept { return m_tilemaps; }
 
     [[nodiscard]] bool empty() const noexcept { return m_locations.empty(); }
     [[nodiscard]] std::size_t locationCount() const noexcept { return m_locations.size(); }
@@ -42,6 +43,7 @@ private:
     EdgeMap m_edges;
     ChildMap m_children;
     std::vector<ResourceSpawn> m_resourceSpawns;
+    std::vector<TilemapMeta> m_tilemaps;
 
     inline static const std::vector<PathEdge> s_emptyEdges{};
 };

@@ -24,5 +24,10 @@
     { "name": "Tavern Food Prep", "type": "Food", "location": 3, "capacity": 24, "rate_per_step": 3, "local_coord": [6,4] },
     { "name": "Tavern Hospitality", "type": "Social", "location": 4, "capacity": 12, "rate_per_step": 2, "local_coord": [5,3] },
     { "name": "Town Food Stall", "type": "Food", "location": 1, "capacity": 8,  "rate_per_step": 1, "local_coord": [7,7] }
+  ],
+  "tilemaps": [
+    { "node": 1, "width": 16, "height": 12, "tileSize": 32 },
+    { "node": 3, "width": 10, "height": 8,  "tileSize": 32 },
+    { "node": 4, "width": 12, "height": 9,  "tileSize": 32 }
   ]
 }

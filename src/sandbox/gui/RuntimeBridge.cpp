@@ -318,8 +318,18 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
         });
     }
 
-    // Build simple tilemap metadata: collect portals per node and infer bounds from resource local coords
+    // Build tilemap metadata: start with explicit meta from world, then add portals and infer bounds
     std::unordered_map<std::uint32_t, WorldAtlas::Tilemap> tilemapByNode;
+    for (const auto& tm : engine.world().tilemaps())
+    {
+        WorldAtlas::Tilemap t{};
+        t.nodeId = tm.node.value;
+        t.width = tm.width;
+        t.height = tm.height;
+        t.tileW = tm.tileW;
+        t.tileH = tm.tileH;
+        tilemapByNode[tm.node.value] = std::move(t);
+    }
     // Portals from edges
     for (const auto& e : atlas.edges)
     {

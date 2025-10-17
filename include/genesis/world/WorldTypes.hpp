@@ -70,11 +70,20 @@ struct ResourceSpawn {
     std::optional<std::pair<int, int>> local_coord;
 };
 
+struct TilemapMeta {
+    LocationId node;
+    int width{0};
+    int height{0};
+    int tileW{0};
+    int tileH{0};
+};
+
 struct LocationGraph {
     std::vector<LocationNode> nodes;
     std::vector<PathEdge> edges;
     std::vector<ResourceSpawn> spawns;
     std::uint32_t schemaVersion{0};
+    std::vector<TilemapMeta> tilemaps;
 };
 
 } // namespace genesis::world

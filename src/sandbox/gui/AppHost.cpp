@@ -951,7 +951,16 @@ void AppHost::drawSceneViewPanel()
         for (const auto& ap : anchorPts) incorporate(ap.first);
     }
 
-    const float cellPx = 24.0f * scene_cam_zoom_;
+    float basePx = 24.0f;
+    for (const auto& tm : atlas.tilemaps)
+    {
+        if (tm.nodeId == scene_selected_node_ && tm.tileW > 0)
+        {
+            basePx = static_cast<float>(tm.tileW);
+            break;
+        }
+    }
+    const float cellPx = basePx * scene_cam_zoom_;
     auto toScreen = [&](float gx, float gy) {
         const float sx = canvasPos.x + scene_cam_offset_x_ + (gx - minX) * cellPx + 8.0f;
         const float sy = canvasPos.y + scene_cam_offset_y_ + (gy - minY) * cellPx + 8.0f;

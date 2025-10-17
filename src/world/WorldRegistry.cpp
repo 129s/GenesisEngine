@@ -25,6 +25,9 @@ void WorldRegistry::setGraph(LocationGraph graph) {
     for (const auto& spawn : graph.spawns) {
         addResourceSpawn(spawn);
     }
+
+    // store tilemaps meta
+    m_tilemaps = std::move(graph.tilemaps);
 }
 
 bool WorldRegistry::addLocation(const LocationNode& node) {

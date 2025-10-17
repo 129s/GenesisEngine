@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <unordered_set>
 #include <utility>
 
 #include <spdlog/spdlog.h>
@@ -49,22 +50,29 @@ std::filesystem::path resolveWorldCandidate(const std::filesystem::path& candida
 }
 
 genesis::world::LocationId selectSpawnLocation(const genesis::world::WorldRegistry& world) {
-    for (const auto& spawn : world.allSpawns()) {
-        if (const auto* node = world.findLocation(spawn.location); node && node->navigable) {
-            return spawn.location;
-        }
+    const auto spawns = world.allSpawns();
+    std::unordered_set<genesis::world::LocationId, genesis::world::LocationIdHasher> spawnLocations;
+    spawnLocations.reserve(spawns.size());
+    for (const auto& spawn : spawns) {
+        spawnLocations.insert(spawn.location);
     }
 
     const auto nodes = world.locations();
     for (const auto& node : nodes) {
-        if (node.navigable && node.kind == genesis::world::LocationKind::Point) {
+        if (node.navigable && node.kind == genesis::world::LocationKind::Point && !spawnLocations.contains(node.id)) {
             return node.id;
         }
     }
 
     for (const auto& node : nodes) {
-        if (node.navigable) {
+        if (node.navigable && !spawnLocations.contains(node.id)) {
             return node.id;
+        }
+    }
+
+    for (const auto& spawn : spawns) {
+        if (const auto* node = world.findLocation(spawn.location); node && node->navigable) {
+            return spawn.location;
         }
     }
 
@@ -81,6 +89,7 @@ Engine::Engine()
     , m_hungerPlanner(genesis::agents::NeedSatisfierConfig{
           .hungerUnitsPerRequest = 2,
           .hungerReliefPerUnit = 12.0f,
+          .hungerPrepareThresholdOffset = 15.0f,
           .hungerPreferredLocator = [](entt::entity) {
               return genesis::world::InvalidLocation;
           },

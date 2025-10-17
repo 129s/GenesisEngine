@@ -16,6 +16,7 @@ class ActionExecutor;
 struct NeedSatisfierConfig {
     std::uint32_t hungerUnitsPerRequest{2};
     float hungerReliefPerUnit{12.0f};
+    float hungerPrepareThresholdOffset{15.0f};
     std::function<world::LocationId(entt::entity)> hungerPreferredLocator{};
 };
 

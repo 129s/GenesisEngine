@@ -10,6 +10,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <deque>
 #include <limits>
 #include <mutex>
@@ -516,7 +517,16 @@ void AppHost::drawWorldViewPanel()
         ImGui::Separator();
     }
 
-    const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
+        std::unordered_map<std::uint32_t, std::vector<const genesis::telemetry::ResourceSnapshot*>> resourcesByLocation;
+        if (latest_snapshot_)
+        {
+            for (const auto& resource : latest_snapshot_->telemetry.resources)
+            {
+                resourcesByLocation[resource.location.value].push_back(&resource);
+            }
+        }
+
+        const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
     const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
     const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
 
@@ -602,6 +612,60 @@ void AppHost::drawWorldViewPanel()
             const ImU32 markerColor = ImGui::GetColorU32(ImVec4(0.92f, 0.66f, 0.27f, 1.0f));
             drawList->AddTriangleFilled(a, b, c, markerColor);
             drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.2f);
+        }
+
+        if (latest_snapshot_)
+        {
+            auto colorForResource = [](genesis::world::ResourceType type) -> ImU32 {
+                switch (type)
+                {
+                case genesis::world::ResourceType::Food:
+                    return ImGui::GetColorU32(ImVec4(0.95f, 0.61f, 0.27f, 1.0f));
+                case genesis::world::ResourceType::Drink:
+                    return ImGui::GetColorU32(ImVec4(0.27f, 0.61f, 0.95f, 1.0f));
+                case genesis::world::ResourceType::Social:
+                    return ImGui::GetColorU32(ImVec4(0.48f, 0.76f, 0.47f, 1.0f));
+                default:
+                    return ImGui::GetColorU32(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+                }
+            };
+
+            const ImU32 barBackground = ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 0.9f));
+            const ImU32 barBorder = ImGui::GetColorU32(ImGuiCol_Border);
+
+            for (const auto& [locationId, resources] : resourcesByLocation)
+            {
+                auto posIt = nodePositions.find(locationId);
+                if (posIt == nodePositions.end())
+                {
+                    continue;
+                }
+
+                const ImVec2 basePos = posIt->second;
+                float offsetY = 20.0f;
+
+                for (const auto* resource : resources)
+                {
+                    const float capacity = static_cast<float>(resource->capacity);
+                    const float current = static_cast<float>(resource->current);
+                    const float ratio = capacity > 0.0f ? std::clamp(current / capacity, 0.0f, 1.0f) : 0.0f;
+
+                    const ImVec2 barMin{basePos.x - 28.0f, basePos.y + offsetY};
+                    const ImVec2 barMax{basePos.x + 28.0f, barMin.y + 7.5f};
+                    drawList->AddRectFilled(barMin, barMax, barBackground, 3.0f);
+                    const ImVec2 fillMax{barMin.x + (barMax.x - barMin.x) * ratio, barMax.y};
+                    drawList->AddRectFilled(barMin, fillMax, colorForResource(resource->type), 3.0f);
+                    drawList->AddRect(barMin, barMax, barBorder, 3.0f);
+
+                    char buffer[32];
+                    std::snprintf(buffer, sizeof(buffer), "%s %u/%u",
+                        resource->name.c_str(), resource->current, resource->capacity);
+                    const ImVec2 textPos{barMin.x, barMax.y + 2.0f};
+                    drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 0.85f, textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
+
+                    offsetY += 22.0f;
+                }
+            }
         }
 
         if (show_agent_overlay_ && latest_snapshot_)

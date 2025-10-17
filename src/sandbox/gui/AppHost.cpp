@@ -472,6 +472,8 @@ void AppHost::drawWorldViewPanel()
     ImGui::Checkbox("Agents", &show_agent_overlay_);
     ImGui::SameLine();
     ImGui::Checkbox("Trails", &show_agent_trails_);
+    ImGui::SameLine();
+    ImGui::Checkbox("Interpolate", &map_interpolate_);
     if (show_agent_trails_)
     {
         ImGui::SameLine();
@@ -672,9 +674,9 @@ void AppHost::drawWorldViewPanel()
 
         if (show_agent_overlay_ && latest_snapshot_)
         {
-            // Build movement progress map for interpolation
+            // Build movement progress map for interpolation (optional)
             std::unordered_map<std::uint32_t, std::tuple<RuntimeBridge::Vector2, RuntimeBridge::Vector2, float>> progress;
-            if (!latest_snapshot_->telemetry.movementProgress.empty())
+            if (map_interpolate_ && !latest_snapshot_->telemetry.movementProgress.empty())
             {
                 for (const auto& mp : latest_snapshot_->telemetry.movementProgress)
                 {
@@ -740,11 +742,14 @@ void AppHost::drawWorldViewPanel()
                 {
                     agentPos = (*agentPositionsPtr)[i];
                 }
-                if (auto itp = progress.find(agent.entityId); itp != progress.end())
+                if (map_interpolate_)
                 {
-                    const auto& [fromP, toP, t] = itp->second;
-                    agentPos.x = fromP.x + (toP.x - fromP.x) * t;
-                    agentPos.y = fromP.y + (toP.y - fromP.y) * t;
+                    if (auto itp = progress.find(agent.entityId); itp != progress.end())
+                    {
+                        const auto& [fromP, toP, t] = itp->second;
+                        agentPos.x = fromP.x + (toP.x - fromP.x) * t;
+                        agentPos.y = fromP.y + (toP.y - fromP.y) * t;
+                    }
                 }
 
                 ImVec2 screenPos = toScreen(agentPos);

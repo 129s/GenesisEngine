@@ -78,6 +78,7 @@ private:
     std::size_t log_last_line_count_{0};
     bool show_agent_overlay_{true};
     bool show_agent_trails_{false};
+    bool map_interpolate_{true};
     std::size_t agent_trail_samples_{24};
     std::unordered_map<std::uint32_t, std::deque<RuntimeBridge::Vector2>> agent_trails_;
 

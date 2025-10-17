@@ -45,7 +45,6 @@ protected:
             line.pop_back();
         }
 
-        std::lock_guard<std::mutex> lock(this->mutex_);
         entries_.push_back(std::move(line));
         if (entries_.size() > max_entries_)
         {

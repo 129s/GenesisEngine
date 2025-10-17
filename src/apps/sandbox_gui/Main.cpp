@@ -15,9 +15,13 @@ int main(int argc, char** argv)
     (void)argv;
 
 #ifdef _WIN32
-    if (HWND console = GetConsoleWindow())
+    DWORD processList[2] = {};
+    if (GetConsoleProcessList(processList, 2) <= 1)
     {
-        ShowWindow(console, SW_HIDE);
+        if (HWND console = GetConsoleWindow())
+        {
+            ShowWindow(console, SW_HIDE);
+        }
     }
 #endif
 

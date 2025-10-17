@@ -1,0 +1,14 @@
+# Target labels
+ spdlog-populate
+# Source files and their labels
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/CMakeFiles/spdlog-populate
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/CMakeFiles/spdlog-populate.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/CMakeFiles/spdlog-populate-complete.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-build.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-configure.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-download.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-install.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-mkdir.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-patch.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-test.rule
+L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-subbuild/spdlog-populate-prefix/src/spdlog-populate-stamp/spdlog-populate-update.rule

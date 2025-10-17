@@ -1,0 +1,17 @@
+{
+	"InstallScripts" : 
+	[
+		"L:/CppProject/GenesisEngine/build-debug/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/spdlog-build/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/entt-build/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/nlohmann_json-build/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/glfw-build/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/glfw-build/src/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/gtest-build/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/gtest-build/googlemock/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/_deps/gtest-build/googletest/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/src/cmake_install.cmake",
+		"L:/CppProject/GenesisEngine/build-debug/tests/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

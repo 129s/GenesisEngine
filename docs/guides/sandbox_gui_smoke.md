@@ -54,6 +54,7 @@ cmake --build build --target genesis_sandbox_gui
 - Telemetry 面板仅展示当前帧摘要，尚无历史曲线、筛选或导出功能。
 - RuntimeBridge 默认节流至 ~500Hz（2ms 休眠），缺少自适应帧率/实时性能指标。
 - Agent Overlay 仅基于离散 LocationId，不含精确坐标/碰撞；多代理重叠时标记会遮挡。
+- 出于线程安全考虑，暂未在 GUI 侧直接读取 ECS 组件进行“移动插值”。如果需要更平滑的轨迹，应当在 Runtime/Telemetry 中产出插值所需的稳定字段（例如当前段进度），GUI 仅消费 Telemetry。
 - 未封装命令行选项；运行期间也未暴露世界重新生成/热加载入口。
 - Headless 环境仍不支持运行（依赖 OpenGL 上下文）。
 - Windows 下默认隐藏控制台窗口，若需查看原始日志请使用 Log Console 或附加自定义 sink。
@@ -63,3 +64,6 @@ cmake --build build --target genesis_sandbox_gui
 - 里程碑 4：Inspector & Telemetry 曲线（实体选择、指标趋势）。
 - 里程碑 5：WorldGen 参数面板与世界热加载。
 - 请跟踪 `docs/roadmap/SANDBOX_GUI.md` 获取后续任务进度与待办。
+
+## 故障排查
+- 若在某些终端环境运行 GUI 出现卡死或约第 200 步崩溃，请参考 `docs/troubleshooting/sandbox-gui.md`。

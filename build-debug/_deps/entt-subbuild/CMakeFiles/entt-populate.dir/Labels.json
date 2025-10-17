@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/CMakeFiles/entt-populate"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/CMakeFiles/entt-populate.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/CMakeFiles/entt-populate-complete.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-build.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-configure.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-download.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-install.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-mkdir.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-patch.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-test.rule"
+		},
+		{
+			"file" : "L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/entt-populate-prefix/src/entt-populate-stamp/entt-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"entt-populate"
+		],
+		"name" : "entt-populate"
+	}
+}

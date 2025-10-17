@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"L:/CppProject/GenesisEngine/build-debug/_deps/entt-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

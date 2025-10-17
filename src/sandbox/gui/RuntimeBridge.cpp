@@ -10,9 +10,8 @@
 
 #include <spdlog/spdlog.h>
 
-#include <entt/entt.hpp>
-
-#include "genesis/agents/AgentComponents.hpp"
+// Note: avoid including ECS headers here to prevent accidental
+// cross-thread access from GUI thread.
 
 namespace Genesis::Sandbox::Gui
 {
@@ -196,7 +195,9 @@ void RuntimeBridge::captureSnapshot()
     snapshot.agentPositions.reserve(snapshot.telemetry.agents.size());
     for (const auto& agent : snapshot.telemetry.agents)
     {
-        snapshot.agentPositions.push_back(resolveAgentPosition(agent));
+        // Safe: map to static node position only; avoids touching ECS from GUI thread.
+        auto pos = atlas_.nodePosition(agent.location).value_or(Vector2{});
+        snapshot.agentPositions.push_back(pos);
     }
 
     std::lock_guard lock(snapshotMutex_);
@@ -328,82 +329,6 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
     }
 
     return atlas;
-}
-
-RuntimeBridge::Vector2 RuntimeBridge::resolveAgentPosition(const genesis::telemetry::AgentSnapshot& agent) const
-{
-    Vector2 result{0.0f, 0.0f};
-
-    auto positionForLocation = [&](genesis::world::LocationId id) -> std::optional<Vector2> {
-        if (id == genesis::world::InvalidLocation)
-        {
-            return std::nullopt;
-        }
-        if (auto it = atlas_.nodeLookup.find(id.value); it != atlas_.nodeLookup.end())
-        {
-            return it->second;
-        }
-        return std::nullopt;
-    };
-
-    if (auto pos = positionForLocation(agent.location))
-    {
-        result = *pos;
-    }
-
-    const auto& registry = runtime_.engine().registry();
-    const entt::entity entity = static_cast<entt::entity>(agent.entityId);
-    if (!registry.valid(entity))
-    {
-        return result;
-    }
-
-    if (const auto* state = registry.try_get<genesis::agents::components::MovementState>(entity))
-    {
-        if (state->blocked || state->path.empty())
-        {
-            return result;
-        }
-
-        std::size_t index = state->currentIndex;
-        if (index >= state->path.size())
-        {
-            const auto& path = state->path;
-            if (!path.empty())
-            {
-                if (auto pos = positionForLocation(path.back()))
-                {
-                    result = *pos;
-                }
-            }
-            return result;
-        }
-
-        if (index == 0)
-        {
-            if (auto pos = positionForLocation(state->path.front()))
-            {
-                result = *pos;
-            }
-            return result;
-        }
-
-        auto fromId = state->path[index - 1];
-        auto toId = state->path[index];
-        auto fromPos = positionForLocation(fromId);
-        auto toPos = positionForLocation(toId);
-        if (!fromPos || !toPos)
-        {
-            return result;
-        }
-
-        const float edgeLength = state->segmentLength;
-        const float t = edgeLength > 0.0f ? std::clamp(state->traveledAlongEdge / edgeLength, 0.0f, 1.0f) : 0.0f;
-        result.x = fromPos->x + (toPos->x - fromPos->x) * t;
-        result.y = fromPos->y + (toPos->y - fromPos->y) * t;
-    }
-
-    return result;
 }
 
 } // namespace Genesis::Sandbox::Gui

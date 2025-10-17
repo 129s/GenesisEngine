@@ -1,0 +1,101 @@
+#include "sandbox/CliRenderer.hpp"
+
+#include <iomanip>
+#include <iostream>
+
+namespace sandbox::cli {
+
+CliRenderer::CliRenderer(Layout layout, FrameOptions options)
+    : m_layout(std::move(layout))
+    , m_options(options) {
+}
+
+CliRenderer::~CliRenderer() {
+    if (m_cursorHidden && m_options.clearScreen) {
+        std::cout << "\x1b[?25h" << std::flush;
+    }
+}
+
+void CliRenderer::stamp(std::vector<std::string>& grid, int x, int y, char symbol) const {
+    if (y < 0 || y >= static_cast<int>(grid.size())) {
+        return;
+    }
+    if (x < 0 || x >= static_cast<int>(grid[y].size())) {
+        return;
+    }
+    char& cell = grid[y][x];
+    if (cell == '.' || cell == symbol) {
+        cell = symbol;
+    } else {
+        cell = '#';
+    }
+}
+
+void CliRenderer::printSummary(const genesis::telemetry::TickTelemetry& tick) const {
+    if (!tick.actions.empty()) {
+        std::cout << "Actions:\n";
+        for (const auto& action : tick.actions) {
+            std::cout << "  #" << action.entityId
+                      << " action=" << action.currentAction
+                      << " queue=" << action.queueLength
+                      << " target=" << action.target.value
+                      << " speed=" << action.speed
+                      << "\n";
+        }
+    }
+
+    if (!tick.needs.empty()) {
+        std::cout << "Needs:\n";
+        for (const auto& need : tick.needs) {
+            std::cout << "  #" << need.entityId
+                      << " " << need.needName
+                      << "=" << std::fixed << std::setprecision(1) << need.value
+                      << (need.critical ? " !" : "") << "\n";
+        }
+    }
+}
+
+void CliRenderer::render(const genesis::telemetry::TickTelemetry& tick) {
+    std::vector<std::string> grid(m_layout.height, std::string(m_layout.width, '.'));
+
+    auto stampNode = [&](genesis::world::LocationId location, char symbol) {
+        auto it = m_layout.nodes.find(location.value);
+        if (it != m_layout.nodes.end()) {
+            stamp(grid, it->second.x, it->second.y, symbol);
+        }
+    };
+
+    for (const auto& resource : tick.resources) {
+        const char symbol = resource.type == genesis::world::ResourceType::Food ? 'F' : 'R';
+        stampNode(resource.location, symbol);
+    }
+
+    for (const auto& action : tick.actions) {
+        const char symbol = action.currentAction == "ConsumeResource" ? 'C' : 'M';
+        stampNode(action.target, symbol);
+    }
+
+    for (const auto& agent : tick.agents) {
+        stampNode(agent.location, 'A');
+    }
+
+    if (m_options.clearScreen) {
+        if (!m_cursorHidden) {
+            std::cout << "\x1b[?25l";
+            m_cursorHidden = true;
+        }
+        std::cout << "\x1b[H\x1b[2J";
+    } else {
+        std::cout << "\n";
+    }
+
+    std::cout << "Step " << tick.step << "\n";
+    for (const auto& row : grid) {
+        std::cout << row << "\n";
+    }
+
+    printSummary(tick);
+    std::cout.flush();
+}
+
+} // namespace sandbox::cli

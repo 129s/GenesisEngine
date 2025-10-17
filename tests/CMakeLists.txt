@@ -40,7 +40,7 @@ add_test(
 )
 
 set(GENESIS_ENGINE_APP_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-engine${CMAKE_EXECUTABLE_SUFFIX})
-set(GENESIS_ASCII_VIEWER_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-ascii-viewer${CMAKE_EXECUTABLE_SUFFIX})
+set(GENESIS_SANDBOX_CLI_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-sandbox-cli${CMAKE_EXECUTABLE_SUFFIX})
 
 add_test(
     NAME GenesisEngine_E2E
@@ -49,10 +49,9 @@ add_test(
 )
 
 add_test(
-    NAME GenesisAsciiPlayback_Smoke
-    COMMAND ${GENESIS_ASCII_VIEWER_EXECUTABLE} --telemetry ${CMAKE_BINARY_DIR}/telemetry_e2e.json --layout ${CMAKE_SOURCE_DIR}/data/ascii_layout.json --frames=5 --delay=0
+    NAME GenesisSandboxCLI_Script
+    COMMAND ${CMAKE_COMMAND} -E env "PATH=${CMAKE_BINARY_DIR}/src;$ENV{PATH}" ${GENESIS_SANDBOX_CLI_EXECUTABLE} --layout ${CMAKE_SOURCE_DIR}/data/ascii_layout.json --commands "step 5;pause;resume;step 3;quit" --no-clear
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-set_tests_properties(GenesisAsciiPlayback_Smoke PROPERTIES DEPENDS GenesisEngine_E2E)
-
+set_tests_properties(GenesisSandboxCLI_Script PROPERTIES DEPENDS GenesisEngine_E2E)

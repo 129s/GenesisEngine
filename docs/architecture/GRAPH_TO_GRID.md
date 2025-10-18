@@ -1,10 +1,10 @@
-# 图到矩阵（Graph → Grid）映射说明
+# 图到矩阵（Graph → Grid）映射说明（CLI 遗留）
 
-> 目标：解释“基于节点图的世界模型”与 `sandbox_cli` 的“矩阵（ASCII 网格）可视化”之间如何衔接。
+> 本文仅用于维护 `sandbox_cli` 的 ASCII 可视化。当前主力前端为 GUI；CLI 仅在过渡期或排障时使用。
 
 ## 核心结论
-- 模拟内部仅维护“地点图（`LocationGraph`）”，不包含几何坐标或栅格。
-- CLI 可视化并不对图做几何布局计算，而是通过一个“布局映射（Layout）”把地点 `id → (x,y)` 投影到字符网格。
+- 模拟内部维护“分层节点图（`LocationGraph`）”，CLI 只读其 `nodeId`。
+- CLI 不做几何布局计算，而是使用“布局映射（Layout）”把 `nodeId → (x,y)` 投影到字符网格。
 - 渲染使用运行时快照（Telemetry）中的地点标识（`LocationId`），根据布局坐标在网格上“盖章（stamp）”字符。
 
 ## 数据路径（从图到 CLI）
@@ -33,15 +33,14 @@
 - 目前不绘制边（`edges`）或路径，仅对节点进行投影；后续可扩展在字符网格描边连接（选做）。
 
 ## 布局来源与定制
-- 默认布局：`src/apps/sandbox_cli/Main.cpp:126` 的 `defaultLayout()` 与 `data/ascii_layout.json` 保持一致。
+- 默认布局：`src/apps/sandbox_cli/Main.cpp:126` 的 `defaultLayout()` 与 `data/ascii_layout.json` 保持一致（仅覆盖旧 Demo 世界）。
 - 外部文件：通过 `--layout <path>` 指定 JSON，格式见 `docs/guides/sandbox-cli.md` 的“Layout configuration”。
 - 关键约束：布局中的 `id` 必须与世界图中 `LocationNode.id.value` 一致，才能正确投影。
 
 ## 设计取舍
-- 解耦：图拓扑与 ASCII 几何布局相互独立，便于：
-  - 更换可视化（CLI → GUI）而不影响模拟；
-  - 在不同地图规模下复用同一模拟核心。
-- 简洁性：在 CLI 层不做布局算法，避免引入额外复杂度；高级前端可实现自动布局。
+- 解耦：图拓扑与 ASCII 布局相互独立，便于 GUI/其他前端共用数据。
+- 简洁：CLI 不做自动布局或路径渲染，复杂可视化交由 GUI 完成。
+- 遗留维护：仅在 CLI 仍被使用的场景下更新布局文件；如世界模型演进，请确保 `ascii_layout.json` 与最新 `nodeId` 对齐，否则 CLI 渲染会错误。
 
 ## 快速自检（Troubleshooting）
 - 现象：某节点在 CLI 不显示 → 检查 `layout.nodes` 是否包含对应 `id`，以及坐标不越界。

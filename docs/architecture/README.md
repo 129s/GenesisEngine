@@ -1,59 +1,29 @@
-# GenesisEngine Architecture Overview
+# GenesisEngine · Architecture Docs
 
-> 相关文档：愿景与原则见 `VISION.md`；统一路线图见 `../roadmap/README.md`。
-> 世界生成设计见 `WORLD_GENERATION.md`。
+> 面向内部开发者，聚焦架构层设计与实现契约。愿景与原则见 `VISION.md`，路线图见 `../roadmap/README.md`。
 
-## Goals
-- 支撑可拓展的涌现式叙事模拟，便于引入新机制而不破坏既有系统。
-- 数据驱动，运行时可根据配置生成世界、NPC 与资源。
-- 保持可测试性：核心逻辑尽量与展示层解耦，便于无头模拟与回放。
+## 阅读指引
+- **核心层**
+  - `overview.md`：引擎目标、分层结构、并发边界。
+  - `runtime_api.md`：运行时控制/查询协议与 Telemetry、WorldAtlas 契约。
+- **世界层**
+  - `world_model.md`：分层节点图 + Tilemap（表/里）的运行时抽象。
+  - `world_generation.md`：基于 MapConfig 递归生成的世界生成流程。
+  - `world_representation.md`：Graph ↔ Tilemap 协同与前端消费。
+  - `chunked_tile_graph.md`：噪声大世界/区块流式方案（专题）。
+- **Agent 层**
+  - `agent_personality_big5.md`：属性→需求→决策→行动链路，大五人格与 Trait 的映射。
+- **前端层**
+  - CLI（遗留）：`graph_to_grid.md`
+  - GUI：`sandbox_gui.md`、`sandbox_gui_sim_loop.md`、`sandbox_gui_tilemap_rendering.md`、`inspector_panel.md`
+  - Game：暂未开篇，待产品路线明确后补充。
+- **其他**
+  - `open_questions.md`：开放议题与待决策项。
 
-## 模块划分
-- `Core`：时间系统、模拟循环、服务定位与生命周期管理。
-- `World`：地图拓扑、地点/建筑/资源原型，负责实体静态数据。
-- `Agents`：NPC 状态（需求、情绪、记忆）、行为决策（Utility/GOAP）、行动调度。
-- `Interaction`：对话、交易、事件链等交互流程，对应信息流与关系更新。
-- `Persistence`：数据加载、保存、日志回放、诊断工具。
+所有文档默认使用中文描述，必要时辅以英文名词；新名词首次出现需给出解释。
 
-各模块通过事件总线与共享上下文沟通，避免紧耦合。
-
-## 核心循环
-1. **感知（Perception）**：收集事件，刷新 NPC 记忆与世界状态缓存。
-2. **决策（Decision）**：根据需求、目标和上下文生成任务计划。
-3. **行动（Execution）**：驱动行为树/任务执行器改变世界状态。
-4. **归档（Bookkeeping）**：记录事实（Fact）、广播信息、更新统计。
-
-`SimulationClock` 提供离散时间步，`Engine` 驱动循环并协调各子系统。
-
-## 数据模型
-- 实体以 `EntityId` 唯一标识，结合 EnTT 组件存储静态与动态属性。
-- 需求/资源等连续值使用归一化浮点（0-1），通过调节器控制衰减。
-- 信息流：`Fact`（客观事件）→ `Observation`（个体感知）→ `Rumor`（传播时附带噪声与信任度）。
-- 地图采用分层图结构：区域→建筑→房间→节点；路径边存储移动成本和条件。
-
-## 第三方依赖
-- `spdlog`：统一日志输出，支持子系统自定义 logger。
-- `entt`：实体组件系统与事件派发。
-- `gtest`：核心逻辑与模拟循环的单元/集成测试。
-
-## 发布形态与运行时包装
-- **静态核心 (`libgenesis_engine.a`)**：持续作为内部实现库，封装 `Engine` 及所有子系统。
-- **运行时动态库 (`genesis_runtime`)**：对外暴露 C 友好的句柄式 API（创建/销毁引擎、推进一步、抓取快照、注册调试回调），供各前端复用。
-    - 通过双缓冲 `SimulationSnapshot` 解决模拟线程与渲染/调试线程的数据共享问题。
-    - 统一的快照结构包含：时间戳、Agent 状态、行动队列、资源库存、调试标记等。
-- **前端二进制**：
-    - `sandbox_cli`：命令行实时沙盒（ASCII 渲染 + 调试命令），主要用于开发调试。
-    - `sandbox_gui`：桌面可视化工具（进行中），采用图形界面展示同一快照数据，并提供调试控件。
-    - `game`：面向终端玩家的正式发行版本，共用同一运行时 API。
-- 目标是 “一次构建，多前端共享”：模拟逻辑仅在动态库维护，前端专注于交互和可视化。
-
-## 扩展策略
-- 子系统通过接口注册到引擎，支持运行时开启/关闭。
-- 所有行为原型、数值参数与对话模板存放在 `data/` 下的配置文件。
-- 通过记录与回放 API 支持离线调试与可视化工具。
-
-## 相关文档
-- 世界模型概览：`docs/architecture/WORLD_MODEL.md`
-- 图到矩阵映射（CLI 展示）：`docs/architecture/GRAPH_TO_GRID.md`
-- Tilemap 融合方案（架构与落地）：`docs/architecture/TILEMAP_INTEGRATION.md`
-- 区块化 Tile 节点图（噪声/区块/门户）：`docs/architecture/CHUNKED_TILE_GRAPH.md`
+## 维护约定
+- 文档遵循“结构分层、职责清晰”的原则：新增内容应归入现有层级或补充新专题。
+- 对运行时代码的契约更新，应同步更新相关文档并在 `open_questions.md` 标记版本。
+- CLI 文档为遗留方案，除故障排查外不再扩展；GUI 为主力前端，Game 相关设计暂缓。
+- 变更完成后需更新 `CHANGELOG` 或提交说明，确保团队能够追踪架构演进。

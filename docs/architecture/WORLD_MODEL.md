@@ -1,70 +1,92 @@
-# 世界模型（当前实现）
+# 世界模型（World Model）
 
-本节概述当前世界由哪些“组成部分”构成，以及它们在代码与数据中的位置。
+世界模型由两部分组成：**分层节点图（LocationGraph）** 与 **Tilemap（表/里视图）**。前者服务于逻辑运行与宏观寻路，后者负责渲染、局部寻路与交互定位。本节说明运行时代码依赖的契约、数据结构与加载流程。
 
-## 静态世界数据（LocationGraph）
-- 位置节点（LocationNode）：层级化地点（区域/建筑/房间/点），是否可导航
-  - 定义：`include/genesis/world/WorldTypes.hpp:32`
-  - 必备字段：`id`、`parent`、`name`、`kind`（`LocationKind`：Region/Building/Room/Point，见 `:25`）、`navigable`、`coord_global:[int,int]`
-- 路径边（PathEdge）：地点之间的连通关系
-  - 定义：`include/genesis/world/WorldTypes.hpp:40`
-  - 必备字段：`from`、`to`、`cost`、`bidirectional`、`anchors:{ at_from:[int,int], at_to:[int,int] }`
-  - 可选：`polyline:[[int,int],...]`（Map View 边几何）
-- 资源点（ResourceSpawn）：在某地点生成/供应资源
-  - 定义：`include/genesis/world/WorldTypes.hpp:53`
-  - 必备字段：`name`、`type`（`ResourceType`：Food/Drink/Social，见 `:47`）、`location`、`capacity`、`ratePerStep`、`local_coord:[int,int]`
-- 世界图容器（LocationGraph）：将以上三者组合成一个图
-  - 定义：`include/genesis/world/WorldTypes.hpp:61`
+## LocationGraph：逻辑骨架
+- **节点层级**
+  - `Region`：宏观区域（城市、森林、山谷），承载全局主题与配置。
+  - `District`：区域内的功能分区（商业街、居住区、密林、河岸）。
+  - `Area`：可进入的局部空间（室内场景、森林空地、洞穴、道路段）。
+  - `Anchor`：在某张 map 中的定位锚点，用于入口/站位/Portal 出入口。
+  - `Interaction`：交互节点（资源点、任务点、特殊设施）。
+  - `Portal`：一类特殊 `Interaction`，表示跨 map/area 的通路（地铁入口、洞穴口、门）。
+- **节点字段（建议）**
+  - `id:uint32`
+  - `parent:uint32`（树结构：Region→District→Area→Anchor/Interaction/Portal）
+  - `kind:LocationKind`（Region/District/Area/Point…）
+  - `role:NodeRole`（`anchor` / `interaction` / `portal` 等，仅在 Point 层使用）
+  - `mapId:string`（所属 Tilemap，Region/District 若无 Tilemap 可设为空）
+  - `coord_local:{x:int,y:int}`（在所属 map 内的格子坐标；无 Tilemap 时留空）
+  - `metadata`：可扩展字段，如容量上限、Portal 宽度、Trait 限制等。
+- **边与 Portal**
+  - `PathEdge{ from, to, cost, bidirectional, portalNode? }`
+  - 每个 Portal 节点应在 `metadata` 中记录 `{ targetNodeId, targetMapId, targetCoord }`，方便运行时查找跨图入口。
+- **资源节点**
+  - 运行时通过 `NodeRole=interaction` + `interactionType`（如 Food, Social, Workshop）识别。
+  - 资源系统在加载时为这些节点挂载 ECS 组件（库存、产出速率等）。
 
-JSON 载入格式（示例见 `data/world/demo_world.json`）与上述一致：
-- `locations[]`（节点，含 `id/parent/name/kind/navigable`）
-- `edges[]`（边，含 `from/to/cost/bidirectional`）
-- `spawns[]`（资源点，含 `name/type/location/capacity/rate_per_step`）
+## Tilemap：表/里视图
+- 每个 `mapId` 对应一组资源：
+  - `outsideView`：当该 map 作为子场景挂载在父 map 中时的呈现方式，可为单层贴图或缩略视图。
+  - `insideView`：代理/摄像机进入该 map 时加载的完整 Tilemap，包含多层瓦片、碰撞、装饰。
+  - `children[]`：声明子 map 及其入口位置，供生成器与运行时建立 Portal。
+- Tilemap 的对象层应标注：
+  - `Anchor` 对象：`{ nodeId?, role:"anchor", coord }`
+  - `Interaction` 对象：`{ role:"interaction", type:"food", coord }`
+  - `Portal` 对象：`{ role:"portal", toMapId, toCoord, width, passMask }`
+  - 若生成器已分配 nodeId，可写入；否则运行时加载后回填。
+- 资源格式支持 JSON (`.tmj`) 与二进制（规划中），详细见 `sandbox_gui_tilemap_rendering.md`。
 
-示例 JSON 字段（重构后契约）：
-- `locations[]`（含 `coord_global:[int,int]`）
-- `edges[]`（含 `anchors:{at_from:[int,int],at_to:[int,int]}`，可选 `polyline:[[int,int],...]`）
-- `spawns[]`（含 `local_coord:[int,int]`）
+## 运行时加载流程
+1. **读取 Graph 与 Tilemap 元数据**：
+   - 世界生成器输出 `world.json`（LocationGraph）与 `tilemaps/*.tmj`（或二进制）。
+   - `WorldLoader` 解析 JSON 创建节点与边，构建 `LocationGraph`。
+   - `TilemapLoader` 解析 Tilemap，提取 inside/outside 元数据、对象层标记。
+2. **装配 WorldRegistry**：
+   - `WorldRegistry.setGraph(LocationGraph)`：建立节点、边、Portal 索引。
+   - 校验：树结构完整、Portal 指向存在、Anchor/Interaction 坐标合法。
+3. **同步 Tilemap 信息**：
+   - `WorldAtlasBuilder` 读取 `TilemapMeta`，将 mapId、dimensions、children、format 等写入 Atlas。
+   - 为每个 Anchor/Interaction 节点填充 `mapId` 与 `coord_local`（若未在 JSON 中提供）。
+4. **注册运行时组件**：
+   - 资源节点：创建 `ResourceSpawn`、`ResourceInventory` ECS 组件。
+   - Portal：建立 `PortalIndex`，加速跨 map 寻路与 GUI 渲染定位。
 
-加载流程：
-- Loader 接口：`include/genesis/world/WorldLoader.hpp:16`、`:18`
-- 载入到注册表：`WorldRegistry.setGraph(...)`（`include/genesis/world/WorldRegistry.hpp:17`）
+## 运行时查询
+- `WorldRegistry` 提供：
+  - `node(id)`、`children(id)`、`ancestors(id)`；
+  - `anchorsOf(areaId)`、`interactionsOf(areaId)`、`portalsFrom(nodeId)`；
+  - `findPortalBetween(mapA,mapB)`、`edgesFrom(nodeId)`。
+- `TilemapRegistry` / `WorldAtlas` 提供：
+  - `tilemap(mapId)` 元数据（inside/outside 路径、尺寸、格式）；
+  - 锚点/Portal/交互点在 Tilemap 中的坐标；
+  - `world_version`，用于前端缓存刷新。
 
-## 运行时组织（WorldRegistry + ECS）
-- WorldRegistry 负责组织、查询静态世界：
-  - 查询：`findLocation`（`:23`）、`childrenOf`（`:24`）、`edgesFrom`（`:25`）
-  - 统计：`locationCount`（`:29`）、`resourceSpawnCount`（`:30`）
-  - 资源查询：`spawnsAt`（`:32`）、`allSpawns`（`:33`）
-- 资源运行时组件（ECS）：
-  - `genesis::world::components::ResourceSpawn`（定义：`include/genesis/world/components/ResourceSpawn.hpp:9`）
-  - `genesis::world::components::ResourceInventory`（定义：`include/genesis/world/components/ResourceInventory.hpp:7`）
-  - 资源系统负责产消与计数：`include/genesis/world/system/ResourceSystem.hpp`
+## 宏观与局部寻路
+- **逻辑寻路**：在节点图上寻找 `Portal` → `Anchor` 链，决定宏观目标。
+- **局部寻路**：当需要渲染时，根据 `mapId + coord_local` 在 Tilemap 上求细粒度路径。
+- Portal 作为特殊交互节点参与两者，确保逻辑与渲染对齐。
 
-> 注：静态图（拓扑与资源点定义）与运行时状态（库存数值、实体位置等）是分离的。静态部分经 `WorldRegistry` 管理，动态部分通过 ECS 组件与系统维护。
-
-## 几何坐标与桥接（契约）
-- 目的：统一 Map View（世界图）与 Scene View（Tilemap）之间的定位与过渡；支持在 Map 上进行边上插值，同时在 Scene 中做入场/离场。
-- 节点几何（Map 级）：
-  - `LocationNode.coord_global[x,y]` 作为全局网格锚点；Map View 直接绘制；
-  - `PathEdge.polyline` 可选用于非直线道路的渲染与长度估计。
-- 代价/时间：
-  - `edge.cost` 继续作为仿真用代价（可与几何长度不同）；
-  - 可选采用 `cost = distance * factor` 的策略保持一致性（由生成器或工具链写入）。
-- 进度编码（Telemetry）：
-  - 暴露 `movement_progress{entityId, from, to, t01}`，以 `t01` 在 Map 上插值 `polyline`；
-  - GUI 不跨线程读 ECS。
-- 节点→场景（Scene）桥接：
-  - 在 `WorldAtlas::tilemaps` 中为节点定义 `portals/anchors`：`{ edgeId|toId, anchor:[int,int] }`；
-  - Scene View 利用锚点将 Map 边进度映射为局部坐标，实现入场/离场；资源/交互点由 Tilemap 的 ObjectLayer 提供。
-
-## Demo 世界（最小例）
-`data/world/demo_world.json` 含：
-- 地点：区域（Town Center）、建筑（Tavern/Residential）、房间（Kitchen/Common Hall/Dormitory）
-- 边：区域↔建筑，建筑↔房间；厨房为单向边（仅从 Tavern→Kitchen）
-- 资源点：
-  - Kitchen@3：Food，`capacity=24`，`rate_per_step=3`
-  - Common Hall@4：Social，`capacity=12`，`rate_per_step=2`
+## 数据示例
+```json
+{
+  "locations": [
+    { "id": 1, "kind": "Region", "name": "NewTown", "parent": 0 },
+    { "id": 10, "kind": "District", "name": "MainStreet", "parent": 1, "mapId": "main_street" },
+    { "id": 101, "kind": "Area", "name": "Tavern", "parent": 10, "mapId": "tavern_interior" },
+    { "id": 1011, "kind": "Point", "role": "anchor", "name": "TavernDoor", "parent": 101,
+      "mapId": "tavern_interior", "coord_local": [4, 12] },
+    { "id": 1012, "kind": "Point", "role": "interaction", "interactionType": "food",
+      "name": "KitchenCounter", "parent": 101, "mapId": "tavern_interior", "coord_local": [8, 6],
+      "metadata": { "capacity": 24, "regenPerStep": 3 } }
+  ],
+  "edges": [
+    { "from": 10, "to": 101, "cost": 4.0, "bidirectional": true, "portalNode": 1011 }
+  ]
+}
+```
 
 ## 相关文档
-- 世界生成设计：`docs/architecture/WORLD_GENERATION.md`
-- 图到矩阵映射（CLI 可视化）：`docs/architecture/GRAPH_TO_GRID.md`
+- 世界生成与 MapConfig：`world_generation.md`
+- Graph ↔ Tilemap 协同：`world_representation.md`
+- Tilemap 管线与渲染：`sandbox_gui_tilemap_rendering.md`

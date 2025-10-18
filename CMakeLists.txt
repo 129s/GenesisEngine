@@ -34,6 +34,13 @@ CPMAddPackage(
 )
 
 CPMAddPackage(
+    NAME tomlplusplus
+    GITHUB_REPOSITORY marzer/tomlplusplus
+    VERSION 3.4.0
+    OPTIONS "TOMLPP_BUILD_EXAMPLES OFF" "TOMLPP_BUILD_TESTS OFF"
+)
+
+CPMAddPackage(
     NAME glfw
     GITHUB_REPOSITORY glfw/glfw
     GIT_TAG 3.3.8

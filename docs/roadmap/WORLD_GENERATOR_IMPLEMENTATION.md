@@ -7,7 +7,13 @@
 
 ## 交付里程碑
 
-### 里程碑 A：基础骨架（预计 1 周）
+### 里程碑 A：基础骨架（已完成 2025-10-19）
+- ✅ 建立 CMake 目标与目录结构（`engine/worldgen/*`），提供空壳 API。
+- ✅ 实现配置加载与 Schema 校验占位（TOML 解析 + `world` 表校验）。
+- ✅ 提供 deterministic RNG 工具、上下文骨架与日志能力。
+- ✅ 编写首批单元测试（配置解析、RNG 确定性）。
+
+### 里程碑 B：拓扑 + 网格布局（预计 2 周）
 - 建立 CMake 目标与目录结构（`engine/worldgen/*`），提供空壳 API。
 - 实现配置加载与 Schema 校验（TOML + JSON Schema）。
 - 提供 deterministic RNG 工具、上下文、日志设施。

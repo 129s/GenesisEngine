@@ -1,3 +1,29 @@
+set(GENESIS_WORLDGEN_SOURCES
+    worldgen/ConfigLoader.cpp
+    worldgen/Context.cpp
+    worldgen/Generator.cpp
+    worldgen/Rng.cpp
+)
+
+add_library(genesis_worldgen STATIC ${GENESIS_WORLDGEN_SOURCES})
+add_library(Genesis::Worldgen ALIAS genesis_worldgen)
+
+target_include_directories(genesis_worldgen
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_worldgen
+    PUBLIC
+        tomlplusplus::tomlplusplus
+)
+
+set_target_properties(genesis_worldgen PROPERTIES
+    OUTPUT_NAME "genesis_worldgen"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
 set(GENESIS_ENGINE_SOURCES
     agents/NeedSystem.cpp
     agents/NeedSatisfier.cpp

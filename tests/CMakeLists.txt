@@ -1,3 +1,17 @@
+add_executable(genesis_worldgen_tests
+    test_worldgen_config.cpp
+    test_worldgen_rng.cpp
+)
+
+target_link_libraries(genesis_worldgen_tests
+    PRIVATE
+        Genesis::Worldgen
+        GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(genesis_worldgen_tests)
+
 add_executable(genesis_engine_tests
     test_simulation_clock.cpp
     test_world_registry.cpp
@@ -17,7 +31,6 @@ target_link_libraries(genesis_engine_tests
         GTest::gtest_main
 )
 
-include(GoogleTest)
 gtest_discover_tests(genesis_engine_tests)
 
 add_executable(genesis_runtime_tests

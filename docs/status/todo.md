@@ -10,6 +10,11 @@
 ## Noise Map MVP
 - [x] Phase 5 完成：参照 `docs/status/backlog/noise-map-mvp.md`（可视化指引与 CLI 增强已落地）。
 
+## Scene/Interactive 重构（MVP）
+- [ ] Scene 子节点布局描述解析，填充 `coord_local`/`coord_global`（兼容旧数据）。
+- [ ] Portal 锚点 `anchors{ at_from, at_to }` 读写契约与运行时查询。
+- [ ] GUI 渲染读取锚点/交互坐标并绘制调试标记。
+
 ## Sandbox CLI
 - [x] 重构现有 ASCII 播放器为 `sandbox_cli`，实时调用运行时 API。
 - [ ] 支持基本控制命令：`pause`、`resume`、`step`, `inspect agent <id>`。

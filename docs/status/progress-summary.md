@@ -1,6 +1,19 @@
 > 文档范围：面向当前/近期开发的进度与风险汇总；长期计划以 `docs/roadmap/README.md` 为准；具体任务请参考仓库 Issues/Milestones。
 # 项目进度概览
 
+## 最新进展（本次）
+- 构建与测试稳定性改进：
+  - 为 `genesis_sandbox_cli` 增加 `Genesis::Engine` 链接，修复噪声世界生成符号缺失导致的链接错误。
+  - 为 `genesis_runtime_tests` 增加 `Genesis::Engine` 链接，避免 Windows 下跨模块静态库初始化差异带来的崩溃。
+  - 在 `Runtime` 中初始化 SPDLOG 缺省 logger（最佳努力，不干扰外部设置）。
+  - 全部测试通过（33/33）。
+- 世界加载与可达性：
+  - 放宽 WorldLoader 对 `coord_global`/`anchors`/`local_coord` 的强制要求，兼容旧 JSON；存在时解析回填。
+  - 修正初始化出生点策略：优先选择“可达的资源所在位置”，避免噪声图孤岛导致长期无法消费。
+- 文档与路线图：
+  - 新增 `docs/roadmap/MVP_SCENE_INTERACTIVE.md`（Scene/Interactive 节点树重构的 MVP 范围与验收标准）。
+  - 在 `docs/roadmap/README.md` 补充引用。
+
 ## 已完成工作
 - 核心框架：重建 C++20 构建骨架，集成 spdlog、entt、nlohmann::json、gtest，并实现基础的 Engine 循环、离散时间 SimulationClock 以及事件总线。
 - 世界模型：完成 WorldRegistry、JSON 加载器与示例地图，提供资源生成点、路径边和快速查询接口。

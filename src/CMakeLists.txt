@@ -84,6 +84,7 @@ target_include_directories(genesis_sandbox_cli
 target_link_libraries(genesis_sandbox_cli
     PRIVATE
         Genesis::Runtime
+        Genesis::Engine
         spdlog::spdlog
         nlohmann_json::nlohmann_json
 )

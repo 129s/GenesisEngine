@@ -65,6 +65,7 @@
 
 ## 参考与历史
 - MVP 阶段性目标：`history/mvp-roadmap.md`
+- MVP：Scene/Interactive 节点树重构：`../roadmap/MVP_SCENE_INTERACTIVE.md`
 - 规划器细化：`history/planner-roadmap.md`
 - 进度与欠账：`../status/progress-summary.md`
 

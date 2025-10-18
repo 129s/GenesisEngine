@@ -27,6 +27,7 @@ add_executable(genesis_runtime_tests
 target_link_libraries(genesis_runtime_tests
     PRIVATE
         Genesis::Runtime
+        Genesis::Engine
         GTest::gtest_main
 )
 

@@ -71,15 +71,13 @@ WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& reg
                 return {false, "Unknown location kind: " + nodeJson.value("kind", std::string{})};
             }
 
-            // Enforce coord_global presence
-            if (!nodeJson.contains("coord_global")) {
-                return {false, "Missing required 'coord_global' for location id=" + std::to_string(node.id.value)};
+            // Optional coord_global for render/layout hints
+            if (nodeJson.contains("coord_global")) {
+                const auto& cg = nodeJson.at("coord_global");
+                if (cg.is_array() && cg.size() == 2) {
+                    node.coord_global = std::make_pair(cg[0].get<int>(), cg[1].get<int>());
+                }
             }
-            const auto& cg = nodeJson.at("coord_global");
-            if (!cg.is_array() || cg.size() != 2) {
-                return {false, "Invalid 'coord_global' format for location id=" + std::to_string(node.id.value)};
-            }
-            node.coord_global = std::make_pair(cg[0].get<int>(), cg[1].get<int>());
         } catch (const nlohmann::json::exception& ex) {
             return {false, std::string{"Invalid location entry: "} + ex.what()};
         }
@@ -120,33 +118,7 @@ WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& reg
                         }
                     }
                 }
-                // Enforce anchors presence
-                if (!edgeJson.contains("anchors")) {
-                    return {false, "Missing required 'anchors' for edge from=" + std::to_string(edge.from.value) + " to=" + std::to_string(edge.to.value)};
-                }
-                {
-                    const auto& anchors = edgeJson.at("anchors");
-                    auto parseCoord = [](const nlohmann::json& arr) -> std::optional<std::pair<int, int>> {
-                        if (!arr.is_array() || arr.size() != 2) return std::nullopt;
-                        return std::make_pair(arr[0].get<int>(), arr[1].get<int>());
-                    };
-                    if (!anchors.contains("at_from") || !anchors.contains("at_to")) {
-                        return {false, "anchors must contain 'at_from' and 'at_to' for edge from=" + std::to_string(edge.from.value) + " to=" + std::to_string(edge.to.value)};
-                    }
-                    edge.anchor_at_from = parseCoord(anchors.at("at_from"));
-                    edge.anchor_at_to = parseCoord(anchors.at("at_to"));
-                    if (!edge.anchor_at_from.has_value() || !edge.anchor_at_to.has_value()) {
-                        return {false, "Invalid anchors format for edge from=" + std::to_string(edge.from.value) + " to=" + std::to_string(edge.to.value)};
-                    }
-                }
-                // optional polyline
-                if (edgeJson.contains("polyline") && edgeJson.at("polyline").is_array()) {
-                    for (const auto& pt : edgeJson.at("polyline")) {
-                        if (pt.is_array() && pt.size() == 2) {
-                            edge.polyline.emplace_back(pt[0].get<int>(), pt[1].get<int>());
-                        }
-                    }
-                }
+                // optional polyline already handled above
             } catch (const nlohmann::json::exception& ex) {
                 return {false, std::string{"Invalid edge entry: "} + ex.what()};
             }
@@ -179,17 +151,7 @@ WorldLoadResult loadGraphFromJson(const nlohmann::json& data, WorldRegistry& reg
                         spawn.local_coord = std::make_pair(lc[0].get<int>(), lc[1].get<int>());
                     }
                 }
-                // Enforce local_coord presence
-                if (!spawnJson.contains("local_coord")) {
-                    return {false, "Missing required 'local_coord' for spawn '" + spawn.name + "' at location=" + std::to_string(spawn.location.value)};
-                }
-                {
-                    const auto& lc = spawnJson.at("local_coord");
-                    if (!lc.is_array() || lc.size() != 2) {
-                        return {false, "Invalid 'local_coord' format for spawn '" + spawn.name + "' at location=" + std::to_string(spawn.location.value)};
-                    }
-                    spawn.local_coord = std::make_pair(lc[0].get<int>(), lc[1].get<int>());
-                }
+                // local_coord is optional; when absent, layout tools may infer
             } catch (const nlohmann::json::exception& ex) {
                 return {false, std::string{"Invalid spawn entry: "} + ex.what()};
             }

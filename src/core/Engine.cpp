@@ -54,6 +54,13 @@ std::filesystem::path resolveWorldCandidate(const std::filesystem::path& candida
 
 genesis::world::LocationId selectSpawnLocation(const genesis::world::WorldRegistry& world) {
     const auto spawns = world.allSpawns();
+    // Prefer spawning directly at a valid resource location to guarantee reachability
+    for (const auto& spawn : spawns) {
+        if (const auto* node = world.findLocation(spawn.location); node && node->navigable) {
+            return spawn.location;
+        }
+    }
+
     std::unordered_set<genesis::world::LocationId, genesis::world::LocationIdHasher> spawnLocations;
     spawnLocations.reserve(spawns.size());
     for (const auto& spawn : spawns) {
@@ -70,12 +77,6 @@ genesis::world::LocationId selectSpawnLocation(const genesis::world::WorldRegist
     for (const auto& node : nodes) {
         if (node.navigable && !spawnLocations.contains(node.id)) {
             return node.id;
-        }
-    }
-
-    for (const auto& spawn : spawns) {
-        if (const auto* node = world.findLocation(spawn.location); node && node->navigable) {
-            return spawn.location;
         }
     }
 

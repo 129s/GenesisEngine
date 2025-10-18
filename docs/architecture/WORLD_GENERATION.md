@@ -1,86 +1,154 @@
-# 世界生成（World Generation）
+# 世界生成架构（World Generation）
 
-目标：以 **Scene 布局描述 + Interactive 数据** 为核心输出，构建可复现、可校验、可扩展的世界。生成器需要保证产出的 `world.json` 满足 `world_model.md` 定义的契约，并为渲染层提供足够的坐标与元信息。
+目标：以 **场景拓扑 + 程序化布局 + 交互填充** 为核心构建全自动世界生成器，产出满足 `world_model.md` 契约的 Scene/Interactive Node 树，并同步生成 Tilemap 等静态资产。生成结果必须完全可复现（`seed + 配置`），无需任何预制或编辑器介入。
 
-## 1. 输出契约
-- `world.json`
-  - `locations[]`：Scene 与 Interactive 节点，包含 `id`、`parent`、`kind`、`navigable`、可选 `coord_local/coord_global`、`layout` 等字段。
-  - `edges[]`：Scene 间连通性；Portal 需写入 `anchors.at_from/at_to` 以标记进出站位。
-  - `spawns[]`：资源点配置（容量、产率、位置）。
-  - `tilemaps[]`（可选）：Scene → Tilemap 基础信息（宽高、tileSize）。
-- 资产文件（可选）：若 Scene 对应 Tilemap，导出 `.tmj/.tmb` 或自定义格式。
-- 可复现性：相同 `seed + 配置` 生成的节点拓扑、坐标、资源布置应一致。
+## 核心原则
+- **纯代码 + 配置化**：所有结构由生成器库计算得出，配置文件仅描述参数与规则启用，严禁手工摆放。
+- **模块化流水线**：拓扑、布局、交互、验证、导出分层实现，可独立扩展与测试。
+- **确定性**：同一输入在所有平台得到相同输出，方便重放与调试。
+- **可缓存**：Tilemap 等重资产生成后可缓存复用，但缓存失效时必须能依靠代码重新生成。
 
-## 2. 配置抽象
+## 1. 库边界与整合
+- 新建 C++ 静态库 `genesis_worldgen`，在 CMake 中独立 target，提供头文件目录 `engine/worldgen`.
+- 依赖仅限基础 STL、噪声/几何工具（内部实现），不引用渲染或运行时模块，避免循环依赖。
+- 对外暴露纯 API：
+  - `GeneratorConfig load_config(std::string_view path);`
+  - `GeneratedWorld generate_world(const GeneratorConfig&, Seed seed);`
+  - `void register_rule(const RuleDescriptor&);`
+  - `TilemapCacheHandle` 等辅助接口。
+- CLI/测试可直接链接该库，运行时 Loader 通过内存结构消费结果。
 
-推荐使用 `SceneConfig`（逻辑） + `LayoutTemplate`（几何）组合：
+## 2. 模块划分
 
-```json
-{
-  "id": "riverside",
-  "scene": {
-    "kind": "Area",
-    "theme": "river_bank",
-    "navigable": true
-  },
-  "layout": {
-    "type": "grid",
-    "origin": [100, 42],
-    "spacing": [4, 2],
-    "children": [
-      { "ref": "scene:fishing_pier", "offset": [0, 0] },
-      { "ref": "scene:market_stall", "offset": [6, 0] },
-      { "ref": "interactive:portal:ferry", "offset": [8, 1] }
-    ]
-  },
-  "children": [
-    { "config": "configs/scenes/fishing_pier.json" },
-    { "config": "configs/scenes/market_stall.json" }
-  ]
-}
+| 模块 | 职责 | 说明 |
+| ---- | ---- | ---- |
+| `TopologyModule` | 构建 Scene/Interactive 拓扑骨架（树/图结构） | 解析配置、决定层级、Portal 配对 |
+| `LayoutModule` | 将节点映射到局部/全局几何坐标 | 执行不同布局策略，写入 footprint、层号 |
+| `TilemapModule` | 依据布局生成/复用 Tilemap 资产 | 输出静态图层，提供缓存键和 metadata |
+| `InteractionModule` | 填充资源点、Portal anchor、事件节点 | 结合玩法规则与场景标签分配 payload |
+| `ValidationModule` | 对生成结果执行硬/软约束检查 | 包含可达性、容量、对称性、Tilemap 冲突等 |
+| `ExportModule` | 序列化或落盘 | 生成 JSON、二进制快照或内存结构 |
+
+模块之间通过 `WorldGenContext` 共享 deterministic RNG、日志、配置和缓存接口。
+
+## 3. 数据流
+1. **配置加载**：读取 JSON/TOML 配置，解析为 `GeneratorConfig` （主题、规模、规则集、实验开关）。
+2. **初始化上下文**：根据 `seed` 创建高层 RNG，并派生给各模块；建立空 Node 树和 Tilemap 缓存索引。
+3. **拓扑阶段**：
+   - 规则组合生成 Scene/Interactive 草图：节点类型、父子关系、Portal 对、容量上限。
+   - 输出 `SceneDraft` 列表，为布局阶段准备约束与节点元信息。
+4. **布局阶段**：
+   - 构造 `SceneLayoutContext`（边界、多边形、scene_capacity、保留区域、节点 footprint、layer 标记）。
+   - 选择布局策略（grid/hex/noise/spline/cluster/voronoi/...），迭代放置节点。
+   - 将局部坐标转换为全局坐标，并生成 `SceneLayoutResult`。
+5. **Tilemap 生成**：
+   - 针对已布局的每个 Scene，计算 Tilemap 缓存键（配置 + sceneId + seed）。
+   - 未命中时调用策略生成 Tilemap（地形、遮挡、碰撞层），写入缓存并返回资产引用。
+6. **交互填充**：
+   - 根据 Scene 标签与 `scene_capacity` 分配资源节点、Portal 锚点、特殊交互。
+   - 写入 `spawns[]`、`edges[]`、Portal `anchors` 等运行数据。
+7. **验证**：
+   - `ValidationModule` 执行硬约束（越界、间距、Portal 配对、节点唯一性、scene_capacity）以及软约束打分。
+   - 对 Tilemap 做一致性检测（footprint 不与障碍冲突，可达性满足）。
+8. **导出**：
+   - 生成 `GeneratedWorld` 结构（locations/edges/spawns/tilemaps），附带调试日志与统计。
+   - 根据调用者需求写入 JSON 快照或返回内存引用。
+
+## 4. 配置结构
+- 使用 TOML（或 JSON）描述，约定三层：
+  - `world`: 全局参数（规模、主题、随机权重、可调范围）。
+  - `topology/layout/interaction`: 规则集合及权重。
+  - `experiments`: 实验性 Feature 开关。
+- 示例摘录：
+
+```toml
+[world]
+seed_offset = 0
+scale = { min = 2, max = 5 }
+theme = "frontier_outpost"
+
+[topology.rules]
+cluster = { weight = 0.6, min_clusters = 2, max_clusters = 4 }
+corridor = { weight = 0.4, length = { mean = 5, sigma = 2 } }
+
+[layout.rules]
+grid = { applicable = ["colony_core"], cell = [4, 4], padding = 1 }
+hex = { applicable = ["outdoor"], radius = 6 }
+noise_relax = { applicable = ["wilds"], min_spacing = 3.0, iterations = 4 }
+spline = { applicable = ["corridor"], width = 2.0 }
+
+[interaction.resources]
+food = { density = 0.3, capacity = [30, 60], rate = [1, 3] }
+ore = { density = 0.2, cluster = "vein" }
+
+[validation]
+warnings_as_errors = false
+min_connectivity = 1
 ```
 
-- `scene`：语义描述（主题、可导航性、Trait 约束等）。
-- `layout`：声明子节点摆放方式（支持 `grid`、`ring`、`noise`、`script` 等自定义类型）。
-- `children`：引用子 Scene/Interactive 配置；生成器在递归时会分配 nodeId 并写入父子关系。
+- 配置加载后执行 Schema 校验；关键字段缺失直接报错。
 
-## 3. 生成流程
-1. **加载 Manifest**：读取根 SceneConfig、模板、词表、噪声参数，初始化 RNG（`seed + seedOffset`）。
-2. **分配 ID**：深度优先遍历配置树，按顺序分配 `LocationId`，建立临时父子关系表。
-3. **布局解析**：
-   - 根据 `layout` 为子节点写入 `coord_local`。
-   - Scene 若指定 `origin` / `rotation` / `spacing`，同步计算 `coord_global`。
-4. **生成 Interactive**：
-   - `resource`：写入 `spawns[]`（容量、速率、local_coord）。
-   - `portal`：生成对应的 `PathEdge`，并在 `anchors` 中填入进出锚点。
-5. **写入边**：
-   - Scene 之间的边来自配置或算法推断（网格邻接、河道对岸等）。
-   - Portal 自动生成双向边（若配置 `bidirectional=true`）。
-6. **校验**：
-   - 节点：parent 必须存在、坐标在合法范围、ID 唯一。
-   - Portal：成对存在、目标 Scene 可达、锚点落在可导航格子。
-   - 资源：容量/速率为正数、关联的 Scene 可导航。
-7. **落盘**：输出 `world.json`，并根据需要写入 Tilemap 与辅助索引。
+## 5. 布局策略详解
+布局策略实现统一接口 `LayoutResult layout(const SceneLayoutContext&, const NodeDraftList&, RNG& rng);`。当前计划首批实现：
+- **GridLayout**：对齐网格，支持对齐、占位扩张、边界裁剪。
+- **HexLayout**：蜂窝模式，满足等距与方向均衡。
+- **NoiseRelaxationLayout**：噪声撒点 + Poisson/Lloyd 调整，生成自然分布。
+- **SplineCorridorLayout**：沿样条曲线放置节点，适配道路/走廊/河道。
+- **ClusterLayout**：生成中心簇，再调用其他策略布局子簇。
+- **VoronoiRegionLayout**：依据种子点生成多边形区域，用于地块/势力划分。
 
-## 4. 校验与测试
-- **单元级**：
-  - Layout 解析：同一个配置多次生成应得到相同的 `coord_local/coord_global`。
-  - Portal/资源：缺失目标或坐标越界应在生成阶段抛出错误。
-- **集成级**：
-  - 将生成输出加载到 `WorldRegistry`，运行 Smoke 测试（资源消耗、Portal 传送）。
-  - GUI 烟雾测试：渲染 Scene/Interactive 节点，确认锚点与布局可视化正确。
-- **数据对比**：为关键样本保留金样（world.json + 关键 Tilemap），生成后 diff 关键字段。
+策略可以组合：例如 ClusterLayout 内部调用 NoiseRelaxationLayout。
 
-## 5. 与运行时的协同
-- 生成器写入的 `layout` / `coord_*` 信息直接被运行时与 GUI 消费；缺失字段虽可加载，但会降低可视化质量，应在生成时尽量补齐。
-- 若 Scene 配置无法在生成阶段给出精确坐标（例如程序化噪声），需写入可复现参数（seed、尺寸），由运行时或工具按需再计算。
-- 对于大地图，可在生成阶段拆分为多个 chunk Scene，每个 Scene 独立布局、独立写入 Tilemap 元信息。
+## 6. 约束模型
+- **Scene 级硬约束**：`boundary`（多边形/矩形）、`scene_capacity`、`reserved_zones`、`connectivity_requirements`。
+- **节点硬约束**：`footprint`（Rect/Radius）、`min_spacing`、`allowed_layers`、`orientation_lock`。
+- **关系硬约束**：Portal 成对、楼层索引连续、必备节点存在。
+- **软约束**：距离偏好、对称性、中心度等，以评分记录，可配置阈值。
+- 布局阶段通过 `ConstraintSet::check_hard(candidate)` 即时判定，不满足立即回溯；软约束由 `ScoreEvaluator` 计算。
 
-## 6. 非目标（当前阶段）
-- 无限/流式世界（需要分布式加载与惰性生成）。
-- 自动剧情/任务植入（保留元数据接口，待后续系统接入）。
-- 多实例并行（当前运行时专注单世界）。
+## 7. Tilemap 集成
+- Tilemap 仅在生成阶段参与，运行时不参与逻辑。
+- `TilemapModule` 读取 `SceneLayoutResult` 和 Scene 标签，生成静态 Tile 层：
+  - 地形层、装饰层、碰撞层、导航掩码。
+  - 输出 `TilemapDescriptor{ id, hash, size, layers[] }`。
+- 缓存策略：`cache_key = hash(config_section + scene_id + seed + strategy_version)`；命中则复用。
+- 生成后立即执行几何验证：节点 footprint 与 Tilemap 障碍不冲突，Portal anchor 对应的 Tile 可通行。
+
+## 8. 输出结构
+`GeneratedWorld` 包括：
+- `locations[]`：Scene/Interactive 节点，含 `id/parent/kind/meta/coord_local/coord_global/layer_index/tilemap_ref`。
+- `edges[]`：连接信息与 Portal 锚点。
+- `spawns[]`：资源节点容量与速率。
+- `tilemaps[]`：Tilemap metadata（id、尺寸、层列表、缓存路径）。
+- `logs[]`：调试统计（重试次数、软约束得分、缓存命中率）。
+
+运行时只消费内存结构；需要写盘时由 `ExportModule` 负责。
+
+## 9. 校验与测试
+- **生成前置**：配置 Schema 校验、scene_capacity 与必需节点匹配。
+- **生成后硬校验**：
+  - 节点唯一性、父子关系正确、越界检测。
+  - Portal 对等性、可达性（图搜索 + flood fill）。
+  - 资源节点参数合法且位于可导航区域。
+  - Tilemap 与节点 footprint 相容。
+- **软约束报告**：如对称性偏差、密度超标，写入日志供分析。
+- **测试策略**：
+  - 单元测试：模块级 determinism（同 seed 输出 hash 相同）、约束违规触发错误。
+  - 属性测试：随机种子下验证不变量（无孤立场景、总资源量在范围内）。
+  - 金样对比：保留少量配置的 `world.json + tilemap` 基准，用于回归 diff。
+
+## 10. 非目标（当前阶段）
+- 流式 / 无限世界（按需拓展功能留给未来）。
+- 编辑器驱动的手工摆放（与原则冲突）。
+- 自动剧情/任务生成（仅预留元数据挂点）。
+- 分布式/网络生成（当前关注单进程 determinism）。
+
+## 11. 后续扩展
+- 扩充规则库：生态、叙事事件、季节变化等。
+- 导入外部噪声/地形资源并与现有策略混合。
+- 增加多线程生成、分块缓存以支撑超大地图。
+- 面向工具链的诊断可视化（离线渲染 Scene 布局快照）。
 
 ---
 
-相关文档：`world_model.md`（节点契约）、`world_representation.md`（渲染对齐）、`chunked_tile_graph.md`（大图探索笔记）。
+相关文档：`world_model.md`（数据契约）、`world_representation.md`（渲染参考）、`MVP_SCENE_INTERACTIVE.md`（路线规划）、`sandbox_gui_tilemap_rendering.md`（Tilemap 消费）。

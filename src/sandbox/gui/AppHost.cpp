@@ -78,7 +78,8 @@ AppHost::AppHost(AppHostConfig config)
     , clear_color_{0.07f, 0.07f, 0.10f, 1.0f}
     , runtime_bridge_(std::make_unique<RuntimeBridge>())
     , speed_multiplier_ui_(1.0)
-    , show_world_view_(true)
+    , show_world_view_(false)
+    , show_scene_view_(true)
     , show_telemetry_(true)
     , show_logs_(true)
     , log_auto_scroll_(true)
@@ -88,7 +89,7 @@ AppHost::AppHost(AppHostConfig config)
     , scene_selected_node_(0)
     , scene_cam_offset_x_(0.0f)
     , scene_cam_offset_y_(0.0f)
-    , scene_cam_zoom_(1.0f)
+    , scene_cam_zoom_(1.5f)
     , scene_show_grid_(true)
     , scene_show_anchors_(true)
     , scene_show_resources_(true)
@@ -823,7 +824,8 @@ void AppHost::drawSceneViewPanel()
         return;
     }
 
-    if (!ImGui::Begin("Scene View", &show_scene_view_))
+    constexpr ImGuiWindowFlags sceneViewFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+    if (!ImGui::Begin("Scene View", &show_scene_view_, sceneViewFlags))
     {
         ImGui::End();
         return;
@@ -890,7 +892,7 @@ void AppHost::drawSceneViewPanel()
     if (hovered && io.MouseWheel != 0.0f)
     {
         const float zoomStep = 1.0f + (io.MouseWheel > 0.0f ? 0.1f : -0.1f);
-        scene_cam_zoom_ = std::clamp(scene_cam_zoom_ * zoomStep, 0.5f, 3.0f);
+        scene_cam_zoom_ = std::max(scene_cam_zoom_ * zoomStep, 0.05f);
     }
     if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
     {
@@ -956,7 +958,7 @@ void AppHost::drawSceneViewPanel()
     {
         if (tm.nodeId == scene_selected_node_ && tm.tileW > 0)
         {
-            basePx = static_cast<float>(tm.tileW);
+            basePx = std::max(basePx, static_cast<float>(tm.tileW));
             break;
         }
     }

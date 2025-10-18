@@ -69,8 +69,8 @@ private:
     std::unique_ptr<RuntimeBridge> runtime_bridge_;
     std::optional<RuntimeBridge::Snapshot> latest_snapshot_;
     double speed_multiplier_ui_{1.0};
-    bool show_world_view_{true};
-    bool show_scene_view_{false};
+    bool show_world_view_{false};
+    bool show_scene_view_{true};
     bool show_telemetry_{true};
     bool show_logs_{true};
     bool log_auto_scroll_{true};
@@ -86,7 +86,7 @@ private:
     std::uint32_t scene_selected_node_{0};
     float scene_cam_offset_x_{0.0f};
     float scene_cam_offset_y_{0.0f};
-    float scene_cam_zoom_{1.0f};
+    float scene_cam_zoom_{1.5f};
     bool scene_show_grid_{true};
     bool scene_show_anchors_{true};
     bool scene_show_resources_{true};

@@ -11,7 +11,7 @@ Sandbox GUI 是主要的可视化与调试前端，消费 Runtime 的 Telemetry/
   - 提供 `withLatestTelemetry(fn)`、`submitCommand(cmd)` 等接口，确保线程安全。
   - 当 `world_version` 更新时刷新 Tilemap 缓存、触发面板通知。
 - **Panels（ImGui）**
-  - `MapView`：渲染 LocationGraph（Region/District/Area/Portal），摄像机控制、图例、过滤。
+  - `MapView`：渲染 Scene/Interactive 节点（含资源、Portal 等），基于 `coord_global` 绘制拓扑，并提供摄像机控制、图例、过滤。
   - `SceneView`：渲染当前 map 的 Tilemap（inside/outside），支持平移/缩放/图层开关/网格；与 MapView 选中同步。
   - `Inspector`：展示实体属性、需求、人格、行动队列；支持 Follow、Teleporter。
   - `TelemetryPanel`：绘制指标曲线（属性/需求强度、资源库存、系统耗时）。

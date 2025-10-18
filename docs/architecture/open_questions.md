@@ -27,3 +27,13 @@
 - **录制/回放与度量**  
   - 是否内建快照录制/回放接口？如何处理大型 Telemetry 序列的存储？  
   - 指标阈值、报警机制、性能基线（例如模拟 1h 的吞吐量）需不需要标准化？
+
+- **Scene 布局描述与编辑器**  
+  - `layout` 描述是否统一使用 JSON Schema？运行时是否支持热加载或增量覆写？  
+  - 是否需要提供可视化编辑器/调试面板，查看 Scene → 子节点坐标与布局生成参数？  
+  - 复杂场景（噪声生成/脚本生成）如何保证可复现并写回 `coord_local/coord_global`？
+
+- **Portal 锚点与渲染协同**  
+  - Portal `anchors{at_from, at_to}` 是否需要在 `WorldAtlas` 中单独索引，供 GUI/调试快速查询？  
+  - SceneView 中的 Portal/资源标记是否需要对齐全局坐标，还是只依赖 `coord_local`？  
+  - 传送时的动画/插值是否需要额外的 Telemetry 字段（如跨 Scene 过渡 t 值）？

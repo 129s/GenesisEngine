@@ -7,7 +7,7 @@
   - RuntimeBridge：后台线程推进 Runtime，支持 Pause/Step/Speed，维护环形 Telemetry 缓冲（默认 96 帧）。
   - GUI 线程：消费最新快照，驱动 Map/Scene/Telemetry/Inspector 面板。
 - 世界/可视化
-  - WorldAtlas：提供 Region/District/Area/Portal 节点、Tilemap 元数据；MapView 绘制拓扑，SceneView 渲染 `insideView`。
+  - WorldAtlas：提供 Scene/Interactive 节点、`coord_global/coord_local`、Portal 锚点与 Tilemap 元数据；MapView 绘制节点拓扑，SceneView 渲染 `insideView` 并高亮资源/Portal。
   - 代理覆盖层：按 Telemetry 中的 `mapId + localPosition` 绘制，支持名称标签、状态着色。
 - 世界数据
   - Demo 世界基于 MapConfig 生成：主街区 + Tavern 内景 + 住宅区 + 森林边缘，包含至少两个食物点验证人格差异。

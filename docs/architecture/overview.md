@@ -1,50 +1,49 @@
 # GenesisEngine · Architecture Overview
 
-GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现式叙事模拟核心。我们围绕一个单线程推进的 Runtime（Engine）展开，向外暴露稳定的 API，向上支持多种前端形态。本文概览核心分层、运行循环与并发边界。
+GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现式叙事模拟核心。运行层以单线程 `Engine` 为核心，向外暴露稳定的 Runtime API，前端（CLI / GUI / Game）共享同一套快照与事件接口。本文概览分层结构、世界表达、行为循环与并发边界。
 
 ## 架构分层（自下而上）
 - **Core Runtime**
-  - `WorldRegistry`：管理分层节点图、Portal、锚点与交互节点，提供拓扑/资源查询。
-  - 系统集合：Movement、Attributes/Needs、Planner/Actions、Resources 等纯逻辑系统，按离散 `SimulationClock` 推进。
-  - Telemetry 缓冲：模拟线程只写，前端只读；保证数据快照的一致性与线程安全。
+  - `WorldRegistry`：管理 Scene/Interactive 节点树，维护全局/局部坐标、Portal、资源点等索引。
+  - 系统集合：Movement、Needs、Planner、ActionExecutor、ResourceSystem 等纯逻辑系统，按离散 `SimulationClock` 推进。
+  - TelemetryBuffer：聚合每步 `TickTelemetry`，用于前端观察与回放。
 - **Runtime 封装**
-  - 控制面：暂停/恢复、步进、调速、生成世界等命令队列化执行。
-  - 查询面：提供 `TickTelemetry` 与 `WorldAtlas` 的只读视图，附带版本号。
-  - 并发边界：前端不直接访问 ECS/Registry，只能通过 Telemetry/Atlas 读取数据。
+  - 控制面：提供 `step`/`run`/`bootstrapSteps` 等入口，未来扩展命令队列与事件注入。
+  - 查询面：暴露 `latestSnapshot()`、`WorldRegistry` 只读镜像（通过 Telemetry / WorldAtlas）。
+  - 协议：所有外部读写都走 Runtime，不允许前端直接操作 ECS。
 - **前端适配**
-  - CLI（遗留）：ASCII 布局渲染，主要用于最初阶段的调试。
-  - GUI（主力）：GLFW + ImGui，实现 Map/Scene 视图、Inspector、Telemetry 面板。
-  - Game（规划中）：面向玩家的最终客户端，共享 runtime API。
+  - CLI（遗留调试）：ASCII 视图 + 命令脚本。
+  - GUI（主力）：GLFW + ImGui，消费 Scene/Interactive 数据绘制地图与面板。
+  - Game（规划中）：与 GUI 共享 Runtime 契约，后续扩展演出与交互层。
 
-## 世界表达（双轨抽象）
-- **分层节点图（Layered Node Graph）**  
-  - 逻辑层次：`Region → District → Area → Anchor/Interaction`。  
-  - 节点记录 `mapId`、局部坐标、角色（锚点、交互点、Portal 等），边描述连通性与移动成本。  
-  - 提供宏观寻路、资源定位、运行时逻辑驱动的基础。
-- **Tilemap（表/里视图）**  
-  - 每张 map 拥有 `outsideView`（挂载到父 map 的呈现方式）与 `insideView`（当前视图的完整瓦片层）。  
-  - Anchor/Interaction/Portal 在 Tilemap 的对象层中标记，以支持渲染定位与局部寻路。  
-  - MapConfig 递归生成：从 root map 出发，按模板生成子 map，形成完整的空间树。
+## 世界表达：Scene/Interactive 双轨
+- **运行层节点树**
+  - `Scene`：可包含子 Scene 或 Interactive。负责声明布局策略（静态网格、算法生成等），在加载/生成时为子节点写入局部/全局整格坐标。
+  - `Interactive`：叶节点，只承担交互；当前内置 `resource`（资源点）与 `portal`（场景切换/传送）。可扩展更多类型（作坊、事件触发器等）。
+  - 边（Edges）：记录 Scene 节点之间的连通性与移动成本；Portal 会生成对应的双向边。
+  - `WorldRegistry` 提供查找/子节点/边/资源等查询，并保证节点与坐标的一致性。
+- **渲染层参考**
+  - 渲染只读取运行层暴露的坐标与类型；视口裁剪后绘制可见 Scene/Interactive。
+  - 当需要 Tilemap 细节时，Scene 的布局描述会给出锚点参考，供 GUI 或工具加载对应的瓦片资源。
 
-两条轨道通过 Portal/锚点契约对齐：宏观逻辑在节点图上行走，GUI 在 Tilemap 中渲染细节；两者共享 `mapId + 坐标`，确保模拟与展示同步。
+两条轨道共享 ID 与坐标：运行层负责行为与寻路，渲染层只消费数据，不回写逻辑状态。
 
-## 运行循环
-1. **感知（Perception）**：收集世界事件，更新属性/需求缓存。
-2. **需求评估（Needs Evaluation）**：依据属性、人格（OCEAN）与 Trait 计算需求强度。
-3. **决策（Decision）**：Planner 将需求转化为目标/动机，选定目标锚点或交互节点。
-4. **行动（Action Execution）**：Movement/Interaction 系统执行规划好的行动序列，驱动世界状态变化。
-5. **记录（Bookkeeping）**：Telemetry 快照、日志、统计指标、诊断信息。
+## 行为循环（Attribute → Need → Motive → Plan → Action）
+1. **属性更新**：根据时间衰减、事件或资源消耗更新属性（health/hunger/sanity...）。
+2. **需求评估**：NeedSystem 读取属性、人格（OCEAN）、Traits，计算需求强度及阈值（支持数据驱动配置）。
+3. **动机/目标**：Planner（如 HungerPlanner）基于需求挑选目标 Scene/Interactive，写入 `MovementIntent` / `ActionQueue`。
+4. **行动执行**：MovementSystem、ActionExecutor 驱动 Agent 按边移动、消费资源、触发 Portal；ResourceSystem 结算库存与产出。
+5. **观测记录**：Telemetry 捕捉资源、需求、规划决策、行动队列、代理位置等快照，供前端渲染与诊断。
 
-每个阶段都受 `SimulationClock` 控制，默认离散时间步可配置。逻辑寻路与局部寻路分层执行：  
-- 纯模拟或无 GUI 时仅执行逻辑寻路（跨 map 的 Portal 链 + 交互节点）。  
-- GUI 可见时补充局部 Tilemap 寻路，用于渲染 NPC 在视口内的真实轨迹，与逻辑进度保持近似同步。
+所有阶段都由 `SimulationClock` 控制，默认单线程推进，确保行为和世界状态的一致性。
 
 ## 并发与数据流
-- 模拟线程：唯一修改世界状态的线程；所有命令必须排队在此执行。
-- 前端线程：读取 `TickTelemetry` 与 `WorldAtlas` 的最新版本，不跨线程访问 ECS。
-- 版本机制：世界变更提升 `world_version`，前端据此刷新 Atlas/Tilemap 缓存；Telemetry 包含 `schema_version` 保障协议演进。
+- 模拟线程：唯一可以修改世界状态的线程；命令需排队执行。
+- 前端线程：只读取 Telemetry/WorldAtlas，禁止直接访问 ECS。GUI 若需局部寻路，只能基于只读数据独立计算。
+- 版本机制：世界数据变化会更新 `world_version`，前端可按版本刷新缓存；Telemetry 携带 `schema_version` 以便协议演进。
 
-## 参考文档
-- 运行时协议详见 `runtime_api.md`
-- 世界模型与生成详见 `world_model.md`、`world_generation.md`
-- 前端渲染与调试详见 GUI 系列文档
+## 相关文档
+- 运行时接口：`runtime_api.md`
+- 世界模型与生成：`world_model.md`、`world_generation.md`
+- 行为与人格建模：`agent_personality_big5.md`
+- 渲染/调试：GUI 系列文档

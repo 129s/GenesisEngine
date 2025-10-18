@@ -11,19 +11,19 @@
 非目标（暂缓）：Tile 动画、实时编辑器、动态瓦片修改、光照/粒子。
 
 ## 2) 世界与数据表达
-- Graph ↔ Tilemap 协议见 `world_representation.md`：Portal 作为特殊 Node，inside/outside 视图由 MapConfig 输出。
+- Graph ↔ Tilemap 协议见 `world_representation.md`：Scene 节点提供 `coord_global`，Interactive 节点（resource/portal 等）提供 `coord_local`；Portal 属于 Interactive，`PathEdge.anchors` 给出进出锚点。
 - `TilemapMeta`（Atlas 字段）包含：
   - `mapId`
   - `outsideView { format, path, bounds }`
   - `insideView { format, path, width, height, tileSize, layerCount }`
   - `children[] { childMapId, portalNode }`
   - `binary { enabled, preferredFormat }`
-- 对象层记录 `anchor/interaction/portal` 标签，GUI 用于加亮和落点。
+- 对象层记录 `anchor/interaction/portal` 标签，GUI 用于与 `WorldRegistry` 数据对齐并做高亮。
 
 ## 3) Runtime API 合同（增量）
 - Atlas 扩展：
   - `WorldAtlas::tilemaps[]` 提供 inside/outside 视图元数据、格式、子 map、Portal 列表。
-  - `WorldAtlas::nodes` / `portals` 提供 `mapId + coord_local`，Scene View 用于落点与线路绘制。
+  - `WorldAtlas::nodes` / `portals` 暴露 Scene/Interactive 节点，包含 `coord_global/coord_local` 与 Portal 锚点，Scene View 用于落点与线路绘制。
 - Telemetry：
   - `agents[]`：`mapId`, `localPosition`, `movementProgress`, `traits`。
   - `movementProgress`（0..1）用于从 MapView 边插值到 SceneView 入口。
@@ -46,7 +46,7 @@
   - 视口裁剪：根据当前相机矩形，仅绘制可见 tile 范围；大图可拆 chunk 以减小循环。
   - 坐标系：左上 (0,0)，Y 向下；提供 `pan/zoom`、适配 DPI。
 - 覆盖与调试：
-  - ObjectLayer 渲染线框/Portal 箭头；可选显示 Anchor、Interaction 标签。
+  - ObjectLayer 渲染线框/Portal 箭头；可选显示 Anchor、Interaction 标签，并对齐 `WorldRegistry` 中的 `coord_global`。
   - 网格开关、坐标拾取（调试）。
   - Agents：将 Telemetry `localPosition` 转屏幕坐标绘制标记，显示名称/当前行动。
 - 面板集成：

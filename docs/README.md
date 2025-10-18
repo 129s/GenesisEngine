@@ -13,13 +13,15 @@
 - 文档组织与边界：`docs/handbook/DOCS_ORGANIZATION.md`
 - 架构概览：`docs/architecture/README.md`
 - 愿景与设计原则：`docs/architecture/VISION.md`
-- 世界模型概览：`docs/architecture/WORLD_MODEL.md`
-- 图到矩阵映射：`docs/architecture/GRAPH_TO_GRID.md`
+- 世界模型（Scene/Interactive）：`docs/architecture/WORLD_MODEL.md`
+- 世界生成流程：`docs/architecture/WORLD_GENERATION.md`
+- 行为与人格建模：`docs/architecture/AGENT_PERSONALITY_BIG5.md`
+- Graph → ASCII 映射（CLI 遗留）：`docs/architecture/GRAPH_TO_GRID.md`
 - Tilemap 融合方案：`docs/architecture/TILEMAP_INTEGRATION.md`
-- 区块化 Tile 节点图：`docs/architecture/CHUNKED_TILE_GRAPH.md`
-- 世界生成设计：`docs/architecture/WORLD_GENERATION.md`
+- 区块化 Tile 图探索：`docs/architecture/CHUNKED_TILE_GRAPH.md`
 - 运行时与沙盒 CLI：`docs/guides/sandbox-cli.md`
 - 路线图（权威版）：`docs/roadmap/README.md`
+- MVP：Scene/Interactive 节点树重构：`docs/roadmap/MVP_SCENE_INTERACTIVE.md`
 - MVP：噪声随机地图 + 固定刷新资源 + NPC 循环：`docs/roadmap/MVP_NOISE_MAP.md`
 - 历史路线图：`docs/roadmap/history/`
 - 项目进度概览：`docs/status/progress-summary.md`

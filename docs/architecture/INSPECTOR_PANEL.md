@@ -4,7 +4,7 @@
 - 为内部开发者提供统一的实体观察与调试入口，支持选中/跟随、字段查看与高亮，覆盖属性→需求→决策链路以及人格/Traits 的调试需求。
 
 ## 功能范围（MVP）
-- **实体列表与搜索**：按类型（Agent/Resource/Portal/Area）分组，可按名称、ID、Trait、mapId 过滤。
+- **实体列表与搜索**：按类型（Agent / Scene / Interactive:Resource / Interactive:Portal）分组，可按名称、ID、Trait、mapId 过滤。
 - **选中与跟随**
   - MapView 高亮对应节点/代理，显示 Portal 方向箭头。
   - SceneView 若存在 insideView，则自动切换并聚焦代理；Follow 开关可在两视图中同步追踪（默认仅平移）。
@@ -16,10 +16,10 @@
   - 行动队列：当前行动、目标节点（Portal/交互点）、剩余步数、计划长度。
   - 当前目标链：Need → Planner 结果 → 执行动作摘要。
   - 近期日志（可选）：最近 N 步的需求/行动变更。
-- **Resource / Portal / Area 详情**
-  - 资源：类型、库存/容量、再生速率、所属 map、锚点坐标。
-  - Portal：起止 map、锚点、通行掩码、连接的 Area。
-  - Area：父 District、锚点集合、交互节点、Portal 汇总。
+- **Resource / Portal / Scene 详情**
+  - 资源：类型、库存/容量、再生速率、所属 Scene、`coord_local/coord_global`、消费记录。
+  - Portal：起止 Scene、`anchors{at_from, at_to}`、通行掩码、目标 Interactive。
+  - Scene：父 Scene、布局描述（layout）、子节点汇总、Portal/资源统计。
 
 ## 数据来源
 - Telemetry：`agents[]`、`attributes[]`、`needs[]`、`actions[]`、`resources[]`、`traits[]`。

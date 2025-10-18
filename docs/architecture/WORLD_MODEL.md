@@ -1,92 +1,118 @@
 # 世界模型（World Model）
 
-世界模型由两部分组成：**分层节点图（LocationGraph）** 与 **Tilemap（表/里视图）**。前者服务于逻辑运行与宏观寻路，后者负责渲染、局部寻路与交互定位。本节说明运行时代码依赖的契约、数据结构与加载流程。
+GenesisEngine 的世界模型以 **Scene/Interactive 节点树** 为核心，辅以统一的整格坐标体系。运行层依靠该树驱动寻路、交互与资源调度；渲染层和工具仅消费这些数据，不回写逻辑状态。本章定义节点字段、坐标契约、布局描述以及运行时查询能力。
 
-## LocationGraph：逻辑骨架
-- **节点层级**
-  - `Region`：宏观区域（城市、森林、山谷），承载全局主题与配置。
-  - `District`：区域内的功能分区（商业街、居住区、密林、河岸）。
-  - `Area`：可进入的局部空间（室内场景、森林空地、洞穴、道路段）。
-  - `Anchor`：在某张 map 中的定位锚点，用于入口/站位/Portal 出入口。
-  - `Interaction`：交互节点（资源点、任务点、特殊设施）。
-  - `Portal`：一类特殊 `Interaction`，表示跨 map/area 的通路（地铁入口、洞穴口、门）。
-- **节点字段（建议）**
-  - `id:uint32`
-  - `parent:uint32`（树结构：Region→District→Area→Anchor/Interaction/Portal）
-  - `kind:LocationKind`（Region/District/Area/Point…）
-  - `role:NodeRole`（`anchor` / `interaction` / `portal` 等，仅在 Point 层使用）
-  - `mapId:string`（所属 Tilemap，Region/District 若无 Tilemap 可设为空）
-  - `coord_local:{x:int,y:int}`（在所属 map 内的格子坐标；无 Tilemap 时留空）
-  - `metadata`：可扩展字段，如容量上限、Portal 宽度、Trait 限制等。
-- **边与 Portal**
-  - `PathEdge{ from, to, cost, bidirectional, portalNode? }`
-  - 每个 Portal 节点应在 `metadata` 中记录 `{ targetNodeId, targetMapId, targetCoord }`，方便运行时查找跨图入口。
-- **资源节点**
-  - 运行时通过 `NodeRole=interaction` + `interactionType`（如 Food, Social, Workshop）识别。
-  - 资源系统在加载时为这些节点挂载 ECS 组件（库存、产出速率等）。
+## 1. 节点树概览
 
-## Tilemap：表/里视图
-- 每个 `mapId` 对应一组资源：
-  - `outsideView`：当该 map 作为子场景挂载在父 map 中时的呈现方式，可为单层贴图或缩略视图。
-  - `insideView`：代理/摄像机进入该 map 时加载的完整 Tilemap，包含多层瓦片、碰撞、装饰。
-  - `children[]`：声明子 map 及其入口位置，供生成器与运行时建立 Portal。
-- Tilemap 的对象层应标注：
-  - `Anchor` 对象：`{ nodeId?, role:"anchor", coord }`
-  - `Interaction` 对象：`{ role:"interaction", type:"food", coord }`
-  - `Portal` 对象：`{ role:"portal", toMapId, toCoord, width, passMask }`
-  - 若生成器已分配 nodeId，可写入；否则运行时加载后回填。
-- 资源格式支持 JSON (`.tmj`) 与二进制（规划中），详细见 `sandbox_gui_tilemap_rendering.md`。
+```
+Scene (root)
+ ├─ Scene（子区域/子场景）
+ │   └─ Interactive（resource / portal / ...）
+ └─ Interactive
+```
 
-## 运行时加载流程
-1. **读取 Graph 与 Tilemap 元数据**：
-   - 世界生成器输出 `world.json`（LocationGraph）与 `tilemaps/*.tmj`（或二进制）。
-   - `WorldLoader` 解析 JSON 创建节点与边，构建 `LocationGraph`。
-   - `TilemapLoader` 解析 Tilemap，提取 inside/outside 元数据、对象层标记。
-2. **装配 WorldRegistry**：
-   - `WorldRegistry.setGraph(LocationGraph)`：建立节点、边、Portal 索引。
-   - 校验：树结构完整、Portal 指向存在、Anchor/Interaction 坐标合法。
-3. **同步 Tilemap 信息**：
-   - `WorldAtlasBuilder` 读取 `TilemapMeta`，将 mapId、dimensions、children、format 等写入 Atlas。
-   - 为每个 Anchor/Interaction 节点填充 `mapId` 与 `coord_local`（若未在 JSON 中提供）。
-4. **注册运行时组件**：
-   - 资源节点：创建 `ResourceSpawn`、`ResourceInventory` ECS 组件。
-   - Portal：建立 `PortalIndex`，加速跨 map 寻路与 GUI 渲染定位。
+- **Scene**：容器节点，可嵌套；负责确定子节点布局、派生全局坐标。
+- **Interactive**：叶节点，只承担交互。当前内置 `resource` 与 `portal` 两种类型，后续可扩展。
 
-## 运行时查询
-- `WorldRegistry` 提供：
-  - `node(id)`、`children(id)`、`ancestors(id)`；
-  - `anchorsOf(areaId)`、`interactionsOf(areaId)`、`portalsFrom(nodeId)`；
-  - `findPortalBetween(mapA,mapB)`、`edgesFrom(nodeId)`。
-- `TilemapRegistry` / `WorldAtlas` 提供：
-  - `tilemap(mapId)` 元数据（inside/outside 路径、尺寸、格式）；
-  - 锚点/Portal/交互点在 Tilemap 中的坐标；
-  - `world_version`，用于前端缓存刷新。
+所有节点都由 `WorldRegistry` 按 `id` 管理，并通过 `childrenOf(id)` 暴露父子关系。
 
-## 宏观与局部寻路
-- **逻辑寻路**：在节点图上寻找 `Portal` → `Anchor` 链，决定宏观目标。
-- **局部寻路**：当需要渲染时，根据 `mapId + coord_local` 在 Tilemap 上求细粒度路径。
-- Portal 作为特殊交互节点参与两者，确保逻辑与渲染对齐。
+### 1.1 公共字段
+| 字段 | 说明 |
+| --- | --- |
+| `id:uint32` | 全局唯一 ID。0 预留为 `InvalidLocation`。 |
+| `parent:uint32` | 父 Scene 的 ID。根 Scene 取 0。 |
+| `name:string` | 可读名称，供调试/渲染使用。 |
+| `kind:LocationKind` | 语义标签（Region/Area/Room/Point）。运行时主要依赖 `navigable` 判定可走性。 |
+| `navigable:bool` | 是否可作为寻路节点；大部分 Scene/Interactive 为 true，Portal 若仅作占位可设为 false。 |
+| `coord_global:optional<[int,int]>` | 绝对整格坐标（世界空间）。Scene 在布局完成后应为子节点填写。 |
 
-## 数据示例
+### 1.2 Scene 扩展字段
+- `layout`（可选）：子节点布局描述（见第 3 章）。
+- `metadata`：与生成或渲染相关的附加信息（主题、地形、种子等）。
+
+### 1.3 Interactive 扩展字段
+- `interactive.type`：`resource` / `portal` / …
+- `coord_local:optional<[int,int]>`：相对于父 Scene 的整格坐标。
+- 资源点：容量、产率等配置写入 `ResourceSpawn`，由 `ResourceSystem` 消费。
+- Portal：目标 Scene、入口/出口锚点等写入 `PathEdge` 或 Portal 元信息（见 2.3）。
+
+> **兼容性**：`WorldLoader` 对 `coord_global`、`coord_local`、`anchors` 等字段均为可选解析；旧数据缺失这些字段不会导致加载失败。
+
+## 2. 坐标与连通性
+
+### 2.1 坐标体系
+- **全局坐标 (`coord_global`)**：以 Tile 为单位的整数坐标，供渲染层与调试工具直接使用。
+- **局部坐标 (`coord_local`)**：Scene 内的相对整格坐标。Scene 在布局阶段根据自身原点与尺度换算成全局坐标。
+- Scene 自身可以没有局部坐标（作为原点），但必须确保所有子节点能推导出 `coord_global`。
+
+### 2.2 边（PathEdge）
+`PathEdge` 表示 Scene/Interactive 之间的连通性，用于逻辑寻路。
+
+| 字段 | 说明 |
+| --- | --- |
+| `from / to : LocationId` | 起点与终点节点。 |
+| `cost:float` | 移动成本。 |
+| `bidirectional:bool` | 是否自动生成反向边。 |
+| `anchors.at_from / at_to : optional<[int,int]>` | 在起点/终点 Scene 局部坐标系中的锚点（Portal/入口）。 |
+| `polyline` | （可选）供渲染/调试使用的路径折线。 |
+
+Portal 会生成至少一条边：从入口 Scene 到出口 Scene。若 `bidirectional=true`，加载器会自动补齐反向边并交换锚点。
+
+### 2.3 Portal 元信息
+- Portal 本身是 Interactive 节点，携带局部坐标。
+- 对应的 `PathEdge` 通过 `anchors` 提供进入/离开场景时的站位。
+- 渲染层可读取 Portal 节点与 `anchors` 来绘制传送门、场景切换提示。
+
+## 3. Scene 布局描述（Layout Descriptor）
+
+Scene 负责为子节点分配局部坐标。布局描述存放在 Scene 的 `layout` 字段，推荐使用数据驱动配置，便于生成器与工具复用。
+
+示例：
 ```json
 {
-  "locations": [
-    { "id": 1, "kind": "Region", "name": "NewTown", "parent": 0 },
-    { "id": 10, "kind": "District", "name": "MainStreet", "parent": 1, "mapId": "main_street" },
-    { "id": 101, "kind": "Area", "name": "Tavern", "parent": 10, "mapId": "tavern_interior" },
-    { "id": 1011, "kind": "Point", "role": "anchor", "name": "TavernDoor", "parent": 101,
-      "mapId": "tavern_interior", "coord_local": [4, 12] },
-    { "id": 1012, "kind": "Point", "role": "interaction", "interactionType": "food",
-      "name": "KitchenCounter", "parent": 101, "mapId": "tavern_interior", "coord_local": [8, 6],
-      "metadata": { "capacity": 24, "regenPerStep": 3 } }
-  ],
-  "edges": [
-    { "from": 10, "to": 101, "cost": 4.0, "bidirectional": true, "portalNode": 1011 }
-  ]
+  "id": 100,
+  "name": "Riverside",
+  "layout": {
+    "type": "grid",
+    "origin": [0, 0],
+    "spacing": [4, 2],
+    "children": {
+      "scene:fishing_spot": { "offset": [2, 0] },
+      "scene:pier": { "offset": [6, 0] },
+      "interactive:portal:ferry": { "offset": [8, 1] }
+    }
+  }
 }
 ```
 
-## 相关文档
-- 世界生成与 MapConfig：`world_generation.md`
-- Graph ↔ Tilemap 协同：`world_representation.md`
-- Tilemap 管线与渲染：`sandbox_gui_tilemap_rendering.md`
+常见模式：
+- `grid`：规则网格，适合城镇/室内布局。
+- `ring`：环形摆放，适合广场/篝火营地。
+- `noise` / `script`：自定义算法或脚本生成，写入 deterministic seed。
+
+Scene 在生成/加载阶段解析 `layout`，为每个子节点写回 `coord_local`，继而计算 `coord_global = scene.origin + transform(coord_local)`。
+
+## 4. 运行时查询能力
+
+`WorldRegistry` 提供以下只读接口：
+- `findLocation(id)`：返回节点详情。
+- `childrenOf(id)`：查询子节点列表。
+- `edgesFrom(id)`：获取以节点为起点的边集。
+- `spawnsAt(id)` / `resourceSpawns()`：资源点枚举。
+- `tilemaps()`：返回与节点关联的 Tilemap 元数据（若有）。
+
+该集合支撑 MovementSystem、Planner、渲染层等模块。所有写操作仅在加载/生成阶段或受控 API 中进行。
+
+## 5. 渲染与工具消费
+- 渲染层通过 `coord_global` 与 `Interactive.type` 生成可视标记，只绘制视口内数据，实现逻辑与渲染的近似同步。
+- GUI 若需要 Tilemap 细节，可结合 `TilemapMeta`（尺寸、tileSize）与 Scene 布局进行投影。
+- 调试工具可以读取 `layout` 描述，复现生成时的摆放决策，或为编辑器提供可视化。
+
+## 6. 与世界生成的关系
+- 世界生成器负责产出满足上述契约的 `world.json`。
+- Scene 的 `layout`、Portal `anchors`、资源配置等应由生成器或手工数据在产出阶段写入。
+- 运行时加载器不再强制这些字段存在，但若缺失，渲染层无法获得位置参考，应在调试日志中提示。
+
+---
+
+相关文档：`world_generation.md`（数据生产流程）、`world_representation.md`（运行层与渲染层对齐）、`sandbox_gui_tilemap_rendering.md`（GUI 渲染契约）。

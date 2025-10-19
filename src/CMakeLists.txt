@@ -76,6 +76,8 @@ target_include_directories(genesis_runtime
 )
 
 target_link_libraries(genesis_runtime
+    PUBLIC
+        Genesis::Worldgen
     PRIVATE
         Genesis::Engine
 )

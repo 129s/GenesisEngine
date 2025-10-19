@@ -182,3 +182,9 @@ min_connectivity = 1
 ---
 
 相关文档：`world_model.md`（数据契约）、`world_representation.md`（渲染参考）、`MVP_SCENE_INTERACTIVE.md`（路线规划）、`sandbox_gui_tilemap_rendering.md`（Tilemap 消费）。
+## 12. 运行时整合与 Sandbox GUI
+- `genesis::core::Engine` 新增 `reloadWorld`，在不重启引擎的情况下替换整套 `LocationGraph`，同时重置资源系统与演示用代理，并清空遥测缓存。
+- `genesis::runtime::Runtime` 暴露 `generateWorldFromConfig`，封装配置加载、种子管理、耗时统计与日志回传，可在构造时自动生成或由上层按需触发。
+- `Sandbox::Gui::RuntimeBridge` 在生成流程中会安全暂停后台线程、刷新世界、重建 `WorldAtlas` 并擦除旧快照，确保 UI 不与模拟线程争用状态。
+- Sandbox GUI 新增“World Generation”面板，可输入配置路径、指定或随机种子，一键生成并加载世界；生成日志和统计即时反馈，Scene 视图用纯色棋盘格占位符预览 Tilemap 区域，为后续接入真实纹理预留通道。
+- 新增示例配置 `data/worldgen/default.toml`，便于快速体验与回归测试。

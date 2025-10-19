@@ -123,6 +123,41 @@ double RuntimeBridge::speedMultiplier() const
     return speedMultiplier_;
 }
 
+std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride)
+{
+    bool wasRunning = false;
+    bool wasPaused = false;
+    {
+        std::lock_guard lock(controlMutex_);
+        wasRunning = running_;
+        wasPaused = paused_;
+    }
+
+    if (wasRunning)
+    {
+        stop();
+    }
+
+    auto result = runtime_.generateWorldFromConfig(configPath, seedOverride);
+    lastGeneration_ = result;
+    atlas_ = buildWorldAtlas(runtime_.engine());
+
+    {
+        std::lock_guard snapshotLock(snapshotMutex_);
+        snapshots_.clear();
+    }
+
+    if (wasRunning)
+    {
+        if (start() && wasPaused)
+        {
+            setPaused(true);
+        }
+    }
+
+    return lastGeneration_;
+}
+
 std::optional<RuntimeBridge::Snapshot> RuntimeBridge::latestSnapshot() const
 {
     std::lock_guard lock(snapshotMutex_);

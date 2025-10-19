@@ -71,6 +71,7 @@ public:
     explicit TelemetryBuffer(std::size_t maxEntries = 256);
 
     void push(TickTelemetry entry);
+    void clear() noexcept;
 
     [[nodiscard]] const std::deque<TickTelemetry>& entries() const noexcept { return m_entries; }
 

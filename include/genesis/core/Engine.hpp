@@ -43,6 +43,8 @@ public:
     [[nodiscard]] entt::registry& registry() noexcept { return m_registry; }
     [[nodiscard]] const entt::registry& registry() const noexcept { return m_registry; }
 
+    void reloadWorld(genesis::world::LocationGraph graph);
+
     ResourceRequestResult requestResource(world::ResourceType type, std::uint32_t amount, world::LocationId preferredLocation);
 
     [[nodiscard]] const telemetry::TelemetryBuffer& telemetry() const noexcept { return m_telemetry; }

@@ -8,19 +8,24 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+#include <imgui_freetype.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <deque>
+#include <filesystem>
 #include <limits>
 #include <mutex>
+#include <random>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <cstdlib>
 
 namespace Genesis::Sandbox::Gui
 {
@@ -71,6 +76,53 @@ void FramebufferSizeCallback(GLFWwindow* /*window*/, int width, int height)
 {
     glViewport(0, 0, width, height);
 }
+
+std::filesystem::path locateAsset(const std::filesystem::path& relative)
+{
+    constexpr int searchDepth = 5;
+    auto current = std::filesystem::current_path();
+    for (int i = 0; i <= searchDepth; ++i)
+    {
+        const auto candidate = current / relative;
+        if (std::filesystem::exists(candidate))
+        {
+            return candidate;
+        }
+        if (!current.has_parent_path())
+        {
+            break;
+        }
+        current = current.parent_path();
+    }
+    return {};
+}
+
+std::filesystem::path locateCjkFont()
+{
+    if (auto font = locateAsset(std::filesystem::path("data/fonts/NotoSansSC-Regular.ttf")); !font.empty())
+    {
+        return font;
+    }
+
+#if defined(_WIN32)
+    if (const char* winDir = std::getenv("WINDIR"); winDir && winDir[0] != '\0')
+    {
+        const std::filesystem::path base{winDir};
+        const std::array<const char*, 3> candidates = {"simsun.ttc", "simhei.ttf", "msyh.ttc"};
+        for (const auto* name : candidates)
+        {
+            const auto systemFont = base / "Fonts" / name;
+            if (std::filesystem::exists(systemFont))
+            {
+                return systemFont;
+            }
+        }
+    }
+#endif
+
+    return {};
+}
+
 } // namespace
 
 AppHost::AppHost(AppHostConfig config)
@@ -82,6 +134,7 @@ AppHost::AppHost(AppHostConfig config)
     , show_scene_view_(true)
     , show_telemetry_(true)
     , show_logs_(true)
+    , show_worldgen_panel_(true)
     , log_auto_scroll_(true)
     , show_agent_overlay_(true)
     , show_agent_trails_(false)
@@ -94,6 +147,9 @@ AppHost::AppHost(AppHostConfig config)
     , scene_show_anchors_(true)
     , scene_show_resources_(true)
 {
+    refreshDefaultWorldgenConfig();
+    worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
+
     if (auto logger = spdlog::default_logger())
     {
         log_sink_ = std::make_shared<ImGuiLogSink>(512);
@@ -232,6 +288,41 @@ bool AppHost::initializeImGui()
 
     ImGui::StyleColorsDark();
 
+    io.Fonts->TexGlyphPadding = 1;
+    io.Fonts->FontBuilderIO = ImGuiFreeType::GetBuilderForFreeType();
+    io.Fonts->FontBuilderFlags = ImGuiFreeTypeBuilderFlags_Monochrome |
+        ImGuiFreeTypeBuilderFlags_MonoHinting |
+        ImGuiFreeTypeBuilderFlags_ForceAutoHint;
+
+    ImFontConfig defaultCfg{};
+    defaultCfg.OversampleH = 1;
+    defaultCfg.OversampleV = 1;
+    defaultCfg.PixelSnapH = true;
+    io.Fonts->AddFontDefault(&defaultCfg);
+
+    if (const auto fontPath = locateCjkFont(); !fontPath.empty())
+    {
+        ImFontConfig fontCfg{};
+        fontCfg.OversampleH = 1;
+        fontCfg.OversampleV = 1;
+        fontCfg.PixelSnapH = true;
+        const float fontSize = 17.0f;
+        const ImWchar* ranges = io.Fonts->GetGlyphRangesChineseSimplifiedCommon();
+        if (auto* cjkFont = io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), fontSize, &fontCfg, ranges))
+        {
+            io.FontDefault = cjkFont;
+            spdlog::info("Loaded UI font: {}", fontPath.string());
+        }
+        else
+        {
+            spdlog::warn("Failed to load CJK font at {}", fontPath.string());
+        }
+    }
+    else
+    {
+        spdlog::warn("CJK font asset not found; Chinese glyphs may display as '?'");
+    }
+
     ImGuiStyle& style = ImGui::GetStyle();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
@@ -312,6 +403,7 @@ void AppHost::renderGui()
     drawDockspace();
     drawMainMenuBar();
     drawWelcomePanel();
+    drawWorldGenerationPanel();
     drawWorldViewPanel();
     drawSceneViewPanel();
     drawTelemetryPanel();
@@ -367,6 +459,7 @@ void AppHost::drawMainMenuBar()
             ImGui::MenuItem("Map View", nullptr, &show_world_view_);
             ImGui::MenuItem("Scene View", nullptr, &show_scene_view_);
             ImGui::MenuItem("Telemetry", nullptr, &show_telemetry_);
+            ImGui::MenuItem("World Generation", nullptr, &show_worldgen_panel_);
             ImGui::MenuItem("Log Console", nullptr, &show_logs_);
             ImGui::EndMenu();
         }
@@ -448,6 +541,149 @@ void AppHost::drawWelcomePanel()
         "tools, and interactive world regeneration.");
 
     ImGui::End();
+}
+
+void AppHost::drawWorldGenerationPanel()
+{
+    if (!show_worldgen_panel_)
+    {
+        return;
+    }
+
+    if (!ImGui::Begin("World Generation", &show_worldgen_panel_))
+    {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::TextUnformatted("使用配置 + 种子即时生成世界，并在加载后自动刷新地图。");
+    ImGui::Separator();
+
+    ImGui::InputText("配置路径", worldgen_config_buffer_.data(), worldgen_config_buffer_.size());
+
+    if (ImGui::Checkbox("随机种子", &worldgen_use_random_seed_))
+    {
+        if (worldgen_use_random_seed_)
+        {
+            worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
+        }
+    }
+
+    if (worldgen_use_random_seed_)
+    {
+        ImGui::SameLine();
+        if (ImGui::Button("刷新种子"))
+        {
+            worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
+        }
+        ImGui::SameLine();
+        ImGui::Text("当前: %llu", static_cast<unsigned long long>(worldgen_seed_));
+    }
+    else
+    {
+        ImGui::InputScalar("种子", ImGuiDataType_U64, &worldgen_seed_);
+    }
+
+    std::string configInput(worldgen_config_buffer_.data());
+    const bool hasConfig = !configInput.empty();
+    if (!hasConfig)
+    {
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写配置文件路径");
+    }
+
+    const bool bridgeReady = runtime_bridge_ != nullptr;
+    if (!bridgeReady || !hasConfig)
+    {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("生成并加载"))
+    {
+        std::optional<std::uint64_t> seedOverride = worldgen_use_random_seed_ ? std::nullopt : std::optional<std::uint64_t>{worldgen_seed_};
+        auto result = runtime_bridge_->generateWorld(std::filesystem::path(configInput), seedOverride);
+        if (result.has_value())
+        {
+            last_worldgen_result_ = result;
+            if (last_worldgen_result_->success)
+            {
+                if (worldgen_use_random_seed_)
+                {
+                    worldgen_seed_ = last_worldgen_result_->seed.value;
+                }
+                resetSceneForNewWorld();
+            }
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("清除结果"))
+    {
+        last_worldgen_result_.reset();
+    }
+    if (!bridgeReady || !hasConfig)
+    {
+        ImGui::EndDisabled();
+    }
+
+    if (last_worldgen_result_)
+    {
+        const auto& result = *last_worldgen_result_;
+        ImGui::Separator();
+        if (result.success)
+        {
+            ImGui::Text("最新一次生成成功");
+            ImGui::BulletText("配置: %s", result.configPath.string().c_str());
+            ImGui::BulletText("种子: %llu", static_cast<unsigned long long>(result.seed.value));
+            ImGui::BulletText("节点: %zu · 边: %zu", result.locationCount, result.edgeCount);
+            ImGui::BulletText("耗时: %.2f ms", result.durationMs);
+        }
+        else
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "生成失败: %s", result.error.c_str());
+        }
+
+        if (!result.logs.empty())
+        {
+            if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 200.0f), true))
+            {
+                for (const auto& entry : result.logs)
+                {
+                    ImGui::TextUnformatted(entry.message.c_str());
+                }
+            }
+            ImGui::EndChild();
+        }
+    }
+
+    ImGui::End();
+}
+
+void AppHost::resetSceneForNewWorld()
+{
+    latest_snapshot_.reset();
+    agent_trails_.clear();
+    scene_selected_node_ = 0;
+    scene_cam_offset_x_ = 0.0f;
+    scene_cam_offset_y_ = 0.0f;
+    scene_cam_zoom_ = 1.5f;
+}
+
+void AppHost::refreshDefaultWorldgenConfig()
+{
+    std::fill(worldgen_config_buffer_.begin(), worldgen_config_buffer_.end(), '\0');
+    const std::filesystem::path defaultPath{"data/worldgen/default.toml"};
+    auto resolved = locateAsset(defaultPath);
+    if (!resolved.empty())
+    {
+        resolved.make_preferred();
+        const auto text = resolved.string();
+        std::snprintf(worldgen_config_buffer_.data(), worldgen_config_buffer_.size(), "%s", text.c_str());
+    }
+    else if (std::filesystem::exists(defaultPath))
+    {
+        auto preferred = defaultPath;
+        preferred.make_preferred();
+        const auto text = preferred.string();
+        std::snprintf(worldgen_config_buffer_.data(), worldgen_config_buffer_.size(), "%s", text.c_str());
+    }
 }
 
 void AppHost::drawWorldViewPanel()
@@ -973,6 +1209,34 @@ void AppHost::drawSceneViewPanel()
     const int cols = (maxX - minX + 1);
     const int rows = (maxY - minY + 1);
     const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.25f, 0.25f, 0.28f, 1.0f));
+
+    // Draw tile coverage using solid colors as placeholder for actual textures
+    const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
+    const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
+    for (const auto& tm : atlas.tilemaps)
+    {
+        if (tm.nodeId != scene_selected_node_ || tm.width <= 0 || tm.height <= 0)
+        {
+            continue;
+        }
+
+        for (int y = 0; y < tm.height; ++y)
+        {
+            for (int x = 0; x < tm.width; ++x)
+            {
+                const float gx0 = static_cast<float>(minX + x);
+                const float gy0 = static_cast<float>(minY + y);
+                const float gx1 = gx0 + 1.0f;
+                const float gy1 = gy0 + 1.0f;
+                const ImVec2 cellMin = toScreen(gx0, gy0);
+                const ImVec2 cellMax = toScreen(gx1, gy1);
+                const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
+                drawList->AddRectFilled(cellMin, cellMax, fill);
+            }
+        }
+        break; // 单节点仅取首个匹配 tilemap
+    }
+
     if (scene_show_grid_)
     {
         for (int x = 0; x <= cols; ++x)

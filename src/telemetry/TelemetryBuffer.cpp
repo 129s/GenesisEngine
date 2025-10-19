@@ -16,5 +16,9 @@ void TelemetryBuffer::push(TickTelemetry entry) {
     m_entries.push_back(std::move(entry));
 }
 
+void TelemetryBuffer::clear() noexcept {
+    m_entries.clear();
+}
+
 } // namespace genesis::telemetry
 

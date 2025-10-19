@@ -44,6 +44,16 @@ void ResourceSystem::initialize(entt::registry& registry) {
     m_initialized = true;
 }
 
+void ResourceSystem::reset(entt::registry& registry) {
+    for (const auto entity : m_spawnEntities) {
+        if (registry.valid(entity)) {
+            registry.destroy(entity);
+        }
+    }
+    m_spawnEntities.clear();
+    m_initialized = false;
+}
+
 void ResourceSystem::tick(entt::registry& registry, std::uint64_t stepIndex) {
     if (!m_initialized) {
         initialize(registry);

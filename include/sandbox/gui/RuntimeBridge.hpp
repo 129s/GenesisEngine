@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <condition_variable>
 #include <deque>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -117,6 +118,9 @@ public:
     void setSpeedMultiplier(double multiplier);
     [[nodiscard]] double speedMultiplier() const;
 
+    std::optional<genesis::runtime::Runtime::WorldGenerationResult> generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt);
+    [[nodiscard]] const std::optional<genesis::runtime::Runtime::WorldGenerationResult>& lastGeneration() const noexcept { return lastGeneration_; }
+
     [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;
 
     [[nodiscard]] const WorldAtlas& atlas() const noexcept { return atlas_; }
@@ -142,6 +146,7 @@ private:
     std::thread worker_;
 
     WorldAtlas atlas_;
+    std::optional<genesis::runtime::Runtime::WorldGenerationResult> lastGeneration_;
 };
 
 } // namespace Genesis::Sandbox::Gui

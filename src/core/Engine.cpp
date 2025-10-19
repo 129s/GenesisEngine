@@ -190,6 +190,24 @@ void Engine::loadInitialWorld() {
         m_world.locationCount(), m_world.resourceSpawnCount());
 }
 
+void Engine::reloadWorld(genesis::world::LocationGraph graph) {
+    const auto locationCount = graph.nodes.size();
+    const auto edgeCount = graph.edges.size();
+    spdlog::info("Reloading world graph ({} locations, {} edges)", locationCount, edgeCount);
+
+    m_world.setGraph(std::move(graph));
+    m_registry.clear();
+    m_resourceSystem.reset(m_registry);
+    m_needSystem = genesis::agents::NeedSystem{};
+    m_resourceSystem.initialize(m_registry);
+    configureNeedDefaults();
+    spawnDemoAgents();
+
+    m_hungerDecisions.clear();
+    m_telemetry.clear();
+    m_lastTelemetryReportStep = 0;
+}
+
 void Engine::configureNeedDefaults() {
     using genesis::agents::NeedDescriptor;
     using genesis::agents::NeedType;

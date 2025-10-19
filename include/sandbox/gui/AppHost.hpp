@@ -3,10 +3,12 @@
 #include <array>
 #include <cstddef>
 #include <deque>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "sandbox/gui/RuntimeBridge.hpp"
 
@@ -51,6 +53,7 @@ private:
     void drawDockspace();
     void drawMainMenuBar();
     void drawWelcomePanel();
+    void drawWorldGenerationPanel();
     void drawWorldViewPanel();
     void drawSceneViewPanel();
     void drawTelemetryPanel();
@@ -59,6 +62,8 @@ private:
 
     void updateRuntimeSnapshot();
     void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
+    void resetSceneForNewWorld();
+    void refreshDefaultWorldgenConfig();
 
     AppHostConfig config_;
     GLFWwindow* window_{nullptr};
@@ -73,6 +78,7 @@ private:
     bool show_scene_view_{true};
     bool show_telemetry_{true};
     bool show_logs_{true};
+    bool show_worldgen_panel_{true};
     bool log_auto_scroll_{true};
     std::shared_ptr<ImGuiLogSink> log_sink_;
     std::size_t log_last_line_count_{0};
@@ -90,6 +96,12 @@ private:
     bool scene_show_grid_{true};
     bool scene_show_anchors_{true};
     bool scene_show_resources_{true};
+
+    // World generation UI state
+    std::array<char, 512> worldgen_config_buffer_{};
+    bool worldgen_use_random_seed_{true};
+    std::uint64_t worldgen_seed_{0};
+    std::optional<genesis::runtime::Runtime::WorldGenerationResult> last_worldgen_result_;
 };
 
 } // namespace Genesis::Sandbox::Gui

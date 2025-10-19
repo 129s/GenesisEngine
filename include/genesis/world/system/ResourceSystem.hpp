@@ -17,6 +17,7 @@ public:
     ResourceSystem(WorldRegistry& registry, genesis::messaging::EventBus& eventBus);
 
     void initialize(entt::registry& registry);
+    void reset(entt::registry& registry);
     void tick(entt::registry& registry, std::uint64_t stepIndex);
 
     std::uint32_t consume(entt::registry& registry, genesis::world::ResourceType type, std::uint32_t amount, genesis::world::LocationId preferred);

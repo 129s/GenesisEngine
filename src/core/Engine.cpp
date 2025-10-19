@@ -56,6 +56,10 @@ Engine::Engine()
     spawnDemoAgents();
 }
 
+void Engine::setSnapshotCallback(SnapshotCallback callback) {
+    m_snapshotCallback = std::move(callback);
+}
+
 void Engine::run(std::uint64_t maxSteps) {
     const auto delta = m_clock.stepDuration();
     std::uint64_t processed = 0;
@@ -258,6 +262,10 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
         snapshot.location = location.location;
         tick.agents.push_back(std::move(snapshot));
     });
+
+    if (m_snapshotCallback) {
+        m_snapshotCallback(tick);
+    }
 
     m_hungerDecisions.clear();
 

@@ -8,7 +8,7 @@
 
 ## 近期（P0，稳定与补齐基础）
 - 运行时与并发安全
-  - [ ] 双缓冲 `SimulationSnapshot`（渲染/调试与模拟线程安全共享）
+  - [x] 双缓冲 `SimulationSnapshot`（已引入 `SimulationSnapshotBuffer`，前端读取线程安全）
   - [ ] 快照比较与事件注入 API（便于 E2E 与重放）
 - Sandbox CLI 能力
   - [ ] 核心命令集：`pause`/`resume`/`step <n>`/`render`/`inspect agent <id>`

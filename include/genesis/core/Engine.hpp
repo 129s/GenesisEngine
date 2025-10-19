@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <functional>
 
 #include <entt/entt.hpp>
 
@@ -45,6 +46,9 @@ public:
     [[nodiscard]] const telemetry::TelemetryBuffer& telemetry() const noexcept { return m_telemetry; }
     [[nodiscard]] const telemetry::TickTelemetry* latestTelemetry() const noexcept;
 
+    using SnapshotCallback = std::function<void(const telemetry::TickTelemetry&)>;
+    void setSnapshotCallback(SnapshotCallback callback);
+
 private:
     void processStep(std::uint64_t stepIndex);
     void loadInitialWorld();
@@ -66,6 +70,7 @@ private:
     std::vector<planner::HungerDecision> m_hungerDecisions;
     std::uint64_t m_lastTelemetryReportStep{0};
     static constexpr std::uint64_t kTelemetryReportInterval = 120;
+    SnapshotCallback m_snapshotCallback;
 };
 
 } // namespace genesis::core

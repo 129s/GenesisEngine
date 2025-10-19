@@ -1,9 +1,9 @@
 # GenesisEngine 路线图（GUI 优先版）
 
-> 2025-10-19 更新：Sandbox GUI 已成为主力观测与调试入口；CLI 进入维护模式；运行时架构完成“Core Runtime → Runtime Facade → Presentation”拆分；P0 阶段任务正式启动（目标 4 周内完成 GUI 里程碑 4 与回归基线）。
+> 2025-10-19 更新：Sandbox GUI 已成为主力观测与调试入口；CLI 支持即日起暂停；运行时架构完成“Core Runtime → Runtime Facade → Presentation”拆分；P0 阶段任务正式启动（目标 4 周内完成 GUI 里程碑 4 与回归基线）。
 
 ## 背景与更新要点
-- Sandbox CLI 在复杂地图与长时运行下存在频闪与调试效率瓶颈，决定冻结新增特性，仅保持回退能力。
+- Sandbox CLI 在复杂地图与长时运行下存在频闪与调试效率瓶颈，即日起暂停支持，仅保留源码以备后续评估。
 - Sandbox GUI 已集成 RuntimeBridge、WorldAtlas 等模块，支持持续运行、快照读取与基本调试面板，后续里程碑围绕 GUI 演进展开。
 - 运行时架构调整为：单线程 Core Runtime 提供确定性模拟；Runtime Facade 暴露控制/查询/Telemetry 契约；前端通过只读快照消费数据，禁止直接操作 ECS。
 - 文档体系同步：GUI 架构、世界模型、运行时 API 均已拆分到 `docs/architecture`，路线图聚焦阶段目标与风险。
@@ -12,14 +12,14 @@
 - 提供稳定、可扩展的模拟核心，前端统一经 Runtime Facade 访问。
 - 以 Sandbox GUI 为主战场，构建可视化调试、遥测分析与世界生成调参能力。
 - 支撑多需求、多系统互联的 Agent 行为，同时确保长时间运行的性能与诊断手段。
-- 保留 CLI 作为 CI / 快速回归的轻量入口，仅处理兼容性与缺陷修复。
+- 暂停 CLI 发布与支持，后续调试与工具链以 GUI 为唯一入口。
 
 ## 架构基线
 - **Core Runtime**：`WorldRegistry` + 系统集合（Movement/Needs/Planner/ActionExecutor/Resource 等），单线程按 `SimulationClock` 推进。
 - **Runtime Facade**：控制面（`run`/`pause`/`step`/`setSpeed`）、查询面（`latestSnapshot`、WorldAtlas、TelemetryBuffer）、事件入口（计划中的命令队列/快照对比）。
 - **Presentation 层**：
   - GUI（主力）：GLFW + OpenGL + Dear ImGui，RuntimeBridge 后台线程 + 环形快照缓冲。
-  - CLI（维护模式）：保留 ASCII 视图与脚本化回放，暂停新增能力。
+  - CLI（暂停）：移出支持矩阵，仅保留源码以便未来回滚或工具链复用。
   - Game（探索中）：未来与 GUI 共享 Runtime 契约。
 - **可观测性**：Telemetry Schema 与 Snapshot 双缓冲是协议演进核心；所有前端使用 schema version 校验以避免破坏性更新。
 
@@ -27,9 +27,9 @@
 - 运行时与并发安全
   - [x] 双缓冲 `SimulationSnapshot`（已引入 `SimulationSnapshotBuffer`，前端读取线程安全）
   - [ ] 快照比较与事件注入 API（便于 E2E 与重放）
-- Sandbox CLI 能力
-  - [ ] 核心命令集：`pause`/`resume`/`step <n>`/`render`/`inspect agent <id>`
-  - [ ] 脚本化回放与 CI 烟雾测试（已有脚本，补充断言）
+- GUI 调试体验
+  - [ ] Inspector 视图：实体列表/详情/地图联动的信息架构与渲染实现
+  - [ ] RuntimeBridge Telemetry 配置：巩固指标采集与阈值告警面板草案
 - 测试与回归
   - [ ] 端到端闭环用例：Planner → Executor → Need 恢复
   - [ ] 24 小时离线长时模拟（指标追踪：饥饿/旅行成本/库存告警）
@@ -43,10 +43,10 @@
 > 阶段状态：执行中（自 2025-10-19）；每周日同步风险与燃尽图。
 - **当周聚焦**
   - 快照差异与事件注入 API：完成接口草案 + 审核要点，锁定 Telemetry 集成方式。
-  - CLI 核心命令集：补齐 `pause/resume/step/render/inspect` 的 smoke test 脚本与断言覆盖。
   - GUI Inspector：输出信息架构草图（实体列表/详情/地图联动）并确认数据绑定依赖。
+  - GUI 烟雾巡检脚本：替换原 CLI smoke，圈定最小自动化覆盖与验收脚本。
 - 运行时与协议
-  - [ ] 双缓冲 `SimulationSnapshot` 与版本标记，确保 GUI/CLI 安全读取。
+  - [ ] 双缓冲 `SimulationSnapshot` 与版本标记，确保 GUI 前端安全读取（CLI 停用但保持编译通过）。
   - [ ] 快照差异与事件注入 API，支撑回放、断言与工具链。
   - [ ] 长时运行（24h）回归脚本，纳入指标追踪（饥饿/库存/旅行成本）。
 - GUI 主线
@@ -55,7 +55,7 @@
   - [ ] 里程碑 3 文档补齐（可视化策略/Scene View 说明）。
   - [ ] 里程碑 4：Inspector 面板（实体列表、详情、Map 联动）。
 - 工程与支持
-  - [ ] CLI 烟雾测试迁移至 GUI 驱动的基本巡检（保留 CLI 作为 fallback）。
+  - [ ] GUI 烟雾测试流水线：巩固可执行脚本 + 关键断言（CLI 流程暂停）。
   - [ ] 构建流水线：Windows/Linux GUI 构建、符号与依赖打包。
 
 ### 短期（P1 · GUI 能力扩展与遥测体系）
@@ -96,10 +96,10 @@
   - [ ] 文档站/示例场景库、教程化引导。
   - [ ] GUI/Runtime API 版本策略与升级指南。
 
-## CLI 暂缓策略
-- 不再追加新命令，仅修复阻塞性缺陷并维持与 Runtime Facade 的兼容。
-- 烟雾测试迁移至 GUI；CLI 仅用于 Headless 场景与快速脚本回放。
-- 文档保留现有使用指南与排错，新增重大变化时需注明 GUI 等价操作。
+## CLI 暂停策略
+- 暂停对外发布与支持，仅保留源码与最小编译验证，作为必要时的回退手段。
+- 原有烟雾测试与自动化脚本并入 GUI 流程；CLI 流水线停用，不再执行回归。
+- 文档保留归档版本并标注状态，如需等价操作全部转向 GUI 指南。
 
 ## 里程碑速览
 - P0：Runtime 快照双缓冲 + GUI 里程碑 4（Inspector）+ 24h 回归落地。
@@ -110,7 +110,7 @@
 
 ## 风险与依赖
 - GUI 渲染性能：大图裁剪/批处理不足会导致帧率下滑；需持续 Profiling。
-- 快照协议演进：需同步更新 GUI/CLI，避免 schema 破裂导致读取失败。
+- 快照协议演进：需确保 GUI 快照消费与版本兼容；CLI 停用阶段仍需维持基础编译通过以防回退。
 - 多线程交互：RuntimeBridge 与 UI 通信必须保持锁策略/队列边界，防止死锁与数据竞态。
 - 长时运行稳定性：需尽快建立 24h 回归与内存泄漏检测。
 - 依赖治理：GLFW/ImGui/OpenGL 驱动差异需在 CI 中覆盖多平台。

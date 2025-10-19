@@ -1,5 +1,7 @@
 # Sandbox CLI
 
+> 2025-10-19 通知：Sandbox CLI 支持已暂停，本指南仅供历史参考；请使用 Sandbox GUI（见 `docs/architecture/SANDBOX_GUI.md`）作为当前调试入口。
+
 `sandbox_cli` provides a real-time, text-based window into the simulation. It drives the runtime API directly, letting you pause, step, and inspect agents without producing offline telemetry first.
 
 ## Building

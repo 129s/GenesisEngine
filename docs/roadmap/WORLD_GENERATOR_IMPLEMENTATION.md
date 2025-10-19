@@ -13,17 +13,11 @@
 - ✅ 提供 deterministic RNG 工具、上下文骨架与日志能力。
 - ✅ 编写首批单元测试（配置解析、RNG 确定性）。
 
-### 里程碑 B：拓扑 + 网格布局（预计 2 周）
-- 建立 CMake 目标与目录结构（`engine/worldgen/*`），提供空壳 API。
-- 实现配置加载与 Schema 校验（TOML + JSON Schema）。
-- 提供 deterministic RNG 工具、上下文、日志设施。
-- 编写首批单元测试（配置解析、seed 复现）。
-
-### 里程碑 B：拓扑 + 网格布局（预计 2 周）
-- 完成 `TopologyModule`：支持簇状 + 线性组合拓扑，生成 SceneDraft。
-- 实现 `GridLayout`、`ClusterLayout` 策略；支持 `scene_capacity`、boundary、最小间距硬约束。
-- 接入 `ValidationModule` 基本检查：节点唯一性、越界、Portal 成对。
-- 输出 `GeneratedWorld`（locations/edges/spawns），用于 Runtime 冒烟测试。
+### 里程碑 B：拓扑 + 网格布局（进行中）
+- ✅ 完成 `TopologyModule`：支持簇状 + 线性组合拓扑，生成 SceneDraft。
+- ☐ 实现 `GridLayout`、`ClusterLayout` 策略；支持 `scene_capacity`、boundary、最小间距硬约束。
+- ☐ 接入 `ValidationModule` 基本检查：节点唯一性、越界、Portal 成对。
+- ☐ 输出 `GeneratedWorld`（locations/edges/spawns），用于 Runtime 冒烟测试。
 
 ### 里程碑 C：多策略布局 + Tilemap 生成（预计 3 周）
 - 新增 `HexLayout`、`NoiseRelaxationLayout`、`SplineCorridorLayout`、`VoronoiRegionLayout`。

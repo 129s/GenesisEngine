@@ -3,6 +3,7 @@ set(GENESIS_WORLDGEN_SOURCES
     worldgen/Context.cpp
     worldgen/Generator.cpp
     worldgen/Rng.cpp
+    worldgen/TopologyModule.cpp
 )
 
 add_library(genesis_worldgen STATIC ${GENESIS_WORLDGEN_SOURCES})

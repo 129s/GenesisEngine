@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_freetype.h>
@@ -615,13 +616,13 @@ void AppHost::drawWorldGenerationPanel()
         refreshCommandStatusTexts(commandStatuses);
     }
 
-    ImGui::TextUnformatted("生成世界 → 命令队列驱动的生成/加载/保存流程。");
+    ImGui::TextUnformatted("World Generation → command-queue driven generate/load/save.");
     ImGui::Separator();
 
-    ImGui::InputText("配置路径", worldgen_config_buffer_.data(), worldgen_config_buffer_.size());
-    ImGui::InputText("输出路径", worldgen_output_buffer_.data(), worldgen_output_buffer_.size());
+    ImGui::InputText("Config Path", worldgen_config_buffer_.data(), worldgen_config_buffer_.size());
+    ImGui::InputText("Output Path", worldgen_output_buffer_.data(), worldgen_output_buffer_.size());
 
-    if (ImGui::Checkbox("随机种子", &worldgen_use_random_seed_))
+    if (ImGui::Checkbox("Random Seed", &worldgen_use_random_seed_))
     {
         if (worldgen_use_random_seed_)
         {
@@ -632,16 +633,16 @@ void AppHost::drawWorldGenerationPanel()
     if (worldgen_use_random_seed_)
     {
         ImGui::SameLine();
-        if (ImGui::Button("刷新种子"))
+        if (ImGui::Button("Refresh Seed"))
         {
             worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
         }
         ImGui::SameLine();
-        ImGui::Text("当前: %llu", static_cast<unsigned long long>(worldgen_seed_));
+        ImGui::Text("Current: %llu", static_cast<unsigned long long>(worldgen_seed_));
     }
     else
     {
-        ImGui::InputScalar("种子", ImGuiDataType_U64, &worldgen_seed_);
+        ImGui::InputScalar("Seed", ImGuiDataType_U64, &worldgen_seed_);
     }
 
     const std::string configInput(worldgen_config_buffer_.data());
@@ -649,14 +650,14 @@ void AppHost::drawWorldGenerationPanel()
     const bool hasConfig = !configInput.empty();
     if (!hasConfig)
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写配置文件路径");
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "Please provide config path");
     }
 
     if (!bridgeReady || !hasConfig)
     {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("生成世界"))
+    if (ImGui::Button("Generate World"))
     {
         if (bridgeReady)
         {
@@ -677,11 +678,11 @@ void AppHost::drawWorldGenerationPanel()
             if (auto id = runtime_bridge_->enqueueCommandFromJson(command, "ui", error))
             {
                 worldgen_command_id_ = id;
-                world_command_status_ = "命令已提交 (#" + std::to_string(*id) + ")";
+                world_command_status_ = "Command enqueued (#" + std::to_string(*id) + ")";
             }
             else
             {
-                world_command_status_ = "提交失败: " + error;
+                world_command_status_ = "Submit failed: " + error;
             }
         }
     }
@@ -702,23 +703,23 @@ void AppHost::drawWorldGenerationPanel()
             ImGui::Separator();
             if (result.success)
             {
-                ImGui::Text("最新一次生成成功");
-                ImGui::BulletText("配置: %s", result.configPath.string().c_str());
-                ImGui::BulletText("种子: %llu", static_cast<unsigned long long>(result.seed.value));
-                ImGui::BulletText("节点: %zu · 边: %zu", result.locationCount, result.edgeCount);
-                ImGui::BulletText("耗时: %.2f ms", result.durationMs);
+                ImGui::Text("Last generation succeeded");
+                ImGui::BulletText("Config: %s", result.configPath.string().c_str());
+                ImGui::BulletText("Seed: %llu", static_cast<unsigned long long>(result.seed.value));
+                ImGui::BulletText("Locations: %zu · Edges: %zu", result.locationCount, result.edgeCount);
+                ImGui::BulletText("Duration: %.2f ms", result.durationMs);
                 if (result.outputPath)
                 {
-                    ImGui::BulletText("输出文件: %s", result.outputPath->string().c_str());
+                    ImGui::BulletText("Output file: %s", result.outputPath->string().c_str());
                 }
                 else
                 {
-                    ImGui::BulletText("输出文件: 未指定 (仍保留在内存)");
+                    ImGui::BulletText("Output file: not specified (kept in memory)");
                 }
             }
             else
             {
-                ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "生成失败: %s", result.error.c_str());
+                ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "Generation failed: %s", result.error.c_str());
             }
 
             if (!result.logs.empty())
@@ -736,18 +737,18 @@ void AppHost::drawWorldGenerationPanel()
     }
 
     ImGui::Separator();
-    ImGui::InputText("加载路径", world_load_buffer_.data(), world_load_buffer_.size());
+    ImGui::InputText("Load Path", world_load_buffer_.data(), world_load_buffer_.size());
     const std::string loadInput(world_load_buffer_.data());
     if (loadInput.empty())
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写加载路径");
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "Please provide load path");
     }
 
     if (!bridgeReady || loadInput.empty())
     {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("加载世界"))
+    if (ImGui::Button("Load World"))
     {
         if (bridgeReady)
         {
@@ -759,11 +760,11 @@ void AppHost::drawWorldGenerationPanel()
             if (auto id = runtime_bridge_->enqueueCommandFromJson(command, "ui", error))
             {
                 world_load_command_id_ = id;
-                world_load_status_ = "命令已提交 (#" + std::to_string(*id) + ")";
+                world_load_status_ = "Command enqueued (#" + std::to_string(*id) + ")";
             }
             else
             {
-                world_load_status_ = "提交失败: " + error;
+                world_load_status_ = "Submit failed: " + error;
             }
         }
     }
@@ -777,18 +778,18 @@ void AppHost::drawWorldGenerationPanel()
     }
 
     ImGui::Separator();
-    ImGui::InputText("保存路径", world_save_buffer_.data(), world_save_buffer_.size());
+    ImGui::InputText("Save Path", world_save_buffer_.data(), world_save_buffer_.size());
     const std::string saveInput(world_save_buffer_.data());
     if (saveInput.empty())
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写保存路径");
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "Please provide save path");
     }
 
     if (!bridgeReady || saveInput.empty())
     {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("保存当前世界"))
+    if (ImGui::Button("Save Current World"))
     {
         if (bridgeReady)
         {
@@ -800,11 +801,11 @@ void AppHost::drawWorldGenerationPanel()
             if (auto id = runtime_bridge_->enqueueCommandFromJson(command, "ui", error))
             {
                 world_save_command_id_ = id;
-                world_save_status_ = "命令已提交 (#" + std::to_string(*id) + ")";
+                world_save_status_ = "Command enqueued (#" + std::to_string(*id) + ")";
             }
             else
             {
-                world_save_status_ = "提交失败: " + error;
+                world_save_status_ = "Submit failed: " + error;
             }
         }
     }
@@ -818,29 +819,29 @@ void AppHost::drawWorldGenerationPanel()
     }
 
     ImGui::Separator();
-    ImGui::TextUnformatted("命令脚本");
-    ImGui::InputText("脚本路径", command_script_buffer_.data(), command_script_buffer_.size());
+    ImGui::TextUnformatted("Command Script");
+    ImGui::InputText("Script Path", command_script_buffer_.data(), command_script_buffer_.size());
     if (!bridgeReady)
     {
         ImGui::BeginDisabled();
     }
-    if (ImGui::Button("执行脚本"))
+    if (ImGui::Button("Run Script"))
     {
         const std::string scriptPath(command_script_buffer_.data());
         if (scriptPath.empty())
         {
-            command_script_status_ = "请填写脚本路径";
+            command_script_status_ = "Please provide script path";
         }
         else if (bridgeReady)
         {
             std::string error;
             if (runtime_bridge_->enqueueCommandScript(std::filesystem::path(scriptPath), "script", error))
             {
-                command_script_status_ = "脚本已提交";
+                command_script_status_ = "Script enqueued";
             }
             else
             {
-                command_script_status_ = "脚本执行失败: " + error;
+                command_script_status_ = "Script execution failed: " + error;
             }
         }
     }
@@ -854,20 +855,20 @@ void AppHost::drawWorldGenerationPanel()
     }
 
     ImGui::Separator();
-    ImGui::TextUnformatted("命令队列状态");
+    ImGui::TextUnformatted("Command Queue");
     if (commandStatuses.empty())
     {
-        ImGui::TextUnformatted("暂无命令记录");
+        ImGui::TextUnformatted("No command entries");
     }
     else if (ImGui::BeginChild("CommandQueueView", ImVec2(0.0f, 220.0f), true))
     {
         if (ImGui::BeginTable("CommandQueueTable", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY))
         {
             ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 70.0f);
-            ImGui::TableSetupColumn("标签");
-            ImGui::TableSetupColumn("来源", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-            ImGui::TableSetupColumn("备注");
+            ImGui::TableSetupColumn("Label");
+            ImGui::TableSetupColumn("Source", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+            ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+            ImGui::TableSetupColumn("Notes");
             ImGui::TableHeadersRow();
 
             for (const auto& cmd : commandStatuses)
@@ -923,7 +924,7 @@ void AppHost::drawWorldGenerationPanel()
 
         if (!latest_snapshot_)
         {
-            ImGui::TextUnformatted("等待快照数据…");
+            ImGui::TextUnformatted("Waiting for snapshot...");
             ImGui::End();
             return;
         }
@@ -932,7 +933,7 @@ void AppHost::drawWorldGenerationPanel()
         const auto &tick = snapshot.telemetry;
         const RuntimeBridge::WorldAtlas *atlasPtr = runtime_bridge_ ? &runtime_bridge_->atlas() : nullptr;
 
-        ImGui::InputTextWithHint("##InspectorSearch", "搜索名称/ID/类型", inspector_search_buffer_.data(), inspector_search_buffer_.size());
+        ImGui::InputTextWithHint("##InspectorSearch", "Search name/id/type", inspector_search_buffer_.data(), inspector_search_buffer_.size());
         std::string filterRaw(inspector_search_buffer_.data());
         std::string filterLower = filterRaw;
         std::transform(filterLower.begin(), filterLower.end(), filterLower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -990,7 +991,7 @@ void AppHost::drawWorldGenerationPanel()
         const ImVec2 listSize{listWidth, ImGui::GetContentRegionAvail().y};
         ImGui::BeginChild("InspectorList", listSize, true);
 
-        if (ImGui::CollapsingHeader("代理 Agents", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::CollapsingHeader("Agents", ImGuiTreeNodeFlags_DefaultOpen))
         {
             std::vector<std::size_t> indices(tick.agents.size());
             std::iota(indices.begin(), indices.end(), 0);
@@ -1051,6 +1052,7 @@ void AppHost::drawWorldGenerationPanel()
                     inspector_selected_primary_ = agent.entityId;
                     inspector_selected_secondary_ = static_cast<std::uint32_t>(idx);
                     inspector_highlight_node_ = agent.location.value;
+                    map_selected_node_ = agent.location.value;
                     if (inspector_follow_selection_)
                     {
                         scene_selected_node_ = agent.location.value;
@@ -1059,12 +1061,12 @@ void AppHost::drawWorldGenerationPanel()
                 ImGui::PopID();
                 if (!nodeName.empty() && ImGui::IsItemHovered())
                 {
-                    ImGui::SetTooltip("所在节点: %s", nodeName.c_str());
+                    ImGui::SetTooltip("Node: %s", nodeName.c_str());
                 }
             }
         }
 
-        if (ImGui::CollapsingHeader("资源 Resources", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::CollapsingHeader("Resources", ImGuiTreeNodeFlags_DefaultOpen))
         {
             for (std::size_t i = 0; i < tick.resources.size(); ++i)
             {
@@ -1089,7 +1091,7 @@ void AppHost::drawWorldGenerationPanel()
                 }
 
             char label[160];
-            std::snprintf(label, sizeof(label), "%s (%s) [节点 #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
+            std::snprintf(label, sizeof(label), "%s (%s) [Node #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
 
                 const bool selected = inspector_selection_type_ == InspectorSelectionType::Resource && inspector_selected_primary_ == static_cast<std::uint32_t>(i);
                 ImGui::PushID(static_cast<int>(resource.location.value * 4096 + static_cast<std::uint32_t>(i)));
@@ -1099,12 +1101,13 @@ void AppHost::drawWorldGenerationPanel()
                     inspector_selected_primary_ = static_cast<std::uint32_t>(i);
                     inspector_selected_secondary_ = resource.location.value;
                     inspector_highlight_node_ = resource.location.value;
+                    map_selected_node_ = resource.location.value;
                 }
                 ImGui::PopID();
             }
         }
 
-        if (atlasPtr && ImGui::CollapsingHeader("节点 Nodes", ImGuiTreeNodeFlags_DefaultOpen))
+        if (atlasPtr && ImGui::CollapsingHeader("Nodes", ImGuiTreeNodeFlags_DefaultOpen))
         {
             for (const auto &node : atlasPtr->nodes)
             {
@@ -1124,6 +1127,7 @@ void AppHost::drawWorldGenerationPanel()
                     inspector_selected_primary_ = node.id.value;
                     inspector_selected_secondary_ = 0;
                     inspector_highlight_node_ = node.id.value;
+                    map_selected_node_ = node.id.value;
                 }
                 ImGui::PopID();
             }
@@ -1137,7 +1141,7 @@ void AppHost::drawWorldGenerationPanel()
         switch (inspector_selection_type_)
         {
         case InspectorSelectionType::None:
-            ImGui::TextUnformatted("请选择左侧实体以查看详情。");
+            ImGui::TextUnformatted("Select an entry on the left to view details.");
             break;
         case InspectorSelectionType::Agent:
         {
@@ -1153,11 +1157,11 @@ void AppHost::drawWorldGenerationPanel()
 
             if (!agent)
             {
-                ImGui::Text("代理 #%u 不在当前快照中。", inspector_selected_primary_);
+                ImGui::Text("Agent #%u is not present in the current snapshot.", inspector_selected_primary_);
                 break;
             }
 
-            std::string nodeName = "(未知)";
+            std::string nodeName = "(Unknown)";
             if (atlasPtr)
             {
                 for (const auto &node : atlasPtr->nodes)
@@ -1173,23 +1177,24 @@ void AppHost::drawWorldGenerationPanel()
             ImGui::Text("ID: %u", agent->entityId);
             if (!agent->name.empty())
             {
-                ImGui::Text("名称: %s", agent->name.c_str());
+                ImGui::Text("Name: %s", agent->name.c_str());
             }
-            ImGui::Text("位置: #%u %s", agent->location.value, nodeName.c_str());
+            ImGui::Text("Location: #%u %s", agent->location.value, nodeName.c_str());
 
-            if (ImGui::Button("定位到地图"))
+            if (ImGui::Button("Focus on Map"))
             {
                 show_world_view_ = true;
                 inspector_highlight_node_ = agent->location.value;
+                map_selected_node_ = agent->location.value;
             }
             ImGui::SameLine();
-            if (ImGui::Button("打开 Scene"))
+            if (ImGui::Button("Open Scene"))
             {
                 show_scene_view_ = true;
                 scene_selected_node_ = agent->location.value;
             }
             ImGui::SameLine();
-            ImGui::Checkbox("跟随", &inspector_follow_selection_);
+            ImGui::Checkbox("Follow", &inspector_follow_selection_);
 
             ImGui::Separator();
 
@@ -1205,9 +1210,9 @@ void AppHost::drawWorldGenerationPanel()
             {
                 if (ImGui::BeginTable("NeedsTable", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
                 {
-                    ImGui::TableSetupColumn("需求");
-                    ImGui::TableSetupColumn("强度");
-                    ImGui::TableSetupColumn("临界");
+                    ImGui::TableSetupColumn("Need");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableSetupColumn("Critical");
                     ImGui::TableHeadersRow();
 
                     for (const auto *need : needs)
@@ -1218,7 +1223,7 @@ void AppHost::drawWorldGenerationPanel()
                         ImGui::TableSetColumnIndex(1);
                         ImGui::Text("%.2f", need->value);
                         ImGui::TableSetColumnIndex(2);
-                        ImGui::TextUnformatted(need->critical ? "是" : "否");
+                        ImGui::TextUnformatted(need->critical ? "Yes" : "No");
                     }
 
                     ImGui::EndTable();
@@ -1226,7 +1231,7 @@ void AppHost::drawWorldGenerationPanel()
             }
             else
             {
-                ImGui::TextUnformatted("暂无需求数据。");
+                ImGui::TextUnformatted("No need data.");
             }
 
             const genesis::telemetry::ActionSnapshot *action = nullptr;
@@ -1242,11 +1247,11 @@ void AppHost::drawWorldGenerationPanel()
             if (action)
             {
                 ImGui::Separator();
-                ImGui::Text("当前行动: %s", action->currentAction.c_str());
-                ImGui::Text("目标节点: #%u", action->target.value);
-                ImGui::Text("队列长度: %u", action->queueLength);
-                ImGui::Text("速度: %.2f", action->speed);
-                ImGui::Text("资源: %s · 数量 %u", resourceTypeName(action->resource), action->amount);
+                ImGui::Text("Current Action: %s", action->currentAction.c_str());
+                ImGui::Text("Target Node: #%u", action->target.value);
+                ImGui::Text("Queue Length: %u", action->queueLength);
+                ImGui::Text("Speed: %.2f", action->speed);
+                ImGui::Text("Resource: %s · Amount %u", resourceTypeName(action->resource), action->amount);
             }
 
             const genesis::telemetry::PlannerSnapshot *planner = nullptr;
@@ -1261,7 +1266,7 @@ void AppHost::drawWorldGenerationPanel()
             if (planner)
             {
                 ImGui::Separator();
-                ImGui::Text("Planner 目标: #%u", planner->target.value);
+                ImGui::Text("Planner Target: #%u", planner->target.value);
                 ImGui::Text("Travel Cost: %.2f", planner->travelCost);
                 ImGui::Text("Score: %.2f", planner->score);
             }
@@ -1278,7 +1283,7 @@ void AppHost::drawWorldGenerationPanel()
             if (movement)
             {
                 ImGui::Separator();
-                ImGui::Text("移动进度: %u → %u (%.2f)", movement->from.value, movement->to.value, movement->t01);
+                ImGui::Text("Movement Progress: %u → %u (%.2f)", movement->from.value, movement->to.value, movement->t01);
             }
 
             if (snapshot.diff)
@@ -1293,7 +1298,7 @@ void AppHost::drawWorldGenerationPanel()
                         if (!printedHeader)
                         {
                             ImGui::Separator();
-                            ImGui::TextUnformatted("本帧需求变化");
+                            ImGui::TextUnformatted("Need changes this frame");
                             printedHeader = true;
                         }
                         char delta[160];
@@ -1303,11 +1308,11 @@ void AppHost::drawWorldGenerationPanel()
                         }
                         else if (afterNeed)
                         {
-                            std::snprintf(delta, sizeof(delta), "%s: 新增 %.2f", afterNeed->needName.c_str(), afterNeed->value);
+                            std::snprintf(delta, sizeof(delta), "%s: added %.2f", afterNeed->needName.c_str(), afterNeed->value);
                         }
                         else
                         {
-                            std::snprintf(delta, sizeof(delta), "%s: 移除 (%.2f)", beforeNeed->needName.c_str(), beforeNeed->value);
+                            std::snprintf(delta, sizeof(delta), "%s: removed (%.2f)", beforeNeed->needName.c_str(), beforeNeed->value);
                         }
                         ImGui::BulletText("%s", delta);
                     }
@@ -1319,23 +1324,24 @@ void AppHost::drawWorldGenerationPanel()
         {
             if (inspector_selected_primary_ >= tick.resources.size())
             {
-                ImGui::TextUnformatted("当前资源索引已过期。");
+                ImGui::TextUnformatted("Selected resource index is stale.");
                 break;
             }
 
             const auto &resource = tick.resources[inspector_selected_primary_];
-            ImGui::Text("名称: %s", resource.name.c_str());
-            ImGui::Text("类型: %s", resourceTypeName(resource.type));
-            ImGui::Text("节点: #%u", resource.location.value);
-            ImGui::Text("库存: %u / %u", resource.current, resource.capacity);
+            ImGui::Text("Name: %s", resource.name.c_str());
+            ImGui::Text("Type: %s", resourceTypeName(resource.type));
+            ImGui::Text("Node: #%u", resource.location.value);
+            ImGui::Text("Inventory: %u / %u", resource.current, resource.capacity);
 
-            if (ImGui::Button("定位到地图##resourceFocus"))
+            if (ImGui::Button("Focus on Map##resourceFocus"))
             {
                 show_world_view_ = true;
                 inspector_highlight_node_ = resource.location.value;
+                map_selected_node_ = resource.location.value;
             }
             ImGui::SameLine();
-            if (ImGui::Button("打开 Scene##resourceScene"))
+            if (ImGui::Button("Open Scene##resourceScene"))
             {
                 show_scene_view_ = true;
                 scene_selected_node_ = resource.location.value;
@@ -1346,7 +1352,7 @@ void AppHost::drawWorldGenerationPanel()
         {
             if (!atlasPtr)
             {
-                ImGui::TextUnformatted("当前世界无节点信息。");
+                ImGui::TextUnformatted("No node information available.");
                 break;
             }
 
@@ -1362,18 +1368,19 @@ void AppHost::drawWorldGenerationPanel()
 
             if (!selectedNode)
             {
-                ImGui::Text("节点 #%u 不存在。", inspector_selected_primary_);
+                ImGui::Text("Node #%u does not exist.", inspector_selected_primary_);
                 break;
             }
 
-            ImGui::Text("名称: %s", selectedNode->name.c_str());
+            ImGui::Text("Name: %s", selectedNode->name.c_str());
             ImGui::Text("ID: %u", selectedNode->id.value);
-            ImGui::Text("父节点: %u", selectedNode->parent.value);
-            ImGui::Text("类型: %u", static_cast<unsigned int>(selectedNode->kind));
-            if (ImGui::Button("定位到地图##nodeFocus"))
+            ImGui::Text("Parent: %u", selectedNode->parent.value);
+            ImGui::Text("Kind: %u", static_cast<unsigned int>(selectedNode->kind));
+            if (ImGui::Button("Focus on Map##nodeFocus"))
             {
                 show_world_view_ = true;
                 inspector_highlight_node_ = selectedNode->id.value;
+                map_selected_node_ = selectedNode->id.value;
             }
             break;
         }
@@ -1382,7 +1389,7 @@ void AppHost::drawWorldGenerationPanel()
         ImGui::Separator();
         if (!snapshot.events.empty())
         {
-            ImGui::TextUnformatted("本帧 Runtime 事件");
+            ImGui::TextUnformatted("Runtime events this frame");
             if (ImGui::BeginChild("InspectorEventsLog", ImVec2(0, 140.0f), true))
             {
                 for (const auto &evt : snapshot.events)
@@ -1502,6 +1509,7 @@ void AppHost::drawWorldGenerationPanel()
         scene_cam_offset_x_ = 0.0f;
         scene_cam_offset_y_ = 0.0f;
         scene_cam_zoom_ = 1.5f;
+        map_selected_node_.reset();
     }
 
 void AppHost::refreshDefaultWorldgenConfig()
@@ -1659,16 +1667,51 @@ void AppHost::refreshDefaultWorldgenConfig()
                 nodePositions.emplace(node.id.value, toScreen(node.position));
             }
 
-            const ImU32 edgeColor = ImGui::GetColorU32(ImVec4(0.45f, 0.47f, 0.58f, 1.0f));
-            for (const auto &edge : atlas.edges)
+            // Selected node edges (parent/children only)
+            std::optional<std::uint32_t> selectedEdgeNode = map_selected_node_ ? map_selected_node_ : inspector_highlight_node_;
+            const RuntimeBridge::WorldAtlas::Node *selectedNodeInfo = nullptr;
+            if (selectedEdgeNode)
             {
-                auto fromIt = nodePositions.find(edge.from.value);
-                auto toIt = nodePositions.find(edge.to.value);
-                if (fromIt == nodePositions.end() || toIt == nodePositions.end())
+                for (const auto &node : atlas.nodes)
                 {
-                    continue;
+                    if (node.id.value == *selectedEdgeNode)
+                    {
+                        selectedNodeInfo = &node;
+                        break;
+                    }
                 }
-                drawList->AddLine(fromIt->second, toIt->second, edgeColor, edge.bidirectional ? 1.6f : 1.2f);
+            }
+
+            if (selectedNodeInfo)
+            {
+                auto selectedPosIt = nodePositions.find(selectedNodeInfo->id.value);
+                if (selectedPosIt != nodePositions.end())
+                {
+                    const ImU32 parentEdgeColor = ImGui::GetColorU32(ImVec4(0.95f, 0.78f, 0.35f, 1.0f));
+                    const ImU32 childEdgeColor = ImGui::GetColorU32(ImVec4(0.38f, 0.72f, 0.96f, 1.0f));
+
+                    if (selectedNodeInfo->parent.value != 0 && selectedNodeInfo->parent.value != selectedNodeInfo->id.value)
+                    {
+                        auto parentPosIt = nodePositions.find(selectedNodeInfo->parent.value);
+                        if (parentPosIt != nodePositions.end())
+                        {
+                            drawList->AddLine(selectedPosIt->second, parentPosIt->second, parentEdgeColor, 2.4f);
+                        }
+                    }
+
+                    for (const auto &node : atlas.nodes)
+                    {
+                        if (node.parent.value != selectedNodeInfo->id.value)
+                        {
+                            continue;
+                        }
+                        auto childPosIt = nodePositions.find(node.id.value);
+                        if (childPosIt != nodePositions.end())
+                        {
+                            drawList->AddLine(selectedPosIt->second, childPosIt->second, childEdgeColor, 2.4f);
+                        }
+                    }
+                }
             }
 
             // Prepare for label overlap avoidance
@@ -1718,7 +1761,9 @@ void AppHost::refreshDefaultWorldgenConfig()
                 drawList->AddCircleFilled(it->second, radius, fillColor, 20);
                 drawList->AddCircle(it->second, radius, ImGui::GetColorU32(ImGuiCol_Border), 20, 1.5f);
 
-                if (inspector_highlight_node_ && node.id.value == *inspector_highlight_node_)
+                const bool isSelected = map_selected_node_ && node.id.value == *map_selected_node_;
+                const bool highlighted = (inspector_highlight_node_ && node.id.value == *inspector_highlight_node_) || isSelected;
+                if (highlighted)
                 {
                     drawList->AddCircle(it->second, radius + 4.0f, highlightColor, 24, 2.5f);
                 }
@@ -1738,7 +1783,6 @@ void AppHost::refreshDefaultWorldgenConfig()
                     const float dy = mouse.y - it->second.y;
                     hovered = (dx * dx + dy * dy) <= (radius * radius);
                 }
-                const bool selected = inspector_highlight_node_ && node.id.value == *inspector_highlight_node_;
                 const ImVec2 nameSize = ImGui::CalcTextSize(node.name.c_str());
                 const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - nameSize.y * 0.5f};
                 ImRect labelRect{labelPos, ImVec2(labelPos.x + nameSize.x, labelPos.y + nameSize.y)};
@@ -1747,7 +1791,7 @@ void AppHost::refreshDefaultWorldgenConfig()
                 {
                     if (r.Overlaps(labelRect)) { overlaps = true; break; }
                 }
-                if (!overlaps || hovered || selected)
+                if (!overlaps || hovered || highlighted)
                 {
                     drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
                     placedLabels.push_back(labelRect);
@@ -1772,11 +1816,17 @@ void AppHost::refreshDefaultWorldgenConfig()
                         }
                         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         {
+                            map_selected_node_ = node.id.value;
                             scene_selected_node_ = node.id.value;
                             show_scene_view_ = true;
                         }
                     }
                 }
+            }
+
+            if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            {
+                map_selected_node_.reset();
             }
 
             for (const auto &spawn : atlas.spawns)
@@ -2171,7 +2221,7 @@ void AppHost::refreshDefaultWorldgenConfig()
                     drawList->AddRectFilled(cellMin, cellMax, fill);
                 }
             }
-            break; // 单节点仅取首个匹配 tilemap
+            break; // use the first matching tilemap per node
         }
 
         if (scene_show_grid_)
@@ -2572,3 +2622,4 @@ void AppHost::refreshDefaultWorldgenConfig()
     }
 
 } // namespace Genesis::Sandbox::Gui
+

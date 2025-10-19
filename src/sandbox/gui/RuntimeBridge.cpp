@@ -273,7 +273,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandFromJson(const json& d
     errorMessage.clear();
     if (!descriptor.is_object())
     {
-        errorMessage = "命令描述必须是 JSON 对象";
+        errorMessage = "Command descriptor must be a JSON object";
         return std::nullopt;
     }
 
@@ -286,13 +286,13 @@ bool RuntimeBridge::enqueueCommandSequence(const json& script, std::string sourc
     errorMessage.clear();
     if (!script.is_object())
     {
-        errorMessage = "序列脚本必须是 JSON 对象";
+        errorMessage = "Sequence script must be a JSON object";
         return false;
     }
 
     if (!script.contains("commands") || !script.at("commands").is_array())
     {
-        errorMessage = "脚本缺少 commands 数组";
+        errorMessage = "Script is missing commands array";
         return false;
     }
 
@@ -304,7 +304,7 @@ bool RuntimeBridge::enqueueCommandSequence(const json& script, std::string sourc
     {
         if (!item.is_object())
         {
-            errorMessage = "commands 数组元素必须是 JSON 对象";
+            errorMessage = "Commands array entries must be JSON objects";
             return false;
         }
         ScriptCommand command;
@@ -313,7 +313,7 @@ bool RuntimeBridge::enqueueCommandSequence(const json& script, std::string sourc
         {
             if (!descriptor.at("waitForSuccess").is_boolean())
             {
-                errorMessage = "waitForSuccess 必须为布尔值";
+                errorMessage = "'waitForSuccess' must be a boolean";
                 return false;
             }
             command.waitForSuccess = descriptor.at("waitForSuccess").get<bool>();
@@ -343,7 +343,7 @@ bool RuntimeBridge::enqueueCommandScript(const std::filesystem::path& scriptPath
     std::ifstream input(scriptPath);
     if (!input.is_open())
     {
-        errorMessage = "无法打开脚本文件：" + scriptPath.string();
+        errorMessage = "Failed to open script file: " + scriptPath.string();
         return false;
     }
 
@@ -362,7 +362,7 @@ bool RuntimeBridge::enqueueCommandScript(const std::filesystem::path& scriptPath
     }
     catch (const json::parse_error& ex)
     {
-        errorMessage = std::string{"解析脚本失败："} + ex.what();
+        errorMessage = std::string{"Failed to parse script: "} + ex.what();
         return false;
     }
 }
@@ -497,7 +497,7 @@ void RuntimeBridge::reconcileCommands(const std::vector<genesis::runtime::Runtim
         }
         else if (!report.success)
         {
-            progress.message = "命令执行失败（未提供详细信息）";
+            progress.message = "Command failed (no details provided)";
         }
 
         pendingCommands_.erase(it);
@@ -542,7 +542,7 @@ void RuntimeBridge::advanceSequencesFor(const std::vector<genesis::runtime::Runt
                     else
                     {
                         sequence->aborted = true;
-                        sequence->errorMessage = report.message.empty() ? "依赖命令执行失败" : report.message;
+                        sequence->errorMessage = report.message.empty() ? "Dependent command failed" : report.message;
                     }
                 }
             }
@@ -644,7 +644,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     errorMessage.clear();
     if (!command.contains("action") || !command.at("action").is_string())
     {
-        errorMessage = "命令缺少字符串类型的 action 字段";
+        errorMessage = "Command is missing string field 'action'";
         return std::nullopt;
     }
 
@@ -662,7 +662,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         return enqueueWorldSaveCommand(command, std::move(source), errorMessage);
     }
 
-    errorMessage = "未支持的命令 action：" + action;
+    errorMessage = "Unsupported command action: " + action;
     return std::nullopt;
 }
 
@@ -679,7 +679,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
     errorMessage.clear();
     if (!descriptor.contains("configPath") || !descriptor.at("configPath").is_string())
     {
-        errorMessage = "world.generate 命令需要 configPath 字段";
+        errorMessage = "'world.generate' requires configPath field";
         return std::nullopt;
     }
 
@@ -689,7 +689,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
     {
         if (!descriptor.at("seed").is_number_unsigned())
         {
-            errorMessage = "seed 字段必须为无符号整数";
+            errorMessage = "'seed' field must be an unsigned integer";
             return std::nullopt;
         }
         seedOverride = descriptor.at("seed").get<std::uint64_t>();
@@ -700,7 +700,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
     {
         if (!descriptor.at("outputPath").is_string())
         {
-            errorMessage = "outputPath 字段必须为字符串";
+            errorMessage = "'outputPath' field must be a string";
             return std::nullopt;
         }
         outputPath = std::filesystem::path(descriptor.at("outputPath").get<std::string>());
@@ -729,11 +729,11 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
             }
             else if (result)
             {
-                message = result->error.empty() ? "世界生成失败" : result->error;
+                message = result->error.empty() ? "World generation failed" : result->error;
             }
             else
             {
-                message = "世界生成失败";
+                message = "World generation failed";
             }
         }
         catch (const std::exception& ex)
@@ -742,12 +742,12 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
         }
         catch (...)
         {
-            message = "world.generate 未知错误";
+            message = "world.generate unknown error";
         }
 
         if (message.empty())
         {
-            message = success ? "world.generate 成功" : "world.generate 失败";
+            message = success ? "world.generate succeeded" : "world.generate failed";
         }
 
         completeCommand(id, success, std::move(message));
@@ -766,7 +766,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldReloadCommand(const json
     errorMessage.clear();
     if (!descriptor.contains("path") || !descriptor.at("path").is_string())
     {
-        errorMessage = "world.load 命令需要 path 字段";
+        errorMessage = "'world.load' requires path field";
         return std::nullopt;
     }
     const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
@@ -781,10 +781,10 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldReloadCommand(const json
         auto result = runtime.loadWorldFromFile(target);
         if (!result.success)
         {
-            feedback->message = result.error.empty() ? "世界加载失败" : result.error;
+            feedback->message = result.error.empty() ? "World load failed" : result.error;
             throw std::runtime_error(feedback->message);
         }
-        feedback->message = "world.load 成功";
+        feedback->message = "world.load succeeded";
     };
     event.onComplete = [this, feedback](genesis::runtime::RuntimeEventReport& report) {
         if (!feedback->message.empty())
@@ -806,7 +806,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& 
     errorMessage.clear();
     if (!descriptor.contains("path") || !descriptor.at("path").is_string())
     {
-        errorMessage = "world.save 命令需要 path 字段";
+        errorMessage = "'world.save' requires path field";
         return std::nullopt;
     }
     const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
@@ -821,10 +821,10 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& 
         auto result = runtime.saveWorldToFile(target);
         if (!result.success)
         {
-            feedback->message = result.error.empty() ? "世界保存失败" : result.error;
+            feedback->message = result.error.empty() ? "World save failed" : result.error;
             throw std::runtime_error(feedback->message);
         }
-        feedback->message = "world.save 成功";
+        feedback->message = "world.save succeeded";
     };
     event.onComplete = [feedback](genesis::runtime::RuntimeEventReport& report) {
         if (!feedback->message.empty())
@@ -1113,3 +1113,4 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::En
 }
 
 } // namespace Genesis::Sandbox::Gui
+

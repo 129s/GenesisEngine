@@ -3,6 +3,7 @@
 本指南涵盖：
 - 里程碑 1（Smoke）：验证 GLFW/OpenGL/ImGui 基础壳体。
 - 里程碑 2（RuntimeBridge）：后台推进 Runtime、静态世界视图与首批面板。
+- UI 文案已统一为英文（后续计划引入 i18n 切换）。
 
 ## 环境准备
 - CMake ≥ 3.21
@@ -85,14 +86,15 @@ cmake --build build --target genesis_sandbox_gui
 
 ## Map View 面板
 - 依据 `WorldRegistry` 中的 Location/Edge/Spawn 构建静态 2D 布局，按层级垂直排列。
-- 节点颜色区分 Region / Building / Room / Point；资源生成点以三角标识。
+- 节点颜色区分 Region / Building / Room / Point，并在圆心绘制类型图标；悬浮显示节点名称等信息，标签具备重叠抑制。
 - `Agents` 复选框可开启/关闭代理标记，`Trails` 控制是否绘制近期轨迹，支援 4~64 个采样点调节。
 - 行为图例区分 Move/Consume/Idle/Other 四类行动，标记颜色与 Log/Telemetry 信息保持一致。
-- 当前为静态画布：暂不支持平移/缩放、选中或实时布局更新。
+- 节点选择：左键单击可选中节点并在画布上高亮，显示与父节点（金色）和子节点（蓝色）的连线；右键可清除选择，Inspector 中的 “Focus on Map” 会同步更新该选择。
+- 仍为静态画布：暂不支持平移/缩放或实时布局更新（布局基于 `coord_global`）。
 
 ## 已知限制
-- Map View 暂无摄像机/缩放交互，布局使用 coord_global；位置插值依赖 movement_progress（可切换 Interpolate）。
-  - 在 Map 上点击节点可打开 Scene View 并选中对应节点。
+- Map View 暂无摄像机/缩放交互；位置插值依赖 `movement_progress`（可切换 `Interpolate`）。
+  - 在 Map 上点击节点可打开 Scene View 并选中对应节点；同一动作也会触发连线高亮。
 - Inspector 仅展示需求/行动等基础信息，尚未接入人格 Big5、Traits、Portal 详情及历史趋势曲线。
 
 ## Scene View 面板（占位版）

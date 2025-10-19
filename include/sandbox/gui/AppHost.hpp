@@ -12,6 +12,8 @@
 
 #include "sandbox/gui/RuntimeBridge.hpp"
 
+#include <imgui.h>
+
 struct GLFWwindow;
 
 namespace Genesis::Sandbox::Gui
@@ -92,6 +94,7 @@ private:
     bool map_interpolate_{true};
     std::size_t agent_trail_samples_{24};
     std::unordered_map<std::uint32_t, std::deque<RuntimeBridge::Vector2>> agent_trails_;
+    std::optional<std::uint32_t> map_selected_node_;
 
     // Toast notifications (top-right)
     struct Toast

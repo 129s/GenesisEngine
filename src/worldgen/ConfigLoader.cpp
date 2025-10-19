@@ -26,6 +26,18 @@ std::optional<std::size_t> read_size_t(const toml::table& table, std::string_vie
     return std::nullopt;
 }
 
+std::optional<double> read_double(const toml::table& table, std::string_view key)
+{
+    if (const auto* node = table.get(key))
+    {
+        if (auto value = node->value<double>())
+        {
+            return *value;
+        }
+    }
+    return std::nullopt;
+}
+
 ClusterRule parse_cluster_rule(const toml::table& topology_table)
 {
     ClusterRule rule{};
@@ -83,6 +95,77 @@ TopologySettings parse_topology_settings(const toml::table& root)
     return settings;
 }
 
+GridLayoutSettings parse_grid_layout(const toml::table& layout_table)
+{
+    GridLayoutSettings settings{};
+    if (const auto* grid_table = layout_table.get_as<toml::table>("grid"))
+    {
+        if (auto cell_width = read_double(*grid_table, "cell_width"))
+        {
+            settings.cell_width = *cell_width;
+        }
+        if (auto cell_height = read_double(*grid_table, "cell_height"))
+        {
+            settings.cell_height = *cell_height;
+        }
+        if (auto columns = read_size_t(*grid_table, "columns"))
+        {
+            settings.columns = *columns;
+        }
+        if (auto margin = read_double(*grid_table, "margin"))
+        {
+            settings.margin = *margin;
+        }
+    }
+    return settings;
+}
+
+ClusterLayoutSettings parse_cluster_layout(const toml::table& layout_table)
+{
+    ClusterLayoutSettings settings{};
+    if (const auto* cluster_table = layout_table.get_as<toml::table>("cluster"))
+    {
+        if (auto radial_distance = read_double(*cluster_table, "radial_distance"))
+        {
+            settings.radial_distance = *radial_distance;
+        }
+        if (auto radial_step = read_double(*cluster_table, "radial_step"))
+        {
+            settings.radial_step = *radial_step;
+        }
+        if (auto node_spacing = read_double(*cluster_table, "node_spacing"))
+        {
+            settings.node_spacing = *node_spacing;
+        }
+    }
+    return settings;
+}
+
+CorridorLayoutSettings parse_corridor_layout(const toml::table& layout_table)
+{
+    CorridorLayoutSettings settings{};
+    if (const auto* corridor_table = layout_table.get_as<toml::table>("corridor"))
+    {
+        if (auto step = read_double(*corridor_table, "step"))
+        {
+            settings.step = *step;
+        }
+    }
+    return settings;
+}
+
+LayoutSettings parse_layout_settings(const toml::table& root)
+{
+    LayoutSettings settings{};
+    if (const auto* layout_table = root.get_as<toml::table>("layout"))
+    {
+        settings.grid = parse_grid_layout(*layout_table);
+        settings.cluster = parse_cluster_layout(*layout_table);
+        settings.corridor = parse_corridor_layout(*layout_table);
+    }
+    return settings;
+}
+
 void validate_config(const toml::table& table, const std::filesystem::path& path)
 {
     if (!table.contains("world") || !table["world"].is_table())
@@ -116,6 +199,7 @@ GeneratorConfig load_config(const std::filesystem::path& path)
     config.source_path = resolved;
     config.root = std::move(table);
     config.topology = parse_topology_settings(config.root);
+    config.layout = parse_layout_settings(config.root);
     return config;
 }
 

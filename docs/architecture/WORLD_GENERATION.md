@@ -67,15 +67,30 @@ seed_offset = 0
 scale = { min = 2, max = 5 }
 theme = "frontier_outpost"
 
-[topology.rules]
-cluster = { weight = 0.6, min_clusters = 2, max_clusters = 4 }
-corridor = { weight = 0.4, length = { mean = 5, sigma = 2 } }
+[topology.cluster]
+min_clusters = 2
+max_clusters = 4
+min_nodes_per_cluster = 2
+max_nodes_per_cluster = 5
 
-[layout.rules]
-grid = { applicable = ["colony_core"], cell = [4, 4], padding = 1 }
-hex = { applicable = ["outdoor"], radius = 6 }
-noise_relax = { applicable = ["wilds"], min_spacing = 3.0, iterations = 4 }
-spline = { applicable = ["corridor"], width = 2.0 }
+[topology.corridor]
+enabled = true
+min_length = 2
+max_length = 4
+
+[layout.grid]
+cell_width = 5.0
+cell_height = 4.0
+columns = 3
+margin = 1.0
+
+[layout.cluster]
+radial_distance = 18.0
+radial_step = 6.0
+node_spacing = 1.5
+
+[layout.corridor]
+step = 7.0
 
 [interaction.resources]
 food = { density = 0.3, capacity = [30, 60], rate = [1, 3] }
@@ -98,6 +113,8 @@ min_connectivity = 1
 - **VoronoiRegionLayout**：依据种子点生成多边形区域，用于地块/势力划分。
 
 策略可以组合：例如 ClusterLayout 内部调用 NoiseRelaxationLayout。
+
+当前实现覆盖 `GridLayout`（簇内网格摆放）、`ClusterLayout`（环形锚点 + 网格组合）与基础走廊线性布置；其余策略按路线图逐步落地。
 
 ## 6. 约束模型
 - **Scene 级硬约束**：`boundary`（多边形/矩形）、`scene_capacity`、`reserved_zones`、`connectivity_requirements`。

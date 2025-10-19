@@ -2,6 +2,7 @@ set(GENESIS_WORLDGEN_SOURCES
     worldgen/ConfigLoader.cpp
     worldgen/Context.cpp
     worldgen/Generator.cpp
+    worldgen/LayoutModule.cpp
     worldgen/Rng.cpp
     worldgen/TopologyModule.cpp
 )

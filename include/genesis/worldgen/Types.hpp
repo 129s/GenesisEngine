@@ -63,6 +63,46 @@ struct TopologySettings
     CorridorRule corridor{};
 };
 
+struct NodePlacement
+{
+    std::size_t local_id{0};
+    double x{0.0};
+    double y{0.0};
+    double rotation{0.0};
+};
+
+struct LayoutDraft
+{
+    std::vector<NodePlacement> placements;
+};
+
+struct GridLayoutSettings
+{
+    double cell_width{4.0};
+    double cell_height{4.0};
+    std::size_t columns{3};
+    double margin{2.0};
+};
+
+struct ClusterLayoutSettings
+{
+    double radial_distance{18.0};
+    double radial_step{6.0};
+    double node_spacing{2.0};
+};
+
+struct CorridorLayoutSettings
+{
+    double step{8.0};
+};
+
+struct LayoutSettings
+{
+    GridLayoutSettings grid{};
+    ClusterLayoutSettings cluster{};
+    CorridorLayoutSettings corridor{};
+};
+
 struct Seed
 {
     std::uint64_t value{0};
@@ -73,6 +113,7 @@ struct GeneratorConfig
     std::filesystem::path source_path{};
     toml::table root{};
     TopologySettings topology{};
+    LayoutSettings layout{};
 };
 
 struct GenerationLogEntry
@@ -86,6 +127,8 @@ struct GeneratedWorld
     std::size_t location_count{0};
     std::size_t edge_count{0};
     std::vector<GenerationLogEntry> logs{};
+    TopologyDraft topology{};
+    LayoutDraft layout{};
 };
 
 } // namespace genesis::worldgen

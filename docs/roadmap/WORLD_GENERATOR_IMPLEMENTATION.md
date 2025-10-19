@@ -15,7 +15,7 @@
 
 ### 里程碑 B：拓扑 + 网格布局（进行中）
 - ✅ 完成 `TopologyModule`：支持簇状 + 线性组合拓扑，生成 SceneDraft。
-- ☐ 实现 `GridLayout`、`ClusterLayout` 策略；支持 `scene_capacity`、boundary、最小间距硬约束。
+- ✅ 实现基础 `GridLayout`/`ClusterLayout` 策略与走廊线性布置，提供布局配置解析与单元测试。
 - ☐ 接入 `ValidationModule` 基本检查：节点唯一性、越界、Portal 成对。
 - ☐ 输出 `GeneratedWorld`（locations/edges/spawns），用于 Runtime 冒烟测试。
 

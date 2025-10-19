@@ -1,6 +1,7 @@
 add_executable(genesis_worldgen_tests
     test_worldgen_config.cpp
     test_worldgen_rng.cpp
+    test_worldgen_layout.cpp
     test_worldgen_topology.cpp
 )
 

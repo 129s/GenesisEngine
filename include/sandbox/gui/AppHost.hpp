@@ -60,6 +60,8 @@ private:
     void drawInspectorPanel();
     void drawLogPanel();
     void drawStatusBar();
+    void drawToasts();
+    void handleShortcuts();
 
     void updateRuntimeSnapshot();
     void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
@@ -77,7 +79,7 @@ private:
     std::optional<RuntimeBridge::Snapshot> latest_snapshot_;
     double speed_multiplier_ui_{1.0};
     bool show_inspector_{true};
-    bool show_world_view_{false};
+    bool show_world_view_{true};
     bool show_scene_view_{true};
     bool show_telemetry_{true};
     bool show_logs_{true};
@@ -90,6 +92,16 @@ private:
     bool map_interpolate_{true};
     std::size_t agent_trail_samples_{24};
     std::unordered_map<std::uint32_t, std::deque<RuntimeBridge::Vector2>> agent_trails_;
+
+    // Toast notifications (top-right)
+    struct Toast
+    {
+        std::string text;
+        ImVec4 color{0.9f, 0.9f, 0.9f, 1.0f};
+        double expiresAt{0.0}; // ImGui::GetTime()
+    };
+    std::deque<Toast> toasts_;
+    void pushToast(const std::string& text, const ImVec4& color, double lifetimeSec = 3.0);
 
     // Scene View state
     std::uint32_t scene_selected_node_{0};

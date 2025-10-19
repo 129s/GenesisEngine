@@ -80,13 +80,13 @@ using json = nlohmann::json;
             switch (state)
             {
             case RuntimeBridge::CommandState::Pending:
-                return "等待";
+                return "Pending";
             case RuntimeBridge::CommandState::Succeeded:
-                return "完成";
+                return "Succeeded";
             case RuntimeBridge::CommandState::Failed:
-                return "失败";
+                return "Failed";
             default:
-                return "未知";
+                return "Unknown";
             }
         }
 
@@ -174,7 +174,7 @@ using json = nlohmann::json;
         , runtime_bridge_(std::make_unique<RuntimeBridge>())
         , speed_multiplier_ui_(1.0)
         , show_inspector_(true)
-        , show_world_view_(false)
+        , show_world_view_(true)
         , show_scene_view_(true)
         , show_telemetry_(true)
         , show_logs_(true)
@@ -264,6 +264,7 @@ using json = nlohmann::json;
         {
             glfwPollEvents();
             beginFrame();
+            handleShortcuts();
             renderGui();
             endFrame();
         }
@@ -456,6 +457,7 @@ using json = nlohmann::json;
         drawSceneViewPanel();
         drawTelemetryPanel();
         drawLogPanel();
+        drawToasts();
         drawStatusBar();
     }
 
@@ -586,8 +588,8 @@ using json = nlohmann::json;
         ImGui::Separator();
         ImGui::TextWrapped(
             "Focus: RuntimeBridge advances the simulation in a background thread, exposes pause/step/speed controls, and "
-            "feeds the world/telemetry panels with the latest snapshot. Next milestones will add live metrics, inspector "
-            "tools, and interactive world regeneration.");
+            "feeds the world/telemetry panels with the latest snapshot. Use F5/F6/F7 for pause/step/step×10, F8 to toggle "
+            "Log and F9 for Telemetry.");
 
         ImGui::End();
     }
@@ -1440,10 +1442,12 @@ void AppHost::drawWorldGenerationPanel()
                             }
                         }
                     }
+                    pushToast("World generated", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
                     worldgen_command_id_.reset();
                     break;
                 case RuntimeBridge::CommandState::Failed:
                     world_command_status_ = commandStateSummary(*command);
+                    pushToast("World generation failed", ImVec4(0.95f, 0.45f, 0.45f, 1.0f));
                     worldgen_command_id_.reset();
                     break;
                 }
@@ -1477,9 +1481,12 @@ void AppHost::drawWorldGenerationPanel()
 
         updateStatus(world_load_command_id_, world_load_status_, [this]() {
             resetSceneForNewWorld();
+            pushToast("World loaded", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
         });
 
-        updateStatus(world_save_command_id_, world_save_status_, []() {});
+        updateStatus(world_save_command_id_, world_save_status_, [this]() {
+            pushToast("World saved", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
+        });
     }
 
     void AppHost::resetSceneForNewWorld()
@@ -1664,6 +1671,24 @@ void AppHost::refreshDefaultWorldgenConfig()
                 drawList->AddLine(fromIt->second, toIt->second, edgeColor, edge.bidirectional ? 1.6f : 1.2f);
             }
 
+            // Prepare for label overlap avoidance
+            std::vector<ImRect> placedLabels;
+            placedLabels.reserve(atlas.nodes.size());
+
+            auto nodeKindIcon = [](genesis::world::LocationKind kind) -> const char*
+            {
+                switch (kind)
+                {
+                case genesis::world::LocationKind::Region: return "R";
+                case genesis::world::LocationKind::Building: return "B";
+                case genesis::world::LocationKind::Room: return "r";
+                case genesis::world::LocationKind::Point: return "\u00B7"; // middle dot
+                }
+                return "?";
+            };
+
+            const float nodeRadius = 12.0f;
+
             for (const auto &node : atlas.nodes)
             {
                 auto it = nodePositions.find(node.id.value);
@@ -1672,7 +1697,7 @@ void AppHost::refreshDefaultWorldgenConfig()
                     continue;
                 }
 
-                const float radius = 12.0f;
+                const float radius = nodeRadius;
                 ImU32 fillColor = ImGui::GetColorU32(ImVec4(0.56f, 0.63f, 0.87f, 0.90f));
                 switch (node.kind)
                 {
@@ -1698,8 +1723,35 @@ void AppHost::refreshDefaultWorldgenConfig()
                     drawList->AddCircle(it->second, radius + 4.0f, highlightColor, 24, 2.5f);
                 }
 
-                const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - ImGui::GetTextLineHeight() * 0.5f};
-                drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
+                // Icon inside the node
+                const char* icon = nodeKindIcon(node.kind);
+                const ImVec2 iconSize = ImGui::CalcTextSize(icon);
+                const ImVec2 iconPos{it->second.x - iconSize.x * 0.5f, it->second.y - iconSize.y * 0.5f};
+                drawList->AddText(iconPos, ImGui::GetColorU32(ImGuiCol_Text), icon);
+
+                // Label to the right, avoid overlap; force when hovered/selected
+                bool hovered = false;
+                if (ImGui::IsWindowHovered())
+                {
+                    const ImVec2 mouse = ImGui::GetIO().MousePos;
+                    const float dx = mouse.x - it->second.x;
+                    const float dy = mouse.y - it->second.y;
+                    hovered = (dx * dx + dy * dy) <= (radius * radius);
+                }
+                const bool selected = inspector_highlight_node_ && node.id.value == *inspector_highlight_node_;
+                const ImVec2 nameSize = ImGui::CalcTextSize(node.name.c_str());
+                const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - nameSize.y * 0.5f};
+                ImRect labelRect{labelPos, ImVec2(labelPos.x + nameSize.x, labelPos.y + nameSize.y)};
+                bool overlaps = false;
+                for (const auto& r : placedLabels)
+                {
+                    if (r.Overlaps(labelRect)) { overlaps = true; break; }
+                }
+                if (!overlaps || hovered || selected)
+                {
+                    drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
+                    placedLabels.push_back(labelRect);
+                }
 
                 // Click to open Scene View on this node
                 if (ImGui::IsWindowHovered())
@@ -1709,6 +1761,15 @@ void AppHost::refreshDefaultWorldgenConfig()
                     const float dy = mouse.y - it->second.y;
                     if ((dx * dx + dy * dy) <= (radius * radius))
                     {
+                        if (hovered)
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::Text("%s", node.name.c_str());
+                            ImGui::Separator();
+                            ImGui::Text("ID: %u", node.id.value);
+                            ImGui::Text("Kind: %u", static_cast<unsigned int>(node.kind));
+                            ImGui::EndTooltip();
+                        }
                         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         {
                             scene_selected_node_ = node.id.value;
@@ -2411,6 +2472,101 @@ void AppHost::refreshDefaultWorldgenConfig()
             else
             {
                 ++it;
+            }
+        }
+    }
+
+    void AppHost::drawToasts()
+    {
+        if (toasts_.empty())
+        {
+            return;
+        }
+        const double now = ImGui::GetTime();
+        while (!toasts_.empty() && toasts_.front().expiresAt <= now)
+        {
+            toasts_.pop_front();
+        }
+        if (toasts_.empty())
+        {
+            return;
+        }
+
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        const float margin = 12.0f;
+        ImVec2 cursor{viewport->Pos.x + viewport->Size.x - margin, viewport->Pos.y + margin};
+
+        int index = 0;
+        for (auto &t : toasts_)
+        {
+            const ImVec2 textSize = ImGui::CalcTextSize(t.text.c_str());
+            const ImVec2 winSize{textSize.x + 24.0f, textSize.y + 16.0f};
+            cursor.x -= winSize.x;
+
+            ImGui::SetNextWindowPos(cursor);
+            ImGui::SetNextWindowSize(winSize);
+            ImGui::SetNextWindowBgAlpha(0.92f);
+            const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav |
+                                           ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoSavedSettings |
+                                           ImGuiWindowFlags_NoMove;
+            std::string winId = "##toast_" + std::to_string(index++);
+            if (ImGui::Begin(winId.c_str(), nullptr, flags))
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, t.color);
+                ImGui::SetCursorPos(ImVec2(12.0f, 8.0f));
+                ImGui::TextUnformatted(t.text.c_str());
+                ImGui::PopStyleColor();
+            }
+            ImGui::End();
+
+            cursor.y += winSize.y + 8.0f;
+            cursor.x = viewport->Pos.x + viewport->Size.x - margin;
+        }
+    }
+
+    void AppHost::pushToast(const std::string &text, const ImVec4 &color, double lifetimeSec)
+    {
+        Toast t;
+        t.text = text;
+        t.color = color;
+        t.expiresAt = ImGui::GetTime() + lifetimeSec;
+        toasts_.push_back(std::move(t));
+        if (toasts_.size() > 8)
+        {
+            toasts_.pop_front();
+        }
+    }
+
+    void AppHost::handleShortcuts()
+    {
+        ImGuiIO &io = ImGui::GetIO();
+        if (!io.WantCaptureKeyboard && runtime_bridge_)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_F5))
+            {
+                const bool paused = runtime_bridge_->paused();
+                runtime_bridge_->setPaused(!paused);
+                pushToast(paused ? "Resume" : "Pause", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_F6))
+            {
+                runtime_bridge_->requestStep(1);
+                pushToast("Step x1", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_F7))
+            {
+                runtime_bridge_->requestStep(10);
+                pushToast("Step x10", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_F8))
+            {
+                show_logs_ = !show_logs_;
+                pushToast(show_logs_ ? "Log: On" : "Log: Off", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_F9))
+            {
+                show_telemetry_ = !show_telemetry_;
+                pushToast(show_telemetry_ ? "Telemetry: On" : "Telemetry: Off", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
             }
         }
     }

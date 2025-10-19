@@ -74,9 +74,3 @@
 ## 后续输出
 - 合并上述 Phase 0 变更后，补充 docs/architecture/SANDBOX_GUI.md 的“交互与布局”章节，并在 docs/status/todo.md 跟踪实现条目。
 
-## 决策同步（确认采纳）
-- 语言：当前阶段统一英文（后续引入 i18n）。
-- 默认视图：以 Map 为主，Scene 为辅（Tab 切换）。
-- 快捷键：F5（Pause/Resume）, F6（Step×1）, F7（Step×10）, F8（Toggle Log）, F9（Toggle Telemetry）。
-- 通知：右上角 toast（3s消退，可堆叠）。
-- Map View：节点内加入简易字体图标（按节点类型 R/B/r/·），悬浮 tooltip 展示详情；名称文本发生重叠时自动抑制（重叠或未聚焦时隐藏）。

@@ -129,6 +129,33 @@ TEST(WorldgenValidation, PortalRequiresBidirectionalEdges)
     EXPECT_TRUE(found);
 }
 
+TEST(WorldgenValidation, DetectsUnreachableNode)
+{
+    TopologyDraft topology = make_simple_topology();
+    NodeDraft isolated{};
+    isolated.local_id = 99;
+    isolated.label = "isolated";
+    topology.nodes.push_back(isolated);
+    LayoutDraft layout = make_complete_layout();
+    layout.placements.push_back(NodePlacement{isolated.local_id, 10.0, 10.0, 0.0});
+
+    ValidationModule validator;
+    std::vector<ValidationError> errors;
+    const bool ok = validator.validate(topology, layout, errors);
+    EXPECT_FALSE(ok);
+
+    bool found = false;
+    for (const auto& err : errors)
+    {
+        if (err.message.find("不可达") != std::string::npos)
+        {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
 TEST(WorldgenValidation, DetectsOutOfBoundsPlacement)
 {
     TopologyDraft topology = make_simple_topology();

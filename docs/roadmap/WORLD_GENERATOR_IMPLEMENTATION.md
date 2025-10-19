@@ -16,8 +16,8 @@
 ### 里程碑 B：拓扑 + 网格布局（进行中）
 - ✅ 完成 `TopologyModule`：支持簇状 + 线性组合拓扑，生成 SceneDraft。
 - ✅ 实现基础 `GridLayout`/`ClusterLayout` 策略与走廊线性布置，提供布局配置解析与单元测试。
-- ✅ 引入 `ValidationModule`，当前覆盖节点唯一性、布局坐标存在性与边引用合法性。
-- ✅ 生成最小 `LocationGraph`，`generate_world` 输出实际节点/边数据，为 Runtime 冒烟做准备。
+- ✅ 引入 `ValidationModule`，当前覆盖节点唯一性、布局坐标存在性、边引用与 Portal 配对合法性。
+- ✅ 生成最小 `LocationGraph`，`generate_world` 输出实际节点/边数据并可直接注入 `WorldRegistry`。
 
 ### 里程碑 C：多策略布局 + Tilemap 生成（预计 3 周）
 - 新增 `HexLayout`、`NoiseRelaxationLayout`、`SplineCorridorLayout`、`VoronoiRegionLayout`。

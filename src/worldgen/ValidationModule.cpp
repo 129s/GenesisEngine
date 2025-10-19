@@ -1,6 +1,7 @@
 #include "genesis/worldgen/ValidationModule.hpp"
 
 #include <cmath>
+#include <queue>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,6 +54,8 @@ bool ValidationModule::validate(const TopologyDraft& topology,
 
     std::unordered_set<std::size_t> seen_nodes;
     seen_nodes.reserve(topology.nodes.size());
+    std::unordered_map<std::size_t, std::optional<std::size_t>> parent_map;
+    parent_map.reserve(topology.nodes.size());
 
     constexpr double kMaxCoordinateMagnitude = 100000.0;
 
@@ -64,6 +67,7 @@ bool ValidationModule::validate(const TopologyDraft& topology,
             oss << "节点 local_id 重复: " << node.local_id;
             append_error(out_errors, oss.str());
         }
+        parent_map.emplace(node.local_id, node.parent);
     }
 
     LayoutIndex layout_index = build_layout_index(layout);
@@ -91,6 +95,13 @@ bool ValidationModule::validate(const TopologyDraft& topology,
         {
             std::ostringstream oss;
             oss << "节点缺少布局坐标: " << node.local_id;
+            append_error(out_errors, oss.str());
+        }
+
+        if (node.parent && !seen_nodes.contains(*node.parent))
+        {
+            std::ostringstream oss;
+            oss << "节点 " << node.local_id << " 的父节点不存在: " << *node.parent;
             append_error(out_errors, oss.str());
         }
     }
@@ -150,6 +161,71 @@ bool ValidationModule::validate(const TopologyDraft& topology,
             std::ostringstream oss;
             oss << "Portal 缺少双向边: entry=" << portal.entry << ", exit=" << portal.exit;
             append_error(out_errors, oss.str());
+        }
+    }
+
+    if (!topology.nodes.empty())
+    {
+        const std::size_t root = topology.nodes.front().local_id;
+
+        std::unordered_map<std::size_t, std::vector<std::size_t>> adjacency;
+        adjacency.reserve(topology.nodes.size());
+        for (const auto& edge : topology.edges)
+        {
+            adjacency[edge.from].push_back(edge.to);
+            if (edge.bidirectional)
+            {
+                adjacency[edge.to].push_back(edge.from);
+            }
+        }
+
+        for (const auto& [child, parent] : parent_map)
+        {
+            if (parent && seen_nodes.contains(*parent))
+            {
+                adjacency[*parent].push_back(child);
+                adjacency[child].push_back(*parent);
+            }
+        }
+
+        std::unordered_set<std::size_t> visited;
+        visited.reserve(topology.nodes.size());
+        std::queue<std::size_t> queue;
+        queue.push(root);
+        visited.insert(root);
+
+        while (!queue.empty())
+        {
+            auto current = queue.front();
+            queue.pop();
+
+            const auto it = adjacency.find(current);
+            if (it == adjacency.end())
+            {
+                continue;
+            }
+
+            for (auto next : it->second)
+            {
+                if (!visited.contains(next))
+                {
+                    visited.insert(next);
+                    queue.push(next);
+                }
+            }
+        }
+
+        if (visited.size() != topology.nodes.size())
+        {
+            for (const auto& node : topology.nodes)
+            {
+                if (!visited.contains(node.local_id))
+                {
+                    std::ostringstream oss;
+                    oss << "节点不可达: " << node.local_id;
+                    append_error(out_errors, oss.str());
+                }
+            }
         }
     }
 

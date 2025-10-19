@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "genesis/worldgen/Generator.hpp"
+#include "genesis/world/WorldRegistry.hpp"
 
 using namespace genesis::worldgen;
 
@@ -29,6 +30,32 @@ GeneratorConfig make_config()
     cfg.layout.corridor.step = 6.0;
 
     return cfg;
+}
+
+TEST(WorldgenGenerator, WorldGraphLoadsIntoRegistry)
+{
+    auto cfg = make_config();
+    auto result = generate_world(cfg, Seed{777});
+
+    genesis::world::WorldRegistry registry;
+    registry.setGraph(result.world_graph);
+
+    const auto locations = registry.locations();
+    EXPECT_EQ(locations.size(), result.location_count);
+
+    ASSERT_FALSE(locations.empty());
+    const auto edges_from_root = registry.edgesFrom(locations.front().id);
+    EXPECT_FALSE(edges_from_root.empty());
+
+    std::size_t portal_edge_count = 0;
+    for (const auto& edge : edges_from_root)
+    {
+        if (edge.anchor_at_from.has_value() || edge.anchor_at_to.has_value())
+        {
+            ++portal_edge_count;
+        }
+    }
+    EXPECT_GT(portal_edge_count, 0u);
 }
 } // namespace
 

@@ -93,6 +93,10 @@ node_spacing = 1.5
 [layout.corridor]
 step = 7.0
 
+[layout.hex]
+enabled = true
+spacing = 6.0
+
 [interaction.resources]
 food = { density = 0.3, capacity = [30, 60], rate = [1, 3] }
 ore = { density = 0.2, cluster = "vein" }
@@ -115,7 +119,7 @@ min_connectivity = 1
 
 策略可以组合：例如 ClusterLayout 内部调用 NoiseRelaxationLayout。
 
-当前实现覆盖 `GridLayout`（簇内网格摆放）、`ClusterLayout`（环形锚点 + 网格组合）与基础走廊线性布置；其余策略按路线图逐步落地。
+当前实现覆盖 `GridLayout`（簇内网格摆放）、`HexLayout`（蜂窝点阵）与基础走廊线性布置；其余策略按路线图逐步落地。
 
 ## 6. 约束模型
 - **Scene 级硬约束**：`boundary`（多边形/矩形）、`scene_capacity`、`reserved_zones`、`connectivity_requirements`。
@@ -131,6 +135,7 @@ min_connectivity = 1
   - 输出 `TilemapDescriptor{ id, hash, size, layers[] }`。
 - 缓存策略：`cache_key = hash(config_section + scene_id + seed + strategy_version)`；命中则复用。
 - 生成后立即执行几何验证：节点 footprint 与 Tilemap 障碍不冲突，Portal anchor 对应的 Tile 可通行。
+- 当前阶段输出基于 `tile_size/base_extent` 的占位 TilemapMeta，缓存键与图层细分待后续迭代。
 
 ## 8. 输出结构
 `GeneratedWorld` 包括：

@@ -162,6 +162,34 @@ LayoutSettings parse_layout_settings(const toml::table& root)
         settings.grid = parse_grid_layout(*layout_table);
         settings.cluster = parse_cluster_layout(*layout_table);
         settings.corridor = parse_corridor_layout(*layout_table);
+        if (const auto* hex_table = layout_table->get_as<toml::table>("hex"))
+        {
+            if (const auto* enabled = hex_table->get_as<bool>("enabled"))
+            {
+                settings.hex.enabled = enabled->get();
+            }
+            if (auto spacing = read_double(*hex_table, "spacing"))
+            {
+                settings.hex.spacing = *spacing;
+            }
+        }
+    }
+    return settings;
+}
+
+TilemapSettings parse_tilemap_settings(const toml::table& root)
+{
+    TilemapSettings settings{};
+    if (const auto* tilemap_table = root.get_as<toml::table>("tilemap"))
+    {
+        if (auto tile_size = read_size_t(*tilemap_table, "tile_size"))
+        {
+            settings.tile_size = static_cast<int>(*tile_size);
+        }
+        if (auto base_extent = read_size_t(*tilemap_table, "base_extent"))
+        {
+            settings.base_extent = static_cast<int>(*base_extent);
+        }
     }
     return settings;
 }
@@ -200,6 +228,7 @@ GeneratorConfig load_config(const std::filesystem::path& path)
     config.root = std::move(table);
     config.topology = parse_topology_settings(config.root);
     config.layout = parse_layout_settings(config.root);
+    config.tilemap = parse_tilemap_settings(config.root);
     return config;
 }
 

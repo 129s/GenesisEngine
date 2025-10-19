@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include "genesis/worldgen/Generator.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 
@@ -43,8 +45,12 @@ TEST(WorldgenGenerator, WorldGraphLoadsIntoRegistry)
     const auto locations = registry.locations();
     EXPECT_EQ(locations.size(), result.location_count);
 
-    ASSERT_FALSE(locations.empty());
-    const auto edges_from_root = registry.edgesFrom(locations.front().id);
+    auto root_it = std::find_if(locations.begin(), locations.end(), [](const genesis::world::LocationNode& node) {
+        return node.parent == genesis::world::InvalidLocation;
+    });
+    ASSERT_NE(root_it, locations.end());
+
+    const auto edges_from_root = registry.edgesFrom(root_it->id);
     EXPECT_FALSE(edges_from_root.empty());
 
     std::size_t portal_edge_count = 0;
@@ -56,6 +62,8 @@ TEST(WorldgenGenerator, WorldGraphLoadsIntoRegistry)
         }
     }
     EXPECT_GT(portal_edge_count, 0u);
+
+    EXPECT_FALSE(result.world_graph.tilemaps.empty());
 }
 } // namespace
 

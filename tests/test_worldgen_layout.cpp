@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <unordered_map>
 
 #include "genesis/worldgen/LayoutModule.hpp"
@@ -34,6 +35,7 @@ LayoutSettings make_layout_settings()
     settings.cluster.radial_step = 6.0;
     settings.cluster.node_spacing = 1.5;
     settings.corridor.step = 7.0;
+    settings.hex.enabled = false;
     return settings;
 }
 
@@ -43,6 +45,72 @@ const NodeDraft* find_node(const TopologyDraft& draft, std::size_t local_id)
         return node.local_id == local_id;
     });
     return it != draft.nodes.end() ? &(*it) : nullptr;
+}
+
+TEST(WorldgenLayout, HexEnabledCreatesHoneycombPattern)
+{
+    TopologySettings topo = make_topology_settings();
+    topo.cluster.min_clusters = 1;
+    topo.cluster.max_clusters = 1;
+    topo.cluster.min_nodes_per_cluster = 7;
+    topo.cluster.max_nodes_per_cluster = 7;
+    topo.corridor.enabled = false;
+
+    LayoutSettings layout_settings = make_layout_settings();
+    layout_settings.hex.enabled = true;
+    layout_settings.hex.spacing = 4.5;
+
+    TopologyModule topology(topo);
+    DeterministicRng topo_rng(Seed{888});
+    auto draft = topology.generate(topo_rng);
+
+    LayoutModule layout_module(layout_settings);
+    DeterministicRng layout_rng(Seed{123});
+    auto placements = layout_module.generate(draft, layout_rng);
+
+    const double anchor_x = layout_settings.cluster.radial_distance;
+    const double anchor_y = 0.0;
+
+    std::vector<std::pair<double, double>> offsets;
+    for (const auto& placement : placements.placements)
+    {
+        const auto* node = find_node(draft, placement.local_id);
+        if (node && node->label == "cluster_0")
+        {
+            offsets.emplace_back(placement.x - anchor_x, placement.y - anchor_y);
+        }
+    }
+
+    ASSERT_EQ(offsets.size(), 7u);
+
+    const double spacing = layout_settings.hex.spacing;
+    const double sqrt3 = std::sqrt(3.0);
+    const std::vector<std::pair<double, double>> expected = {
+        {0.0, 0.0},
+        {sqrt3 * spacing, 0.0},
+        {sqrt3 / 2.0 * spacing, 1.5 * spacing},
+        {-sqrt3 / 2.0 * spacing, 1.5 * spacing},
+        {-sqrt3 * spacing, 0.0},
+        {-sqrt3 / 2.0 * spacing, -1.5 * spacing},
+        {sqrt3 / 2.0 * spacing, -1.5 * spacing},
+    };
+
+    auto matches = [&](const std::pair<double, double>& target) {
+        for (const auto& offset : offsets)
+        {
+            if (std::abs(offset.first - target.first) < 1e-3 &&
+                std::abs(offset.second - target.second) < 1e-3)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    for (const auto& expected_offset : expected)
+    {
+        EXPECT_TRUE(matches(expected_offset));
+    }
 }
 
 const NodePlacement* find_placement(const LayoutDraft& layout, std::size_t local_id)

@@ -11,6 +11,7 @@
 
 #include "genesis/world/WorldTypes.hpp"
 #include "genesis/worldgen/LayoutModule.hpp"
+#include "genesis/worldgen/TilemapModule.hpp"
 #include "genesis/worldgen/TopologyModule.hpp"
 #include "genesis/worldgen/ValidationModule.hpp"
 
@@ -41,6 +42,12 @@ world::LocationKind infer_kind(const NodeDraft& node)
     return world::LocationKind::Point;
 }
 
+struct GraphBuildResult
+{
+    world::LocationGraph graph;
+    std::unordered_map<std::size_t, world::LocationId> id_map;
+};
+
 std::unordered_map<std::size_t, NodePlacement> build_placement_map(const LayoutDraft& layout)
 {
     std::unordered_map<std::size_t, NodePlacement> map;
@@ -52,15 +59,15 @@ std::unordered_map<std::size_t, NodePlacement> build_placement_map(const LayoutD
     return map;
 }
 
-world::LocationGraph build_location_graph(const TopologyDraft& topology, const LayoutDraft& layout)
+GraphBuildResult build_location_graph(const TopologyDraft& topology, const LayoutDraft& layout)
 {
-    world::LocationGraph graph{};
+    GraphBuildResult result{};
+    auto& graph = result.graph;
     graph.nodes.reserve(topology.nodes.size());
     graph.edges.reserve(topology.edges.size());
     graph.schemaVersion = 1;
 
-    std::unordered_map<std::size_t, world::LocationId> id_map;
-    id_map.reserve(topology.nodes.size());
+    result.id_map.reserve(topology.nodes.size());
 
     const auto placement_map = build_placement_map(layout);
 
@@ -85,11 +92,11 @@ world::LocationGraph build_location_graph(const TopologyDraft& topology, const L
     {
         world::LocationNode world_node{};
         world_node.id = world::LocationId{next_id++};
-        id_map.emplace(node.local_id, world_node.id);
+        result.id_map.emplace(node.local_id, world_node.id);
 
-        if (node.parent && id_map.contains(*node.parent))
+        if (node.parent && result.id_map.contains(*node.parent))
         {
-            world_node.parent = id_map.at(*node.parent);
+            world_node.parent = result.id_map.at(*node.parent);
         }
         else
         {
@@ -114,9 +121,9 @@ world::LocationGraph build_location_graph(const TopologyDraft& topology, const L
 
     for (const auto& edge : topology.edges)
     {
-        const auto from_it = id_map.find(edge.from);
-        const auto to_it = id_map.find(edge.to);
-        if (from_it == id_map.end() || to_it == id_map.end())
+        const auto from_it = result.id_map.find(edge.from);
+        const auto to_it = result.id_map.find(edge.to);
+        if (from_it == result.id_map.end() || to_it == result.id_map.end())
         {
             continue;
         }
@@ -136,7 +143,7 @@ world::LocationGraph build_location_graph(const TopologyDraft& topology, const L
         graph.edges.push_back(std::move(world_edge));
     }
 
-    return graph;
+    return result;
 }
 } // namespace
 
@@ -166,7 +173,10 @@ GeneratedWorld generate_world(const GeneratorConfig& config, Seed seed)
         throw std::runtime_error(err.str());
     }
 
-    auto world_graph = build_location_graph(draft, layout_result);
+    auto graph_result = build_location_graph(draft, layout_result);
+    TilemapModule tilemap_module(context.config.tilemap);
+    graph_result.graph.tilemaps = tilemap_module.generate(graph_result.id_map, layout_result);
+    auto world_graph = std::move(graph_result.graph);
 
     std::ostringstream topo_log;
     topo_log << "拓扑生成: nodes=" << draft.nodes.size() << ", edges=" << draft.edges.size();

@@ -21,7 +21,8 @@
 
 ### 里程碑 C：多策略布局 + Tilemap 生成（预计 3 周）
 - 新增 `HexLayout`、`NoiseRelaxationLayout`、`SplineCorridorLayout`、`VoronoiRegionLayout`。
-- 引入 `TilemapModule` 与缓存机制，生成地形/碰撞层并写入快照。
+- ✅ 引入 `TilemapModule` 占位实现，根据布局与配置(`tile_size/base_extent`) 生成 TilemapMeta。
+- 引入 `TilemapModule` 缓存机制，生成地形/碰撞层并写入快照。
 - 扩展 `InteractionModule`：资源配额、Portal 锚点、楼层连接。
 - 完善验证：可达性搜索、Tilemap 冲突检查、软约束评分。
 - 建立金样回归测试（生成 → 序列化 → diff）。

@@ -1,7 +1,9 @@
 #include "genesis/worldgen/LayoutModule.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <queue>
 #include <stdexcept>
 #include <unordered_set>
 
@@ -29,6 +31,70 @@ struct ClusterGroup
     std::string label;
     std::vector<const NodeDraft*> nodes;
 };
+
+std::vector<std::pair<double, double>> generate_hex_offsets(std::size_t count, double spacing)
+{
+    std::vector<std::pair<double, double>> offsets;
+    if (count == 0)
+    {
+        return offsets;
+    }
+
+    offsets.reserve(count);
+    offsets.emplace_back(0.0, 0.0);
+    std::size_t produced = 1;
+
+    constexpr std::array<std::pair<int, int>, 6> directions = {
+        std::pair<int, int>{1, 0},
+        {1, -1},
+        {0, -1},
+        {-1, 0},
+        {-1, 1},
+        {0, 1}};
+
+    const double sqrt3 = std::sqrt(3.0);
+
+    for (int radius = 1; produced < count; ++radius)
+    {
+        int q = directions[4].first * radius;
+        int r = directions[4].second * radius;
+
+        for (int dir = 0; dir < 6 && produced < count; ++dir)
+        {
+            for (int step = 0; step < radius && produced < count; ++step)
+            {
+                const double x = spacing * (sqrt3 * static_cast<double>(q) +
+                                            (sqrt3 / 2.0) * static_cast<double>(r));
+                const double y = spacing * (1.5 * static_cast<double>(r));
+                offsets.emplace_back(x, y);
+                ++produced;
+
+                q += directions[dir].first;
+                r += directions[dir].second;
+            }
+        }
+    }
+
+    return offsets;
+}
+
+std::vector<std::pair<double, double>> generate_grid_offsets(const LayoutSettings& settings, std::size_t count)
+{
+    std::vector<std::pair<double, double>> offsets;
+    offsets.reserve(count);
+    const auto columns = static_cast<double>(settings.grid.columns);
+
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        const double col = static_cast<double>(index % settings.grid.columns);
+        const double row = static_cast<double>(index / settings.grid.columns);
+
+        const double offset_x = (col - (columns - 1.0) / 2.0) * settings.grid.cell_width;
+        const double offset_y = row * (settings.grid.cell_height + settings.cluster.node_spacing);
+        offsets.emplace_back(offset_x, offset_y);
+    }
+    return offsets;
+}
 } // namespace
 
 LayoutModule::LayoutModule(LayoutSettings settings)
@@ -43,6 +109,10 @@ LayoutModule::LayoutModule(LayoutSettings settings)
     ensure_positive(settings_.cluster.radial_distance, "cluster.radial_distance");
     ensure_positive(settings_.cluster.radial_step, "cluster.radial_step");
     ensure_positive(settings_.corridor.step, "corridor.step");
+    if (settings_.hex.spacing <= 0.0)
+    {
+        throw std::invalid_argument("hex.spacing 必须为正数");
+    }
 }
 
 LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicRng&) const
@@ -91,7 +161,6 @@ LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicR
     }
 
     const std::size_t cluster_count = cluster_groups.size();
-    const auto columns = static_cast<double>(settings_.grid.columns);
 
     constexpr double TWO_PI = 6.28318530717958647692;
 
@@ -109,19 +178,19 @@ LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicR
         const double anchor_x = std::cos(angle) * radius;
         const double anchor_y = std::sin(angle) * radius;
 
+        std::vector<std::pair<double, double>> offsets = settings_.hex.enabled
+            ? generate_hex_offsets(group.nodes.size(), settings_.hex.spacing)
+            : generate_grid_offsets(settings_, group.nodes.size());
+
         for (std::size_t node_index = 0; node_index < group.nodes.size(); ++node_index)
         {
             const auto* node = group.nodes[node_index];
-            const double col = static_cast<double>(node_index % settings_.grid.columns);
-            const double row = static_cast<double>(node_index / settings_.grid.columns);
-
-            const double offset_x = (col - (columns - 1.0) / 2.0) * settings_.grid.cell_width;
-            const double offset_y = row * (settings_.grid.cell_height + settings_.cluster.node_spacing);
+            const auto offset = offsets[node_index];
 
             layout.placements.push_back(NodePlacement{
                 node->local_id,
-                anchor_x + offset_x,
-                anchor_y + offset_y,
+                anchor_x + offset.first,
+                anchor_y + offset.second,
                 0.0});
             placed.insert(node->local_id);
         }
@@ -169,4 +238,3 @@ LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicR
 }
 
 } // namespace genesis::worldgen
-

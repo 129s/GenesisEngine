@@ -10,6 +10,7 @@ add_executable(genesis_worldgen_tests
 target_link_libraries(genesis_worldgen_tests
     PRIVATE
         Genesis::Worldgen
+        Genesis::Engine
         GTest::gtest_main
 )
 

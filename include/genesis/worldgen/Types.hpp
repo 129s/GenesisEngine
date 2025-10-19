@@ -104,11 +104,24 @@ struct CorridorLayoutSettings
     double step{8.0};
 };
 
+struct HexLayoutSettings
+{
+    bool enabled{false};
+    double spacing{6.0};
+};
+
 struct LayoutSettings
 {
     GridLayoutSettings grid{};
     ClusterLayoutSettings cluster{};
     CorridorLayoutSettings corridor{};
+    HexLayoutSettings hex{};
+};
+
+struct TilemapSettings
+{
+    int tile_size{32};
+    int base_extent{32};
 };
 
 struct Seed
@@ -122,6 +135,7 @@ struct GeneratorConfig
     toml::table root{};
     TopologySettings topology{};
     LayoutSettings layout{};
+    TilemapSettings tilemap{};
 };
 
 struct GenerationLogEntry

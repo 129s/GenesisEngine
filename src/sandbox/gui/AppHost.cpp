@@ -1682,7 +1682,7 @@ void AppHost::refreshDefaultWorldgenConfig()
                 case genesis::world::LocationKind::Region: return "R";
                 case genesis::world::LocationKind::Building: return "B";
                 case genesis::world::LocationKind::Room: return "r";
-                case genesis::world::LocationKind::Point: return "\u00B7"; // middle dot
+                case genesis::world::LocationKind::Point: return "."; // simple dot placeholder
                 }
                 return "?";
             };

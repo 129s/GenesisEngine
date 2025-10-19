@@ -49,5 +49,15 @@ TEST(WorldgenGenerator, ProducesWorldGraph)
     EXPECT_TRUE(root.coord_global.has_value());
 
     EXPECT_FALSE(result.logs.empty());
-}
 
+    bool has_portal_anchor = false;
+    for (const auto& edge : result.world_graph.edges)
+    {
+        if (edge.anchor_at_from.has_value() || edge.anchor_at_to.has_value())
+        {
+            has_portal_anchor = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(has_portal_anchor);
+}

@@ -1,5 +1,6 @@
 #include "genesis/worldgen/ValidationModule.hpp"
 
+#include <cmath>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,6 +54,8 @@ bool ValidationModule::validate(const TopologyDraft& topology,
     std::unordered_set<std::size_t> seen_nodes;
     seen_nodes.reserve(topology.nodes.size());
 
+    constexpr double kMaxCoordinateMagnitude = 100000.0;
+
     for (const auto& node : topology.nodes)
     {
         if (!seen_nodes.insert(node.local_id).second)
@@ -64,6 +67,23 @@ bool ValidationModule::validate(const TopologyDraft& topology,
     }
 
     LayoutIndex layout_index = build_layout_index(layout);
+
+    for (const auto& placement : layout.placements)
+    {
+        if (!std::isfinite(placement.x) || !std::isfinite(placement.y))
+        {
+            std::ostringstream oss;
+            oss << "节点 " << placement.local_id << " 的坐标非有限值";
+            append_error(out_errors, oss.str());
+            continue;
+        }
+        if (std::abs(placement.x) > kMaxCoordinateMagnitude || std::abs(placement.y) > kMaxCoordinateMagnitude)
+        {
+            std::ostringstream oss;
+            oss << "节点 " << placement.local_id << " 坐标超出边界: (" << placement.x << ", " << placement.y << ")";
+            append_error(out_errors, oss.str());
+        }
+    }
 
     for (const auto& node : topology.nodes)
     {
@@ -97,8 +117,43 @@ bool ValidationModule::validate(const TopologyDraft& topology,
         }
     }
 
+    struct EdgeKeyHash
+    {
+        std::size_t operator()(const std::pair<std::size_t, std::size_t>& key) const noexcept
+        {
+            return std::hash<std::size_t>{}(key.first) ^ (std::hash<std::size_t>{}(key.second) << 1);
+        }
+    };
+    std::unordered_set<std::pair<std::size_t, std::size_t>, EdgeKeyHash> edge_set;
+    edge_set.reserve(topology.edges.size());
+    for (const auto& edge : topology.edges)
+    {
+        edge_set.emplace(edge.from, edge.to);
+        if (edge.bidirectional)
+        {
+            edge_set.emplace(edge.to, edge.from);
+        }
+    }
+
+    for (const auto& portal : topology.portals)
+    {
+        if (!seen_nodes.contains(portal.entry) || !seen_nodes.contains(portal.exit))
+        {
+            std::ostringstream oss;
+            oss << "Portal 节点不存在: entry=" << portal.entry << ", exit=" << portal.exit;
+            append_error(out_errors, oss.str());
+            continue;
+        }
+
+        if (!edge_set.contains({portal.entry, portal.exit}) || !edge_set.contains({portal.exit, portal.entry}))
+        {
+            std::ostringstream oss;
+            oss << "Portal 缺少双向边: entry=" << portal.entry << ", exit=" << portal.exit;
+            append_error(out_errors, oss.str());
+        }
+    }
+
     return out_errors.empty();
 }
 
 } // namespace genesis::worldgen
-

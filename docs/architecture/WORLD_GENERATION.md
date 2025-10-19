@@ -36,6 +36,7 @@
 2. **初始化上下文**：根据 `seed` 创建高层 RNG，并派生给各模块；建立空 Node 树和 Tilemap 缓存索引。
 3. **拓扑阶段**：
    - 规则组合生成 Scene/Interactive 草图：节点类型、父子关系、Portal 对、容量上限。
+   - 对于每个集群入口，自动生成 `Portal(entry↔exit)` 草稿，后续布局与校验可据此补全锚点。
    - 输出 `SceneDraft` 列表，为布局阶段准备约束与节点元信息。
 4. **布局阶段**：
    - 构造 `SceneLayoutContext`（边界、多边形、scene_capacity、保留区域、节点 footprint、layer 标记）。
@@ -148,7 +149,7 @@ min_connectivity = 1
   - Portal 对等性、可达性（图搜索 + flood fill）。
   - 资源节点参数合法且位于可导航区域。
   - Tilemap 与节点 footprint 相容。
-- 当前阶段实现：节点 ID 唯一性、布局坐标存在性、边引用合法性；其他校验将在后续里程碑补齐。
+- 当前阶段实现：节点 ID 唯一性、布局坐标存在性、边引用与 Portal 配对合法性；其他校验将在后续里程碑补齐。
 - **软约束报告**：如对称性偏差、密度超标，写入日志供分析。
 - **测试策略**：
   - 单元测试：模块级 determinism（同 seed 输出 hash 相同）、约束违规触发错误。

@@ -24,7 +24,10 @@ TopologyDraft make_simple_topology()
     EdgeDraft edge{};
     edge.from = 0;
     edge.to = 1;
+    edge.bidirectional = true;
     topology.edges.push_back(edge);
+
+    topology.portals.push_back(TopologyDraft::Portal{0, 1});
 
     return topology;
 }
@@ -103,3 +106,48 @@ TEST(WorldgenValidation, DetectsInvalidEdge)
     EXPECT_TRUE(has_invalid_edge_error);
 }
 
+TEST(WorldgenValidation, PortalRequiresBidirectionalEdges)
+{
+    TopologyDraft topology = make_simple_topology();
+    topology.edges.clear(); // remove supporting edge
+    LayoutDraft layout = make_complete_layout();
+
+    ValidationModule validator;
+    std::vector<ValidationError> errors;
+    const bool ok = validator.validate(topology, layout, errors);
+    EXPECT_FALSE(ok);
+
+    bool found = false;
+    for (const auto& err : errors)
+    {
+        if (err.message.find("Portal") != std::string::npos)
+        {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST(WorldgenValidation, DetectsOutOfBoundsPlacement)
+{
+    TopologyDraft topology = make_simple_topology();
+    LayoutDraft layout = make_complete_layout();
+    layout.placements.back().x = 200000.0; // beyond limit
+
+    ValidationModule validator;
+    std::vector<ValidationError> errors;
+    const bool ok = validator.validate(topology, layout, errors);
+    EXPECT_FALSE(ok);
+
+    bool found = false;
+    for (const auto& err : errors)
+    {
+        if (err.message.find("超出边界") != std::string::npos)
+        {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}

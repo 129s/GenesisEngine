@@ -4,8 +4,9 @@
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
-#include <unordered_map>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "genesis/world/WorldTypes.hpp"
@@ -63,6 +64,22 @@ world::LocationGraph build_location_graph(const TopologyDraft& topology, const L
 
     const auto placement_map = build_placement_map(layout);
 
+    struct EdgeKeyHash
+    {
+        std::size_t operator()(const std::pair<std::size_t, std::size_t>& key) const noexcept
+        {
+            return std::hash<std::size_t>{}(key.first) ^ (std::hash<std::size_t>{}(key.second) << 1);
+        }
+    };
+
+    std::unordered_set<std::pair<std::size_t, std::size_t>, EdgeKeyHash> portal_edges;
+    portal_edges.reserve(topology.portals.size() * 2);
+    for (const auto& portal : topology.portals)
+    {
+        portal_edges.emplace(portal.entry, portal.exit);
+        portal_edges.emplace(portal.exit, portal.entry);
+    }
+
     std::uint32_t next_id = 1;
     for (const auto& node : topology.nodes)
     {
@@ -109,6 +126,13 @@ world::LocationGraph build_location_graph(const TopologyDraft& topology, const L
         world_edge.to = to_it->second;
         world_edge.cost = 1.0f;
         world_edge.bidirectional = edge.bidirectional;
+
+        if (portal_edges.contains({edge.from, edge.to}))
+        {
+            world_edge.anchor_at_from = std::make_pair(0, 0);
+            world_edge.anchor_at_to = std::make_pair(0, 0);
+        }
+
         graph.edges.push_back(std::move(world_edge));
     }
 

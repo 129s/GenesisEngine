@@ -47,6 +47,7 @@ TEST(WorldgenTopology, DeterministicForSameSeed)
 
     ASSERT_EQ(draft_a.nodes.size(), draft_b.nodes.size());
     ASSERT_EQ(draft_a.edges.size(), draft_b.edges.size());
+    ASSERT_EQ(draft_a.portals.size(), draft_b.portals.size());
 
     for (std::size_t i = 0; i < draft_a.nodes.size(); ++i)
     {
@@ -56,6 +57,12 @@ TEST(WorldgenTopology, DeterministicForSameSeed)
     }
 
     EXPECT_EQ(edge_pairs(draft_a), edge_pairs(draft_b));
+    EXPECT_FALSE(draft_a.portals.empty());
+    for (std::size_t i = 0; i < draft_a.portals.size(); ++i)
+    {
+        EXPECT_EQ(draft_a.portals[i].entry, draft_b.portals[i].entry);
+        EXPECT_EQ(draft_a.portals[i].exit, draft_b.portals[i].exit);
+    }
 }
 
 TEST(WorldgenTopology, ClusterCountWithinExpectedRange)
@@ -81,6 +88,7 @@ TEST(WorldgenTopology, ClusterCountWithinExpectedRange)
     // 根节点标签
     EXPECT_EQ(draft.nodes.front().label, "root");
     EXPECT_FALSE(draft.edges.empty());
+    EXPECT_FALSE(draft.portals.empty());
 }
 
 TEST(WorldgenTopology, CorridorCreatesLinearChain)
@@ -106,4 +114,3 @@ TEST(WorldgenTopology, CorridorCreatesLinearChain)
     EXPECT_EQ(draft.nodes[draft.nodes.size() - 2].label, "corridor_0");
     EXPECT_EQ(draft.nodes[draft.nodes.size() - 1].label, "corridor_1");
 }
-

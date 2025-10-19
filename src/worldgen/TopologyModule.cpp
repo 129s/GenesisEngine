@@ -1,5 +1,6 @@
 #include "genesis/worldgen/TopologyModule.hpp"
 
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -82,6 +83,7 @@ TopologyDraft TopologyModule::generate(DeterministicRng& rng) const
             settings_.cluster.max_nodes_per_cluster);
 
         std::size_t previous_id = 0; // connect to root first
+        std::optional<std::size_t> first_node_id;
         for (std::size_t node_index = 0; node_index < nodes_in_cluster; ++node_index)
         {
             NodeDraft node{};
@@ -94,8 +96,18 @@ TopologyDraft TopologyModule::generate(DeterministicRng& rng) const
 
             draft.edges.push_back(EdgeDraft{previous_id, next_id, true});
 
+            if (!first_node_id)
+            {
+                first_node_id = next_id;
+            }
+
             previous_id = next_id;
             ++next_id;
+        }
+
+        if (first_node_id)
+        {
+            draft.portals.push_back(TopologyDraft::Portal{0, *first_node_id});
         }
     }
 

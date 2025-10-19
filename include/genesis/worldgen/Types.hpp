@@ -42,6 +42,12 @@ struct TopologyDraft
 {
     std::vector<NodeDraft> nodes;
     std::vector<EdgeDraft> edges;
+    struct Portal
+    {
+        std::size_t entry{0};
+        std::size_t exit{0};
+    };
+    std::vector<Portal> portals;
 };
 
 struct ClusterRule

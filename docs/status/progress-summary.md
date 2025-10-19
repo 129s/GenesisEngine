@@ -43,3 +43,21 @@
 - 性能优化：规划/遥测引入更多计算后，需要在后续阶段进行性能与内存分析。
 - 端到端测试：补充完整 E2E 场景，用以验证 Planner → ActionExecutor → Needs 的闭环行为。
 - 运行时封装：扩展 runtime API（快照对比、事件注入等），并实现 sandbox_gui、game 前端以复用统一模拟核心。
+
+## 下一阶段聚焦（P0 · Sprint-2 建议）
+
+> 目标：在未来 10～14 天内补齐 GUI 运行时桥接、可回归验证与协议文档，为 Scene/Interactive 重构与 Inspector 深化提供稳定基线。
+
+- 运行时桥接增强：完善命令队列在 `RuntimeBridge` 中的接入，提供示例脚本验证事件注入/回放，并确保线程模型与 GUI 消费逻辑一致。
+- GUI 自动化覆盖：固化端到端闭环测试场景（饥饿→规划→行动→补给）并替换原 CLI 烟雾脚本；补充 24 小时 soak 流程采集饥饿/库存/旅行成本指标。
+- Telemetry 与协议文档：统一快照 diff / Telemetry schema，扩写 `docs/architecture/runtime_api.md` 与 Inspector 数据字典，约束前端消费契约并做好版本标记。
+
+### 关键里程碑与交付
+1. 提交 `RuntimeBridge` 命令队列与事件脚本示例（含最小 UI 触发入口），并通过手动验收记录。
+2. 引入 GUI 端到端测试 Harness（gtest/ctest 或脚本形式）和最小断言集，纳入 CI；完成 24 小时 soak 脚本并记录指标阈值。
+3. 更新文档与 Telemetry schema（含版本号、字段说明、消费指引），并在 GUI 提交中强制校验 schema 版本。
+
+### 依赖与风险
+- 命令队列回放需要复核 Runtime 锁策略，必要时补充线程安全测试。
+- GUI 自动化运行依赖无头 OpenGL/ImGui 渲染方案，需在 Windows/Linux 上验证驱动兼容性。
+- 文档更新需同步至后续开发者，建议在提交后安排短会/公告确认契约变更。

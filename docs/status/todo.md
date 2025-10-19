@@ -2,11 +2,16 @@
 
 > 提示：本清单为临时待办收集处，阶段性规划请以 `../roadmap/README.md` 为准。有效条目建议迁移到仓库 Issue 与 Milestone 跟踪。
 
+## P0 · Sprint-2（建议聚焦）
+- [ ] Runtime 命令队列接入 GUI `RuntimeBridge`，提供事件注入/回放示例脚本与最小 UI 触发。
+- [ ] 建立 Sandbox GUI 自动化回归：端到端闭环测试（Planner → Executor → Need 恢复）与 24 小时 soak 指标脚本。
+- [ ] Telemetry/快照协议文档更新：统一 schema 版本，扩写 `docs/architecture/runtime_api.md`、Inspector 字段说明，并在 GUI 中校验版本。
+
 ## Runtime refactor
 - [x] 提炼 `GenesisRuntime` 公共 API（创建/销毁/推进/获取快照）。
 - [x] 在 CMake 中导出 `genesis_runtime` 动态库，并调整现有目标依赖关系。
 - [x] 设计/实现双缓冲 `SimulationSnapshot`，保证多线程安全（同时提供快照 diff 与命令队列）。
-- [ ] Runtime 命令队列接入 GUI `RuntimeBridge`，提供回放/标记示例脚本。
+- [ ] Runtime 命令队列接入 GUI `RuntimeBridge`，提供回放/标记示例脚本（↑ Sprint-2 核心）。
 
 ## Noise Map MVP
 - [x] Phase 5 完成：参照 `docs/status/backlog/noise-map-mvp.md`（可视化指引与 CLI 增强已落地）。
@@ -28,6 +33,7 @@
 - [ ] WorldGen 面板与热生成；大图性能优化。
 - [x] Inspector 面板基础版（实体列表/详情/地图联动，支持事件日志）。
 - [ ] Inspector 深化：人格/Traits、Portal 详情、历史趋势等（详见 `docs/architecture/INSPECTOR_PANEL.md` 待完善清单）。
+- [ ] Telemetry 面板指标卡片与阈值配置。
 
 ## Tooling & Docs
 - [x] 更新测试，验证共享库加载及 CLI 运行。

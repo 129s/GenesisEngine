@@ -2,6 +2,10 @@
 # 项目进度概览
 
 ## 最新进展（本次）
+- 运行时快照 diff 与事件注入 API：
+  - 新增 `Runtime::latestSnapshotDiff()` 与 `SimulationSnapshotDiff`，支持快速检测资源/需求/行动变化并携带事件日志。
+  - 引入 `Runtime::enqueueEvent` 命令队列，在每个模拟步执行并写入 `RuntimeEventReport`，用于 GUI 交互与自动化回放。
+  - 扩展双缓冲快照结构，捕获命令执行结果并在文档中更新使用指南。
 - 构建与测试稳定性改进：
   - 为 `genesis_sandbox_cli` 增加 `Genesis::Engine` 链接，修复噪声世界生成符号缺失导致的链接错误。
   - 为 `genesis_runtime_tests` 增加 `Genesis::Engine` 链接，避免 Windows 下跨模块静态库初始化差异带来的崩溃。

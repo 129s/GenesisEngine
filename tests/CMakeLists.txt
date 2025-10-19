@@ -40,6 +40,8 @@ gtest_discover_tests(genesis_engine_tests)
 
 add_executable(genesis_runtime_tests
     test_runtime.cpp
+    test_runtime_snapshot_diff.cpp
+    test_runtime_events.cpp
 )
 
 target_link_libraries(genesis_runtime_tests

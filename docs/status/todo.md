@@ -5,7 +5,8 @@
 ## Runtime refactor
 - [x] 提炼 `GenesisRuntime` 公共 API（创建/销毁/推进/获取快照）。
 - [x] 在 CMake 中导出 `genesis_runtime` 动态库，并调整现有目标依赖关系。
-- [ ] 设计/实现双缓冲 `SimulationSnapshot`，保证多线程安全。
+- [x] 设计/实现双缓冲 `SimulationSnapshot`，保证多线程安全（同时提供快照 diff 与命令队列）。
+- [ ] Runtime 命令队列接入 GUI `RuntimeBridge`，提供回放/标记示例脚本。
 
 ## Noise Map MVP
 - [x] Phase 5 完成：参照 `docs/status/backlog/noise-map-mvp.md`（可视化指引与 CLI 增强已落地）。

@@ -10,23 +10,37 @@
   - 生命周期：`start()` / `stop()`（通常由宿主封装）。
 - **IRuntimeQuery（查询面）**
   - `latestSnapshot()`：返回 `SimulationSnapshot` 只读视图（双缓冲最新帧，包含 `version` / `capturedAt` / `TickTelemetry`）。
+  - `latestSnapshotDiff()`：返回 `SimulationSnapshotDiff`，与上一帧比对变化（若无上一帧则视为全量新增）。
   - `worldAtlas()`：返回只读 `WorldAtlas` 视图。
   - `worldVersion()`：当前世界版本号（随拓扑或 Tilemap 变更递增）。
 - **IRuntimeCommands（命令面）**
   - 世界：`generateWorld(MapConfig root)`、`loadWorld(path)`、`resetWorld(seed, overrides)`。
   - 实体：`spawnAgent(params)`、`despawn(entityId)`、`applyTrait(entityId, traitId)`。
-  - 资源与事件：`inject(Event e)`、`requestResource(type, amount, preferredNode)` 等。
+  - 资源与事件：`requestResource(type, amount, preferredNode)`、`enqueueEvent(RuntimeEvent)`（命令队列/事件注入）。
   - 命令执行均在模拟线程排队；返回 `CommandId`，结果异步写入 Telemetry/日志。仅对快速操作可选同步 `Result`。
 
 **并发约束：**
 - Engine 仅在模拟线程运行，所有状态修改必须在此线程完成。
 - 前端线程通过 `SimulationSnapshot` / `WorldAtlas` 获取数据，不得直接访问 ECS/Registry。
 - `SimulationSnapshot` 是双缓冲结构，持有 `TickTelemetry` 与捕获时间戳；Atlas 是不可变结构体。两者携带版本号避免竞争条件。
+- 事件注入通过 `Runtime::enqueueEvent` 排队，`Runtime::step/run` 在每次推进前串行执行命令并将结果附带到下一帧 `SimulationSnapshot.events`。
 
 ## SimulationSnapshot 契约
 - `version:uint64`：快照递增序列号（模拟线程每次写入时自增）。
 - `capturedAt:steady_clock::time_point`：生成快照时的单调时钟，供 UI 估算停顿或插值。
 - `telemetry:TickTelemetry`：与旧协议一致的遥测负载；详见下文。
+- `events:RuntimeEventReport[]`：本帧执行的命令/标记；包含 `id`、`label`、`kind`、`payloadJson?`、`enqueuedAt`、`executedAt`、`success`、`message`。
+
+## SimulationSnapshotDiff 契约
+- `baseVersion:uint64` / `targetVersion:uint64`：对比的起止快照版本；首帧无 `baseVersion` 时置 0 并 `hasBase=false`。
+- `baseStep?:uint64` / `targetStep:uint64`：对应模拟 step，便于 UI 做时间线标记。
+- `capturedAt:steady_clock::time_point`：目标帧时间戳。
+- `resourceChanges[]` / `needChanges[]` / `plannerChanges[]` / `actionChanges[]` / `agentChanges[]` / `movementChanges[]`：
+  - 元素类型为 `SnapshotChange<T>`，字段：`kind:Added|Removed|Modified`、`before?:T`、`after?:T`。
+  - `kind=Added` 仅提供 `after`，`kind=Removed` 仅提供 `before`，`Modified` 同时提供前后差异。
+- `executedEvents:RuntimeEventReport[]`：与目标帧一致的事件日志（便于重建时间线或断言命令执行结果）。
+- `empty():bool`：若所有变更集合为空且无事件，返回 `true`，可用于快速跳过无改动帧。
+- `latestSnapshotDiff()` 默认与上一帧对比；调用方可缓存版本号用于断言期望的变化是否出现。
 
 ## TickTelemetry 契约
 最小字段集合如下，可根据功能扩展。所有字段必须注明 `schema_version`。
@@ -104,3 +118,19 @@ Atlas 描述世界静态结构与 Tilemap 元数据。字段建议如下：
 ## 迭代与验证
 - 每次 API 调整需更新文档与 `schema_version`，并补充集成测试（无头跑 N 步验证新字段）。
 - GUI 需在启动时校验 `schema_version`，不兼容时弹出提示并拒绝运行，以免误用旧协议。
+- `latestSnapshotDiff()` 默认与上一帧对比；调用方可缓存版本号用于断言期望的变化是否出现。
+
+## RuntimeEvent 命令队列
+- `RuntimeEvent` 字段：
+  - `id:uint64`：Runtime 分配的自增序号，可用于重放或断言执行顺序。
+  - `kind:Command|Marker`：区分带副作用的命令与仅记录时间线的标记。
+  - `label:string`：事件描述（GUI/日志展示用），建议唯一化。
+  - `payloadJson?:string`：可选的 JSON 负载，序列化 UI 参数或测试上下文。
+  - `handler(std::function<void(Engine&)>)`：在模拟线程执行的函数；命令需在此内部操作 `Engine`/`EventBus`。
+- `Runtime::enqueueEvent(event)`：线程安全，将事件加入队列；返回后事件等待下一次 `step`/`run` 执行。
+- `Runtime` 每次推进前依次执行所有排队事件，将执行结果写入 `RuntimeEventReport` 并附着到下一帧 `SimulationSnapshot.events` 与 `SimulationSnapshotDiff.executedEvents`。
+- 事件处理中的异常会被捕获并写入 `message` 字段，同时 `success=false`；调用方可在 diff/快照中读取结果并决定是否中止。
+- 建议：
+  - GUI 交互：使用 `kind=Command`，在 handler 内部调用业务 API（例如生成世界、调整资源、插入测试 Agent）。
+  - 自动化测试：使用 `payloadJson` 序列化断言上下文，结合 `latestSnapshotDiff` 校验。
+  - Marker：无副作用时可省略 handler，仅用于在时间线插入标签（仍会返回成功事件记录）。

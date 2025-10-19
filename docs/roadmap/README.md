@@ -7,6 +7,7 @@
 - Sandbox GUI 已集成 RuntimeBridge、WorldAtlas 等模块，支持持续运行、快照读取与基本调试面板，后续里程碑围绕 GUI 演进展开。
 - 运行时架构调整为：单线程 Core Runtime 提供确定性模拟；Runtime Facade 暴露控制/查询/Telemetry 契约；前端通过只读快照消费数据，禁止直接操作 ECS。
 - 文档体系同步：GUI 架构、世界模型、运行时 API 均已拆分到 `docs/architecture`，路线图聚焦阶段目标与风险。
+- Runtime Facade 已提供事件命令队列与 `latestSnapshotDiff`，为 GUI Inspector 与自动化回放提供事件注入与断言基线。
 
 ## 目标与范围
 - 提供稳定、可扩展的模拟核心，前端统一经 Runtime Facade 访问。
@@ -16,7 +17,7 @@
 
 ## 架构基线
 - **Core Runtime**：`WorldRegistry` + 系统集合（Movement/Needs/Planner/ActionExecutor/Resource 等），单线程按 `SimulationClock` 推进。
-- **Runtime Facade**：控制面（`run`/`pause`/`step`/`setSpeed`）、查询面（`latestSnapshot`、WorldAtlas、TelemetryBuffer）、事件入口（计划中的命令队列/快照对比）。
+- **Runtime Facade**：控制面（`run`/`pause`/`step`/`setSpeed`）、查询面（`latestSnapshot`、`latestSnapshotDiff`、WorldAtlas、TelemetryBuffer）、事件入口（命令队列/事件注入 + 快照对比，支撑回放与断言）。
 - **Presentation 层**：
   - GUI（主力）：GLFW + OpenGL + Dear ImGui，RuntimeBridge 后台线程 + 环形快照缓冲。
   - CLI（暂停）：移出支持矩阵，仅保留源码以便未来回滚或工具链复用。
@@ -26,7 +27,7 @@
 ## 近期（P0，稳定与补齐基础）
 - 运行时与并发安全
   - [x] 双缓冲 `SimulationSnapshot`（已引入 `SimulationSnapshotBuffer`，前端读取线程安全）
-  - [ ] 快照比较与事件注入 API（便于 E2E 与重放）
+- [x] 快照比较与事件注入 API（便于 E2E 与重放，已上线 diff 结构与命令队列）
 - GUI 调试体验
   - [ ] Inspector 视图：实体列表/详情/地图联动的信息架构与渲染实现
   - [ ] RuntimeBridge Telemetry 配置：巩固指标采集与阈值告警面板草案
@@ -42,12 +43,12 @@
 ### 近期（P0 · GUI 框架稳定与运行时加固）
 > 阶段状态：执行中（自 2025-10-19）；每周日同步风险与燃尽图。
 - **当周聚焦**
-  - 快照差异与事件注入 API：完成接口草案 + 审核要点，锁定 Telemetry 集成方式。
+- 快照差异与事件注入 API：已交付 `latestSnapshotDiff`、命令队列与事件日志；后续评审 GUI 接入点与脚本化示例。
   - GUI Inspector：输出信息架构草图（实体列表/详情/地图联动）并确认数据绑定依赖。
   - GUI 烟雾巡检脚本：替换原 CLI smoke，圈定最小自动化覆盖与验收脚本。
 - 运行时与协议
   - [ ] 双缓冲 `SimulationSnapshot` 与版本标记，确保 GUI 前端安全读取（CLI 停用但保持编译通过）。
-  - [ ] 快照差异与事件注入 API，支撑回放、断言与工具链。
+  - [x] 快照差异与事件注入 API，支撑回放、断言与工具链。
   - [ ] 长时运行（24h）回归脚本，纳入指标追踪（饥饿/库存/旅行成本）。
 - GUI 主线
   - [x] 里程碑 1-2：GLFW + ImGui Docking 框架、RuntimeBridge 后台线程、WorldAtlas 静态视图。

@@ -5,16 +5,20 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <queue>
 #include <string>
 #include <vector>
 
 #include "genesis/core/Engine.hpp"
 #include "genesis/runtime/SimulationSnapshot.hpp"
+#include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/WorldLoader.hpp"
 #include "genesis/world/WorldTypes.hpp"
 #include "genesis/worldgen/Types.hpp"
+#include "genesis/runtime/RuntimeEvents.hpp"
 
 namespace genesis::runtime {
 
@@ -46,6 +50,7 @@ public:
     void run(std::uint64_t steps);
 
     [[nodiscard]] const SimulationSnapshot* latestSnapshot() const noexcept;
+    [[nodiscard]] std::optional<SimulationSnapshotDiff> latestSnapshotDiff() const noexcept;
     [[nodiscard]] const std::optional<genesis::worldgen::Seed>& lastSeed() const noexcept { return m_lastSeed; }
 
     struct WorldGenerationResult {
@@ -70,13 +75,21 @@ public:
     [[nodiscard]] genesis::core::Engine& engine() noexcept { return m_engine; }
     [[nodiscard]] const genesis::core::Engine& engine() const noexcept { return m_engine; }
 
+    void enqueueEvent(RuntimeEvent event);
+
 private:
+    void drainPendingEvents();
+
     RuntimeConfig m_config;
     genesis::core::Engine m_engine;
     std::optional<genesis::worldgen::Seed> m_lastSeed;
     std::optional<WorldGenerationResult> m_lastWorldGen;
     std::atomic<std::uint64_t> m_snapshotVersion{0};
     SimulationSnapshotBuffer m_snapshotBuffer;
+    std::atomic<std::uint64_t> m_nextEventId{1};
+    mutable std::mutex m_eventMutex;
+    std::queue<RuntimeEvent> m_pendingEvents;
+    std::vector<RuntimeEventReport> m_eventsSinceLastSnapshot;
 };
 
 std::unique_ptr<Runtime> createRuntime(RuntimeConfig config = {});

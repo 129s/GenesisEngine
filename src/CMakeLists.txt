@@ -67,6 +67,7 @@ set_target_properties(genesis_engine PROPERTIES
 
 add_library(genesis_runtime SHARED
     runtime/Runtime.cpp
+    runtime/SnapshotDiff.cpp
 )
 add_library(Genesis::Runtime ALIAS genesis_runtime)
 

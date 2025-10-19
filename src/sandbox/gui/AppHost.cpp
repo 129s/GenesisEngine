@@ -458,6 +458,7 @@ using json = nlohmann::json;
         drawSceneViewPanel();
         drawTelemetryPanel();
         drawLogPanel();
+        drawControlToolbar();
         drawToasts();
         drawStatusBar();
     }
@@ -519,8 +520,9 @@ using json = nlohmann::json;
         }
     }
 
-    void AppHost::drawWelcomePanel()
-    {
+
+void AppHost::drawWelcomePanel()
+{
         ImGui::Begin("Welcome", nullptr, ImGuiWindowFlags_NoCollapse);
 
         ImGui::TextUnformatted("Genesis Sandbox GUI · RuntimeBridge");
@@ -529,68 +531,34 @@ using json = nlohmann::json;
         ImGuiIO &io = ImGui::GetIO();
         ImGui::Text("Average %.2f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
         ImGui::ColorEdit4("Clear Color", clear_color_.data(), ImGuiColorEditFlags_NoInputs);
-        if (ImGui::Checkbox("Enable VSync", &config_.vsync))
-        {
-            glfwSwapInterval(config_.vsync ? 1 : 0);
-        }
 
         ImGui::Separator();
         if (runtime_bridge_)
         {
             const bool paused = runtime_bridge_->paused();
-            if (paused)
-            {
-                if (ImGui::Button("Resume"))
-                {
-                    runtime_bridge_->setPaused(false);
-                }
-            }
-            else
-            {
-                if (ImGui::Button("Pause"))
-                {
-                    runtime_bridge_->setPaused(true);
-                }
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Step"))
-            {
-                runtime_bridge_->requestStep(1);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Step x10"))
-            {
-                runtime_bridge_->requestStep(10);
-            }
-
-            ImGui::Separator();
-            float speed = static_cast<float>(speed_multiplier_ui_);
-            if (ImGui::SliderFloat("Speed Multiplier", &speed, 0.25f, 8.0f, "%.2fx"))
-            {
-                speed_multiplier_ui_ = speed;
-                runtime_bridge_->setSpeedMultiplier(speed_multiplier_ui_);
-            }
-
+            ImGui::Text("Playback: %s", paused ? "Paused" : "Running");
             if (latest_snapshot_)
             {
                 const auto &tick = latest_snapshot_->telemetry;
-                ImGui::Text("Playback: %s", paused ? "Paused" : "Running");
                 ImGui::Text("Step: %llu", static_cast<unsigned long long>(tick.step));
                 ImGui::Text("Agents: %zu", tick.agents.size());
                 ImGui::Text("Resources: %zu", tick.resources.size());
             }
             else
             {
-                ImGui::Text("Playback: %s", paused ? "Paused" : "Running");
                 ImGui::TextUnformatted("Waiting for first snapshot…");
             }
+        }
+        else
+        {
+            ImGui::TextUnformatted("RuntimeBridge unavailable.");
         }
 
         ImGui::Separator();
         ImGui::TextWrapped(
             "Focus: RuntimeBridge advances the simulation in a background thread, exposes pause/step/speed controls, and "
-            "feeds the world/telemetry panels with the latest snapshot. Use F5/F6/F7 for pause/step/step×10, F8 to toggle "
-            "Log and F9 for Telemetry.");
+            "feeds the world/telemetry panels with the latest snapshot. Use the toolbar above (or F5/F6/F7 hotkeys) for "
+            "playback control; VSync, logging and telemetry toggles are also available via toolbar shortcuts.");
 
         ImGui::End();
     }
@@ -614,7 +582,26 @@ void AppHost::drawWorldGenerationPanel()
     {
         commandStatuses = runtime_bridge_->commandStatusSnapshot();
         refreshCommandStatusTexts(commandStatuses);
+        std::unordered_set<std::uint64_t> currentIds;
+        currentIds.reserve(commandStatuses.size());
+        for (const auto &cmd : commandStatuses)
+        {
+            currentIds.insert(cmd.id);
+        }
+        for (auto it = world_queue_hidden_completed_.begin(); it != world_queue_hidden_completed_.end();)
+        {
+            if (!currentIds.contains(*it))
+            {
+                it = world_queue_hidden_completed_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
     }
+
+
 
     ImGui::TextUnformatted("World Generation → command-queue driven generate/load/save.");
     ImGui::Separator();
@@ -629,6 +616,7 @@ void AppHost::drawWorldGenerationPanel()
             worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
         }
     }
+
 
     if (worldgen_use_random_seed_)
     {
@@ -855,55 +843,120 @@ void AppHost::drawWorldGenerationPanel()
     }
 
     ImGui::Separator();
-    ImGui::TextUnformatted("Command Queue");
-    if (commandStatuses.empty())
+    ImGui::SetNextItemOpen(false, ImGuiCond_Once);
+    if (ImGui::CollapsingHeader("Command Queue"))
     {
-        ImGui::TextUnformatted("No command entries");
-    }
-    else if (ImGui::BeginChild("CommandQueueView", ImVec2(0.0f, 220.0f), true))
-    {
-        if (ImGui::BeginTable("CommandQueueTable", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY))
+        ImGui::Checkbox("Show Pending", &world_queue_show_pending_);
+        ImGui::SameLine();
+        ImGui::Checkbox("Show Succeeded", &world_queue_show_succeeded_);
+        ImGui::SameLine();
+        ImGui::Checkbox("Show Failed", &world_queue_show_failed_);
+
+        bool hasVisibleCompleted = false;
+        for (const auto &cmd : commandStatuses)
         {
-            ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 70.0f);
-            ImGui::TableSetupColumn("Label");
-            ImGui::TableSetupColumn("Source", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-            ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-            ImGui::TableSetupColumn("Notes");
-            ImGui::TableHeadersRow();
-
-            for (const auto& cmd : commandStatuses)
+            if (cmd.state == RuntimeBridge::CommandState::Succeeded && !world_queue_hidden_completed_.contains(cmd.id))
             {
-                ImGui::TableNextRow();
-                ImGui::TableSetColumnIndex(0);
-                ImGui::Text("#%llu", static_cast<unsigned long long>(cmd.id));
+                hasVisibleCompleted = true;
+                break;
+            }
+        }
 
-                ImGui::TableSetColumnIndex(1);
-                ImGui::TextUnformatted(cmd.label.c_str());
-
-                ImGui::TableSetColumnIndex(2);
-                ImGui::TextUnformatted(cmd.source.c_str());
-
-                ImGui::TableSetColumnIndex(3);
-                const ImVec4 color = commandStateColor(cmd.state);
-                ImGui::TextColored(color, "%s", commandStateLabel(cmd.state));
-
-                ImGui::TableSetColumnIndex(4);
-                if (!cmd.message.empty())
+        ImGui::SameLine(0.0f, 18.0f);
+        if (!hasVisibleCompleted)
+        {
+            ImGui::BeginDisabled();
+        }
+        if (ImGui::Button("Clear Completed"))
+        {
+            for (const auto &cmd : commandStatuses)
+            {
+                if (cmd.state == RuntimeBridge::CommandState::Succeeded)
                 {
-                    ImGui::TextWrapped("%s", cmd.message.c_str());
-                }
-                else if (cmd.payloadJson.has_value())
-                {
-                    ImGui::TextDisabled("%s", cmd.payloadJson->c_str());
-                }
-                else
-                {
-                    ImGui::TextDisabled("-");
+                    world_queue_hidden_completed_.insert(cmd.id);
                 }
             }
-            ImGui::EndTable();
         }
-        ImGui::EndChild();
+        if (!hasVisibleCompleted)
+        {
+            ImGui::EndDisabled();
+        }
+
+        std::vector<RuntimeBridge::CommandProgress> filtered;
+        filtered.reserve(commandStatuses.size());
+        for (const auto &cmd : commandStatuses)
+        {
+            if (cmd.state == RuntimeBridge::CommandState::Pending && !world_queue_show_pending_)
+            {
+                continue;
+            }
+            if (cmd.state == RuntimeBridge::CommandState::Succeeded)
+            {
+                if (!world_queue_show_succeeded_)
+                {
+                    continue;
+                }
+                if (world_queue_hidden_completed_.contains(cmd.id))
+                {
+                    continue;
+                }
+            }
+            if (cmd.state == RuntimeBridge::CommandState::Failed && !world_queue_show_failed_)
+            {
+                continue;
+            }
+            filtered.push_back(cmd);
+        }
+
+        if (filtered.empty())
+        {
+            ImGui::TextUnformatted("No command entries");
+        }
+        else if (ImGui::BeginChild("CommandQueueView", ImVec2(0.0f, 220.0f), true))
+        {
+            if (ImGui::BeginTable("CommandQueueTable", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY))
+            {
+                ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+                ImGui::TableSetupColumn("Label");
+                ImGui::TableSetupColumn("Source", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+                ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+                ImGui::TableSetupColumn("Notes");
+                ImGui::TableHeadersRow();
+
+                for (const auto& cmd : filtered)
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("#%llu", static_cast<unsigned long long>(cmd.id));
+
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(cmd.label.c_str());
+
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::TextUnformatted(cmd.source.c_str());
+
+                    ImGui::TableSetColumnIndex(3);
+                    const ImVec4 color = commandStateColor(cmd.state);
+                    ImGui::TextColored(color, "%s", commandStateLabel(cmd.state));
+
+                    ImGui::TableSetColumnIndex(4);
+                    if (!cmd.message.empty())
+                    {
+                        ImGui::TextWrapped("%s", cmd.message.c_str());
+                    }
+                    else if (cmd.payloadJson.has_value())
+                    {
+                        ImGui::TextDisabled("%s", cmd.payloadJson->c_str());
+                    }
+                    else
+                    {
+                        ImGui::TextDisabled("-");
+                    }
+                }
+                ImGui::EndTable();
+            }
+            ImGui::EndChild();
+        }
     }
 
     ImGui::End();
@@ -1174,27 +1227,38 @@ void AppHost::drawWorldGenerationPanel()
                 }
             }
 
-            ImGui::Text("ID: %u", agent->entityId);
             if (!agent->name.empty())
             {
-                ImGui::Text("Name: %s", agent->name.c_str());
+                ImGui::Text("%s", agent->name.c_str());
             }
-            ImGui::Text("Location: #%u %s", agent->location.value, nodeName.c_str());
-
-            if (ImGui::Button("Focus on Map"))
+            else
+            {
+                ImGui::Text("Agent #%u", agent->entityId);
+            }
+            ImGui::SameLine(0.0f, 12.0f);
+            if (ImGui::Button("Focus on Map##agentFocus"))
             {
                 show_world_view_ = true;
                 inspector_highlight_node_ = agent->location.value;
                 map_selected_node_ = agent->location.value;
             }
-            ImGui::SameLine();
-            if (ImGui::Button("Open Scene"))
+            ImGui::SameLine(0.0f, 8.0f);
+            if (ImGui::Button("Open Scene##agentScene"))
             {
                 show_scene_view_ = true;
                 scene_selected_node_ = agent->location.value;
             }
-            ImGui::SameLine();
-            ImGui::Checkbox("Follow", &inspector_follow_selection_);
+            ImGui::SameLine(0.0f, 8.0f);
+            bool followChanged = ImGui::Checkbox("Follow##agentFollow", &inspector_follow_selection_);
+            if (followChanged && inspector_follow_selection_)
+            {
+                scene_selected_node_ = agent->location.value;
+                map_selected_node_ = agent->location.value;
+            }
+            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::Text("ID: %u", agent->entityId);
+            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::Text("Location: #%u %s", agent->location.value, nodeName.c_str());
 
             ImGui::Separator();
 
@@ -1329,23 +1393,25 @@ void AppHost::drawWorldGenerationPanel()
             }
 
             const auto &resource = tick.resources[inspector_selected_primary_];
-            ImGui::Text("Name: %s", resource.name.c_str());
-            ImGui::Text("Type: %s", resourceTypeName(resource.type));
-            ImGui::Text("Node: #%u", resource.location.value);
-            ImGui::Text("Inventory: %u / %u", resource.current, resource.capacity);
-
+            ImGui::Text("%s", resource.name.c_str());
+            ImGui::SameLine(0.0f, 12.0f);
             if (ImGui::Button("Focus on Map##resourceFocus"))
             {
                 show_world_view_ = true;
                 inspector_highlight_node_ = resource.location.value;
                 map_selected_node_ = resource.location.value;
             }
-            ImGui::SameLine();
+            ImGui::SameLine(0.0f, 8.0f);
             if (ImGui::Button("Open Scene##resourceScene"))
             {
                 show_scene_view_ = true;
                 scene_selected_node_ = resource.location.value;
             }
+            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::Text("Node: #%u", resource.location.value);
+
+            ImGui::Text("Type: %s", resourceTypeName(resource.type));
+            ImGui::Text("Inventory: %u / %u", resource.current, resource.capacity);
             break;
         }
         case InspectorSelectionType::Node:
@@ -1372,16 +1438,19 @@ void AppHost::drawWorldGenerationPanel()
                 break;
             }
 
-            ImGui::Text("Name: %s", selectedNode->name.c_str());
-            ImGui::Text("ID: %u", selectedNode->id.value);
-            ImGui::Text("Parent: %u", selectedNode->parent.value);
-            ImGui::Text("Kind: %u", static_cast<unsigned int>(selectedNode->kind));
+            ImGui::Text("%s", selectedNode->name.c_str());
+            ImGui::SameLine(0.0f, 12.0f);
             if (ImGui::Button("Focus on Map##nodeFocus"))
             {
                 show_world_view_ = true;
                 inspector_highlight_node_ = selectedNode->id.value;
                 map_selected_node_ = selectedNode->id.value;
             }
+            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::Text("ID: %u", selectedNode->id.value);
+
+            ImGui::Text("Parent: %u", selectedNode->parent.value);
+            ImGui::Text("Kind: %u", static_cast<unsigned int>(selectedNode->kind));
             break;
         }
         }
@@ -2380,6 +2449,94 @@ void AppHost::refreshDefaultWorldgenConfig()
         ImGui::End();
     }
 
+    void AppHost::drawControlToolbar()
+    {
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        const float menuHeight = ImGui::GetFrameHeight();
+        const float paddingY = ImGui::GetStyle().FramePadding.y;
+        const float height = menuHeight + paddingY * 2.0f;
+
+        ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + menuHeight), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, height));
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, paddingY));
+        const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+
+        if (ImGui::Begin("Control Toolbar", nullptr, flags))
+        {
+            if (runtime_bridge_)
+            {
+                bool paused = runtime_bridge_->paused();
+                if (ImGui::Button(paused ? "Resume" : "Pause"))
+                {
+                    runtime_bridge_->setPaused(!paused);
+                    pushToast(paused ? "Resume" : "Pause", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+                }
+
+                ImGui::SameLine();
+                if (ImGui::Button("Step"))
+                {
+                    runtime_bridge_->requestStep(1);
+                    pushToast("Step x1", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                }
+
+                ImGui::SameLine();
+                if (ImGui::Button("Step x10"))
+                {
+                    runtime_bridge_->requestStep(10);
+                    pushToast("Step x10", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                }
+
+                ImGui::SameLine(0.0f, 12.0f);
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+                ImGui::SameLine(0.0f, 12.0f);
+
+                float speed = static_cast<float>(speed_multiplier_ui_);
+                ImGui::SetNextItemWidth(180.0f);
+                if (ImGui::SliderFloat("Speed", &speed, 0.25f, 8.0f, "%.2fx"))
+                {
+                    speed_multiplier_ui_ = speed;
+                    runtime_bridge_->setSpeedMultiplier(speed_multiplier_ui_);
+                }
+
+                ImGui::SameLine(0.0f, 18.0f);
+                if (ImGui::Checkbox("VSync", &config_.vsync))
+                {
+                    glfwSwapInterval(config_.vsync ? 1 : 0);
+                }
+
+                if (latest_snapshot_)
+                {
+                    ImGui::SameLine(0.0f, 18.0f);
+                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+                    ImGui::SameLine(0.0f, 12.0f);
+                    const auto &tick = latest_snapshot_->telemetry;
+                    ImGui::Text("Step %llu | Agents %zu | Resources %zu | Actions %zu",
+                                static_cast<unsigned long long>(tick.step),
+                                tick.agents.size(),
+                                tick.resources.size(),
+                                tick.actions.size());
+                }
+                else
+                {
+                    ImGui::SameLine(0.0f, 18.0f);
+                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+                    ImGui::SameLine(0.0f, 12.0f);
+                    ImGui::TextUnformatted("Waiting for snapshot...");
+                }
+            }
+            else
+            {
+                ImGui::TextUnformatted("RuntimeBridge unavailable.");
+            }
+        }
+        ImGui::End();
+        ImGui::PopStyleVar(3);
+    }
+
     void AppHost::drawStatusBar()
     {
         ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -2446,6 +2603,7 @@ void AppHost::refreshDefaultWorldgenConfig()
                         if (agent.entityId == trackedId)
                         {
                             inspector_highlight_node_ = agent.location.value;
+                            map_selected_node_ = agent.location.value;
                             if (inspector_follow_selection_)
                             {
                                 scene_selected_node_ = agent.location.value;
@@ -2464,6 +2622,7 @@ void AppHost::refreshDefaultWorldgenConfig()
                     if (inspector_selected_primary_ < latest_snapshot_->telemetry.resources.size())
                     {
                         inspector_highlight_node_ = latest_snapshot_->telemetry.resources[inspector_selected_primary_].location.value;
+                        map_selected_node_ = inspector_highlight_node_;
                     }
                     else
                     {
@@ -2473,6 +2632,7 @@ void AppHost::refreshDefaultWorldgenConfig()
                 else if (inspector_selection_type_ == InspectorSelectionType::Node)
                 {
                     inspector_highlight_node_ = inspector_selected_primary_;
+                    map_selected_node_ = inspector_selected_primary_;
                 }
             }
         }
@@ -2622,4 +2782,5 @@ void AppHost::refreshDefaultWorldgenConfig()
     }
 
 } // namespace Genesis::Sandbox::Gui
+
 

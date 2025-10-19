@@ -53,6 +53,7 @@ cmake --build build --target genesis_sandbox_gui
 - 面板底部展示命令队列状态表：
   - 列包含 `ID` / `标签` / `来源` / `状态` / `备注`。
   - 状态颜色：黄色（等待执行）、绿色（完成）、红色（失败）。
+  - 队列视图默认折叠，可勾选 Pending/Succeeded/Failed 过滤，并支持 “Clear Completed” 隐藏已完成记录。
   - 当 `payloadJson` 留空时，备注显示 `message`；否则会回退到提交时的 JSON 片段。
 - 命令执行流程：
   1. GUI 将 JSON 描述转换为 `RuntimeEvent`，通过 `RuntimeBridge::enqueueRuntimeEvent` 入队。
@@ -80,7 +81,8 @@ cmake --build build --target genesis_sandbox_gui
 > ⚠️ 远程或无图形环境运行时，窗口可能无法创建；请在本地含 GPU/桌面会话的环境中执行。
 
 ## Runtime 控制与快照
-- Welcome 面板提供 Pause/Resume、Step、Step x10 按钮，以及 0.25x ~ 8x 速度调节。
+- Control Toolbar（顶栏）集中 Pause/Resume、Step、Step ×10、Speed 与 VSync 控件，并响应 F5/F6/F7/F8/F9 快捷键。
+- Welcome 面板保留状态信息与背景色调整。
 - RuntimeBridge 在后台线程持续推进 `genesis::runtime::Runtime`，写入双缓冲 `SimulationSnapshot`（version/capturedAt/`TickTelemetry`，默认保留 96 帧）。
 - GUI 线程每帧从快照缓冲读取最新数据，更新世界视图、Telemetry 与状态栏。
 
@@ -126,3 +128,5 @@ cmake --build build --target genesis_sandbox_gui
 - F9: Toggle Telemetry panel
 
 Toast notifications pop at top-right for key actions (world generate/load/save, playback toggles).
+
+

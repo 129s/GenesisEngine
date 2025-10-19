@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "sandbox/gui/RuntimeBridge.hpp"
@@ -54,6 +55,7 @@ private:
 
     void drawDockspace();
     void drawMainMenuBar();
+    void drawControlToolbar();
     void drawWelcomePanel();
     void drawWorldGenerationPanel();
     void drawWorldViewPanel();
@@ -145,6 +147,10 @@ private:
     std::string world_load_status_;
     std::string world_save_status_;
     std::string command_script_status_;
+    bool world_queue_show_pending_{true};
+    bool world_queue_show_succeeded_{true};
+    bool world_queue_show_failed_{true};
+    std::unordered_set<std::uint64_t> world_queue_hidden_completed_;
 };
 
 } // namespace Genesis::Sandbox::Gui

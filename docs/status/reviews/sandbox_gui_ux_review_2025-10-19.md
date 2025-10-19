@@ -80,7 +80,11 @@
 - 快捷键：F5（Pause/Resume）, F6（Step×1）, F7（Step×10）, F8（Toggle Log）, F9（Toggle Telemetry）。
 - 通知：右上角 toast（3s消退，可堆叠）。
 - Map View：节点内加入简易字体图标（按节点类型 R/B/r/·），悬浮 tooltip 展示详情；名称文本发生重叠时自动抑制（重叠或未聚焦时隐藏）。
-## 实施记录（2025-10-20）
+- Control Toolbar：顶栏新增 Pause/Step/Speed/VSync，一致支持快捷键并弹出 toast。
+- World Generation：命令队列默认折叠，提供 Pending/Succeeded/Failed 过滤及“Clear Completed”按钮。
+- Inspector：Agent/Resource/Node 的 Focus/Follow/Open Scene 按钮统一至标题行，与 Map 选中状态联动。
 - AppHost/RuntimeBridge 主要 UI 文本统一为英文，命令状态、提示与错误消息均使用英文表述。
 - Map View 默认不再绘制全量拓扑连线；新增节点选择状态，可在地图或 Inspector 中选中节点后显示父节点（金色）与子节点（蓝色）的连线，并支持右键清除选择。
 - Inspector “Focus on Map” 与列表选项同步更新地图选择，使边缘联动与高亮一致。节点图标、标签避让与 tooltip 逻辑保持可读。
+
+

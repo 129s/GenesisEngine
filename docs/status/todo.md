@@ -48,13 +48,14 @@
 
 
 ## Sandbox GUI · UX 改进（依据 2025-10-19 评审）
-- [ ] Toolbar：将播放/步进/倍速从 Welcome 抽取为全局工具条。
-- [ ] World Generation：默认折叠“命令队列状态”，新增过滤与“清除已完成”；[x] 执行结果使用 toast 提示。
+- [x] Toolbar：将播放/步进/倍速与 VSync 抽取为全局控制条（Welcome 仅保留状态）。
+- [x] World Generation：默认折叠命令队列，提供 Pending/Success/Failed 过滤与“Clear Completed”；执行结果使用 toast 提示。
 - [x] GUI 文案统一为英文；[ ] 补充 Tooltip 与剩余表头优化。
 - [x] MapView：节点内图标+悬浮tooltip、标签重叠抑制（已落地）；[x] 节点选择+父/子连线按需显示；[ ] 文本缩放阈值隐藏；[ ] 选中高亮一致化；[ ] 交互提示与“复位视图”。
-- [ ] Inspector：将 Follow/定位/打开Scene 放到标题行；支持复制所选实体快照 JSON。
+- [x] Inspector：Follow/Focus/Open Scene 置于详情标题行；[ ] 支持复制所选实体快照 JSON。
 - [ ] Log Console：底部 Dock、级别过滤/搜索/清空；[x] F8 快捷键开关。
 - [ ] 配色规范：资源/行动/选中/警告的颜色体系文档化并落地到代码常量。
+
 
 
 

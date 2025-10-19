@@ -5,6 +5,7 @@ set(GENESIS_WORLDGEN_SOURCES
     worldgen/LayoutModule.cpp
     worldgen/Rng.cpp
     worldgen/TopologyModule.cpp
+    worldgen/ValidationModule.cpp
 )
 
 add_library(genesis_worldgen STATIC ${GENESIS_WORLDGEN_SOURCES})

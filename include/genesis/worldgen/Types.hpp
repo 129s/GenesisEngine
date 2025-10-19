@@ -10,6 +10,8 @@
 
 #include <toml++/toml.hpp>
 
+#include "genesis/world/WorldTypes.hpp"
+
 namespace genesis::worldgen
 {
 
@@ -129,6 +131,7 @@ struct GeneratedWorld
     std::vector<GenerationLogEntry> logs{};
     TopologyDraft topology{};
     LayoutDraft layout{};
+    world::LocationGraph world_graph{};
 };
 
 } // namespace genesis::worldgen

@@ -46,3 +46,12 @@
 - Sandbox GUI：`docs/status/backlog/sandbox-gui.md`
 - Tooling & Docs：`docs/status/backlog/tooling-docs.md`
 
+
+## Sandbox GUI · UX 改进（依据 2025-10-19 评审）
+- [ ] Toolbar：将播放/步进/倍速从 Welcome 抽取为全局工具条。
+- [ ] World Generation：默认折叠“命令队列状态”，新增过滤与“清除已完成”；执行结果使用 toast 提示。
+- [ ] 统一中文命名与表头文案；修复中文标签截断并为控件补充 Tooltip。
+- [ ] MapView：文本避让与缩放阈值隐藏；选中高亮一致化；新增交互提示与“复位视图”。
+- [ ] Inspector：将 Follow/定位/打开Scene 放到标题行；支持复制所选实体快照 JSON。
+- [ ] Log Console：底部 Dock、级别过滤/搜索/清空；F8 快捷键开关。
+- [ ] 配色规范：资源/行动/选中/警告的颜色体系文档化并落地到代码常量。

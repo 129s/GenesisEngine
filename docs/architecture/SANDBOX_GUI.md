@@ -18,6 +18,11 @@ Sandbox GUI 是主要的可视化与调试前端，消费 Runtime 的 Telemetry/
   - `Controls`：播放控制、速度倍率、单步、截图/录制；显示 `world_version`、`schema_version`。
   - `WorldGen`：热更新 MapConfig，触发世界重生成，并展示校验结果。
 
+## MapView 交互（2025-10-20）
+- 滚轮缩放与右键拖拽平移已上线，面板顶部提供 `Reset View` 按钮及 `Space` 快捷键复位相机。
+- 缩放倍率低于阈值时自动隐藏节点标签与资源条，仅在悬停或选中时强制显示，缓解密集场景遮挡。
+- 面板顶部同步展示交互提示（`Scroll zoom | Right-drag pan | Space reset`），降低探索成本。
+
 ## 线程模型
 - **Runtime 线程**
   - 固定周期推进模拟（或按 UI 设定的 speed 调整）。

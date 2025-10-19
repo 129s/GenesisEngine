@@ -1215,6 +1215,7 @@ void AppHost::drawWorldGenerationPanel()
             }
 
             std::string nodeName = "(Unknown)";
+            const RuntimeBridge::WorldAtlas::Node *nodeInfo = nullptr;
             if (atlasPtr)
             {
                 for (const auto &node : atlasPtr->nodes)
@@ -1222,6 +1223,7 @@ void AppHost::drawWorldGenerationPanel()
                     if (node.id.value == agent->location.value)
                     {
                         nodeName = node.name;
+                        nodeInfo = &node;
                         break;
                     }
                 }
@@ -1254,6 +1256,136 @@ void AppHost::drawWorldGenerationPanel()
             {
                 scene_selected_node_ = agent->location.value;
                 map_selected_node_ = agent->location.value;
+            }
+            ImGui::SameLine(0.0f, 8.0f);
+            if (ImGui::Button("Copy JSON##agentCopy"))
+            {
+                json agentJson;
+                agentJson["type"] = "agent";
+                agentJson["step"] = tick.step;
+                agentJson["snapshotVersion"] = snapshot.version;
+
+                auto &agentNode = agentJson["agent"];
+                agentNode["entityId"] = agent->entityId;
+                if (!agent->name.empty())
+                {
+                    agentNode["name"] = agent->name;
+                }
+                auto &locationJson = agentNode["location"];
+                locationJson["id"] = agent->location.value;
+                locationJson["name"] = nodeName;
+                if (nodeInfo)
+                {
+                    locationJson["parent"] = nodeInfo->parent.value;
+                    locationJson["kind"] = static_cast<unsigned int>(nodeInfo->kind);
+                    locationJson["position"] = {{"x", nodeInfo->position.x}, {"y", nodeInfo->position.y}};
+                }
+
+                json needsJson = json::array();
+                for (const auto &need : tick.needs)
+                {
+                    if (need.entityId == agent->entityId)
+                    {
+                        needsJson.push_back({
+                            {"name", need.needName},
+                            {"value", need.value},
+                            {"critical", need.critical}});
+                    }
+                }
+                if (!needsJson.empty())
+                {
+                    agentJson["needs"] = std::move(needsJson);
+                }
+
+                const genesis::telemetry::ActionSnapshot *actionPtr = nullptr;
+                for (const auto &entry : tick.actions)
+                {
+                    if (entry.entityId == agent->entityId)
+                    {
+                        actionPtr = &entry;
+                        break;
+                    }
+                }
+                if (actionPtr)
+                {
+                    json actionJson{
+                        {"label", actionPtr->currentAction},
+                        {"queueLength", actionPtr->queueLength},
+                        {"target", actionPtr->target.value},
+                        {"speed", actionPtr->speed},
+                        {"resourceType", resourceTypeName(actionPtr->resource)},
+                        {"amount", actionPtr->amount},
+                        {"reliefPerUnit", actionPtr->reliefPerUnit}};
+                    agentJson["action"] = std::move(actionJson);
+                }
+
+                const genesis::telemetry::PlannerSnapshot *plannerPtr = nullptr;
+                for (const auto &entry : tick.plannerDecisions)
+                {
+                    if (entry.entityId == agent->entityId)
+                    {
+                        plannerPtr = &entry;
+                        break;
+                    }
+                }
+                if (plannerPtr)
+                {
+                    agentJson["planner"] = {
+                        {"target", plannerPtr->target.value},
+                        {"travelCost", plannerPtr->travelCost},
+                        {"score", plannerPtr->score}};
+                }
+
+                const genesis::telemetry::MovementProgressSnapshot *movementPtr = nullptr;
+                for (const auto &entry : tick.movementProgress)
+                {
+                    if (entry.entityId == agent->entityId)
+                    {
+                        movementPtr = &entry;
+                        break;
+                    }
+                }
+                if (movementPtr)
+                {
+                    agentJson["movement"] = {
+                        {"from", movementPtr->from.value},
+                        {"to", movementPtr->to.value},
+                        {"progress", movementPtr->t01}};
+                }
+
+                json resourcesJson = json::array();
+                for (const auto &res : tick.resources)
+                {
+                    if (res.location.value == agent->location.value)
+                    {
+                        resourcesJson.push_back({
+                            {"name", res.name},
+                            {"type", resourceTypeName(res.type)},
+                            {"current", res.current},
+                            {"capacity", res.capacity}});
+                    }
+                }
+                if (!resourcesJson.empty())
+                {
+                    agentJson["resourcesAtLocation"] = std::move(resourcesJson);
+                }
+
+                std::vector<std::uint32_t> peers;
+                for (const auto &other : tick.agents)
+                {
+                    if (other.entityId != agent->entityId && other.location.value == agent->location.value)
+                    {
+                        peers.push_back(other.entityId);
+                    }
+                }
+                if (!peers.empty())
+                {
+                    agentJson["otherAgentsAtLocation"] = peers;
+                }
+
+                std::string serialized = agentJson.dump(2);
+                ImGui::SetClipboardText(serialized.c_str());
+                pushToast("Agent snapshot copied", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
             }
             ImGui::SameLine(0.0f, 12.0f);
             ImGui::Text("ID: %u", agent->entityId);
@@ -1393,6 +1525,20 @@ void AppHost::drawWorldGenerationPanel()
             }
 
             const auto &resource = tick.resources[inspector_selected_primary_];
+            std::string nodeName = "(Unknown)";
+            const RuntimeBridge::WorldAtlas::Node *nodeInfo = nullptr;
+            if (atlasPtr)
+            {
+                for (const auto &node : atlasPtr->nodes)
+                {
+                    if (node.id.value == resource.location.value)
+                    {
+                        nodeName = node.name;
+                        nodeInfo = &node;
+                        break;
+                    }
+                }
+            }
             ImGui::Text("%s", resource.name.c_str());
             ImGui::SameLine(0.0f, 12.0f);
             if (ImGui::Button("Focus on Map##resourceFocus"))
@@ -1407,8 +1553,77 @@ void AppHost::drawWorldGenerationPanel()
                 show_scene_view_ = true;
                 scene_selected_node_ = resource.location.value;
             }
+            ImGui::SameLine(0.0f, 8.0f);
+            if (ImGui::Button("Copy JSON##resourceCopy"))
+            {
+                json resourceJson;
+                resourceJson["type"] = "resource";
+                resourceJson["step"] = tick.step;
+                resourceJson["snapshotVersion"] = snapshot.version;
+
+                auto &resourceNode = resourceJson["resource"];
+                resourceNode["name"] = resource.name;
+                resourceNode["type"] = resourceTypeName(resource.type);
+                resourceNode["current"] = resource.current;
+                resourceNode["capacity"] = resource.capacity;
+
+                auto &locationJson = resourceNode["location"];
+                locationJson["id"] = resource.location.value;
+                locationJson["name"] = nodeName;
+                if (nodeInfo)
+                {
+                    locationJson["parent"] = nodeInfo->parent.value;
+                    locationJson["kind"] = static_cast<unsigned int>(nodeInfo->kind);
+                    locationJson["position"] = {{"x", nodeInfo->position.x}, {"y", nodeInfo->position.y}};
+                }
+
+                json spawnsJson = json::array();
+                if (atlasPtr)
+                {
+                    for (const auto &spawn : atlasPtr->spawns)
+                    {
+                        if (spawn.resource.location.value == resource.location.value && spawn.resource.name == resource.name)
+                        {
+                            json spawnJson{
+                                {"position", {{"x", spawn.position.x}, {"y", spawn.position.y}}},
+                                {"capacity", spawn.resource.capacity},
+                                {"ratePerStep", spawn.resource.ratePerStep}};
+                            if (spawn.resource.local_coord.has_value())
+                            {
+                                spawnJson["localCoord"] = {
+                                    {"x", spawn.resource.local_coord->first},
+                                    {"y", spawn.resource.local_coord->second}};
+                            }
+                            spawnsJson.push_back(std::move(spawnJson));
+                        }
+                    }
+                }
+                if (!spawnsJson.empty())
+                {
+                    resourceJson["spawns"] = std::move(spawnsJson);
+                }
+
+                json consumers = json::array();
+                for (const auto &action : tick.actions)
+                {
+                    if (action.target.value == resource.location.value)
+                    {
+                        consumers.push_back({
+                            {"entityId", action.entityId},
+                            {"action", action.currentAction}});
+                    }
+                }
+                if (!consumers.empty())
+                {
+                    resourceJson["activeAgents"] = std::move(consumers);
+                }
+
+                std::string serialized = resourceJson.dump(2);
+                ImGui::SetClipboardText(serialized.c_str());
+                pushToast("Resource snapshot copied", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
+            }
             ImGui::SameLine(0.0f, 12.0f);
-            ImGui::Text("Node: #%u", resource.location.value);
+            ImGui::Text("Node: #%u %s", resource.location.value, nodeName.c_str());
 
             ImGui::Text("Type: %s", resourceTypeName(resource.type));
             ImGui::Text("Inventory: %u / %u", resource.current, resource.capacity);
@@ -1445,6 +1660,86 @@ void AppHost::drawWorldGenerationPanel()
                 show_world_view_ = true;
                 inspector_highlight_node_ = selectedNode->id.value;
                 map_selected_node_ = selectedNode->id.value;
+            }
+            ImGui::SameLine(0.0f, 8.0f);
+            if (ImGui::Button("Copy JSON##nodeCopy"))
+            {
+                json nodeJson;
+                nodeJson["type"] = "node";
+                nodeJson["step"] = tick.step;
+                nodeJson["snapshotVersion"] = snapshot.version;
+
+                auto &nodeObj = nodeJson["node"];
+                nodeObj["id"] = selectedNode->id.value;
+                nodeObj["name"] = selectedNode->name;
+                nodeObj["parent"] = selectedNode->parent.value;
+                nodeObj["kind"] = static_cast<unsigned int>(selectedNode->kind);
+                nodeObj["position"] = {{"x", selectedNode->position.x}, {"y", selectedNode->position.y}};
+
+                json children = json::array();
+                for (const auto &n : atlasPtr->nodes)
+                {
+                    if (n.parent.value == selectedNode->id.value && n.id.value != selectedNode->id.value)
+                    {
+                        children.push_back({{"id", n.id.value}, {"name", n.name}});
+                    }
+                }
+                if (!children.empty())
+                {
+                    nodeObj["children"] = std::move(children);
+                }
+
+                json edges = json::array();
+                for (const auto &edge : atlasPtr->edges)
+                {
+                    if (edge.from.value == selectedNode->id.value || edge.to.value == selectedNode->id.value)
+                    {
+                        edges.push_back({
+                            {"from", edge.from.value},
+                            {"to", edge.to.value},
+                            {"bidirectional", edge.bidirectional}});
+                    }
+                }
+                if (!edges.empty())
+                {
+                    nodeJson["edges"] = std::move(edges);
+                }
+
+                json resourcesJson = json::array();
+                for (const auto &res : tick.resources)
+                {
+                    if (res.location.value == selectedNode->id.value)
+                    {
+                        resourcesJson.push_back({
+                            {"name", res.name},
+                            {"type", resourceTypeName(res.type)},
+                            {"current", res.current},
+                            {"capacity", res.capacity}});
+                    }
+                }
+                if (!resourcesJson.empty())
+                {
+                    nodeJson["resources"] = std::move(resourcesJson);
+                }
+
+                json agentsJson = json::array();
+                for (const auto &agent : tick.agents)
+                {
+                    if (agent.location.value == selectedNode->id.value)
+                    {
+                        agentsJson.push_back({
+                            {"entityId", agent.entityId},
+                            {"name", agent.name}});
+                    }
+                }
+                if (!agentsJson.empty())
+                {
+                    nodeJson["agents"] = std::move(agentsJson);
+                }
+
+                std::string serialized = nodeJson.dump(2);
+                ImGui::SetClipboardText(serialized.c_str());
+                pushToast("Node snapshot copied", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
             }
             ImGui::SameLine(0.0f, 12.0f);
             ImGui::Text("ID: %u", selectedNode->id.value);
@@ -1578,7 +1873,15 @@ void AppHost::drawWorldGenerationPanel()
         scene_cam_offset_x_ = 0.0f;
         scene_cam_offset_y_ = 0.0f;
         scene_cam_zoom_ = 1.5f;
+        resetMapViewCamera();
         map_selected_node_.reset();
+    }
+
+    void AppHost::resetMapViewCamera()
+    {
+        map_zoom_ = 1.0f;
+        map_pan_x_ = 0.0f;
+        map_pan_y_ = 0.0f;
     }
 
 void AppHost::refreshDefaultWorldgenConfig()
@@ -1665,6 +1968,13 @@ void AppHost::refreshDefaultWorldgenConfig()
                 }
             }
         }
+        ImGui::SameLine();
+        if (ImGui::Button("Reset View"))
+        {
+            resetMapViewCamera();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Scroll zoom | Right-drag pan | Space reset");
 
         const ImVec4 colorMove{0.30f, 0.63f, 0.96f, 1.0f};
         const ImVec4 colorConsume{0.97f, 0.62f, 0.24f, 1.0f};
@@ -1705,28 +2015,73 @@ void AppHost::refreshDefaultWorldgenConfig()
             }
         }
 
-        const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
+        const ImVec2 canvasAvail = ImGui::GetContentRegionAvail();
         const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-        const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
+        const ImVec2 canvasExtent{std::max(120.0f, canvasAvail.x), std::max(120.0f, canvasAvail.y)};
+        const ImVec2 canvasMax{canvasPos.x + canvasExtent.x, canvasPos.y + canvasExtent.y};
+
+        ImGui::SetCursorScreenPos(canvasPos);
+        ImGui::InvisibleButton("MapView.Canvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+        const bool canvasHovered = ImGui::IsItemHovered();
+        const bool canvasActive = ImGui::IsItemActive();
 
         ImDrawList *drawList = ImGui::GetWindowDrawList();
         const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
         drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
         drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
 
+        ImGuiIO &io = ImGui::GetIO();
+
         if (!atlas.nodes.empty())
         {
             const float padding = 28.0f;
             const float width = std::max(atlas.extent.x, 1.0f);
             const float height = std::max(atlas.extent.y, 1.0f);
-            const float scaleX = (canvasMax.x - canvasPos.x - padding * 2.0f) / width;
-            const float scaleY = (canvasMax.y - canvasPos.y - padding * 2.0f) / height;
+            const float scaleX = (canvasExtent.x - padding * 2.0f) / width;
+            const float scaleY = (canvasExtent.y - padding * 2.0f) / height;
+            const ImVec2 canvasOrigin{canvasPos.x + padding, canvasPos.y + padding};
+            const ImVec2 worldHalf{width * scaleX * 0.5f, height * scaleY * 0.5f};
+            const ImVec2 baseCenter{canvasOrigin.x + worldHalf.x, canvasOrigin.y + worldHalf.y};
+
+            if (canvasHovered && io.MouseWheel != 0.0f)
+            {
+                const float zoomStep = io.MouseWheel > 0.0f ? 1.1f : 0.9f;
+                const float newZoom = std::clamp(map_zoom_ * zoomStep, 0.25f, 5.0f);
+
+                ImVec2 delta{io.MousePos.x - (baseCenter.x + map_pan_x_), io.MousePos.y - (baseCenter.y + map_pan_y_)};
+                ImVec2 worldDelta{delta.x / map_zoom_, delta.y / map_zoom_};
+
+                map_zoom_ = newZoom;
+                ImVec2 newPan{
+                    io.MousePos.x - baseCenter.x - worldDelta.x * map_zoom_,
+                    io.MousePos.y - baseCenter.y - worldDelta.y * map_zoom_};
+                map_pan_x_ = newPan.x;
+                map_pan_y_ = newPan.y;
+            }
+
+            if (canvasActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+            {
+                ImVec2 delta = io.MouseDelta;
+                map_pan_x_ += delta.x;
+                map_pan_y_ += delta.y;
+            }
+
+            if (canvasHovered && ImGui::IsKeyPressed(ImGuiKey_Space))
+            {
+                resetMapViewCamera();
+            }
+
+            const float nodeLabelZoomThreshold = 0.75f;
+            const float resourceOverlayZoomThreshold = 0.60f;
+            const float agentLabelZoomThreshold = 0.90f;
 
             auto toScreen = [&](const RuntimeBridge::Vector2 &pos)
             {
+                const ImVec2 base{pos.x * scaleX, pos.y * scaleY};
+                const ImVec2 centered{(base.x - worldHalf.x) * map_zoom_, (base.y - worldHalf.y) * map_zoom_};
                 return ImVec2(
-                    canvasPos.x + padding + pos.x * scaleX,
-                    canvasPos.y + padding + pos.y * scaleY);
+                    baseCenter.x + map_pan_x_ + centered.x,
+                    baseCenter.y + map_pan_y_ + centered.y);
             };
 
             std::unordered_map<std::uint32_t, ImVec2> nodePositions;
@@ -1845,9 +2200,9 @@ void AppHost::refreshDefaultWorldgenConfig()
 
                 // Label to the right, avoid overlap; force when hovered/selected
                 bool hovered = false;
-                if (ImGui::IsWindowHovered())
+                if (canvasHovered)
                 {
-                    const ImVec2 mouse = ImGui::GetIO().MousePos;
+                    const ImVec2 mouse = io.MousePos;
                     const float dx = mouse.x - it->second.x;
                     const float dy = mouse.y - it->second.y;
                     hovered = (dx * dx + dy * dy) <= (radius * radius);
@@ -1860,16 +2215,17 @@ void AppHost::refreshDefaultWorldgenConfig()
                 {
                     if (r.Overlaps(labelRect)) { overlaps = true; break; }
                 }
-                if (!overlaps || hovered || highlighted)
+                const bool forceLabel = hovered || highlighted;
+                if ((map_zoom_ >= nodeLabelZoomThreshold || forceLabel) && (!overlaps || forceLabel))
                 {
                     drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
                     placedLabels.push_back(labelRect);
                 }
 
                 // Click to open Scene View on this node
-                if (ImGui::IsWindowHovered())
+                if (canvasHovered)
                 {
-                    const ImVec2 mouse = ImGui::GetIO().MousePos;
+                    const ImVec2 mouse = io.MousePos;
                     const float dx = mouse.x - it->second.x;
                     const float dy = mouse.y - it->second.y;
                     if ((dx * dx + dy * dy) <= (radius * radius))
@@ -1893,9 +2249,13 @@ void AppHost::refreshDefaultWorldgenConfig()
                 }
             }
 
-            if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            if (canvasHovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
             {
-                map_selected_node_.reset();
+                const ImVec2 drag = io.MouseDragMaxDistanceAbs[ImGuiMouseButton_Right];
+                if (drag.x < 4.0f && drag.y < 4.0f)
+                {
+                    map_selected_node_.reset();
+                }
             }
 
             for (const auto &spawn : atlas.spawns)
@@ -1936,6 +2296,12 @@ void AppHost::refreshDefaultWorldgenConfig()
                 {
                     auto posIt = nodePositions.find(locationId);
                     if (posIt == nodePositions.end())
+                    {
+                        continue;
+                    }
+                    const bool forceOverlay = (map_selected_node_ && *map_selected_node_ == locationId) ||
+                                              (inspector_highlight_node_ && *inspector_highlight_node_ == locationId);
+                    if (map_zoom_ < resourceOverlayZoomThreshold && !forceOverlay)
                     {
                         continue;
                     }
@@ -2057,13 +2423,14 @@ void AppHost::refreshDefaultWorldgenConfig()
                     drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
                     drawList->AddCircle(screenPos, 7.0f, borderColor, 16, 1.4f);
 
-                    if (inspector_selection_type_ == InspectorSelectionType::Agent && inspector_selected_primary_ == agent.entityId)
+                    const bool agentSelected = inspector_selection_type_ == InspectorSelectionType::Agent && inspector_selected_primary_ == agent.entityId;
+                    if (agentSelected)
                     {
                         drawList->AddCircle(screenPos, 11.0f, highlightColor, 24, 2.5f);
                     }
 
                     // Agent name label
-                    if (!agent.name.empty())
+                    if (!agent.name.empty() && (map_zoom_ >= agentLabelZoomThreshold || agentSelected))
                     {
                         const ImVec2 namePos{screenPos.x + 9.0f, screenPos.y - ImGui::GetTextLineHeight() * 0.5f};
                         drawList->AddText(namePos, ImGui::GetColorU32(ImGuiCol_Text), agent.name.c_str());

@@ -70,6 +70,7 @@ private:
     void updateRuntimeSnapshot();
     void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
     void resetSceneForNewWorld();
+    void resetMapViewCamera();
     void refreshCommandStatusTexts(const std::vector<RuntimeBridge::CommandProgress>& commands);
     void refreshDefaultWorldgenConfig();
 
@@ -97,6 +98,9 @@ private:
     std::size_t agent_trail_samples_{24};
     std::unordered_map<std::uint32_t, std::deque<RuntimeBridge::Vector2>> agent_trails_;
     std::optional<std::uint32_t> map_selected_node_;
+    float map_zoom_{1.0f};
+    float map_pan_x_{0.0f};
+    float map_pan_y_{0.0f};
 
     // Toast notifications (top-right)
     struct Toast

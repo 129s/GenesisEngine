@@ -11,6 +11,7 @@
   - Node：显示 ID、父节点、类型并可跳转。
 - 事件与差异：展示本帧 Runtime 事件日志，并基于 `SimulationSnapshotDiff` 列出所选 Agent 的需求变化。
 - 地图联动：MapView 以描边高亮所选节点/Agent，Inspector 面板中跟随开关会驱动 SceneView 聚焦节点。
+- 快照导出：Agent / Resource / Node 详情提供 “Copy JSON” 按钮，复制结构化快照（含 Telemetry / Atlas 上下文），便于日志分析与回归测试。
 
 ## 待完善清单
 - Agent 详情需补充属性、人格 Big5、Traits 及最近日志。

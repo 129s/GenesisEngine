@@ -115,3 +115,12 @@ cmake --build build --target genesis_sandbox_gui
 
 ## 故障排查
 - 若在某些终端环境运行 GUI 出现卡死或约第 200 步崩溃，请参考 `docs/troubleshooting/sandbox_gui.md`。
+
+## Hotkeys
+- F5: Pause/Resume
+- F6: Step ×1
+- F7: Step ×10
+- F8: Toggle Log Console
+- F9: Toggle Telemetry panel
+
+Toast notifications pop at top-right for key actions (world generate/load/save, playback toggles).

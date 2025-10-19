@@ -1,6 +1,6 @@
 # GenesisEngine 路线图（GUI 优先版）
 
-> 2025-10-19 更新：Sandbox GUI 已成为主力观测与调试入口；CLI 进入维护模式；运行时架构完成“Core Runtime → Runtime Facade → Presentation”拆分。
+> 2025-10-19 更新：Sandbox GUI 已成为主力观测与调试入口；CLI 进入维护模式；运行时架构完成“Core Runtime → Runtime Facade → Presentation”拆分；P0 阶段任务正式启动（目标 4 周内完成 GUI 里程碑 4 与回归基线）。
 
 ## 背景与更新要点
 - Sandbox CLI 在复杂地图与长时运行下存在频闪与调试效率瓶颈，决定冻结新增特性，仅保持回退能力。
@@ -40,6 +40,11 @@
 ## 阶段规划
 
 ### 近期（P0 · GUI 框架稳定与运行时加固）
+> 阶段状态：执行中（自 2025-10-19）；每周日同步风险与燃尽图。
+- **当周聚焦**
+  - 快照差异与事件注入 API：完成接口草案 + 审核要点，锁定 Telemetry 集成方式。
+  - CLI 核心命令集：补齐 `pause/resume/step/render/inspect` 的 smoke test 脚本与断言覆盖。
+  - GUI Inspector：输出信息架构草图（实体列表/详情/地图联动）并确认数据绑定依赖。
 - 运行时与协议
   - [ ] 双缓冲 `SimulationSnapshot` 与版本标记，确保 GUI/CLI 安全读取。
   - [ ] 快照差异与事件注入 API，支撑回放、断言与工具链。

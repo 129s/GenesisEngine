@@ -6,6 +6,10 @@
   - 新增 `Runtime::latestSnapshotDiff()` 与 `SimulationSnapshotDiff`，支持快速检测资源/需求/行动变化并携带事件日志。
   - 引入 `Runtime::enqueueEvent` 命令队列，在每个模拟步执行并写入 `RuntimeEventReport`，用于 GUI 交互与自动化回放。
   - 扩展双缓冲快照结构，捕获命令执行结果并在文档中更新使用指南。
+- Sandbox GUI Inspector 基础版：
+  - Inspector 面板新增实体列表（Agent/Resource/Node 分组）与搜索，详情面板支持查看需求、行动、Planner 结果与移动进度。
+  - Map View 增加选中高亮、Agent 圆环强调及“一键定位/Scene 打开”按钮；支持跟随模式自动切换 Scene View。
+  - 将 Runtime 事件日志与需求 diff 整合进 Inspector，便于定位命令执行结果与本帧变化。
 - 构建与测试稳定性改进：
   - 为 `genesis_sandbox_cli` 增加 `Genesis::Engine` 链接，修复噪声世界生成符号缺失导致的链接错误。
   - 为 `genesis_runtime_tests` 增加 `Genesis::Engine` 链接，避免 Windows 下跨模块静态库初始化差异带来的崩溃。

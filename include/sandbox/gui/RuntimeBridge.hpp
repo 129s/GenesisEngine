@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "genesis/runtime/Runtime.hpp"
+#include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/core/Engine.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/WorldRegistry.hpp"
@@ -36,6 +37,8 @@ public:
         genesis::telemetry::TickTelemetry telemetry;
         std::chrono::steady_clock::time_point capturedAt{};
         std::vector<RuntimeBridge::Vector2> agentPositions;
+        std::vector<genesis::runtime::RuntimeEventReport> events;
+        std::optional<genesis::runtime::SimulationSnapshotDiff> diff;
     };
 
     struct WorldAtlas

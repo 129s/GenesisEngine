@@ -57,6 +57,7 @@ private:
     void drawWorldViewPanel();
     void drawSceneViewPanel();
     void drawTelemetryPanel();
+    void drawInspectorPanel();
     void drawLogPanel();
     void drawStatusBar();
 
@@ -74,6 +75,7 @@ private:
     std::unique_ptr<RuntimeBridge> runtime_bridge_;
     std::optional<RuntimeBridge::Snapshot> latest_snapshot_;
     double speed_multiplier_ui_{1.0};
+    bool show_inspector_{true};
     bool show_world_view_{false};
     bool show_scene_view_{true};
     bool show_telemetry_{true};
@@ -96,6 +98,21 @@ private:
     bool scene_show_grid_{true};
     bool scene_show_anchors_{true};
     bool scene_show_resources_{true};
+
+    enum class InspectorSelectionType
+    {
+        None,
+        Agent,
+        Resource,
+        Node
+    };
+
+    std::array<char, 128> inspector_search_buffer_{};
+    InspectorSelectionType inspector_selection_type_{InspectorSelectionType::None};
+    std::uint32_t inspector_selected_primary_{0};
+    std::uint32_t inspector_selected_secondary_{0};
+    std::optional<std::uint32_t> inspector_highlight_node_;
+    bool inspector_follow_selection_{false};
 
     // World generation UI state
     std::array<char, 512> worldgen_config_buffer_{};

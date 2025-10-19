@@ -35,7 +35,8 @@ cmake --build build --target genesis_sandbox_gui
   - 资源点（local_coord）与锚点（anchors）标注；
   - 相机平移（右键拖拽）与缩放（滚轮）。
   - 网格/锚点/资源显示开关。
-- Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要
+- Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要。
+- Inspector 面板：提供 Agent / Resource / Node 列表与搜索，详情面板展示需求、行动、Planner 结果及 Runtime 事件，支持快速定位到 Map/Scene 以及跟随模式。
 - 底部状态栏：快速统计（Step/Agents/Resources/Actions）
 - Log Console 面板：捕获 `spdlog` 输出并持续滚动（默认开启，支持手动关闭/自动滚动）。
 - 可选 Dear ImGui Demo 窗口（验证 Docking 与基础组件）
@@ -57,6 +58,7 @@ cmake --build build --target genesis_sandbox_gui
 ## 已知限制
 - Map View 暂无摄像机/缩放交互，布局使用 coord_global；位置插值依赖 movement_progress（可切换 Interpolate）。
   - 在 Map 上点击节点可打开 Scene View 并选中对应节点。
+- Inspector 仅展示需求/行动等基础信息，尚未接入人格 Big5、Traits、Portal 详情及历史趋势曲线。
 
 ## Scene View 面板（占位版）
 - 以整数网格为单位渲染，像素 tileSize 仅影响可视大小；
@@ -72,7 +74,7 @@ cmake --build build --target genesis_sandbox_gui
 
 ## 下一步
 - 里程碑 3：完善控制台板（播放/步进/倍率 UI）、HUD 指标与性能采样。
-- 里程碑 4：Inspector & Telemetry 曲线（实体选择、指标趋势）。
+- 里程碑 4：Inspector 深化（人格/Traits、Portal 详情、历史曲线）与 Telemetry 图表。
 - 里程碑 5：WorldGen 参数面板与世界热加载。
 - 请跟踪 `docs/roadmap/SANDBOX_GUI.md` 获取后续任务进度与待办。
 

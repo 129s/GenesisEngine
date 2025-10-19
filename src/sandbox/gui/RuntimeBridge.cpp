@@ -289,6 +289,15 @@ void RuntimeBridge::captureSnapshot()
     {
         snapshot.capturedAt = std::chrono::steady_clock::now();
     }
+    snapshot.events = runtimeSnapshot->events;
+    if (auto diff = runtime_.latestSnapshotDiff())
+    {
+        snapshot.diff = std::move(*diff);
+    }
+    else
+    {
+        snapshot.diff.reset();
+    }
     snapshot.agentPositions.reserve(snapshot.telemetry.agents.size());
     for (const auto& agent : snapshot.telemetry.agents)
     {

@@ -13,11 +13,13 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cctype>
 #include <cstdio>
 #include <deque>
 #include <filesystem>
 #include <limits>
 #include <mutex>
+#include <numeric>
 #include <random>
 #include <string>
 #include <string_view>
@@ -126,10 +128,35 @@ namespace Genesis::Sandbox::Gui
     } // namespace
 
     AppHost::AppHost(AppHostConfig config)
-        : config_(std::move(config)), clear_color_{0.07f, 0.07f, 0.10f, 1.0f}, runtime_bridge_(std::make_unique<RuntimeBridge>()), speed_multiplier_ui_(1.0), show_world_view_(false), show_scene_view_(true), show_telemetry_(true), show_logs_(true), show_worldgen_panel_(true), log_auto_scroll_(true), show_agent_overlay_(true), show_agent_trails_(false), agent_trail_samples_(24), scene_selected_node_(0), scene_cam_offset_x_(0.0f), scene_cam_offset_y_(0.0f), scene_cam_zoom_(1.5f), scene_show_grid_(true), scene_show_anchors_(true), scene_show_resources_(true)
+        : config_(std::move(config))
+        , clear_color_{0.07f, 0.07f, 0.10f, 1.0f}
+        , runtime_bridge_(std::make_unique<RuntimeBridge>())
+        , speed_multiplier_ui_(1.0)
+        , show_inspector_(true)
+        , show_world_view_(false)
+        , show_scene_view_(true)
+        , show_telemetry_(true)
+        , show_logs_(true)
+        , show_worldgen_panel_(true)
+        , log_auto_scroll_(true)
+        , show_agent_overlay_(true)
+        , show_agent_trails_(false)
+        , agent_trail_samples_(24)
+        , inspector_selection_type_(InspectorSelectionType::None)
+        , inspector_selected_primary_(0)
+        , inspector_selected_secondary_(0)
+        , inspector_follow_selection_(false)
+        , scene_selected_node_(0)
+        , scene_cam_offset_x_(0.0f)
+        , scene_cam_offset_y_(0.0f)
+        , scene_cam_zoom_(1.5f)
+        , scene_show_grid_(true)
+        , scene_show_anchors_(true)
+        , scene_show_resources_(true)
     {
         refreshDefaultWorldgenConfig();
         worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
+        std::fill(inspector_search_buffer_.begin(), inspector_search_buffer_.end(), '\0');
 
         if (auto logger = spdlog::default_logger())
         {
@@ -383,6 +410,7 @@ namespace Genesis::Sandbox::Gui
         drawMainMenuBar();
         drawWelcomePanel();
         drawWorldGenerationPanel();
+        drawInspectorPanel();
         drawWorldViewPanel();
         drawSceneViewPanel();
         drawTelemetryPanel();
@@ -435,6 +463,7 @@ namespace Genesis::Sandbox::Gui
             }
             if (ImGui::BeginMenu("View"))
             {
+                ImGui::MenuItem("Inspector", nullptr, &show_inspector_);
                 ImGui::MenuItem("Map View", nullptr, &show_world_view_);
                 ImGui::MenuItem("Scene View", nullptr, &show_scene_view_);
                 ImGui::MenuItem("Telemetry", nullptr, &show_telemetry_);
@@ -722,10 +751,509 @@ void AppHost::drawWorldGenerationPanel()
     ImGui::End();
 }
 
+    void AppHost::drawInspectorPanel()
+    {
+        if (!show_inspector_)
+        {
+            return;
+        }
+
+        if (!ImGui::Begin("Inspector", &show_inspector_))
+        {
+            ImGui::End();
+            return;
+        }
+
+        if (!latest_snapshot_)
+        {
+            ImGui::TextUnformatted("等待快照数据…");
+            ImGui::End();
+            return;
+        }
+
+        const auto &snapshot = *latest_snapshot_;
+        const auto &tick = snapshot.telemetry;
+        const RuntimeBridge::WorldAtlas *atlasPtr = runtime_bridge_ ? &runtime_bridge_->atlas() : nullptr;
+
+        ImGui::InputTextWithHint("##InspectorSearch", "搜索名称/ID/类型", inspector_search_buffer_.data(), inspector_search_buffer_.size());
+        std::string filterRaw(inspector_search_buffer_.data());
+        std::string filterLower = filterRaw;
+        std::transform(filterLower.begin(), filterLower.end(), filterLower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        const bool filterEmpty = filterLower.empty();
+
+        auto toLowerString = [](std::string value) {
+            std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+            return value;
+        };
+
+        auto matchesFilter = [&](const std::string &text, std::uint32_t id, const std::string &extra) -> bool {
+            if (filterEmpty)
+            {
+                return true;
+            }
+            if (!text.empty())
+            {
+                auto lowered = toLowerString(text);
+                if (lowered.find(filterLower) != std::string::npos)
+                {
+                    return true;
+                }
+            }
+            if (!extra.empty())
+            {
+                auto lowered = toLowerString(extra);
+                if (lowered.find(filterLower) != std::string::npos)
+                {
+                    return true;
+                }
+            }
+            char buffer[32];
+            std::snprintf(buffer, sizeof(buffer), "%u", id);
+            auto lowered = toLowerString(std::string{buffer});
+            return lowered.find(filterLower) != std::string::npos;
+        };
+
+        const auto resourceTypeName = [](genesis::world::ResourceType type) -> const char * {
+            switch (type)
+            {
+            case genesis::world::ResourceType::Food:
+                return "Food";
+            case genesis::world::ResourceType::Drink:
+                return "Drink";
+            case genesis::world::ResourceType::Social:
+                return "Social";
+            default:
+                return "Unknown";
+            }
+        };
+
+        ImGui::Separator();
+
+        const float listWidth = 260.0f;
+        const ImVec2 listSize{listWidth, ImGui::GetContentRegionAvail().y};
+        ImGui::BeginChild("InspectorList", listSize, true);
+
+        if (ImGui::CollapsingHeader("代理 Agents", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            std::vector<std::size_t> indices(tick.agents.size());
+            std::iota(indices.begin(), indices.end(), 0);
+            std::sort(indices.begin(), indices.end(), [&](std::size_t lhs, std::size_t rhs) {
+                const auto &a = tick.agents[lhs];
+                const auto &b = tick.agents[rhs];
+                if (a.name == b.name)
+                {
+                    return a.entityId < b.entityId;
+                }
+                if (a.name.empty())
+                {
+                    return false;
+                }
+                if (b.name.empty())
+                {
+                    return true;
+                }
+                return a.name < b.name;
+            });
+
+            for (std::size_t idx : indices)
+            {
+                const auto &agent = tick.agents[idx];
+                std::string nodeName;
+                if (atlasPtr)
+                {
+                    for (const auto &node : atlasPtr->nodes)
+                    {
+                        if (node.id.value == agent.location.value)
+                        {
+                            nodeName = node.name;
+                            break;
+                        }
+                    }
+                }
+
+                if (!matchesFilter(agent.name, agent.entityId, nodeName))
+                {
+                    continue;
+                }
+
+                char label[128];
+                if (!agent.name.empty())
+                {
+                    std::snprintf(label, sizeof(label), "%s [#%u]", agent.name.c_str(), agent.entityId);
+                }
+                else
+                {
+                    std::snprintf(label, sizeof(label), "Agent [#%u]", agent.entityId);
+                }
+
+                const bool selected = inspector_selection_type_ == InspectorSelectionType::Agent && inspector_selected_primary_ == agent.entityId;
+                ImGui::PushID(static_cast<int>(agent.entityId));
+                if (ImGui::Selectable(label, selected))
+                {
+                    inspector_selection_type_ = InspectorSelectionType::Agent;
+                    inspector_selected_primary_ = agent.entityId;
+                    inspector_selected_secondary_ = static_cast<std::uint32_t>(idx);
+                    inspector_highlight_node_ = agent.location.value;
+                    if (inspector_follow_selection_)
+                    {
+                        scene_selected_node_ = agent.location.value;
+                    }
+                }
+                ImGui::PopID();
+                if (!nodeName.empty() && ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("所在节点: %s", nodeName.c_str());
+                }
+            }
+        }
+
+        if (ImGui::CollapsingHeader("资源 Resources", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            for (std::size_t i = 0; i < tick.resources.size(); ++i)
+            {
+                const auto &resource = tick.resources[i];
+                std::string nodeName;
+                if (atlasPtr)
+                {
+                    for (const auto &node : atlasPtr->nodes)
+                    {
+                        if (node.id.value == resource.location.value)
+                        {
+                            nodeName = node.name;
+                            break;
+                        }
+                    }
+                }
+
+                const std::string extra = std::string(resourceTypeName(resource.type)) + " " + nodeName;
+                if (!matchesFilter(resource.name, resource.location.value, extra))
+                {
+                    continue;
+                }
+
+            char label[160];
+            std::snprintf(label, sizeof(label), "%s (%s) [节点 #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
+
+                const bool selected = inspector_selection_type_ == InspectorSelectionType::Resource && inspector_selected_primary_ == static_cast<std::uint32_t>(i);
+                ImGui::PushID(static_cast<int>(resource.location.value * 4096 + static_cast<std::uint32_t>(i)));
+                if (ImGui::Selectable(label, selected))
+                {
+                    inspector_selection_type_ = InspectorSelectionType::Resource;
+                    inspector_selected_primary_ = static_cast<std::uint32_t>(i);
+                    inspector_selected_secondary_ = resource.location.value;
+                    inspector_highlight_node_ = resource.location.value;
+                }
+                ImGui::PopID();
+            }
+        }
+
+        if (atlasPtr && ImGui::CollapsingHeader("节点 Nodes", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            for (const auto &node : atlasPtr->nodes)
+            {
+                if (!matchesFilter(node.name, node.id.value, ""))
+                {
+                    continue;
+                }
+
+                char label[128];
+                std::snprintf(label, sizeof(label), "%s [#%u]", node.name.c_str(), node.id.value);
+
+                const bool selected = inspector_selection_type_ == InspectorSelectionType::Node && inspector_selected_primary_ == node.id.value;
+                ImGui::PushID(static_cast<int>(node.id.value));
+                if (ImGui::Selectable(label, selected))
+                {
+                    inspector_selection_type_ = InspectorSelectionType::Node;
+                    inspector_selected_primary_ = node.id.value;
+                    inspector_selected_secondary_ = 0;
+                    inspector_highlight_node_ = node.id.value;
+                }
+                ImGui::PopID();
+            }
+        }
+
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+        ImGui::BeginChild("InspectorDetails", ImVec2(0.0f, listSize.y), false);
+
+        switch (inspector_selection_type_)
+        {
+        case InspectorSelectionType::None:
+            ImGui::TextUnformatted("请选择左侧实体以查看详情。");
+            break;
+        case InspectorSelectionType::Agent:
+        {
+            const genesis::telemetry::AgentSnapshot *agent = nullptr;
+            for (const auto &candidate : tick.agents)
+            {
+                if (candidate.entityId == inspector_selected_primary_)
+                {
+                    agent = &candidate;
+                    break;
+                }
+            }
+
+            if (!agent)
+            {
+                ImGui::Text("代理 #%u 不在当前快照中。", inspector_selected_primary_);
+                break;
+            }
+
+            std::string nodeName = "(未知)";
+            if (atlasPtr)
+            {
+                for (const auto &node : atlasPtr->nodes)
+                {
+                    if (node.id.value == agent->location.value)
+                    {
+                        nodeName = node.name;
+                        break;
+                    }
+                }
+            }
+
+            ImGui::Text("ID: %u", agent->entityId);
+            if (!agent->name.empty())
+            {
+                ImGui::Text("名称: %s", agent->name.c_str());
+            }
+            ImGui::Text("位置: #%u %s", agent->location.value, nodeName.c_str());
+
+            if (ImGui::Button("定位到地图"))
+            {
+                show_world_view_ = true;
+                inspector_highlight_node_ = agent->location.value;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("打开 Scene"))
+            {
+                show_scene_view_ = true;
+                scene_selected_node_ = agent->location.value;
+            }
+            ImGui::SameLine();
+            ImGui::Checkbox("跟随", &inspector_follow_selection_);
+
+            ImGui::Separator();
+
+            std::vector<const genesis::telemetry::NeedSnapshot *> needs;
+            for (const auto &need : tick.needs)
+            {
+                if (need.entityId == agent->entityId)
+                {
+                    needs.push_back(&need);
+                }
+            }
+            if (!needs.empty())
+            {
+                if (ImGui::BeginTable("NeedsTable", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
+                {
+                    ImGui::TableSetupColumn("需求");
+                    ImGui::TableSetupColumn("强度");
+                    ImGui::TableSetupColumn("临界");
+                    ImGui::TableHeadersRow();
+
+                    for (const auto *need : needs)
+                    {
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::TextUnformatted(need->needName.c_str());
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::Text("%.2f", need->value);
+                        ImGui::TableSetColumnIndex(2);
+                        ImGui::TextUnformatted(need->critical ? "是" : "否");
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
+            else
+            {
+                ImGui::TextUnformatted("暂无需求数据。");
+            }
+
+            const genesis::telemetry::ActionSnapshot *action = nullptr;
+            for (const auto &entry : tick.actions)
+            {
+                if (entry.entityId == agent->entityId)
+                {
+                    action = &entry;
+                    break;
+                }
+            }
+
+            if (action)
+            {
+                ImGui::Separator();
+                ImGui::Text("当前行动: %s", action->currentAction.c_str());
+                ImGui::Text("目标节点: #%u", action->target.value);
+                ImGui::Text("队列长度: %u", action->queueLength);
+                ImGui::Text("速度: %.2f", action->speed);
+                ImGui::Text("资源: %s · 数量 %u", resourceTypeName(action->resource), action->amount);
+            }
+
+            const genesis::telemetry::PlannerSnapshot *planner = nullptr;
+            for (const auto &entry : tick.plannerDecisions)
+            {
+                if (entry.entityId == agent->entityId)
+                {
+                    planner = &entry;
+                    break;
+                }
+            }
+            if (planner)
+            {
+                ImGui::Separator();
+                ImGui::Text("Planner 目标: #%u", planner->target.value);
+                ImGui::Text("Travel Cost: %.2f", planner->travelCost);
+                ImGui::Text("Score: %.2f", planner->score);
+            }
+
+            const genesis::telemetry::MovementProgressSnapshot *movement = nullptr;
+            for (const auto &entry : tick.movementProgress)
+            {
+                if (entry.entityId == agent->entityId)
+                {
+                    movement = &entry;
+                    break;
+                }
+            }
+            if (movement)
+            {
+                ImGui::Separator();
+                ImGui::Text("移动进度: %u → %u (%.2f)", movement->from.value, movement->to.value, movement->t01);
+            }
+
+            if (snapshot.diff)
+            {
+                bool printedHeader = false;
+                for (const auto &change : snapshot.diff->needChanges)
+                {
+                    const auto *afterNeed = change.after ? &(*change.after) : nullptr;
+                    const auto *beforeNeed = change.before ? &(*change.before) : nullptr;
+                    if ((afterNeed && afterNeed->entityId == agent->entityId) || (beforeNeed && beforeNeed->entityId == agent->entityId))
+                    {
+                        if (!printedHeader)
+                        {
+                            ImGui::Separator();
+                            ImGui::TextUnformatted("本帧需求变化");
+                            printedHeader = true;
+                        }
+                        char delta[160];
+                        if (beforeNeed && afterNeed)
+                        {
+                            std::snprintf(delta, sizeof(delta), "%s: %.2f → %.2f", afterNeed->needName.c_str(), beforeNeed->value, afterNeed->value);
+                        }
+                        else if (afterNeed)
+                        {
+                            std::snprintf(delta, sizeof(delta), "%s: 新增 %.2f", afterNeed->needName.c_str(), afterNeed->value);
+                        }
+                        else
+                        {
+                            std::snprintf(delta, sizeof(delta), "%s: 移除 (%.2f)", beforeNeed->needName.c_str(), beforeNeed->value);
+                        }
+                        ImGui::BulletText("%s", delta);
+                    }
+                }
+            }
+            break;
+        }
+        case InspectorSelectionType::Resource:
+        {
+            if (inspector_selected_primary_ >= tick.resources.size())
+            {
+                ImGui::TextUnformatted("当前资源索引已过期。");
+                break;
+            }
+
+            const auto &resource = tick.resources[inspector_selected_primary_];
+            ImGui::Text("名称: %s", resource.name.c_str());
+            ImGui::Text("类型: %s", resourceTypeName(resource.type));
+            ImGui::Text("节点: #%u", resource.location.value);
+            ImGui::Text("库存: %u / %u", resource.current, resource.capacity);
+
+            if (ImGui::Button("定位到地图##resourceFocus"))
+            {
+                show_world_view_ = true;
+                inspector_highlight_node_ = resource.location.value;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("打开 Scene##resourceScene"))
+            {
+                show_scene_view_ = true;
+                scene_selected_node_ = resource.location.value;
+            }
+            break;
+        }
+        case InspectorSelectionType::Node:
+        {
+            if (!atlasPtr)
+            {
+                ImGui::TextUnformatted("当前世界无节点信息。");
+                break;
+            }
+
+            const RuntimeBridge::WorldAtlas::Node *selectedNode = nullptr;
+            for (const auto &node : atlasPtr->nodes)
+            {
+                if (node.id.value == inspector_selected_primary_)
+                {
+                    selectedNode = &node;
+                    break;
+                }
+            }
+
+            if (!selectedNode)
+            {
+                ImGui::Text("节点 #%u 不存在。", inspector_selected_primary_);
+                break;
+            }
+
+            ImGui::Text("名称: %s", selectedNode->name.c_str());
+            ImGui::Text("ID: %u", selectedNode->id.value);
+            ImGui::Text("父节点: %u", selectedNode->parent.value);
+            ImGui::Text("类型: %u", static_cast<unsigned int>(selectedNode->kind));
+            if (ImGui::Button("定位到地图##nodeFocus"))
+            {
+                show_world_view_ = true;
+                inspector_highlight_node_ = selectedNode->id.value;
+            }
+            break;
+        }
+        }
+
+        ImGui::Separator();
+        if (!snapshot.events.empty())
+        {
+            ImGui::TextUnformatted("本帧 Runtime 事件");
+            if (ImGui::BeginChild("InspectorEventsLog", ImVec2(0, 140.0f), true))
+            {
+                for (const auto &evt : snapshot.events)
+                {
+                    ImGui::TextColored(evt.success ? ImVec4(0.62f, 0.84f, 0.58f, 1.0f) : ImVec4(0.95f, 0.45f, 0.45f, 1.0f),
+                                       "[#%llu] %s", static_cast<unsigned long long>(evt.id), evt.label.c_str());
+                    if (!evt.message.empty())
+                    {
+                        ImGui::BulletText("%s", evt.message.c_str());
+                    }
+                }
+            }
+            ImGui::EndChild();
+        }
+
+        ImGui::EndChild();
+        ImGui::End();
+    }
+
     void AppHost::resetSceneForNewWorld()
     {
         latest_snapshot_.reset();
         agent_trails_.clear();
+        inspector_selection_type_ = InspectorSelectionType::None;
+        inspector_selected_primary_ = 0;
+        inspector_selected_secondary_ = 0;
+        inspector_highlight_node_.reset();
+        inspector_follow_selection_ = false;
         scene_selected_node_ = 0;
         scene_cam_offset_x_ = 0.0f;
         scene_cam_offset_y_ = 0.0f;
@@ -815,6 +1343,7 @@ void AppHost::refreshDefaultWorldgenConfig()
         const ImVec4 colorConsume{0.97f, 0.62f, 0.24f, 1.0f};
         const ImVec4 colorIdle{0.66f, 0.66f, 0.66f, 1.0f};
         const ImVec4 colorUnknown{0.82f, 0.52f, 0.90f, 1.0f};
+        const ImU32 highlightColor = ImGui::GetColorU32(ImVec4(0.98f, 0.83f, 0.37f, 1.0f));
 
         if (show_agent_overlay_)
         {
@@ -920,6 +1449,11 @@ void AppHost::refreshDefaultWorldgenConfig()
 
                 drawList->AddCircleFilled(it->second, radius, fillColor, 20);
                 drawList->AddCircle(it->second, radius, ImGui::GetColorU32(ImGuiCol_Border), 20, 1.5f);
+
+                if (inspector_highlight_node_ && node.id.value == *inspector_highlight_node_)
+                {
+                    drawList->AddCircle(it->second, radius + 4.0f, highlightColor, 24, 2.5f);
+                }
 
                 const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - ImGui::GetTextLineHeight() * 0.5f};
                 drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
@@ -1099,6 +1633,11 @@ void AppHost::refreshDefaultWorldgenConfig()
                     const ImU32 fillColor = colorForState(state);
                     drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
                     drawList->AddCircle(screenPos, 7.0f, borderColor, 16, 1.4f);
+
+                    if (inspector_selection_type_ == InspectorSelectionType::Agent && inspector_selected_primary_ == agent.entityId)
+                    {
+                        drawList->AddCircle(screenPos, 11.0f, highlightColor, 24, 2.5f);
+                    }
 
                     // Agent name label
                     if (!agent.name.empty())
@@ -1544,6 +2083,43 @@ void AppHost::refreshDefaultWorldgenConfig()
             if (latest_snapshot_)
             {
                 updateAgentTrails(*latest_snapshot_);
+                if (inspector_selection_type_ == InspectorSelectionType::Agent)
+                {
+                    const auto trackedId = inspector_selected_primary_;
+                    bool foundAgent = false;
+                    for (const auto &agent : latest_snapshot_->telemetry.agents)
+                    {
+                        if (agent.entityId == trackedId)
+                        {
+                            inspector_highlight_node_ = agent.location.value;
+                            if (inspector_follow_selection_)
+                            {
+                                scene_selected_node_ = agent.location.value;
+                            }
+                            foundAgent = true;
+                            break;
+                        }
+                    }
+                    if (!foundAgent)
+                    {
+                        inspector_highlight_node_.reset();
+                    }
+                }
+                else if (inspector_selection_type_ == InspectorSelectionType::Resource)
+                {
+                    if (inspector_selected_primary_ < latest_snapshot_->telemetry.resources.size())
+                    {
+                        inspector_highlight_node_ = latest_snapshot_->telemetry.resources[inspector_selected_primary_].location.value;
+                    }
+                    else
+                    {
+                        inspector_highlight_node_.reset();
+                    }
+                }
+                else if (inspector_selection_type_ == InspectorSelectionType::Node)
+                {
+                    inspector_highlight_node_ = inspector_selected_primary_;
+                }
             }
         }
     }

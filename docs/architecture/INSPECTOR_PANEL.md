@@ -3,6 +3,21 @@
 ## 目标
 - 为内部开发者提供统一的实体观察与调试入口，支持选中/跟随、字段查看与高亮，覆盖属性→需求→决策链路以及人格/Traits 的调试需求。
 
+## 当前实现（2025-10-19）
+- 实体列表：按 Agent / Resource / Node 三类展示，支持名称/ID/类型模糊搜索；选中后自动高亮对应地图节点。
+- 详情面板：
+  - Agent：显示 ID、名称、所在节点、需求强度、需求临界标记、当前行动/Planner 结果、移动进度；支持“定位到地图”“打开 Scene”以及跟随模式（同步 SceneView 节点）。
+  - Resource：显示所属节点、类型与库存；支持一键定位。
+  - Node：显示 ID、父节点、类型并可跳转。
+- 事件与差异：展示本帧 Runtime 事件日志，并基于 `SimulationSnapshotDiff` 列出所选 Agent 的需求变化。
+- 地图联动：MapView 以描边高亮所选节点/Agent，Inspector 面板中跟随开关会驱动 SceneView 聚焦节点。
+
+## 待完善清单
+- Agent 详情需补充属性、人格 Big5、Traits 及最近日志。
+- Resource 需展示消耗历史与再生速率趋势。
+- Portal/Scene 详情尚未落地。
+- 搜索栏未来可支持标签过滤、收藏列表与多选。
+
 ## 功能范围（MVP）
 - **实体列表与搜索**：按类型（Agent / Scene / Interactive:Resource / Interactive:Portal）分组，可按名称、ID、Trait、mapId 过滤。
 - **选中与跟随**

@@ -26,6 +26,8 @@
 - [ ] RuntimeBridge：后台线程推进 + 快照环缓冲；基础控制面板。
 - [ ] MapView：布局渲染/摄像机/Legend；Inspector/Telemetry。
 - [ ] WorldGen 面板与热生成；大图性能优化。
+- [x] Inspector 面板基础版（实体列表/详情/地图联动，支持事件日志）。
+- [ ] Inspector 深化：人格/Traits、Portal 详情、历史趋势等（详见 `docs/architecture/INSPECTOR_PANEL.md` 待完善清单）。
 
 ## Tooling & Docs
 - [x] 更新测试，验证共享库加载及 CLI 运行。

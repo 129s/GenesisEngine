@@ -29,7 +29,7 @@
   - [x] 双缓冲 `SimulationSnapshot`（已引入 `SimulationSnapshotBuffer`，前端读取线程安全）
 - [x] 快照比较与事件注入 API（便于 E2E 与重放，已上线 diff 结构与命令队列）
 - GUI 调试体验
-  - [ ] Inspector 视图：实体列表/详情/地图联动的信息架构与渲染实现
+  - [x] Inspector 视图：实体列表/详情/地图联动的基础版本已上线，后续补充人格/Traits 等高级信息
   - [ ] RuntimeBridge Telemetry 配置：巩固指标采集与阈值告警面板草案
 - 测试与回归
   - [ ] 端到端闭环用例：Planner → Executor → Need 恢复
@@ -43,8 +43,8 @@
 ### 近期（P0 · GUI 框架稳定与运行时加固）
 > 阶段状态：执行中（自 2025-10-19）；每周日同步风险与燃尽图。
 - **当周聚焦**
-- 快照差异与事件注入 API：已交付 `latestSnapshotDiff`、命令队列与事件日志；后续评审 GUI 接入点与脚本化示例。
-  - GUI Inspector：输出信息架构草图（实体列表/详情/地图联动）并确认数据绑定依赖。
+  - 快照差异与事件注入 API：已交付 `latestSnapshotDiff`、命令队列与事件日志；后续评审 GUI 接入点与脚本化示例。
+  - GUI Inspector：基础视图交付（实体列表/详情/地图联动），剩余项：人格/Traits、Portal 详情、历史曲线。
   - GUI 烟雾巡检脚本：替换原 CLI smoke，圈定最小自动化覆盖与验收脚本。
 - 运行时与协议
   - [ ] 双缓冲 `SimulationSnapshot` 与版本标记，确保 GUI 前端安全读取（CLI 停用但保持编译通过）。
@@ -54,7 +54,7 @@
   - [x] 里程碑 1-2：GLFW + ImGui Docking 框架、RuntimeBridge 后台线程、WorldAtlas 静态视图。
   - [x] 里程碑 3：OCEAN 人格、命名标签、模拟时间语义化、第二资源点验证。
   - [ ] 里程碑 3 文档补齐（可视化策略/Scene View 说明）。
-  - [ ] 里程碑 4：Inspector 面板（实体列表、详情、Map 联动）。
+  - [x] 里程碑 4：Inspector 面板（实体列表、详情、Map 联动基础版完成，细化项见 `docs/architecture/INSPECTOR_PANEL.md`）。
 - 工程与支持
   - [ ] GUI 烟雾测试流水线：巩固可执行脚本 + 关键断言（CLI 流程暂停）。
   - [ ] 构建流水线：Windows/Linux GUI 构建、符号与依赖打包。

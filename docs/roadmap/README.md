@@ -23,6 +23,20 @@
   - Game（探索中）：未来与 GUI 共享 Runtime 契约。
 - **可观测性**：Telemetry Schema 与 Snapshot 双缓冲是协议演进核心；所有前端使用 schema version 校验以避免破坏性更新。
 
+## 近期（P0，稳定与补齐基础）
+- 运行时与并发安全
+  - [x] 双缓冲 `SimulationSnapshot`（已引入 `SimulationSnapshotBuffer`，前端读取线程安全）
+  - [ ] 快照比较与事件注入 API（便于 E2E 与重放）
+- Sandbox CLI 能力
+  - [ ] 核心命令集：`pause`/`resume`/`step <n>`/`render`/`inspect agent <id>`
+  - [ ] 脚本化回放与 CI 烟雾测试（已有脚本，补充断言）
+- 测试与回归
+  - [ ] 端到端闭环用例：Planner → Executor → Need 恢复
+  - [ ] 24 小时离线长时模拟（指标追踪：饥饿/旅行成本/库存告警）
+- 文档与规范
+  - [x] 整理 `docs` 目录、合并路线图
+  - [ ] 扩写运行时与快照协议说明（面向 GUI 接入）
+
 ## 阶段规划
 
 ### 近期（P0 · GUI 框架稳定与运行时加固）

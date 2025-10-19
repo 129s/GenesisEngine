@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -8,10 +10,11 @@
 #include <vector>
 
 #include "genesis/core/Engine.hpp"
+#include "genesis/runtime/SimulationSnapshot.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
-#include "genesis/worldgen/Types.hpp"
 #include "genesis/world/WorldLoader.hpp"
 #include "genesis/world/WorldTypes.hpp"
+#include "genesis/worldgen/Types.hpp"
 
 namespace genesis::runtime {
 
@@ -42,7 +45,7 @@ public:
     void step(std::uint64_t steps = 1);
     void run(std::uint64_t steps);
 
-    [[nodiscard]] const genesis::telemetry::TickTelemetry* latestSnapshot() const noexcept;
+    [[nodiscard]] const SimulationSnapshot* latestSnapshot() const noexcept;
     [[nodiscard]] const std::optional<genesis::worldgen::Seed>& lastSeed() const noexcept { return m_lastSeed; }
 
     struct WorldGenerationResult {
@@ -72,6 +75,8 @@ private:
     genesis::core::Engine m_engine;
     std::optional<genesis::worldgen::Seed> m_lastSeed;
     std::optional<WorldGenerationResult> m_lastWorldGen;
+    std::atomic<std::uint64_t> m_snapshotVersion{0};
+    SimulationSnapshotBuffer m_snapshotBuffer;
 };
 
 std::unique_ptr<Runtime> createRuntime(RuntimeConfig config = {});

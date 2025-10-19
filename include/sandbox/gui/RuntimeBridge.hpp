@@ -32,6 +32,7 @@ public:
 
     struct Snapshot
     {
+        std::uint64_t version{0};
         genesis::telemetry::TickTelemetry telemetry;
         std::chrono::steady_clock::time_point capturedAt{};
         std::vector<RuntimeBridge::Vector2> agentPositions;

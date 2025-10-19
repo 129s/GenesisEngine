@@ -173,8 +173,12 @@ bool CliApp::processInput(const std::string& line, bool allowSleep) {
 
 void CliApp::render() {
     if (const auto* snapshot = m_runtime.latestSnapshot()) {
-        m_renderer.render(*snapshot);
-        m_lastFrameTime = std::chrono::steady_clock::now();
+        m_renderer.render(snapshot->telemetry);
+        if (snapshot->capturedAt != std::chrono::steady_clock::time_point{}) {
+            m_lastFrameTime = snapshot->capturedAt;
+        } else {
+            m_lastFrameTime = std::chrono::steady_clock::now();
+        }
     } else {
         std::cout << "(no telemetry yet)\n";
     }

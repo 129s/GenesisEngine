@@ -71,6 +71,10 @@ Engine::Engine()
     m_resourceSystem.initialize(m_registry);
 }
 
+void Engine::setSnapshotCallback(SnapshotCallback callback) {
+    m_snapshotCallback = std::move(callback);
+}
+
 void Engine::run(std::uint64_t maxSteps) {
     const auto delta = m_clock.stepDuration();
     std::uint64_t processed = 0;
@@ -329,6 +333,10 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
         }
         tick.movementProgress.push_back(mp);
     });
+
+    if (m_snapshotCallback) {
+        m_snapshotCallback(tick);
+    }
 
     m_hungerDecisions.clear();
 

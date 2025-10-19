@@ -4,18 +4,28 @@
 #include <filesystem>
 #include <memory>
 #include <random>
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include <utility>
 
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
+
+#include "genesis/world/WorldLoader.hpp"
 #include "genesis/worldgen/ConfigLoader.hpp"
 #include "genesis/worldgen/Generator.hpp"
-#include "genesis/world/WorldLoader.hpp"
 
 namespace genesis::runtime {
 
 Runtime::Runtime(RuntimeConfig config)
     : m_config(std::move(config))
     , m_engine() {
+    m_engine.setSnapshotCallback([this](const telemetry::TickTelemetry& tick) {
+        SimulationSnapshot snapshot{};
+        snapshot.version = m_snapshotVersion.fetch_add(1, std::memory_order_relaxed) + 1;
+        snapshot.capturedAt = std::chrono::steady_clock::now();
+        snapshot.telemetry = tick;
+        m_snapshotBuffer.write(std::move(snapshot));
+    });
+
     try {
         if (!spdlog::default_logger()) {
             auto logger = spdlog::stdout_color_mt("genesis");
@@ -57,8 +67,8 @@ void Runtime::run(std::uint64_t steps) {
     m_engine.run(steps);
 }
 
-const genesis::telemetry::TickTelemetry* Runtime::latestSnapshot() const noexcept {
-    return m_engine.latestTelemetry();
+const SimulationSnapshot* Runtime::latestSnapshot() const noexcept {
+    return m_snapshotBuffer.latest();
 }
 
 Runtime::WorldGenerationResult Runtime::generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride, std::optional<std::filesystem::path> outputPath) {

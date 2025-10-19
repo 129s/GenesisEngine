@@ -13,7 +13,7 @@
 
 ## 架构概览
 - AppHost：窗口/渲染循环/输入分发，ImGui 框架初始化（含 Docking）。
-- RuntimeBridge：在后台线程运行 `genesis::runtime::Runtime`；产出双缓冲/环形缓冲的 `TickTelemetry` 快照，供 UI 线程无锁读取。
+- RuntimeBridge：在后台线程运行 `genesis::runtime::Runtime`；产出双缓冲/环形缓冲的 `SimulationSnapshot`（含 `TickTelemetry`），供 UI 线程无锁读取。
 - Panels：
   - MapView（原 WorldView）：世界/布局渲染（节点/边/资源/代理、摄像机平移缩放、可见性裁剪）。
   - Inspector：选中代理/地点/资源，展示属性与关联信息。
@@ -69,7 +69,7 @@
 - [x] 指南更新：补充运行线程模型、已知限制（单线程渲染 + 后台模拟）、调试建议。
 
 **阶段产出（RuntimeBridge）**
-- `RuntimeBridge` 后台线程 + 快照环形缓冲，提供 Pause/Resume/Step/Speed 控制接口。
+- `RuntimeBridge` 后台线程 + `SimulationSnapshot` 环形缓冲，提供 Pause/Resume/Step/Speed 控制接口。
 - 静态 `WorldAtlas` 布局：按层级生成节点坐标、资源标记，世界视图面板即时绘制。
 - 新增 Telemetry/状态栏面板，展示当前快照数据；Welcome 面板整合播放控制与摘要。
 - 集成 Log Console 面板捕获 `spdlog` 日志，并在 Windows 环境下隐藏控制台窗口。

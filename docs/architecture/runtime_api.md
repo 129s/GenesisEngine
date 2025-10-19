@@ -9,7 +9,7 @@
   - `setSpeedMultiplier(double)`：调整模拟时钟倍率。
   - 生命周期：`start()` / `stop()`（通常由宿主封装）。
 - **IRuntimeQuery（查询面）**
-  - `latestSnapshot()`：返回 `TickTelemetry` 拷贝（环形缓冲尾部）。
+  - `latestSnapshot()`：返回 `SimulationSnapshot` 只读视图（双缓冲最新帧，包含 `version` / `capturedAt` / `TickTelemetry`）。
   - `worldAtlas()`：返回只读 `WorldAtlas` 视图。
   - `worldVersion()`：当前世界版本号（随拓扑或 Tilemap 变更递增）。
 - **IRuntimeCommands（命令面）**
@@ -20,8 +20,13 @@
 
 **并发约束：**
 - Engine 仅在模拟线程运行，所有状态修改必须在此线程完成。
-- 前端线程通过 `TickTelemetry` / `WorldAtlas` 获取数据，不得直接访问 ECS/Registry。
-- Telemetry 是只读快照，Atlas 是不可变结构体；两者带版本号避免竞争条件。
+- 前端线程通过 `SimulationSnapshot` / `WorldAtlas` 获取数据，不得直接访问 ECS/Registry。
+- `SimulationSnapshot` 是双缓冲结构，持有 `TickTelemetry` 与捕获时间戳；Atlas 是不可变结构体。两者携带版本号避免竞争条件。
+
+## SimulationSnapshot 契约
+- `version:uint64`：快照递增序列号（模拟线程每次写入时自增）。
+- `capturedAt:steady_clock::time_point`：生成快照时的单调时钟，供 UI 估算停顿或插值。
+- `telemetry:TickTelemetry`：与旧协议一致的遥测负载；详见下文。
 
 ## TickTelemetry 契约
 最小字段集合如下，可根据功能扩展。所有字段必须注明 `schema_version`。

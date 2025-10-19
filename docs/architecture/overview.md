@@ -6,10 +6,10 @@ GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现
 - **Core Runtime**
   - `WorldRegistry`：管理 Scene/Interactive 节点树，维护全局/局部坐标、Portal、资源点等索引。
   - 系统集合：Movement、Needs、Planner、ActionExecutor、ResourceSystem 等纯逻辑系统，按离散 `SimulationClock` 推进。
-  - TelemetryBuffer：聚合每步 `TickTelemetry`，用于前端观察与回放。
+  - TelemetryBuffer：聚合每步 `TickTelemetry`，由 Runtime 写入双缓冲 `SimulationSnapshot` 供前端无锁读取。
 - **Runtime 封装**
   - 控制面：提供 `step`/`run`/`bootstrapSteps` 等入口，未来扩展命令队列与事件注入。
-  - 查询面：暴露 `latestSnapshot()`、`WorldRegistry` 只读镜像（通过 Telemetry / WorldAtlas）。
+  - 查询面：暴露 `latestSnapshot()`（`SimulationSnapshot`）与 `WorldRegistry` 只读镜像（Telemetry / WorldAtlas）。
   - 协议：所有外部读写都走 Runtime，不允许前端直接操作 ECS。
 - **前端适配**
   - CLI（遗留调试）：ASCII 视图 + 命令脚本。
@@ -39,7 +39,7 @@ GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现
 
 ## 并发与数据流
 - 模拟线程：唯一可以修改世界状态的线程；命令需排队执行。
-- 前端线程：只读取 Telemetry/WorldAtlas，禁止直接访问 ECS。GUI 若需局部寻路，只能基于只读数据独立计算。
+- 前端线程：只读取 `SimulationSnapshot` / WorldAtlas，禁止直接访问 ECS。GUI 若需局部寻路，只能基于只读数据独立计算。
 - 版本机制：世界数据变化会更新 `world_version`，前端可按版本刷新缓存；Telemetry 携带 `schema_version` 以便协议演进。
 
 ## 相关文档

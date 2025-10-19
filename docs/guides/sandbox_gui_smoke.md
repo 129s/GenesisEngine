@@ -44,7 +44,7 @@ cmake --build build --target genesis_sandbox_gui
 
 ## Runtime 控制与快照
 - Welcome 面板提供 Pause/Resume、Step、Step x10 按钮，以及 0.25x ~ 8x 速度调节。
-- RuntimeBridge 在后台线程持续推进 `genesis::runtime::Runtime`，复制最新 `TickTelemetry` 快照（默认保留 96 帧）。
+- RuntimeBridge 在后台线程持续推进 `genesis::runtime::Runtime`，写入双缓冲 `SimulationSnapshot`（version/capturedAt/`TickTelemetry`，默认保留 96 帧）。
 - GUI 线程每帧从快照缓冲读取最新数据，更新世界视图、Telemetry 与状态栏。
 
 ## Map View 面板

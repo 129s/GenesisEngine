@@ -1,7 +1,9 @@
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <limits>
 #include <string>
+#include <system_error>
 
 #include <gtest/gtest.h>
 
@@ -29,12 +31,22 @@ std::filesystem::path locateDataFile(const std::filesystem::path& relative) {
 
 TEST(RuntimeTest, GeneratesSnapshotsAfterStepping) {
     genesis::runtime::Runtime runtime({});
+
+    const auto noisePath = locateDataFile("data/world/generated/noise_mvp.json");
+    ASSERT_FALSE(noisePath.empty()) << "Unable to locate generated noise world data";
+
+    auto loadResult = runtime.loadWorldFromFile(noisePath);
+    ASSERT_TRUE(loadResult.success) << loadResult.error;
+
     runtime.step(5);
 
     const auto* snapshot = runtime.latestSnapshot();
     ASSERT_NE(snapshot, nullptr);
-    EXPECT_GT(snapshot->step, 0U);
-    EXPECT_FALSE(snapshot->resources.empty());
+    EXPECT_GT(snapshot->version, 0U);
+    EXPECT_NE(snapshot->capturedAt, std::chrono::steady_clock::time_point{});
+    const auto& tick = snapshot->telemetry;
+    EXPECT_GT(tick.step, 0U);
+    EXPECT_FALSE(tick.resources.empty());
 }
 
 TEST(RuntimeTest, LoadsNoiseWorldViaEnvironmentOverride) {

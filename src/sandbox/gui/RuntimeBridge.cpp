@@ -275,15 +275,20 @@ void RuntimeBridge::runLoop()
 
 void RuntimeBridge::captureSnapshot()
 {
-    const auto* telemetry = runtime_.latestSnapshot();
-    if (!telemetry)
+    const auto* runtimeSnapshot = runtime_.latestSnapshot();
+    if (!runtimeSnapshot)
     {
         return;
     }
 
     RuntimeBridge::Snapshot snapshot;
-    snapshot.telemetry = *telemetry;
-    snapshot.capturedAt = std::chrono::steady_clock::now();
+    snapshot.version = runtimeSnapshot->version;
+    snapshot.telemetry = runtimeSnapshot->telemetry;
+    snapshot.capturedAt = runtimeSnapshot->capturedAt;
+    if (snapshot.capturedAt == std::chrono::steady_clock::time_point{})
+    {
+        snapshot.capturedAt = std::chrono::steady_clock::now();
+    }
     snapshot.agentPositions.reserve(snapshot.telemetry.agents.size());
     for (const auto& agent : snapshot.telemetry.agents)
     {

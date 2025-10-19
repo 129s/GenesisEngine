@@ -7,6 +7,7 @@
 - 路线图（权威版、里程碑与历史）：`docs/roadmap/`（总览：`docs/roadmap/README.md`）
 - 指南（构建、运行、工具）：`docs/guides/`（CLI：`docs/guides/sandbox-cli.md`，已归档）
 - 状态（进度、待办）：`docs/status/`（进度：`docs/status/progress-summary.md`，待办：`docs/status/todo.md`）
+- 评审（UI/UX/技术评审）：`docs/status/reviews/`
 
 - 故障排查（GUI/运行时常见问题）：`docs/troubleshooting/`（GUI：`docs/troubleshooting/sandbox_gui.md`）
 

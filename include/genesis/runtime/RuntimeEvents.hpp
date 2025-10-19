@@ -12,6 +12,9 @@ class Engine;
 
 namespace genesis::runtime {
 
+class Runtime;
+struct RuntimeEventReport;
+
 enum class RuntimeEventKind {
     Command,
     Marker
@@ -24,6 +27,8 @@ struct RuntimeEvent {
     std::optional<std::string> payloadJson;
     std::chrono::steady_clock::time_point enqueuedAt{};
     std::function<void(genesis::core::Engine&)> handler;
+    std::function<void(Runtime&)> runtimeHandler;
+    std::function<void(RuntimeEventReport&)> onComplete;
 };
 
 struct RuntimeEventReport {
@@ -38,4 +43,3 @@ struct RuntimeEventReport {
 };
 
 } // namespace genesis::runtime
-

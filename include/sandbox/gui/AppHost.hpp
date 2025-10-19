@@ -64,6 +64,7 @@ private:
     void updateRuntimeSnapshot();
     void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
     void resetSceneForNewWorld();
+    void refreshCommandStatusTexts(const std::vector<RuntimeBridge::CommandProgress>& commands);
     void refreshDefaultWorldgenConfig();
 
     AppHostConfig config_;
@@ -119,11 +120,16 @@ private:
     std::array<char, 512> worldgen_output_buffer_{};
     std::array<char, 512> world_load_buffer_{};
     std::array<char, 512> world_save_buffer_{};
+    std::array<char, 512> command_script_buffer_{};
     bool worldgen_use_random_seed_{true};
     std::uint64_t worldgen_seed_{0};
-    std::optional<genesis::runtime::Runtime::WorldGenerationResult> last_worldgen_result_;
+    std::optional<std::uint64_t> worldgen_command_id_;
+    std::optional<std::uint64_t> world_load_command_id_;
+    std::optional<std::uint64_t> world_save_command_id_;
+    std::string world_command_status_;
     std::string world_load_status_;
     std::string world_save_status_;
+    std::string command_script_status_;
 };
 
 } // namespace Genesis::Sandbox::Gui

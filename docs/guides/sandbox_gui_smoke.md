@@ -38,6 +38,41 @@ cmake --build build --target genesis_sandbox_gui
 - Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要。
 - Inspector 面板：提供 Agent / Resource / Node 列表与搜索，详情面板展示需求、行动、Planner 结果及 Runtime 事件，支持快速定位到 Map/Scene 以及跟随模式。
 - 底部状态栏：快速统计（Step/Agents/Resources/Actions）
+
+## World Generation 面板 · 命令队列
+
+> 2025-10 起，世界生成/加载/保存通过 Runtime 命令队列执行，所有操作都异步排队并可追踪状态。
+
+- 控件说明：
+  - `配置路径` / `输出路径` / `随机种子`：作为 `world.generate` 命令的 JSON 负载提交。
+  - `生成世界`：向命令队列提交 `world.generate`，返回事件 ID；命令成功后自动刷新最新种子，并在状态栏显示 `完成 (#id) · seed=...`。
+  - `加载世界`：提交 `world.load`；成功后自动调用 `resetSceneForNewWorld()`，清空轨迹与 Inspector 选择。
+  - `保存当前世界`：提交 `world.save`；成功信息写入 `RuntimeEventReport.message` 并显示在状态栏。
+  - `命令脚本`：输入 JSON 文件路径（参考 `data/scripts/world_cycle.json`），点击 `执行脚本` 即可批量提交多条命令。脚本内命令支持 `waitForSuccess` 串联依赖。
+- 面板底部展示命令队列状态表：
+  - 列包含 `ID` / `标签` / `来源` / `状态` / `备注`。
+  - 状态颜色：黄色（等待执行）、绿色（完成）、红色（失败）。
+  - 当 `payloadJson` 留空时，备注显示 `message`；否则会回退到提交时的 JSON 片段。
+- 命令执行流程：
+  1. GUI 将 JSON 描述转换为 `RuntimeEvent`，通过 `RuntimeBridge::enqueueRuntimeEvent` 入队。
+  2. Runtime 在下一次 `step` 前执行命令；执行结果通过 `SimulationSnapshot.events`、`RuntimeEventReport.message` 以及 `RuntimeBridge::commandStatusSnapshot()` 返回。
+  3. GUI 使用事件 ID 更新状态字符串，并在成功时触发附加逻辑（例如刷新世界 Atlas、重置相机）。
+
+### 命令脚本 JSON 速览
+
+```json
+{
+  "name": "world-cycle-demo",
+  "commands": [
+    { "action": "world.generate", "configPath": "...", "waitForSuccess": true },
+    { "action": "world.load", "path": "...", "waitForSuccess": true },
+    { "action": "world.save", "path": "..." }
+  ]
+}
+```
+
+- `waitForSuccess: true` 表示该命令成功后才会继续提交下一条；失败会终止脚本并在状态表里展示 `失败 (#id) · message`。
+- `label` 字段可选；未提供时默认等于 `action`，便于在状态表中分辨来源。
 - Log Console 面板：捕获 `spdlog` 输出并持续滚动（默认开启，支持手动关闭/自动滚动）。
 - 可选 Dear ImGui Demo 窗口（验证 Docking 与基础组件）
 

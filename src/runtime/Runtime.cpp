@@ -97,11 +97,13 @@ std::optional<SimulationSnapshotDiff> Runtime::latestSnapshotDiff() const noexce
     return diffSnapshots(view->previous, *view->latest);
 }
 
-void Runtime::enqueueEvent(RuntimeEvent event) {
+std::uint64_t Runtime::enqueueEvent(RuntimeEvent event) {
     event.id = m_nextEventId.fetch_add(1, std::memory_order_relaxed);
+    const auto id = event.id;
     event.enqueuedAt = std::chrono::steady_clock::now();
     std::scoped_lock lock(m_eventMutex);
     m_pendingEvents.push(std::move(event));
+    return id;
 }
 
 Runtime::WorldGenerationResult Runtime::generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride, std::optional<std::filesystem::path> outputPath) {
@@ -219,7 +221,9 @@ void Runtime::drainPendingEvents() {
         report.executedAt = std::chrono::steady_clock::now();
 
         try {
-            if (event.handler) {
+            if (event.runtimeHandler) {
+                event.runtimeHandler(*this);
+            } else if (event.handler) {
                 event.handler(m_engine);
             }
             report.success = true;
@@ -229,6 +233,16 @@ void Runtime::drainPendingEvents() {
         } catch (...) {
             report.success = false;
             report.message = "unknown error";
+        }
+
+        if (event.onComplete) {
+            try {
+                event.onComplete(report);
+            } catch (const std::exception& ex) {
+                spdlog::warn("RuntimeEvent onComplete failed: {}", ex.what());
+            } catch (...) {
+                spdlog::warn("RuntimeEvent onComplete failed with unknown error");
+            }
         }
 
         executed.push_back(std::move(report));

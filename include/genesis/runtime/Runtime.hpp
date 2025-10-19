@@ -75,7 +75,7 @@ public:
     [[nodiscard]] genesis::core::Engine& engine() noexcept { return m_engine; }
     [[nodiscard]] const genesis::core::Engine& engine() const noexcept { return m_engine; }
 
-    void enqueueEvent(RuntimeEvent event);
+    std::uint64_t enqueueEvent(RuntimeEvent event);
 
 private:
     void drainPendingEvents();

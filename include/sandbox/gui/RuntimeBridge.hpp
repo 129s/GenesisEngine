@@ -1,10 +1,12 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <condition_variable>
 #include <deque>
 #include <filesystem>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -12,6 +14,8 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 #include "genesis/runtime/Runtime.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
@@ -39,6 +43,8 @@ public:
         std::vector<RuntimeBridge::Vector2> agentPositions;
         std::vector<genesis::runtime::RuntimeEventReport> events;
         std::optional<genesis::runtime::SimulationSnapshotDiff> diff;
+        std::vector<genesis::runtime::RuntimeEventReport> executedCommands;
+        std::vector<std::uint64_t> pendingCommandIds;
     };
 
     struct WorldAtlas
@@ -103,6 +109,26 @@ public:
         }
     };
 
+    enum class CommandState
+    {
+        Pending,
+        Succeeded,
+        Failed
+    };
+
+    struct CommandProgress
+    {
+        std::uint64_t id{0};
+        genesis::runtime::RuntimeEventKind kind{genesis::runtime::RuntimeEventKind::Command};
+        std::string label;
+        std::optional<std::string> payloadJson;
+        std::string source;
+        CommandState state{CommandState::Pending};
+        std::chrono::steady_clock::time_point enqueuedAt{};
+        std::optional<std::chrono::steady_clock::time_point> executedAt;
+        std::string message;
+    };
+
     explicit RuntimeBridge(genesis::runtime::RuntimeConfig config = {}, std::size_t maxSnapshots = 96);
     ~RuntimeBridge();
 
@@ -125,16 +151,27 @@ public:
     std::optional<genesis::runtime::Runtime::WorldGenerationResult> generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
     genesis::world::WorldLoadResult loadWorld(const std::filesystem::path& path);
     genesis::world::WorldSaveResult saveWorld(const std::filesystem::path& path);
-    [[nodiscard]] const std::optional<genesis::runtime::Runtime::WorldGenerationResult>& lastGeneration() const noexcept { return lastGeneration_; }
+    [[nodiscard]] std::optional<genesis::runtime::Runtime::WorldGenerationResult> lastGeneration() const noexcept;
 
     [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;
 
     [[nodiscard]] const WorldAtlas& atlas() const noexcept { return atlas_; }
 
+    std::uint64_t enqueueRuntimeEvent(genesis::runtime::RuntimeEvent event, std::string source = "direct");
+    std::optional<std::uint64_t> enqueueCommandFromJson(const nlohmann::json& descriptor, std::string source, std::string& errorMessage);
+    bool enqueueCommandSequence(const nlohmann::json& script, std::string source, std::string& errorMessage);
+    bool enqueueCommandScript(const std::filesystem::path& scriptPath, std::string source, std::string& errorMessage);
+
+    [[nodiscard]] std::vector<CommandProgress> commandStatusSnapshot() const;
+
 private:
     void runLoop();
     void captureSnapshot();
     static WorldAtlas buildWorldAtlas(const genesis::core::Engine& engine);
+    void reconcileCommands(const std::vector<genesis::runtime::RuntimeEventReport>& reports);
+    std::uint64_t recordPending(std::uint64_t id, genesis::runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt);
+    void completeCommand(std::uint64_t id, bool success, std::string message, std::optional<std::string> payloadOverride = std::nullopt);
+    void purgeFinishedTasks();
 
     genesis::runtime::Runtime runtime_;
     std::size_t maxSnapshots_;
@@ -152,7 +189,47 @@ private:
     std::thread worker_;
 
     WorldAtlas atlas_;
+    mutable std::mutex lastGenerationMutex_;
     std::optional<genesis::runtime::Runtime::WorldGenerationResult> lastGeneration_;
+
+    mutable std::mutex commandMutex_;
+    std::unordered_map<std::uint64_t, CommandProgress> pendingCommands_;
+    std::deque<CommandProgress> commandHistory_;
+    std::size_t maxCommandHistory_{128};
+    std::atomic<std::uint64_t> nextManualCommandId_{1'000'000'000ULL};
+
+    struct ScriptCommand
+    {
+        nlohmann::json descriptor;
+        bool waitForSuccess{false};
+    };
+
+    struct CommandSequence
+    {
+        std::string name;
+        std::string source;
+        std::vector<ScriptCommand> commands;
+        std::size_t nextIndex{0};
+        std::optional<std::uint64_t> waitingOn;
+        bool aborted{false};
+        std::string errorMessage;
+    };
+
+    using CommandSequencePtr = std::shared_ptr<CommandSequence>;
+
+    void advanceSequencesFor(const std::vector<genesis::runtime::RuntimeEventReport>& reports);
+    bool scheduleSequence(const CommandSequencePtr& sequence, std::string& errorMessage);
+    std::optional<std::uint64_t> enqueueCommandInternal(const nlohmann::json& command, std::string source, std::string& errorMessage);
+    void rebuildAtlasOnRuntimeThread();
+
+    mutable std::mutex sequenceMutex_;
+    std::deque<CommandSequencePtr> sequences_;
+    std::mutex asyncMutex_;
+    std::vector<std::future<void>> asyncTasks_;
+
+    std::optional<std::uint64_t> enqueueWorldGenerationCommand(const nlohmann::json& descriptor, std::string source, std::string& errorMessage);
+    std::optional<std::uint64_t> enqueueWorldReloadCommand(const nlohmann::json& descriptor, std::string source, std::string& errorMessage);
+    std::optional<std::uint64_t> enqueueWorldSaveCommand(const nlohmann::json& descriptor, std::string source, std::string& errorMessage);
 };
 
 } // namespace Genesis::Sandbox::Gui

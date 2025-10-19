@@ -6,6 +6,10 @@
   - 新增 `Runtime::latestSnapshotDiff()` 与 `SimulationSnapshotDiff`，支持快速检测资源/需求/行动变化并携带事件日志。
   - 引入 `Runtime::enqueueEvent` 命令队列，在每个模拟步执行并写入 `RuntimeEventReport`，用于 GUI 交互与自动化回放。
   - 扩展双缓冲快照结构，捕获命令执行结果并在文档中更新使用指南。
+- 命令队列与 GUI 控制台迭代：
+  - `Runtime::enqueueEvent` 现返回事件 ID，支持 `runtimeHandler`/`onComplete`，并在单元测试中验证消息链路。
+  - `RuntimeBridge` 维护命令 pending/history 状态，新增 JSON 命令序列与世界生成/加载/保存 handler（示例见 `data/scripts/world_cycle.json`）。
+  - World Generation 面板改为异步命令入口，提供状态表、脚本执行按钮与消息反馈；`world.generate` 在后台任务中安全停机-重启 Runtime，避免与模拟线程竞争。
 - Sandbox GUI Inspector 基础版：
   - Inspector 面板新增实体列表（Agent/Resource/Node 分组）与搜索，详情面板支持查看需求、行动、Planner 结果与移动进度。
   - Map View 增加选中高亮、Agent 圆环强调及“一键定位/Scene 打开”按钮；支持跟随模式自动切换 Scene View。

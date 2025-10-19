@@ -17,7 +17,7 @@
   - 世界：`generateWorld(MapConfig root)`、`loadWorld(path)`、`resetWorld(seed, overrides)`。
   - 实体：`spawnAgent(params)`、`despawn(entityId)`、`applyTrait(entityId, traitId)`。
   - 资源与事件：`requestResource(type, amount, preferredNode)`、`enqueueEvent(RuntimeEvent)`（命令队列/事件注入）。
-  - 命令执行均在模拟线程排队；返回 `CommandId`，结果异步写入 Telemetry/日志。仅对快速操作可选同步 `Result`。
+  - `Runtime::enqueueEvent` 返回自增的 `eventId`，用于前端跟踪命令状态；事件始终在模拟线程串行执行，结果异步写入 Telemetry/日志（`RuntimeEventReport`）。仅对快速操作可选同步 `Result`。
 
 **并发约束：**
 - Engine 仅在模拟线程运行，所有状态修改必须在此线程完成。
@@ -126,11 +126,31 @@ Atlas 描述世界静态结构与 Tilemap 元数据。字段建议如下：
   - `kind:Command|Marker`：区分带副作用的命令与仅记录时间线的标记。
   - `label:string`：事件描述（GUI/日志展示用），建议唯一化。
   - `payloadJson?:string`：可选的 JSON 负载，序列化 UI 参数或测试上下文。
-  - `handler(std::function<void(Engine&)>)`：在模拟线程执行的函数；命令需在此内部操作 `Engine`/`EventBus`。
-- `Runtime::enqueueEvent(event)`：线程安全，将事件加入队列；返回后事件等待下一次 `step`/`run` 执行。
+  - `handler(std::function<void(Engine&)>)`：可选；在模拟线程执行，直接操作 `Engine`/`EventBus`。
+  - `runtimeHandler(std::function<void(Runtime&)>)`：可选；当命令需要访问 Runtime 封装（如 `generateWorldFromConfig`）时使用。
+  - `onComplete(std::function<void(RuntimeEventReport&)>)`：可选；命令执行后回调，可补充 `message` 或写入自定义元信息。
+- `Runtime::enqueueEvent(event)`：线程安全，将事件加入队列；立即返回事件 ID，事件在下一次 `step`/`run` 前串行执行。
 - `Runtime` 每次推进前依次执行所有排队事件，将执行结果写入 `RuntimeEventReport` 并附着到下一帧 `SimulationSnapshot.events` 与 `SimulationSnapshotDiff.executedEvents`。
 - 事件处理中的异常会被捕获并写入 `message` 字段，同时 `success=false`；调用方可在 diff/快照中读取结果并决定是否中止。
 - 建议：
   - GUI 交互：使用 `kind=Command`，在 handler 内部调用业务 API（例如生成世界、调整资源、插入测试 Agent）。
   - 自动化测试：使用 `payloadJson` 序列化断言上下文，结合 `latestSnapshotDiff` 校验。
   - Marker：无副作用时可省略 handler，仅用于在时间线插入标签（仍会返回成功事件记录）。
+
+### RuntimeBridge 命令描述（JSON）
+
+`RuntimeBridge` 在 GUI/工具链中提供了 JSON 命令描述与脚本加载能力，供命令队列批量执行：
+
+- 顶层字段：
+  - `name?:string`：脚本名称，便于日志标识。
+  - `commands:CommandDescriptor[]`：按顺序执行的命令集合。
+- `CommandDescriptor` 字段：
+  - `action:string`：必填；当前支持 `world.generate` / `world.load` / `world.save`。
+  - `label?:string`：命令标签，默认与 `action` 相同。
+  - `waitForSuccess?:bool`：为 `true` 时，后续命令将等待该命令成功后再入队；失败会终止脚本。
+  - 其余字段将进入 `payloadJson` 并在 handler 内解析（例如 `configPath`、`seed`、`path` 等）。
+- `RuntimeBridge::enqueueCommandSequence(json, source)` 会解析脚本、按顺序提交命令，并在 GUI 侧维护 `pending`/`history` 列表（最多保留 128 条记录）。
+- GUI “World Generation” 面板使用上述机制：用户输入路径后点击按钮即向命令队列提交 JSON 命令，结果通过状态面板和 `SimulationSnapshot.events` 返回。
+  - 其中 `world.generate` 等重型操作会由 RuntimeBridge 启动异步任务：先暂停 Runtime、调用同步 API 完成生成，再恢复 Runtime，避免与模拟线程竞争。
+
+示例脚本可参考 `data/scripts/world_cycle.json`，展示生成→加载→备份的命令链，并利用 `waitForSuccess` 串联操作。

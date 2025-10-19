@@ -1,0 +1,22 @@
+{
+  "name": "world-cycle-demo",
+  "commands": [
+    {
+      "label": "generate-default",
+      "action": "world.generate",
+      "configPath": "data/worldgen/default.toml",
+      "waitForSuccess": true
+    },
+    {
+      "label": "reload-generated",
+      "action": "world.load",
+      "path": "data/world/generated/generated_world.json",
+      "waitForSuccess": true
+    },
+    {
+      "label": "backup-world",
+      "action": "world.save",
+      "path": "data/world/generated/generated_world.backup.json"
+    }
+  ]
+}

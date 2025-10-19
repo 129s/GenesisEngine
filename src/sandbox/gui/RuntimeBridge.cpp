@@ -4,11 +4,15 @@
 #include <cmath>
 #include <functional>
 #include <climits>
+#include <fstream>
 #include <map>
 #include <set>
+#include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 // Note: avoid including ECS headers here to prevent accidental
@@ -18,9 +22,15 @@ namespace Genesis::Sandbox::Gui
 {
 namespace
 {
+using json = nlohmann::json;
+
 constexpr float kHorizontalSpacing = 180.0f;
 constexpr float kVerticalSpacing = 140.0f;
 constexpr float kMinExtent = 100.0f;
+constexpr std::size_t kDefaultCommandHistory = 128;
+constexpr std::string_view kSourceDirect = "direct";
+constexpr std::string_view kSourceScript = "script";
+constexpr std::string_view kSourceUI = "ui";
 
 RuntimeBridge::Vector2 computeExtent(std::size_t maxPerLevel, std::size_t levelCount)
 {
@@ -35,12 +45,25 @@ RuntimeBridge::RuntimeBridge(genesis::runtime::RuntimeConfig config, std::size_t
     : runtime_(std::move(config))
     , maxSnapshots_(std::max<std::size_t>(1, maxSnapshots))
     , atlas_(buildWorldAtlas(runtime_.engine()))
+    , maxCommandHistory_(kDefaultCommandHistory)
 {
 }
 
 RuntimeBridge::~RuntimeBridge()
 {
     stop();
+    std::vector<std::future<void>> tasks;
+    {
+        std::lock_guard lock(asyncMutex_);
+        tasks.swap(asyncTasks_);
+    }
+    for (auto& task : tasks)
+    {
+        if (task.valid())
+        {
+            task.wait();
+        }
+    }
 }
 
 bool RuntimeBridge::start()
@@ -139,7 +162,10 @@ std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::g
     }
 
     auto result = runtime_.generateWorldFromConfig(configPath, seedOverride, outputPath);
-    lastGeneration_ = result;
+    {
+        std::lock_guard guard(lastGenerationMutex_);
+        lastGeneration_ = result;
+    }
 
     if (wasRunning)
     {
@@ -149,6 +175,7 @@ std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::g
         }
     }
 
+    std::lock_guard guard(lastGenerationMutex_);
     return lastGeneration_;
 }
 
@@ -224,6 +251,600 @@ std::optional<RuntimeBridge::Snapshot> RuntimeBridge::latestSnapshot() const
     return snapshots_.back();
 }
 
+std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::lastGeneration() const noexcept
+{
+    std::lock_guard lock(lastGenerationMutex_);
+    return lastGeneration_;
+}
+
+std::uint64_t RuntimeBridge::enqueueRuntimeEvent(genesis::runtime::RuntimeEvent event, std::string source)
+{
+    const auto enqueuedAt = std::chrono::steady_clock::now();
+    const auto payload = event.payloadJson;
+    const auto kind = event.kind;
+    const auto label = event.label;
+    const auto id = runtime_.enqueueEvent(std::move(event));
+    recordPending(id, kind, label, payload, std::move(source), enqueuedAt);
+    return id;
+}
+
+std::optional<std::uint64_t> RuntimeBridge::enqueueCommandFromJson(const json& descriptor, std::string source, std::string& errorMessage)
+{
+    errorMessage.clear();
+    if (!descriptor.is_object())
+    {
+        errorMessage = "命令描述必须是 JSON 对象";
+        return std::nullopt;
+    }
+
+    auto id = enqueueCommandInternal(descriptor, std::move(source), errorMessage);
+    return id;
+}
+
+bool RuntimeBridge::enqueueCommandSequence(const json& script, std::string source, std::string& errorMessage)
+{
+    errorMessage.clear();
+    if (!script.is_object())
+    {
+        errorMessage = "序列脚本必须是 JSON 对象";
+        return false;
+    }
+
+    if (!script.contains("commands") || !script.at("commands").is_array())
+    {
+        errorMessage = "脚本缺少 commands 数组";
+        return false;
+    }
+
+    auto sequence = std::make_shared<CommandSequence>();
+    sequence->name = script.value("name", std::string{"sequence"});
+    sequence->source = std::move(source);
+    sequence->commands.reserve(script.at("commands").size());
+    for (const auto& item : script.at("commands"))
+    {
+        if (!item.is_object())
+        {
+            errorMessage = "commands 数组元素必须是 JSON 对象";
+            return false;
+        }
+        ScriptCommand command;
+        json descriptor = item;
+        if (descriptor.contains("waitForSuccess"))
+        {
+            if (!descriptor.at("waitForSuccess").is_boolean())
+            {
+                errorMessage = "waitForSuccess 必须为布尔值";
+                return false;
+            }
+            command.waitForSuccess = descriptor.at("waitForSuccess").get<bool>();
+            descriptor.erase("waitForSuccess");
+        }
+        command.descriptor = std::move(descriptor);
+        sequence->commands.push_back(std::move(command));
+    }
+
+    {
+        std::lock_guard seqLock(sequenceMutex_);
+        sequences_.push_back(sequence);
+    }
+
+    if (!scheduleSequence(sequence, errorMessage))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool RuntimeBridge::enqueueCommandScript(const std::filesystem::path& scriptPath, std::string source, std::string& errorMessage)
+{
+    errorMessage.clear();
+
+    std::ifstream input(scriptPath);
+    if (!input.is_open())
+    {
+        errorMessage = "无法打开脚本文件：" + scriptPath.string();
+        return false;
+    }
+
+    try
+    {
+        json document;
+        input >> document;
+        if (document.is_array())
+        {
+            json wrapper;
+            wrapper["name"] = scriptPath.filename().string();
+            wrapper["commands"] = document;
+            return enqueueCommandSequence(wrapper, std::move(source), errorMessage);
+        }
+        return enqueueCommandSequence(document, std::move(source), errorMessage);
+    }
+    catch (const json::parse_error& ex)
+    {
+        errorMessage = std::string{"解析脚本失败："} + ex.what();
+        return false;
+    }
+}
+
+std::vector<RuntimeBridge::CommandProgress> RuntimeBridge::commandStatusSnapshot() const
+{
+    std::vector<CommandProgress> snapshot;
+    std::lock_guard lock(commandMutex_);
+    snapshot.reserve(pendingCommands_.size() + commandHistory_.size());
+    for (const auto& [_, command] : pendingCommands_)
+    {
+        snapshot.push_back(command);
+    }
+    for (const auto& command : commandHistory_)
+    {
+        snapshot.push_back(command);
+    }
+    std::sort(snapshot.begin(), snapshot.end(), [](const CommandProgress& lhs, const CommandProgress& rhs) {
+        return lhs.enqueuedAt < rhs.enqueuedAt;
+    });
+    return snapshot;
+}
+
+std::uint64_t RuntimeBridge::recordPending(std::uint64_t id, genesis::runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt)
+{
+    CommandProgress progress;
+    progress.id = id;
+    progress.kind = kind;
+    progress.label = std::move(label);
+    progress.payloadJson = std::move(payload);
+    progress.source = std::move(source);
+    progress.state = CommandState::Pending;
+    progress.enqueuedAt = enqueuedAt;
+
+    std::lock_guard lock(commandMutex_);
+    pendingCommands_[id] = std::move(progress);
+    return id;
+}
+
+void RuntimeBridge::completeCommand(std::uint64_t id, bool success, std::string message, std::optional<std::string> payloadOverride)
+{
+    CommandProgress completed;
+    {
+        std::lock_guard lock(commandMutex_);
+        auto it = pendingCommands_.find(id);
+        if (it == pendingCommands_.end())
+        {
+            return;
+        }
+        CommandProgress &stored = it->second;
+        stored.state = success ? CommandState::Succeeded : CommandState::Failed;
+        stored.executedAt = std::chrono::steady_clock::now();
+        if (payloadOverride)
+        {
+            stored.payloadJson = std::move(payloadOverride);
+        }
+        if (!message.empty())
+        {
+            stored.message = std::move(message);
+        }
+        completed = stored;
+        commandHistory_.push_back(stored);
+        pendingCommands_.erase(it);
+        if (commandHistory_.size() > maxCommandHistory_)
+        {
+            commandHistory_.pop_front();
+        }
+    }
+
+    genesis::runtime::RuntimeEventReport report{};
+    report.id = completed.id;
+    report.kind = completed.kind;
+    report.label = completed.label;
+    if (completed.payloadJson)
+    {
+        report.payloadJson = completed.payloadJson;
+    }
+    report.enqueuedAt = completed.enqueuedAt;
+    report.executedAt = completed.executedAt.value_or(std::chrono::steady_clock::now());
+    report.success = success;
+    report.message = completed.message;
+    advanceSequencesFor({report});
+}
+
+void RuntimeBridge::purgeFinishedTasks()
+{
+    std::lock_guard lock(asyncMutex_);
+    auto it = asyncTasks_.begin();
+    while (it != asyncTasks_.end())
+    {
+        if (!it->valid() || it->wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        {
+            if (it->valid())
+            {
+                it->wait();
+            }
+            it = asyncTasks_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void RuntimeBridge::reconcileCommands(const std::vector<genesis::runtime::RuntimeEventReport>& reports)
+{
+    if (reports.empty())
+    {
+        return;
+    }
+
+    std::lock_guard lock(commandMutex_);
+    for (const auto& report : reports)
+    {
+        auto it = pendingCommands_.find(report.id);
+        if (it == pendingCommands_.end())
+        {
+            continue;
+        }
+
+        CommandProgress progress = it->second;
+        progress.state = report.success ? CommandState::Succeeded : CommandState::Failed;
+        progress.executedAt = report.executedAt;
+        if (report.payloadJson.has_value())
+        {
+            progress.payloadJson = report.payloadJson;
+        }
+        if (!report.message.empty())
+        {
+            progress.message = report.message;
+        }
+        else if (!report.success)
+        {
+            progress.message = "命令执行失败（未提供详细信息）";
+        }
+
+        pendingCommands_.erase(it);
+        commandHistory_.push_back(std::move(progress));
+        if (commandHistory_.size() > maxCommandHistory_)
+        {
+            commandHistory_.pop_front();
+        }
+    }
+}
+
+void RuntimeBridge::advanceSequencesFor(const std::vector<genesis::runtime::RuntimeEventReport>& reports)
+{
+    if (reports.empty())
+    {
+        return;
+    }
+
+    std::vector<CommandSequencePtr> toSchedule;
+
+    {
+        std::lock_guard seqLock(sequenceMutex_);
+        for (const auto& report : reports)
+        {
+            for (auto& sequence : sequences_)
+            {
+                if (!sequence || sequence->aborted)
+                {
+                    continue;
+                }
+
+                if (sequence->waitingOn && sequence->waitingOn.value() == report.id)
+                {
+                    if (report.success)
+                    {
+                        sequence->waitingOn.reset();
+                        if (std::find(toSchedule.begin(), toSchedule.end(), sequence) == toSchedule.end())
+                        {
+                            toSchedule.push_back(sequence);
+                        }
+                    }
+                    else
+                    {
+                        sequence->aborted = true;
+                        sequence->errorMessage = report.message.empty() ? "依赖命令执行失败" : report.message;
+                    }
+                }
+            }
+        }
+    }
+
+    for (auto& sequence : toSchedule)
+    {
+        if (!sequence || sequence->aborted)
+        {
+            continue;
+        }
+        std::string error;
+        if (!scheduleSequence(sequence, error) && !error.empty())
+        {
+            std::lock_guard seqLock(sequenceMutex_);
+            sequence->aborted = true;
+            sequence->errorMessage = error;
+        }
+    }
+
+    {
+        std::lock_guard seqLock(sequenceMutex_);
+        for (auto it = sequences_.begin(); it != sequences_.end();)
+        {
+            const auto& seq = *it;
+            if (!seq)
+            {
+                it = sequences_.erase(it);
+                continue;
+            }
+
+            const bool finished = !seq->waitingOn && seq->nextIndex >= seq->commands.size();
+            if (finished || seq->aborted)
+            {
+                it = sequences_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+}
+
+bool RuntimeBridge::scheduleSequence(const CommandSequencePtr& sequence, std::string& errorMessage)
+{
+    errorMessage.clear();
+    if (!sequence)
+    {
+        return true;
+    }
+
+    while (true)
+    {
+        json descriptor;
+        bool waitForSuccess = false;
+        {
+            std::lock_guard seqLock(sequenceMutex_);
+            if (sequence->aborted)
+            {
+                errorMessage = sequence->errorMessage;
+                return false;
+            }
+            if (sequence->waitingOn)
+            {
+                return true;
+            }
+            if (sequence->nextIndex >= sequence->commands.size())
+            {
+                return true;
+            }
+
+            const auto idx = sequence->nextIndex;
+            descriptor = sequence->commands[idx].descriptor;
+            waitForSuccess = sequence->commands[idx].waitForSuccess;
+            sequence->nextIndex++;
+        }
+
+        std::string localError;
+        auto id = enqueueCommandInternal(descriptor, sequence->source, localError);
+        if (!id.has_value())
+        {
+            errorMessage = localError;
+            return false;
+        }
+
+        if (waitForSuccess)
+        {
+            std::lock_guard seqLock(sequenceMutex_);
+            sequence->waitingOn = id;
+            return true;
+        }
+    }
+}
+
+std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& command, std::string source, std::string& errorMessage)
+{
+    errorMessage.clear();
+    if (!command.contains("action") || !command.at("action").is_string())
+    {
+        errorMessage = "命令缺少字符串类型的 action 字段";
+        return std::nullopt;
+    }
+
+    const auto action = command.at("action").get<std::string>();
+    if (action == "world.generate")
+    {
+        return enqueueWorldGenerationCommand(command, std::move(source), errorMessage);
+    }
+    if (action == "world.load" || action == "world.reload")
+    {
+        return enqueueWorldReloadCommand(command, std::move(source), errorMessage);
+    }
+    if (action == "world.save")
+    {
+        return enqueueWorldSaveCommand(command, std::move(source), errorMessage);
+    }
+
+    errorMessage = "未支持的命令 action：" + action;
+    return std::nullopt;
+}
+
+namespace
+{
+struct CommandFeedback
+{
+    std::string message;
+};
+} // namespace
+
+std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const json& descriptor, std::string source, std::string& errorMessage)
+{
+    errorMessage.clear();
+    if (!descriptor.contains("configPath") || !descriptor.at("configPath").is_string())
+    {
+        errorMessage = "world.generate 命令需要 configPath 字段";
+        return std::nullopt;
+    }
+
+    const auto configPath = std::filesystem::path(descriptor.at("configPath").get<std::string>());
+    std::optional<std::uint64_t> seedOverride;
+    if (descriptor.contains("seed"))
+    {
+        if (!descriptor.at("seed").is_number_unsigned())
+        {
+            errorMessage = "seed 字段必须为无符号整数";
+            return std::nullopt;
+        }
+        seedOverride = descriptor.at("seed").get<std::uint64_t>();
+    }
+
+    std::optional<std::filesystem::path> outputPath;
+    if (descriptor.contains("outputPath"))
+    {
+        if (!descriptor.at("outputPath").is_string())
+        {
+            errorMessage = "outputPath 字段必须为字符串";
+            return std::nullopt;
+        }
+        outputPath = std::filesystem::path(descriptor.at("outputPath").get<std::string>());
+    }
+
+    const auto payload = descriptor.dump();
+    const auto label = descriptor.value("label", std::string{"world.generate"});
+    const auto enqueuedAt = std::chrono::steady_clock::now();
+    const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+
+    purgeFinishedTasks();
+
+    auto task = std::async(std::launch::async, [this, id, configPath, seedOverride, outputPath]() {
+        bool success = false;
+        std::string message;
+        try
+        {
+            auto result = generateWorld(configPath, seedOverride, outputPath);
+            if (result && result->success)
+            {
+                std::ostringstream oss;
+                oss << "seed=" << result->seed.value << " locations=" << result->locationCount << " edges=" << result->edgeCount;
+                message = oss.str();
+                success = true;
+                rebuildAtlasOnRuntimeThread();
+            }
+            else if (result)
+            {
+                message = result->error.empty() ? "世界生成失败" : result->error;
+            }
+            else
+            {
+                message = "世界生成失败";
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            message = ex.what();
+        }
+        catch (...)
+        {
+            message = "world.generate 未知错误";
+        }
+
+        if (message.empty())
+        {
+            message = success ? "world.generate 成功" : "world.generate 失败";
+        }
+
+        completeCommand(id, success, std::move(message));
+    });
+
+    {
+        std::lock_guard lock(asyncMutex_);
+        asyncTasks_.push_back(std::move(task));
+    }
+
+    return id;
+}
+
+std::optional<std::uint64_t> RuntimeBridge::enqueueWorldReloadCommand(const json& descriptor, std::string source, std::string& errorMessage)
+{
+    errorMessage.clear();
+    if (!descriptor.contains("path") || !descriptor.at("path").is_string())
+    {
+        errorMessage = "world.load 命令需要 path 字段";
+        return std::nullopt;
+    }
+    const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
+
+    auto feedback = std::make_shared<CommandFeedback>();
+    const auto payload = descriptor.dump();
+    genesis::runtime::RuntimeEvent event;
+    event.kind = genesis::runtime::RuntimeEventKind::Command;
+    event.label = descriptor.value("label", std::string{"world.load"});
+    event.payloadJson = payload;
+    event.runtimeHandler = [target, feedback](genesis::runtime::Runtime& runtime) {
+        auto result = runtime.loadWorldFromFile(target);
+        if (!result.success)
+        {
+            feedback->message = result.error.empty() ? "世界加载失败" : result.error;
+            throw std::runtime_error(feedback->message);
+        }
+        feedback->message = "world.load 成功";
+    };
+    event.onComplete = [this, feedback](genesis::runtime::RuntimeEventReport& report) {
+        if (!feedback->message.empty())
+        {
+            report.message = feedback->message;
+        }
+        if (report.success)
+        {
+            rebuildAtlasOnRuntimeThread();
+        }
+    };
+
+    const auto id = enqueueRuntimeEvent(std::move(event), std::move(source));
+    return id;
+}
+
+std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& descriptor, std::string source, std::string& errorMessage)
+{
+    errorMessage.clear();
+    if (!descriptor.contains("path") || !descriptor.at("path").is_string())
+    {
+        errorMessage = "world.save 命令需要 path 字段";
+        return std::nullopt;
+    }
+    const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
+
+    auto feedback = std::make_shared<CommandFeedback>();
+    const auto payload = descriptor.dump();
+    genesis::runtime::RuntimeEvent event;
+    event.kind = genesis::runtime::RuntimeEventKind::Command;
+    event.label = descriptor.value("label", std::string{"world.save"});
+    event.payloadJson = payload;
+    event.runtimeHandler = [target, feedback](genesis::runtime::Runtime& runtime) {
+        auto result = runtime.saveWorldToFile(target);
+        if (!result.success)
+        {
+            feedback->message = result.error.empty() ? "世界保存失败" : result.error;
+            throw std::runtime_error(feedback->message);
+        }
+        feedback->message = "world.save 成功";
+    };
+    event.onComplete = [feedback](genesis::runtime::RuntimeEventReport& report) {
+        if (!feedback->message.empty())
+        {
+            report.message = feedback->message;
+        }
+    };
+
+    const auto id = enqueueRuntimeEvent(std::move(event), std::move(source));
+    return id;
+}
+
+void RuntimeBridge::rebuildAtlasOnRuntimeThread()
+{
+    auto nextAtlas = buildWorldAtlas(runtime_.engine());
+    std::lock_guard snapLock(snapshotMutex_);
+    atlas_ = std::move(nextAtlas);
+    snapshots_.clear();
+}
+
 void RuntimeBridge::runLoop()
 {
     spdlog::info("RuntimeBridge background loop starting");
@@ -290,6 +911,17 @@ void RuntimeBridge::captureSnapshot()
         snapshot.capturedAt = std::chrono::steady_clock::now();
     }
     snapshot.events = runtimeSnapshot->events;
+    reconcileCommands(snapshot.events);
+    advanceSequencesFor(snapshot.events);
+    {
+        std::lock_guard commandLock(commandMutex_);
+        snapshot.executedCommands = snapshot.events;
+        snapshot.pendingCommandIds.reserve(pendingCommands_.size());
+        for (const auto& [id, _] : pendingCommands_)
+        {
+            snapshot.pendingCommandIds.push_back(id);
+        }
+    }
     if (auto diff = runtime_.latestSnapshotDiff())
     {
         snapshot.diff = std::move(*diff);

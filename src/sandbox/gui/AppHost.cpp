@@ -28,9 +28,11 @@
 #include <utility>
 #include <vector>
 #include <cstdlib>
+#include <nlohmann/json.hpp>
 
 namespace Genesis::Sandbox::Gui
 {
+using json = nlohmann::json;
 
     class ImGuiLogSink : public spdlog::sinks::base_sink<std::mutex>
     {
@@ -73,6 +75,45 @@ namespace Genesis::Sandbox::Gui
 
     namespace
     {
+        const char* commandStateLabel(RuntimeBridge::CommandState state)
+        {
+            switch (state)
+            {
+            case RuntimeBridge::CommandState::Pending:
+                return "等待";
+            case RuntimeBridge::CommandState::Succeeded:
+                return "完成";
+            case RuntimeBridge::CommandState::Failed:
+                return "失败";
+            default:
+                return "未知";
+            }
+        }
+
+        ImVec4 commandStateColor(RuntimeBridge::CommandState state)
+        {
+            switch (state)
+            {
+            case RuntimeBridge::CommandState::Pending:
+                return ImVec4(0.95f, 0.78f, 0.35f, 1.0f);
+            case RuntimeBridge::CommandState::Succeeded:
+                return ImVec4(0.45f, 0.85f, 0.45f, 1.0f);
+            case RuntimeBridge::CommandState::Failed:
+                return ImVec4(0.95f, 0.4f, 0.35f, 1.0f);
+            default:
+                return ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+            }
+        }
+
+        std::string commandStateSummary(const RuntimeBridge::CommandProgress& command)
+        {
+            std::string summary = std::string(commandStateLabel(command.state)) + " (#" + std::to_string(command.id) + ")";
+            if (!command.message.empty())
+            {
+                summary += " · " + command.message;
+            }
+            return summary;
+        }
 
         void FramebufferSizeCallback(GLFWwindow * /*window*/, int width, int height)
         {
@@ -564,7 +605,15 @@ void AppHost::drawWorldGenerationPanel()
         return;
     }
 
-    ImGui::TextUnformatted("生成世界 → 可选保存为文件 → 需要时手动加载。");
+    const bool bridgeReady = runtime_bridge_ != nullptr;
+    std::vector<RuntimeBridge::CommandProgress> commandStatuses;
+    if (bridgeReady)
+    {
+        commandStatuses = runtime_bridge_->commandStatusSnapshot();
+        refreshCommandStatusTexts(commandStatuses);
+    }
+
+    ImGui::TextUnformatted("生成世界 → 命令队列驱动的生成/加载/保存流程。");
     ImGui::Separator();
 
     ImGui::InputText("配置路径", worldgen_config_buffer_.data(), worldgen_config_buffer_.size());
@@ -601,82 +650,86 @@ void AppHost::drawWorldGenerationPanel()
         ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写配置文件路径");
     }
 
-    const bool bridgeReady = runtime_bridge_ != nullptr;
     if (!bridgeReady || !hasConfig)
     {
         ImGui::BeginDisabled();
     }
     if (ImGui::Button("生成世界"))
     {
-        std::optional<std::uint64_t> seedOverride = worldgen_use_random_seed_ ? std::nullopt : std::optional<std::uint64_t>{worldgen_seed_};
-        std::optional<std::filesystem::path> outputPath{};
-        if (!outputInput.empty())
+        if (bridgeReady)
         {
-            outputPath = std::filesystem::path(outputInput);
-        }
-        auto result = runtime_bridge_->generateWorld(std::filesystem::path(configInput), seedOverride, outputPath);
-        if (result.has_value())
-        {
-            last_worldgen_result_ = result;
-            if (last_worldgen_result_->success)
+            json command = {
+                {"action", "world.generate"},
+                {"configPath", configInput},
+            };
+            if (!worldgen_use_random_seed_)
             {
-                if (last_worldgen_result_->outputPath)
-                {
-                    const auto &out = *last_worldgen_result_->outputPath;
-                    std::snprintf(world_load_buffer_.data(), world_load_buffer_.size(), "%s", out.string().c_str());
-                }
-                if (worldgen_use_random_seed_)
-                {
-                    worldgen_seed_ = last_worldgen_result_->seed.value;
-                }
+                command["seed"] = worldgen_seed_;
+            }
+            if (!outputInput.empty())
+            {
+                command["outputPath"] = outputInput;
+            }
+
+            std::string error;
+            if (auto id = runtime_bridge_->enqueueCommandFromJson(command, "ui", error))
+            {
+                worldgen_command_id_ = id;
+                world_command_status_ = "命令已提交 (#" + std::to_string(*id) + ")";
+            }
+            else
+            {
+                world_command_status_ = "提交失败: " + error;
             }
         }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("清除结果"))
-    {
-        last_worldgen_result_.reset();
     }
     if (!bridgeReady || !hasConfig)
     {
         ImGui::EndDisabled();
     }
-
-    if (last_worldgen_result_)
+    if (!world_command_status_.empty())
     {
-        const auto &result = *last_worldgen_result_;
-        ImGui::Separator();
-        if (result.success)
+        ImGui::TextWrapped("%s", world_command_status_.c_str());
+    }
+
+    if (bridgeReady)
+    {
+        if (auto resultOpt = runtime_bridge_->lastGeneration(); resultOpt)
         {
-            ImGui::Text("最新一次生成成功");
-            ImGui::BulletText("配置: %s", result.configPath.string().c_str());
-            ImGui::BulletText("种子: %llu", static_cast<unsigned long long>(result.seed.value));
-            ImGui::BulletText("节点: %zu · 边: %zu", result.locationCount, result.edgeCount);
-            ImGui::BulletText("耗时: %.2f ms", result.durationMs);
-            if (result.outputPath)
+            const auto& result = *resultOpt;
+            ImGui::Separator();
+            if (result.success)
             {
-                ImGui::BulletText("输出文件: %s", result.outputPath->string().c_str());
+                ImGui::Text("最新一次生成成功");
+                ImGui::BulletText("配置: %s", result.configPath.string().c_str());
+                ImGui::BulletText("种子: %llu", static_cast<unsigned long long>(result.seed.value));
+                ImGui::BulletText("节点: %zu · 边: %zu", result.locationCount, result.edgeCount);
+                ImGui::BulletText("耗时: %.2f ms", result.durationMs);
+                if (result.outputPath)
+                {
+                    ImGui::BulletText("输出文件: %s", result.outputPath->string().c_str());
+                }
+                else
+                {
+                    ImGui::BulletText("输出文件: 未指定 (仍保留在内存)");
+                }
             }
             else
             {
-                ImGui::BulletText("输出文件: 未指定 (仍保留在内存)");
+                ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "生成失败: %s", result.error.c_str());
             }
-        }
-        else
-        {
-            ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "生成失败: %s", result.error.c_str());
-        }
 
-        if (!result.logs.empty())
-        {
-            if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 180.0f), true))
+            if (!result.logs.empty())
             {
-                for (const auto &entry : result.logs)
+                if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 180.0f), true))
                 {
-                    ImGui::TextUnformatted(entry.message.c_str());
+                    for (const auto& entry : result.logs)
+                    {
+                        ImGui::TextUnformatted(entry.message.c_str());
+                    }
                 }
+                ImGui::EndChild();
             }
-            ImGui::EndChild();
         }
     }
 
@@ -694,15 +747,22 @@ void AppHost::drawWorldGenerationPanel()
     }
     if (ImGui::Button("加载世界"))
     {
-        auto result = runtime_bridge_->loadWorld(std::filesystem::path(loadInput));
-        if (result.success)
+        if (bridgeReady)
         {
-            world_load_status_ = "世界已加载";
-            resetSceneForNewWorld();
-        }
-        else
-        {
-            world_load_status_ = "加载失败: " + result.error;
+            json command = {
+                {"action", "world.load"},
+                {"path", loadInput},
+            };
+            std::string error;
+            if (auto id = runtime_bridge_->enqueueCommandFromJson(command, "ui", error))
+            {
+                world_load_command_id_ = id;
+                world_load_status_ = "命令已提交 (#" + std::to_string(*id) + ")";
+            }
+            else
+            {
+                world_load_status_ = "提交失败: " + error;
+            }
         }
     }
     if (!bridgeReady || loadInput.empty())
@@ -728,15 +788,22 @@ void AppHost::drawWorldGenerationPanel()
     }
     if (ImGui::Button("保存当前世界"))
     {
-        auto result = runtime_bridge_->saveWorld(std::filesystem::path(saveInput));
-        if (result.success)
+        if (bridgeReady)
         {
-            world_save_status_ = "已保存";
-            std::snprintf(world_load_buffer_.data(), world_load_buffer_.size(), "%s", saveInput.c_str());
-        }
-        else
-        {
-            world_save_status_ = "保存失败: " + result.error;
+            json command = {
+                {"action", "world.save"},
+                {"path", saveInput},
+            };
+            std::string error;
+            if (auto id = runtime_bridge_->enqueueCommandFromJson(command, "ui", error))
+            {
+                world_save_command_id_ = id;
+                world_save_status_ = "命令已提交 (#" + std::to_string(*id) + ")";
+            }
+            else
+            {
+                world_save_status_ = "提交失败: " + error;
+            }
         }
     }
     if (!bridgeReady || saveInput.empty())
@@ -746,6 +813,94 @@ void AppHost::drawWorldGenerationPanel()
     if (!world_save_status_.empty())
     {
         ImGui::TextWrapped("%s", world_save_status_.c_str());
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("命令脚本");
+    ImGui::InputText("脚本路径", command_script_buffer_.data(), command_script_buffer_.size());
+    if (!bridgeReady)
+    {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("执行脚本"))
+    {
+        const std::string scriptPath(command_script_buffer_.data());
+        if (scriptPath.empty())
+        {
+            command_script_status_ = "请填写脚本路径";
+        }
+        else if (bridgeReady)
+        {
+            std::string error;
+            if (runtime_bridge_->enqueueCommandScript(std::filesystem::path(scriptPath), "script", error))
+            {
+                command_script_status_ = "脚本已提交";
+            }
+            else
+            {
+                command_script_status_ = "脚本执行失败: " + error;
+            }
+        }
+    }
+    if (!bridgeReady)
+    {
+        ImGui::EndDisabled();
+    }
+    if (!command_script_status_.empty())
+    {
+        ImGui::TextWrapped("%s", command_script_status_.c_str());
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("命令队列状态");
+    if (commandStatuses.empty())
+    {
+        ImGui::TextUnformatted("暂无命令记录");
+    }
+    else if (ImGui::BeginChild("CommandQueueView", ImVec2(0.0f, 220.0f), true))
+    {
+        if (ImGui::BeginTable("CommandQueueTable", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY))
+        {
+            ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+            ImGui::TableSetupColumn("标签");
+            ImGui::TableSetupColumn("来源", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+            ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+            ImGui::TableSetupColumn("备注");
+            ImGui::TableHeadersRow();
+
+            for (const auto& cmd : commandStatuses)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("#%llu", static_cast<unsigned long long>(cmd.id));
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::TextUnformatted(cmd.label.c_str());
+
+                ImGui::TableSetColumnIndex(2);
+                ImGui::TextUnformatted(cmd.source.c_str());
+
+                ImGui::TableSetColumnIndex(3);
+                const ImVec4 color = commandStateColor(cmd.state);
+                ImGui::TextColored(color, "%s", commandStateLabel(cmd.state));
+
+                ImGui::TableSetColumnIndex(4);
+                if (!cmd.message.empty())
+                {
+                    ImGui::TextWrapped("%s", cmd.message.c_str());
+                }
+                else if (cmd.payloadJson.has_value())
+                {
+                    ImGui::TextDisabled("%s", cmd.payloadJson->c_str());
+                }
+                else
+                {
+                    ImGui::TextDisabled("-");
+                }
+            }
+            ImGui::EndTable();
+        }
+        ImGui::EndChild();
     }
 
     ImGui::End();
@@ -1245,6 +1400,88 @@ void AppHost::drawWorldGenerationPanel()
         ImGui::End();
     }
 
+    void AppHost::refreshCommandStatusTexts(const std::vector<RuntimeBridge::CommandProgress>& commands)
+    {
+        auto findCommand = [&commands](std::uint64_t id) -> const RuntimeBridge::CommandProgress* {
+            for (const auto& command : commands)
+            {
+                if (command.id == id)
+                {
+                    return &command;
+                }
+            }
+            return nullptr;
+        };
+
+        if (worldgen_command_id_)
+        {
+            if (const auto* command = findCommand(*worldgen_command_id_))
+            {
+                switch (command->state)
+                {
+                case RuntimeBridge::CommandState::Pending:
+                    world_command_status_ = commandStateSummary(*command);
+                    break;
+                case RuntimeBridge::CommandState::Succeeded:
+                    world_command_status_ = commandStateSummary(*command);
+                    if (runtime_bridge_)
+                    {
+                        if (auto latestOpt = runtime_bridge_->lastGeneration(); latestOpt && latestOpt->success)
+                        {
+                            const auto& latest = *latestOpt;
+                            if (latest.outputPath)
+                            {
+                                const auto text = latest.outputPath->string();
+                                std::snprintf(world_load_buffer_.data(), world_load_buffer_.size(), "%s", text.c_str());
+                            }
+                            if (worldgen_use_random_seed_ && latest.seed.value != 0)
+                            {
+                                worldgen_seed_ = latest.seed.value;
+                            }
+                        }
+                    }
+                    worldgen_command_id_.reset();
+                    break;
+                case RuntimeBridge::CommandState::Failed:
+                    world_command_status_ = commandStateSummary(*command);
+                    worldgen_command_id_.reset();
+                    break;
+                }
+            }
+        }
+
+        auto updateStatus = [&](std::optional<std::uint64_t>& idHolder, std::string& statusText, auto onSuccess) {
+            if (!idHolder)
+            {
+                return;
+            }
+            if (const auto* command = findCommand(*idHolder))
+            {
+                switch (command->state)
+                {
+                case RuntimeBridge::CommandState::Pending:
+                    statusText = commandStateSummary(*command);
+                    break;
+                case RuntimeBridge::CommandState::Succeeded:
+                    statusText = commandStateSummary(*command);
+                    onSuccess();
+                    idHolder.reset();
+                    break;
+                case RuntimeBridge::CommandState::Failed:
+                    statusText = commandStateSummary(*command);
+                    idHolder.reset();
+                    break;
+                }
+            }
+        };
+
+        updateStatus(world_load_command_id_, world_load_status_, [this]() {
+            resetSceneForNewWorld();
+        });
+
+        updateStatus(world_save_command_id_, world_save_status_, []() {});
+    }
+
     void AppHost::resetSceneForNewWorld()
     {
         latest_snapshot_.reset();
@@ -1266,8 +1503,14 @@ void AppHost::refreshDefaultWorldgenConfig()
     std::fill(worldgen_output_buffer_.begin(), worldgen_output_buffer_.end(), '\0');
     std::fill(world_load_buffer_.begin(), world_load_buffer_.end(), '\0');
     std::fill(world_save_buffer_.begin(), world_save_buffer_.end(), '\0');
+    std::fill(command_script_buffer_.begin(), command_script_buffer_.end(), '\0');
     world_load_status_.clear();
     world_save_status_.clear();
+    world_command_status_.clear();
+    command_script_status_.clear();
+    worldgen_command_id_.reset();
+    world_load_command_id_.reset();
+    world_save_command_id_.reset();
 
     const std::filesystem::path defaultConfig{"data/worldgen/default.toml"};
     if (auto resolved = locateAsset(defaultConfig); !resolved.empty())

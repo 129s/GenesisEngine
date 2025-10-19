@@ -110,12 +110,21 @@ struct HexLayoutSettings
     double spacing{6.0};
 };
 
+struct NoiseLayoutSettings
+{
+    bool enabled{false};
+    double radius{20.0};
+    double min_spacing{3.0};
+    std::size_t max_attempts{64};
+};
+
 struct LayoutSettings
 {
     GridLayoutSettings grid{};
     ClusterLayoutSettings cluster{};
     CorridorLayoutSettings corridor{};
     HexLayoutSettings hex{};
+    NoiseLayoutSettings noise{};
 };
 
 struct TilemapSettings

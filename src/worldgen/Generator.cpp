@@ -186,6 +186,10 @@ GeneratedWorld generate_world(const GeneratorConfig& config, Seed seed)
     layout_log << "布局生成: placements=" << layout_result.placements.size();
     context.log(layout_log.str());
 
+    std::ostringstream tilemap_log;
+    tilemap_log << "Tilemap 生成: count=" << world_graph.tilemaps.size();
+    context.log(tilemap_log.str());
+
     context.log("世界生成完成");
 
     GeneratedWorld world{};

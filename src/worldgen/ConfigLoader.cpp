@@ -173,6 +173,25 @@ LayoutSettings parse_layout_settings(const toml::table& root)
                 settings.hex.spacing = *spacing;
             }
         }
+        if (const auto* noise_table = layout_table->get_as<toml::table>("noise"))
+        {
+            if (const auto* enabled = noise_table->get_as<bool>("enabled"))
+            {
+                settings.noise.enabled = enabled->get();
+            }
+            if (auto radius = read_double(*noise_table, "radius"))
+            {
+                settings.noise.radius = *radius;
+            }
+            if (auto min_spacing = read_double(*noise_table, "min_spacing"))
+            {
+                settings.noise.min_spacing = *min_spacing;
+            }
+            if (auto max_attempts = read_size_t(*noise_table, "max_attempts"))
+            {
+                settings.noise.max_attempts = *max_attempts;
+            }
+        }
     }
     return settings;
 }

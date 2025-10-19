@@ -97,6 +97,12 @@ step = 7.0
 enabled = true
 spacing = 6.0
 
+[layout.noise]
+enabled = true
+radius = 24.0
+min_spacing = 3.5
+max_attempts = 64
+
 [interaction.resources]
 food = { density = 0.3, capacity = [30, 60], rate = [1, 3] }
 ore = { density = 0.2, cluster = "vein" }

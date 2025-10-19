@@ -95,6 +95,61 @@ std::vector<std::pair<double, double>> generate_grid_offsets(const LayoutSetting
     }
     return offsets;
 }
+
+std::vector<std::pair<double, double>> generate_noise_offsets(const NoiseLayoutSettings& settings,
+    std::size_t count,
+    DeterministicRng& rng)
+{
+    std::vector<std::pair<double, double>> offsets;
+    offsets.reserve(count);
+
+    if (count == 0 || !settings.enabled)
+    {
+        return offsets;
+    }
+
+    constexpr double TWO_PI = 6.28318530717958647692;
+
+    const std::size_t attempts = std::max<std::size_t>(1, settings.max_attempts);
+
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        bool placed = false;
+        for (std::size_t attempt = 0; attempt < attempts; ++attempt)
+        {
+            const double angle = rng.uniform(0.0, TWO_PI);
+            const double distance = rng.uniform(0.0, settings.radius);
+            const double x = std::cos(angle) * distance;
+            const double y = std::sin(angle) * distance;
+
+            bool valid = true;
+            for (const auto& existing : offsets)
+            {
+                const double dx = existing.first - x;
+                const double dy = existing.second - y;
+                if (std::sqrt(dx * dx + dy * dy) < settings.min_spacing)
+                {
+                    valid = false;
+                    break;
+                }
+            }
+
+            if (valid)
+            {
+                offsets.emplace_back(x, y);
+                placed = true;
+                break;
+            }
+        }
+
+        if (!placed)
+        {
+            offsets.emplace_back(0.0, 0.0);
+        }
+    }
+
+    return offsets;
+}
 } // namespace
 
 LayoutModule::LayoutModule(LayoutSettings settings)
@@ -109,13 +164,22 @@ LayoutModule::LayoutModule(LayoutSettings settings)
     ensure_positive(settings_.cluster.radial_distance, "cluster.radial_distance");
     ensure_positive(settings_.cluster.radial_step, "cluster.radial_step");
     ensure_positive(settings_.corridor.step, "corridor.step");
-    if (settings_.hex.spacing <= 0.0)
+    if (settings_.hex.enabled)
     {
-        throw std::invalid_argument("hex.spacing 必须为正数");
+        ensure_positive(settings_.hex.spacing, "hex.spacing");
+    }
+    if (settings_.noise.enabled)
+    {
+        ensure_positive(settings_.noise.radius, "noise.radius");
+        ensure_positive(settings_.noise.min_spacing, "noise.min_spacing");
+        if (settings_.noise.max_attempts == 0)
+        {
+            throw std::invalid_argument("noise.max_attempts 必须大于 0");
+        }
     }
 }
 
-LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicRng&) const
+LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicRng& rng) const
 {
     LayoutDraft layout{};
     layout.placements.reserve(topology.nodes.size());
@@ -220,7 +284,28 @@ LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicR
         placed.insert(node->local_id);
     }
 
-    // 4. Fallback for nodes without placement
+    // 4. Noise nodes
+    std::vector<const NodeDraft*> noise_nodes;
+    for (const auto& node : topology.nodes)
+    {
+        if (!placed.contains(node.local_id) && (has_tag(node, "wilds") || has_tag(node, "noise")))
+        {
+            noise_nodes.push_back(&node);
+        }
+    }
+    if (!noise_nodes.empty() && settings_.noise.enabled)
+    {
+        auto noise_offsets = generate_noise_offsets(settings_.noise, noise_nodes.size(), rng);
+        for (std::size_t i = 0; i < noise_nodes.size(); ++i)
+        {
+            const auto* node = noise_nodes[i];
+            const auto offset = noise_offsets[i];
+            layout.placements.push_back(NodePlacement{node->local_id, offset.first, offset.second, 0.0});
+            placed.insert(node->local_id);
+        }
+    }
+
+    // 5. Fallback for nodes without placement
     for (const auto& node : topology.nodes)
     {
         if (!placed.contains(node.local_id))

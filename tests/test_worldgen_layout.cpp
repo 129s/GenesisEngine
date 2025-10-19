@@ -249,3 +249,66 @@ TEST(WorldgenLayout, CorridorNodesPlacedLinearlyAlongX)
         EXPECT_NEAR(corridor[i]->y, 0.0, 1e-5);
     }
 }
+
+TEST(WorldgenLayout, NoiseLayoutRespectsSpacing)
+{
+    LayoutSettings layout_settings = make_layout_settings();
+    layout_settings.hex.enabled = false;
+    layout_settings.noise.enabled = true;
+    layout_settings.noise.radius = 12.0;
+    layout_settings.noise.min_spacing = 3.0;
+    layout_settings.noise.max_attempts = 128;
+
+    TopologyDraft topology{};
+    NodeDraft root{};
+    root.local_id = 0;
+    root.label = "root";
+    root.tags = {"hub"};
+    topology.nodes.push_back(root);
+
+    for (std::size_t i = 0; i < 5; ++i)
+    {
+        NodeDraft node{};
+        node.local_id = static_cast<std::size_t>(i + 1);
+        node.parent = 0;
+        node.label = "wild";
+        node.tags = {"wilds"};
+        topology.nodes.push_back(node);
+    }
+
+    LayoutModule module(layout_settings);
+    DeterministicRng rng_a(Seed{4321});
+    auto layout_a = module.generate(topology, rng_a);
+    DeterministicRng rng_b(Seed{4321});
+    auto layout_b = module.generate(topology, rng_b);
+
+    ASSERT_EQ(layout_a.placements.size(), layout_b.placements.size());
+    for (std::size_t i = 0; i < layout_a.placements.size(); ++i)
+    {
+        EXPECT_EQ(layout_a.placements[i].local_id, layout_b.placements[i].local_id);
+        EXPECT_DOUBLE_EQ(layout_a.placements[i].x, layout_b.placements[i].x);
+        EXPECT_DOUBLE_EQ(layout_a.placements[i].y, layout_b.placements[i].y);
+    }
+
+    std::vector<std::pair<double, double>> noise_positions;
+    for (const auto& placement : layout_a.placements)
+    {
+        if (placement.local_id == 0)
+        {
+            continue;
+        }
+        noise_positions.emplace_back(placement.x, placement.y);
+    }
+
+    const double min_spacing = layout_settings.noise.min_spacing - 1e-6;
+    for (std::size_t i = 0; i < noise_positions.size(); ++i)
+    {
+        for (std::size_t j = i + 1; j < noise_positions.size(); ++j)
+        {
+            const double dx = noise_positions[i].first - noise_positions[j].first;
+            const double dy = noise_positions[i].second - noise_positions[j].second;
+            const double dist = std::sqrt(dx * dx + dy * dy);
+            EXPECT_GT(dist, min_spacing);
+        }
+    }
+}

@@ -38,8 +38,12 @@ std::vector<world::TilemapMeta> TilemapModule::generate(
         meta.node = it->second;
         meta.tileW = settings_.tile_size;
         meta.tileH = settings_.tile_size;
-        meta.width = settings_.base_extent;
-        meta.height = settings_.base_extent;
+        const double abs_x = std::abs(placement.x);
+        const double abs_y = std::abs(placement.y);
+        const int extra_x = static_cast<int>(std::ceil(abs_x / static_cast<double>(settings_.tile_size)));
+        const int extra_y = static_cast<int>(std::ceil(abs_y / static_cast<double>(settings_.tile_size)));
+        meta.width = settings_.base_extent + extra_x;
+        meta.height = settings_.base_extent + extra_y;
         tilemaps.push_back(meta);
     }
 
@@ -47,4 +51,3 @@ std::vector<world::TilemapMeta> TilemapModule::generate(
 }
 
 } // namespace genesis::worldgen
-

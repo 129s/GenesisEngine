@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
+#include <string_view>
 #include <vector>
 
 #include <entt/entt.hpp>
@@ -13,6 +15,7 @@
 #include "genesis/agents/MovementSystem.hpp"
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/world/WorldRegistry.hpp"
+#include "genesis/world/WorldLoader.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/planner/HungerPlanner.hpp"
@@ -30,6 +33,10 @@ public:
 
     void run(std::uint64_t maxSteps);
     void step(std::uint64_t steps = 1);
+
+    [[nodiscard]] genesis::world::WorldLoadResult loadWorldFromFile(const std::filesystem::path& path);
+    [[nodiscard]] genesis::world::WorldLoadResult loadWorldFromJsonString(std::string_view jsonData);
+    [[nodiscard]] genesis::world::LocationGraph exportWorldGraph() const { return m_world.exportGraph(); }
 
     [[nodiscard]] SimulationClock& clock() noexcept { return m_clock; }
     [[nodiscard]] const SimulationClock& clock() const noexcept { return m_clock; }
@@ -57,6 +64,7 @@ private:
     void spawnDemoAgents();
     void captureTelemetry(std::uint64_t stepIndex);
     void reportTelemetry(std::uint64_t stepIndex);
+    void applyWorldGraph(genesis::world::LocationGraph graph);
 
     SimulationClock m_clock;
     messaging::EventBus m_eventBus;

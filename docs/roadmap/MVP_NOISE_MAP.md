@@ -18,7 +18,7 @@
    - 资源：在 `Soil` 上按密度采样 `ResourceSpawn{ Food, capacity, ratePerStep }`。
    - 输出：写入 `data/world/generated/noise_mvp.json` 与匹配的 `data/ascii_layout.json`（自动生成）。
 2. 运行时接入
-   - Engine 在找不到 `demo_world.json` 时，优先加载 `generated/noise_mvp.json`（或提供脚本/参数切换）。
+   - Engine 通过显式 `loadWorldFromFile` 接口加载噪声世界（脚本/CLI 会传入生成结果路径），不再依赖 demo 回退。
    - 资源系统：沿用当前 `ratePerStep` 增产逻辑（固定刷新）。
 3. NPC 基本循环
    - 维持现有 Need/Hunger/Planner/Action 流程；将代理初始落点设置在可通行节点上。
@@ -58,7 +58,7 @@
 ## 执行计划（Action Plan）
 - **Phase 1 · 生成器基础**（已完成）：实现 `NoiseGridGenerator`，构建 `LocationGraph`、资源采样与 JSON 导出，并补齐单元测试。
 - **Phase 2 · 命令与自动化**（已交付 CLI `genesis-noise-generator` 与脚本 `scripts/generate_noise_world.ps1`）：提供脚本/命令行一键生成噪声地图，接入构建流程并更新操作指南。
-- **Phase 3 · 运行时接入**（已实现候选回退 + 自动择位）：引擎可通过 `GENESIS_WORLD_PATH` 或缺省顺序加载噪声地图，维持资源刷新，并自动挑选可通行节点投放初始代理。
+- **Phase 3 · 运行时接入**：引擎可通过配置参数显式加载噪声地图，维持资源刷新，并自动挑选可通行节点投放初始代理。
 - **Phase 4 · NPC 生命周期验证**（已完成：脚本化步骤 + Telemetry 校验）：在 `sandbox_cli` 中使用固定脚本复现 `MoveTo → ConsumeResource` 闭环，并通过自动化测试记录 Hunger 波动。
 - **Phase 5 · CLI 可视化支持**：渲染 ASCII 布局、补充验证指引。详见 `docs/status/backlog/noise-map-mvp.md`。
 

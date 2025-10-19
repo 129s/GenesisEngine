@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <cstdlib>
 #include <filesystem>
 #include <limits>
 #include <string>
@@ -26,46 +25,6 @@ std::filesystem::path locateDataFile(const std::filesystem::path& relative) {
     return {};
 }
 
-class EnvironmentGuard {
-public:
-    explicit EnvironmentGuard(std::string name)
-        : m_name(std::move(name)) {
-        if (const char* value = std::getenv(m_name.c_str())) {
-            m_previous = value;
-            m_hadPrevious = true;
-        }
-    }
-
-    void set(const std::string& value) {
-#ifdef _WIN32
-        _putenv_s(m_name.c_str(), value.c_str());
-#else
-        ::setenv(m_name.c_str(), value.c_str(), 1);
-#endif
-    }
-
-    ~EnvironmentGuard() {
-        if (m_hadPrevious) {
-#ifdef _WIN32
-            _putenv_s(m_name.c_str(), m_previous.c_str());
-#else
-            ::setenv(m_name.c_str(), m_previous.c_str(), 1);
-#endif
-        } else {
-#ifdef _WIN32
-            _putenv_s(m_name.c_str(), "");
-#else
-            ::unsetenv(m_name.c_str());
-#endif
-        }
-    }
-
-private:
-    std::string m_name;
-    std::string m_previous;
-    bool m_hadPrevious{false};
-};
-
 } // namespace
 
 TEST(RuntimeTest, GeneratesSnapshotsAfterStepping) {
@@ -82,10 +41,9 @@ TEST(RuntimeTest, LoadsNoiseWorldViaEnvironmentOverride) {
     const auto noisePath = locateDataFile("data/world/generated/noise_mvp.json");
     ASSERT_FALSE(noisePath.empty()) << "Unable to locate generated noise world data";
 
-    EnvironmentGuard guard("GENESIS_WORLD_PATH");
-    guard.set(noisePath.string());
-
     genesis::core::Engine engine;
+    const auto loadResult = engine.loadWorldFromFile(noisePath);
+    ASSERT_TRUE(loadResult.success) << loadResult.error;
     EXPECT_GT(engine.world().locationCount(), 1000U);
     EXPECT_GT(engine.world().resourceSpawnCount(), 10U);
 }
@@ -94,10 +52,9 @@ TEST(RuntimeTest, AgentCompletesConsumeCycleOnNoiseWorld) {
     const auto noisePath = locateDataFile("data/world/generated/noise_mvp.json");
     ASSERT_FALSE(noisePath.empty()) << "Unable to locate generated noise world data";
 
-    EnvironmentGuard guard("GENESIS_WORLD_PATH");
-    guard.set(noisePath.string());
-
     genesis::core::Engine engine;
+    const auto loadResult = engine.loadWorldFromFile(noisePath);
+    ASSERT_TRUE(loadResult.success) << loadResult.error;
 
     bool sawPlannerDecision = false;
     bool sawResourceDip = false;
@@ -144,4 +101,24 @@ TEST(RuntimeTest, AgentCompletesConsumeCycleOnNoiseWorld) {
     EXPECT_TRUE(sawPlannerDecision);
     EXPECT_TRUE(sawResourceDip);
     EXPECT_TRUE(hungerReduced);
+}
+
+TEST(RuntimeTest, SaveAndReloadWorld) {
+    const auto noisePath = locateDataFile("data/world/generated/noise_mvp.json");
+    ASSERT_FALSE(noisePath.empty()) << "Unable to locate generated noise world data";
+
+    genesis::runtime::Runtime runtime({});
+    auto loadResult = runtime.loadWorldFromFile(noisePath);
+    ASSERT_TRUE(loadResult.success) << loadResult.error;
+
+    const auto tempPath = std::filesystem::temp_directory_path() / "genesis_engine_world_save_test.json";
+    auto saveResult = runtime.saveWorldToFile(tempPath);
+    ASSERT_TRUE(saveResult.success) << saveResult.error;
+
+    auto reloadResult = runtime.loadWorldFromFile(tempPath);
+    ASSERT_TRUE(reloadResult.success) << reloadResult.error;
+    EXPECT_GT(runtime.engine().world().locationCount(), 0U);
+
+    std::error_code ec;
+    std::filesystem::remove(tempPath, ec);
 }

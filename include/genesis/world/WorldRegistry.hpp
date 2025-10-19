@@ -23,6 +23,8 @@ public:
     [[nodiscard]] const LocationNode* findLocation(LocationId id) const;
     [[nodiscard]] std::vector<LocationId> childrenOf(LocationId id) const;
     [[nodiscard]] const std::vector<PathEdge>& edgesFrom(LocationId id) const;
+    [[nodiscard]] std::uint32_t schemaVersion() const noexcept { return m_schemaVersion; }
+
     [[nodiscard]] const std::vector<ResourceSpawn>& resourceSpawns() const noexcept { return m_resourceSpawns; }
     [[nodiscard]] const std::vector<TilemapMeta>& tilemaps() const noexcept { return m_tilemaps; }
 
@@ -33,6 +35,7 @@ public:
     [[nodiscard]] std::vector<ResourceSpawn> spawnsAt(LocationId location) const;
     [[nodiscard]] const std::vector<ResourceSpawn>& allSpawns() const noexcept { return m_resourceSpawns; }
     [[nodiscard]] std::vector<LocationNode> locations() const;
+    [[nodiscard]] LocationGraph exportGraph() const;
 
 private:
     using LocationMap = std::unordered_map<LocationId, LocationNode, LocationIdHasher>;
@@ -44,6 +47,7 @@ private:
     ChildMap m_children;
     std::vector<ResourceSpawn> m_resourceSpawns;
     std::vector<TilemapMeta> m_tilemaps;
+    std::uint32_t m_schemaVersion{0};
 
     inline static const std::vector<PathEdge> s_emptyEdges{};
 };

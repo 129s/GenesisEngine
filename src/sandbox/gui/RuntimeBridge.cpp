@@ -123,7 +123,7 @@ double RuntimeBridge::speedMultiplier() const
     return speedMultiplier_;
 }
 
-std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride)
+std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride, std::optional<std::filesystem::path> outputPath)
 {
     bool wasRunning = false;
     bool wasPaused = false;
@@ -138,11 +138,39 @@ std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::g
         stop();
     }
 
-    auto result = runtime_.generateWorldFromConfig(configPath, seedOverride);
+    auto result = runtime_.generateWorldFromConfig(configPath, seedOverride, outputPath);
     lastGeneration_ = result;
-    atlas_ = buildWorldAtlas(runtime_.engine());
 
+    if (wasRunning)
     {
+        if (start() && wasPaused)
+        {
+            setPaused(true);
+        }
+    }
+
+    return lastGeneration_;
+}
+
+genesis::world::WorldLoadResult RuntimeBridge::loadWorld(const std::filesystem::path& path)
+{
+    bool wasRunning = false;
+    bool wasPaused = false;
+    {
+        std::lock_guard lock(controlMutex_);
+        wasRunning = running_;
+        wasPaused = paused_;
+    }
+
+    if (wasRunning)
+    {
+        stop();
+    }
+
+    auto result = runtime_.loadWorldFromFile(path);
+    if (result.success)
+    {
+        atlas_ = buildWorldAtlas(runtime_.engine());
         std::lock_guard snapshotLock(snapshotMutex_);
         snapshots_.clear();
     }
@@ -155,7 +183,35 @@ std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::g
         }
     }
 
-    return lastGeneration_;
+    return result;
+}
+
+genesis::world::WorldSaveResult RuntimeBridge::saveWorld(const std::filesystem::path& path)
+{
+    bool wasRunning = false;
+    bool wasPaused = false;
+    {
+        std::lock_guard lock(controlMutex_);
+        wasRunning = running_;
+        wasPaused = paused_;
+    }
+
+    if (wasRunning)
+    {
+        stop();
+    }
+
+    auto result = runtime_.saveWorldToFile(path);
+
+    if (wasRunning)
+    {
+        if (start() && wasPaused)
+        {
+            setPaused(true);
+        }
+    }
+
+    return result;
 }
 
 std::optional<RuntimeBridge::Snapshot> RuntimeBridge::latestSnapshot() const

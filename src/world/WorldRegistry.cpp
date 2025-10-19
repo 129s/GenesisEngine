@@ -1,6 +1,7 @@
 #include "genesis/world/WorldRegistry.hpp"
 
 #include <algorithm>
+#include <unordered_set>
 
 namespace genesis::world {
 
@@ -9,10 +10,14 @@ void WorldRegistry::clear() {
     m_edges.clear();
     m_children.clear();
     m_resourceSpawns.clear();
+    m_tilemaps.clear();
+    m_schemaVersion = 0;
 }
 
 void WorldRegistry::setGraph(LocationGraph graph) {
     clear();
+
+    m_schemaVersion = graph.schemaVersion;
 
     for (const auto& node : graph.nodes) {
         addLocation(node);
@@ -122,6 +127,57 @@ std::vector<LocationNode> WorldRegistry::locations() const {
         nodes.push_back(node);
     }
     return nodes;
+}
+
+LocationGraph WorldRegistry::exportGraph() const {
+    LocationGraph graph{};
+    graph.schemaVersion = m_schemaVersion;
+
+    graph.nodes.reserve(m_locations.size());
+    for (const auto& [id, node] : m_locations) {
+        graph.nodes.push_back(node);
+    }
+    std::sort(graph.nodes.begin(), graph.nodes.end(), [](const LocationNode& a, const LocationNode& b) {
+        return a.id.value < b.id.value;
+    });
+
+    graph.spawns = m_resourceSpawns;
+    std::sort(graph.spawns.begin(), graph.spawns.end(), [](const ResourceSpawn& a, const ResourceSpawn& b) {
+        if (a.location.value != b.location.value) {
+            return a.location.value < b.location.value;
+        }
+        return a.name < b.name;
+    });
+
+    graph.tilemaps = m_tilemaps;
+    std::sort(graph.tilemaps.begin(), graph.tilemaps.end(), [](const TilemapMeta& a, const TilemapMeta& b) {
+        return a.node.value < b.node.value;
+    });
+
+    std::unordered_set<std::uint64_t> emittedPairs;
+    emittedPairs.reserve(m_edges.size());
+    for (const auto& [fromId, edges] : m_edges) {
+        for (const auto& edge : edges) {
+            if (edge.bidirectional) {
+                const std::uint32_t minId = std::min(edge.from.value, edge.to.value);
+                const std::uint32_t maxId = std::max(edge.from.value, edge.to.value);
+                const std::uint64_t key = (static_cast<std::uint64_t>(minId) << 32) | static_cast<std::uint64_t>(maxId);
+                if (!emittedPairs.insert(key).second) {
+                    continue;
+                }
+            }
+            graph.edges.push_back(edge);
+        }
+    }
+
+    std::sort(graph.edges.begin(), graph.edges.end(), [](const PathEdge& a, const PathEdge& b) {
+        if (a.from.value != b.from.value) {
+            return a.from.value < b.from.value;
+        }
+        return a.to.value < b.to.value;
+    });
+
+    return graph;
 }
 
 } // namespace genesis::world

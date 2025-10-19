@@ -1,16 +1,14 @@
 #include "genesis/core/Engine.hpp"
 
-#include <array>
 #include <algorithm>
 #include <chrono>
-#include <cstdlib>
 #include <filesystem>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 
 #include <spdlog/spdlog.h>
 
-#include "genesis/world/WorldBootstrap.hpp"
 #include "genesis/world/WorldLoader.hpp"
 #include "genesis/world/components/ResourceInventory.hpp"
 #include "genesis/world/components/ResourceSpawn.hpp"
@@ -20,37 +18,6 @@
 namespace genesis::core {
 
 namespace {
-
-std::filesystem::path findDataFile(const std::filesystem::path& relative) {
-    constexpr int searchDepth = 4;
-    auto current = std::filesystem::current_path();
-
-    for (int i = 0; i < searchDepth; ++i) {
-        const auto candidate = current / relative;
-        if (std::filesystem::exists(candidate)) {
-            return candidate;
-        }
-        if (current.has_parent_path()) {
-            current = current.parent_path();
-        } else {
-            break;
-        }
-    }
-
-    return {};
-}
-
-const std::array<std::filesystem::path, 2> kWorldCandidates{
-    std::filesystem::path{"data/world/demo_world.json"},
-    std::filesystem::path{"data/world/generated/noise_mvp.json"},
-};
-
-std::filesystem::path resolveWorldCandidate(const std::filesystem::path& candidate) {
-    if (candidate.is_absolute()) {
-        return std::filesystem::exists(candidate) ? candidate : std::filesystem::path{};
-    }
-    return findDataFile(candidate);
-}
 
 genesis::world::LocationId selectSpawnLocation(const genesis::world::WorldRegistry& world) {
     const auto spawns = world.allSpawns();
@@ -100,10 +67,8 @@ Engine::Engine()
       })
     , m_telemetry(512) {
     spdlog::info("GenesisEngine core initialized");
-    loadInitialWorld();
-    m_resourceSystem.initialize(m_registry);
     configureNeedDefaults();
-    spawnDemoAgents();
+    m_resourceSystem.initialize(m_registry);
 }
 
 void Engine::run(std::uint64_t maxSteps) {
@@ -148,52 +113,14 @@ void Engine::processStep(std::uint64_t stepIndex) {
     captureTelemetry(stepIndex);
 }
 
-void Engine::loadInitialWorld() {
-    if (const char* envWorld = std::getenv("GENESIS_WORLD_PATH"); envWorld && envWorld[0] != '\0') {
-        std::filesystem::path configured{envWorld};
-        const auto located = resolveWorldCandidate(configured);
-        if (!located.empty()) {
-            spdlog::info("Loading world from GENESIS_WORLD_PATH={}", located.string());
-            const auto result = genesis::world::loadWorldFromFile(located, m_world);
-            if (result.success) {
-                spdlog::info("World loaded ({} locations, {} spawns)",
-                    m_world.locationCount(), m_world.resourceSpawnCount());
-                return;
-            }
-            spdlog::error("Failed to load configured world file {}: {}", located.string(), result.error);
-        } else {
-            spdlog::warn("Configured world path {} not found", configured.string());
-        }
-    }
-
-    for (const auto& candidate : kWorldCandidates) {
-        const auto located = resolveWorldCandidate(candidate);
-        if (located.empty()) {
-            spdlog::warn("World file {} not found", candidate.string());
-            continue;
-        }
-
-        spdlog::info("Loading world from {}", located.string());
-        const auto result = genesis::world::loadWorldFromFile(located, m_world);
-        if (result.success) {
-            spdlog::info("World loaded ({} locations, {} spawns)",
-                m_world.locationCount(), m_world.resourceSpawnCount());
-            return;
-        }
-
-        spdlog::error("Failed to load world file {}: {}", located.string(), result.error);
-    }
-
-    spdlog::warn("No external world file available, using built-in demo world");
-    m_world.setGraph(genesis::world::createDemoWorldGraph());
-    spdlog::info("Fallback demo world loaded ({} locations, {} spawns)",
-        m_world.locationCount(), m_world.resourceSpawnCount());
+void Engine::reloadWorld(genesis::world::LocationGraph graph) {
+    applyWorldGraph(std::move(graph));
 }
 
-void Engine::reloadWorld(genesis::world::LocationGraph graph) {
+void Engine::applyWorldGraph(genesis::world::LocationGraph graph) {
     const auto locationCount = graph.nodes.size();
     const auto edgeCount = graph.edges.size();
-    spdlog::info("Reloading world graph ({} locations, {} edges)", locationCount, edgeCount);
+    spdlog::info("Applying world graph ({} locations, {} edges)", locationCount, edgeCount);
 
     m_world.setGraph(std::move(graph));
     m_registry.clear();
@@ -206,6 +133,28 @@ void Engine::reloadWorld(genesis::world::LocationGraph graph) {
     m_hungerDecisions.clear();
     m_telemetry.clear();
     m_lastTelemetryReportStep = 0;
+}
+
+genesis::world::WorldLoadResult Engine::loadWorldFromFile(const std::filesystem::path& path) {
+    auto result = genesis::world::loadWorldGraphFromFile(path);
+    if (!result.success) {
+        spdlog::error("Failed to load world from {}: {}", path.string(), result.error);
+        return {false, std::move(result.error)};
+    }
+
+    applyWorldGraph(std::move(result.graph));
+    return {true, {}};
+}
+
+genesis::world::WorldLoadResult Engine::loadWorldFromJsonString(std::string_view jsonData) {
+    auto result = genesis::world::loadWorldGraphFromJsonString(jsonData);
+    if (!result.success) {
+        spdlog::error("Failed to load world from JSON: {}", result.error);
+        return {false, std::move(result.error)};
+    }
+
+    applyWorldGraph(std::move(result.graph));
+    return {true, {}};
 }
 
 void Engine::configureNeedDefaults() {

@@ -64,9 +64,9 @@ cmake --build build --target generate_noise_world
 
 ## 运行时加载
 
-- 引擎启动时会按顺序查找 `data/world/demo_world.json` → `data/world/generated/noise_mvp.json`，两者均缺失时退回内置示例图。
-- 设置环境变量 `GENESIS_WORLD_PATH=<绝对或相对路径>` 可显式指定要加载的世界数据（测试脚本可复用 `tests/test_runtime.cpp` 中的查找逻辑）。
-- 当噪声世界被加载时，Demo 代理会自动选择首个可通行节点作为出生点，资源刷新逻辑保持不变。
+- 运行时不再自带演示世界，需要显式调用 `Runtime::loadWorldFromFile(path)`（或在 `RuntimeConfig::initialWorldPath` 中配置）加载生成结果。
+- `scripts/run_sandbox_cli.ps1` 与 `--generate-noise` 参数会将生成的世界路径写入运行时配置，也可在 CLI/GUI 的“World Generation”面板手动选择并加载。
+- 加载成功后 Demo 代理会在图中选取可通行节点作为出生点，资源刷新逻辑保持不变。
 
 ## 验证 NPC 闭环
 

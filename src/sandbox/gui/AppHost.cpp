@@ -522,118 +522,205 @@ namespace Genesis::Sandbox::Gui
         ImGui::End();
     }
 
-    void AppHost::drawWorldGenerationPanel()
+void AppHost::drawWorldGenerationPanel()
+{
+    if (!show_worldgen_panel_)
     {
-        if (!show_worldgen_panel_)
-        {
-            return;
-        }
+        return;
+    }
 
-        if (!ImGui::Begin("World Generation", &show_worldgen_panel_))
-        {
-            ImGui::End();
-            return;
-        }
+    if (!ImGui::Begin("World Generation", &show_worldgen_panel_))
+    {
+        ImGui::End();
+        return;
+    }
 
-        ImGui::TextUnformatted("使用配置 + 种子即时生成世界，并在加载后自动刷新地图。");
-        ImGui::Separator();
+    ImGui::TextUnformatted("生成世界 → 可选保存为文件 → 需要时手动加载。");
+    ImGui::Separator();
 
-        ImGui::InputText("配置路径", worldgen_config_buffer_.data(), worldgen_config_buffer_.size());
+    ImGui::InputText("配置路径", worldgen_config_buffer_.data(), worldgen_config_buffer_.size());
+    ImGui::InputText("输出路径", worldgen_output_buffer_.data(), worldgen_output_buffer_.size());
 
-        if (ImGui::Checkbox("随机种子", &worldgen_use_random_seed_))
-        {
-            if (worldgen_use_random_seed_)
-            {
-                worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
-            }
-        }
-
+    if (ImGui::Checkbox("随机种子", &worldgen_use_random_seed_))
+    {
         if (worldgen_use_random_seed_)
         {
-            ImGui::SameLine();
-            if (ImGui::Button("刷新种子"))
-            {
-                worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
-            }
-            ImGui::SameLine();
-            ImGui::Text("当前: %llu", static_cast<unsigned long long>(worldgen_seed_));
+            worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
         }
-        else
-        {
-            ImGui::InputScalar("种子", ImGuiDataType_U64, &worldgen_seed_);
-        }
+    }
 
-        std::string configInput(worldgen_config_buffer_.data());
-        const bool hasConfig = !configInput.empty();
-        if (!hasConfig)
+    if (worldgen_use_random_seed_)
+    {
+        ImGui::SameLine();
+        if (ImGui::Button("刷新种子"))
         {
-            ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写配置文件路径");
+            worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
         }
+        ImGui::SameLine();
+        ImGui::Text("当前: %llu", static_cast<unsigned long long>(worldgen_seed_));
+    }
+    else
+    {
+        ImGui::InputScalar("种子", ImGuiDataType_U64, &worldgen_seed_);
+    }
 
-        const bool bridgeReady = runtime_bridge_ != nullptr;
-        if (!bridgeReady || !hasConfig)
+    const std::string configInput(worldgen_config_buffer_.data());
+    const std::string outputInput(worldgen_output_buffer_.data());
+    const bool hasConfig = !configInput.empty();
+    if (!hasConfig)
+    {
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写配置文件路径");
+    }
+
+    const bool bridgeReady = runtime_bridge_ != nullptr;
+    if (!bridgeReady || !hasConfig)
+    {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("生成世界"))
+    {
+        std::optional<std::uint64_t> seedOverride = worldgen_use_random_seed_ ? std::nullopt : std::optional<std::uint64_t>{worldgen_seed_};
+        std::optional<std::filesystem::path> outputPath{};
+        if (!outputInput.empty())
         {
-            ImGui::BeginDisabled();
+            outputPath = std::filesystem::path(outputInput);
         }
-        if (ImGui::Button("生成并加载"))
+        auto result = runtime_bridge_->generateWorld(std::filesystem::path(configInput), seedOverride, outputPath);
+        if (result.has_value())
         {
-            std::optional<std::uint64_t> seedOverride = worldgen_use_random_seed_ ? std::nullopt : std::optional<std::uint64_t>{worldgen_seed_};
-            auto result = runtime_bridge_->generateWorld(std::filesystem::path(configInput), seedOverride);
-            if (result.has_value())
+            last_worldgen_result_ = result;
+            if (last_worldgen_result_->success)
             {
-                last_worldgen_result_ = result;
-                if (last_worldgen_result_->success)
+                if (last_worldgen_result_->outputPath)
                 {
-                    if (worldgen_use_random_seed_)
-                    {
-                        worldgen_seed_ = last_worldgen_result_->seed.value;
-                    }
-                    resetSceneForNewWorld();
+                    const auto &out = *last_worldgen_result_->outputPath;
+                    std::snprintf(world_load_buffer_.data(), world_load_buffer_.size(), "%s", out.string().c_str());
+                }
+                if (worldgen_use_random_seed_)
+                {
+                    worldgen_seed_ = last_worldgen_result_->seed.value;
                 }
             }
         }
-        ImGui::SameLine();
-        if (ImGui::Button("清除结果"))
-        {
-            last_worldgen_result_.reset();
-        }
-        if (!bridgeReady || !hasConfig)
-        {
-            ImGui::EndDisabled();
-        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("清除结果"))
+    {
+        last_worldgen_result_.reset();
+    }
+    if (!bridgeReady || !hasConfig)
+    {
+        ImGui::EndDisabled();
+    }
 
-        if (last_worldgen_result_)
+    if (last_worldgen_result_)
+    {
+        const auto &result = *last_worldgen_result_;
+        ImGui::Separator();
+        if (result.success)
         {
-            const auto &result = *last_worldgen_result_;
-            ImGui::Separator();
-            if (result.success)
+            ImGui::Text("最新一次生成成功");
+            ImGui::BulletText("配置: %s", result.configPath.string().c_str());
+            ImGui::BulletText("种子: %llu", static_cast<unsigned long long>(result.seed.value));
+            ImGui::BulletText("节点: %zu · 边: %zu", result.locationCount, result.edgeCount);
+            ImGui::BulletText("耗时: %.2f ms", result.durationMs);
+            if (result.outputPath)
             {
-                ImGui::Text("最新一次生成成功");
-                ImGui::BulletText("配置: %s", result.configPath.string().c_str());
-                ImGui::BulletText("种子: %llu", static_cast<unsigned long long>(result.seed.value));
-                ImGui::BulletText("节点: %zu · 边: %zu", result.locationCount, result.edgeCount);
-                ImGui::BulletText("耗时: %.2f ms", result.durationMs);
+                ImGui::BulletText("输出文件: %s", result.outputPath->string().c_str());
             }
             else
             {
-                ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "生成失败: %s", result.error.c_str());
-            }
-
-            if (!result.logs.empty())
-            {
-                if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 200.0f), true))
-                {
-                    for (const auto &entry : result.logs)
-                    {
-                        ImGui::TextUnformatted(entry.message.c_str());
-                    }
-                }
-                ImGui::EndChild();
+                ImGui::BulletText("输出文件: 未指定 (仍保留在内存)");
             }
         }
+        else
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "生成失败: %s", result.error.c_str());
+        }
 
-        ImGui::End();
+        if (!result.logs.empty())
+        {
+            if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 180.0f), true))
+            {
+                for (const auto &entry : result.logs)
+                {
+                    ImGui::TextUnformatted(entry.message.c_str());
+                }
+            }
+            ImGui::EndChild();
+        }
     }
+
+    ImGui::Separator();
+    ImGui::InputText("加载路径", world_load_buffer_.data(), world_load_buffer_.size());
+    const std::string loadInput(world_load_buffer_.data());
+    if (loadInput.empty())
+    {
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写加载路径");
+    }
+
+    if (!bridgeReady || loadInput.empty())
+    {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("加载世界"))
+    {
+        auto result = runtime_bridge_->loadWorld(std::filesystem::path(loadInput));
+        if (result.success)
+        {
+            world_load_status_ = "世界已加载";
+            resetSceneForNewWorld();
+        }
+        else
+        {
+            world_load_status_ = "加载失败: " + result.error;
+        }
+    }
+    if (!bridgeReady || loadInput.empty())
+    {
+        ImGui::EndDisabled();
+    }
+    if (!world_load_status_.empty())
+    {
+        ImGui::TextWrapped("%s", world_load_status_.c_str());
+    }
+
+    ImGui::Separator();
+    ImGui::InputText("保存路径", world_save_buffer_.data(), world_save_buffer_.size());
+    const std::string saveInput(world_save_buffer_.data());
+    if (saveInput.empty())
+    {
+        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写保存路径");
+    }
+
+    if (!bridgeReady || saveInput.empty())
+    {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("保存当前世界"))
+    {
+        auto result = runtime_bridge_->saveWorld(std::filesystem::path(saveInput));
+        if (result.success)
+        {
+            world_save_status_ = "已保存";
+            std::snprintf(world_load_buffer_.data(), world_load_buffer_.size(), "%s", saveInput.c_str());
+        }
+        else
+        {
+            world_save_status_ = "保存失败: " + result.error;
+        }
+    }
+    if (!bridgeReady || saveInput.empty())
+    {
+        ImGui::EndDisabled();
+    }
+    if (!world_save_status_.empty())
+    {
+        ImGui::TextWrapped("%s", world_save_status_.c_str());
+    }
+
+    ImGui::End();
+}
 
     void AppHost::resetSceneForNewWorld()
     {
@@ -645,25 +732,38 @@ namespace Genesis::Sandbox::Gui
         scene_cam_zoom_ = 1.5f;
     }
 
-    void AppHost::refreshDefaultWorldgenConfig()
+void AppHost::refreshDefaultWorldgenConfig()
+{
+    std::fill(worldgen_config_buffer_.begin(), worldgen_config_buffer_.end(), '\0');
+    std::fill(worldgen_output_buffer_.begin(), worldgen_output_buffer_.end(), '\0');
+    std::fill(world_load_buffer_.begin(), world_load_buffer_.end(), '\0');
+    std::fill(world_save_buffer_.begin(), world_save_buffer_.end(), '\0');
+    world_load_status_.clear();
+    world_save_status_.clear();
+
+    const std::filesystem::path defaultConfig{"data/worldgen/default.toml"};
+    if (auto resolved = locateAsset(defaultConfig); !resolved.empty())
     {
-        std::fill(worldgen_config_buffer_.begin(), worldgen_config_buffer_.end(), '\0');
-        const std::filesystem::path defaultPath{"data/worldgen/default.toml"};
-        auto resolved = locateAsset(defaultPath);
-        if (!resolved.empty())
-        {
-            resolved.make_preferred();
-            const auto text = resolved.string();
-            std::snprintf(worldgen_config_buffer_.data(), worldgen_config_buffer_.size(), "%s", text.c_str());
-        }
-        else if (std::filesystem::exists(defaultPath))
-        {
-            auto preferred = defaultPath;
-            preferred.make_preferred();
-            const auto text = preferred.string();
-            std::snprintf(worldgen_config_buffer_.data(), worldgen_config_buffer_.size(), "%s", text.c_str());
-        }
+        resolved.make_preferred();
+        const auto text = resolved.string();
+        std::snprintf(worldgen_config_buffer_.data(), worldgen_config_buffer_.size(), "%s", text.c_str());
     }
+    else if (std::filesystem::exists(defaultConfig))
+    {
+        auto preferred = defaultConfig;
+        preferred.make_preferred();
+        const auto text = preferred.string();
+        std::snprintf(worldgen_config_buffer_.data(), worldgen_config_buffer_.size(), "%s", text.c_str());
+    }
+
+    const std::filesystem::path defaultOutput{"data/world/generated/generated_world.json"};
+    auto preferredOutput = defaultOutput;
+    preferredOutput.make_preferred();
+    const auto outputText = preferredOutput.string();
+    std::snprintf(worldgen_output_buffer_.data(), worldgen_output_buffer_.size(), "%s", outputText.c_str());
+    std::snprintf(world_load_buffer_.data(), world_load_buffer_.size(), "%s", outputText.c_str());
+    std::snprintf(world_save_buffer_.data(), world_save_buffer_.size(), "%s", outputText.c_str());
+}
 
     void AppHost::drawWorldViewPanel()
     {

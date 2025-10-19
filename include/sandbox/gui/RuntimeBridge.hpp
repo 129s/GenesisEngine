@@ -118,7 +118,9 @@ public:
     void setSpeedMultiplier(double multiplier);
     [[nodiscard]] double speedMultiplier() const;
 
-    std::optional<genesis::runtime::Runtime::WorldGenerationResult> generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt);
+    std::optional<genesis::runtime::Runtime::WorldGenerationResult> generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
+    genesis::world::WorldLoadResult loadWorld(const std::filesystem::path& path);
+    genesis::world::WorldSaveResult saveWorld(const std::filesystem::path& path);
     [[nodiscard]] const std::optional<genesis::runtime::Runtime::WorldGenerationResult>& lastGeneration() const noexcept { return lastGeneration_; }
 
     [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;

@@ -42,51 +42,6 @@ struct Options {
     std::uint32_t noiseRate{3};
 };
 
-class EnvVarGuard {
-public:
-    explicit EnvVarGuard(std::string name)
-        : m_name(std::move(name)) {
-        if (const char* value = std::getenv(m_name.c_str())) {
-            m_previous = value;
-            m_hadPrevious = true;
-        }
-    }
-
-    void set(const std::string& value) {
-#ifdef _WIN32
-        _putenv_s(m_name.c_str(), value.c_str());
-#else
-        ::setenv(m_name.c_str(), value.c_str(), 1);
-#endif
-        m_active = true;
-    }
-
-    ~EnvVarGuard() {
-        if (!m_active) {
-            return;
-        }
-#ifdef _WIN32
-        if (m_hadPrevious) {
-            _putenv_s(m_name.c_str(), m_previous.c_str());
-        } else {
-            _putenv_s(m_name.c_str(), "");
-        }
-#else
-        if (m_hadPrevious) {
-            ::setenv(m_name.c_str(), m_previous.c_str(), 1);
-        } else {
-            ::unsetenv(m_name.c_str());
-        }
-#endif
-    }
-
-private:
-    std::string m_name;
-    std::string m_previous;
-    bool m_hadPrevious{false};
-    bool m_active{false};
-};
-
 class TempFileGuard {
 public:
     ~TempFileGuard() {
@@ -452,8 +407,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    EnvVarGuard envGuard("GENESIS_WORLD_PATH");
     TempFileGuard tempFiles;
+    genesis::runtime::RuntimeConfig runtimeConfig{};
 
     sandbox::cli::Layout layout{};
     bool layoutInitialized = false;
@@ -475,7 +430,7 @@ int main(int argc, char** argv) {
         genesis::world::generation::writeNoiseGenerationOutputs(result, worldPath, layoutPathTemp);
         tempFiles.add(worldPath);
         tempFiles.add(layoutPathTemp);
-        envGuard.set(worldPath.string());
+        runtimeConfig.initialWorldPath = worldPath;
 
         layout = layoutFromGeneration(result.layout);
         layoutInitialized = true;
@@ -496,6 +451,10 @@ int main(int argc, char** argv) {
         frameOptions.clearScreen = false;
     }
 
-    sandbox::cli::CliApp app(std::move(layout), frameOptions, options.autoRun, {});
+    if (!runtimeConfig.initialWorldPath && std::getenv("GENESIS_WORLD_PATH")) {
+        runtimeConfig.initialWorldPath = std::filesystem::path(std::getenv("GENESIS_WORLD_PATH"));
+    }
+
+    sandbox::cli::CliApp app(std::move(layout), frameOptions, options.autoRun, runtimeConfig);
     return app.run(options.commands);
 }

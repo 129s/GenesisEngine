@@ -10,6 +10,8 @@
 #include "genesis/core/Engine.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/worldgen/Types.hpp"
+#include "genesis/world/WorldLoader.hpp"
+#include "genesis/world/WorldTypes.hpp"
 
 namespace genesis::runtime {
 
@@ -20,9 +22,11 @@ struct RuntimeConfig {
         bool autoGenerate{false};
         std::filesystem::path configPath{};
         std::optional<std::uint64_t> seedOverride;
+        std::optional<std::filesystem::path> outputPath;
     };
 
     std::optional<InitialWorldgen> worldgen;
+    std::optional<std::filesystem::path> initialWorldPath;
 };
 
 class Runtime {
@@ -44,16 +48,21 @@ public:
     struct WorldGenerationResult {
         bool success{false};
         std::filesystem::path configPath{};
+        std::optional<std::filesystem::path> outputPath;
         genesis::worldgen::Seed seed{};
         std::size_t locationCount{0};
         std::size_t edgeCount{0};
         double durationMs{0.0};
         std::vector<genesis::worldgen::GenerationLogEntry> logs;
+        std::optional<genesis::world::LocationGraph> worldGraph;
         std::string error;
     };
 
-    WorldGenerationResult generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt);
+    WorldGenerationResult generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
     [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept { return m_lastWorldGen; }
+
+    [[nodiscard]] genesis::world::WorldLoadResult loadWorldFromFile(const std::filesystem::path& path);
+    [[nodiscard]] genesis::world::WorldSaveResult saveWorldToFile(const std::filesystem::path& path) const;
 
     [[nodiscard]] genesis::core::Engine& engine() noexcept { return m_engine; }
     [[nodiscard]] const genesis::core::Engine& engine() const noexcept { return m_engine; }

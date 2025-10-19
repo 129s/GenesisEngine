@@ -1,75 +1,109 @@
-# GenesisEngine 路线图（统一版）
+# GenesisEngine 路线图（GUI 优先版）
 
-本路线图整合并取代 `mvp-roadmap.md` 与 `planner-roadmap.md` 的分散内容，按“近期 / 短期 / 中期 / 远期”组织可交付成果与技术里程碑。
+> 2025-10-19 更新：Sandbox GUI 已成为主力观测与调试入口；CLI 进入维护模式；运行时架构完成“Core Runtime → Runtime Facade → Presentation”拆分。
+
+## 背景与更新要点
+- Sandbox CLI 在复杂地图与长时运行下存在频闪与调试效率瓶颈，决定冻结新增特性，仅保持回退能力。
+- Sandbox GUI 已集成 RuntimeBridge、WorldAtlas 等模块，支持持续运行、快照读取与基本调试面板，后续里程碑围绕 GUI 演进展开。
+- 运行时架构调整为：单线程 Core Runtime 提供确定性模拟；Runtime Facade 暴露控制/查询/Telemetry 契约；前端通过只读快照消费数据，禁止直接操作 ECS。
+- 文档体系同步：GUI 架构、世界模型、运行时 API 均已拆分到 `docs/architecture`，路线图聚焦阶段目标与风险。
 
 ## 目标与范围
-- 目标：构建可扩展的涌现式叙事模拟核心，统一在 `genesis_runtime` 动态库对外暴露；前端（CLI/GUI/Game）共享同一运行时 API。
-- 范围：世界/需求/规划/移动/交互/经济等子系统，以及可观测性、长期回归、性能与开发者体验。
+- 提供稳定、可扩展的模拟核心，前端统一经 Runtime Facade 访问。
+- 以 Sandbox GUI 为主战场，构建可视化调试、遥测分析与世界生成调参能力。
+- 支撑多需求、多系统互联的 Agent 行为，同时确保长时间运行的性能与诊断手段。
+- 保留 CLI 作为 CI / 快速回归的轻量入口，仅处理兼容性与缺陷修复。
 
-## 近期（P0，稳定与补齐基础）
-- 运行时与并发安全
-  - [ ] 双缓冲 `SimulationSnapshot`（渲染/调试与模拟线程安全共享）
-  - [ ] 快照比较与事件注入 API（便于 E2E 与重放）
-- Sandbox CLI 能力
-  - [ ] 核心命令集：`pause`/`resume`/`step <n>`/`render`/`inspect agent <id>`
-  - [ ] 脚本化回放与 CI 烟雾测试（已有脚本，补充断言）
-- 测试与回归
-  - [ ] 端到端闭环用例：Planner → Executor → Need 恢复
-  - [ ] 24 小时离线长时模拟（指标追踪：饥饿/旅行成本/库存告警）
-- 文档与规范
-  - [x] 整理 `docs` 目录、合并路线图
-  - [ ] 扩写运行时与快照协议说明（面向 GUI 接入）
+## 架构基线
+- **Core Runtime**：`WorldRegistry` + 系统集合（Movement/Needs/Planner/ActionExecutor/Resource 等），单线程按 `SimulationClock` 推进。
+- **Runtime Facade**：控制面（`run`/`pause`/`step`/`setSpeed`）、查询面（`latestSnapshot`、WorldAtlas、TelemetryBuffer）、事件入口（计划中的命令队列/快照对比）。
+- **Presentation 层**：
+  - GUI（主力）：GLFW + OpenGL + Dear ImGui，RuntimeBridge 后台线程 + 环形快照缓冲。
+  - CLI（维护模式）：保留 ASCII 视图与脚本化回放，暂停新增能力。
+  - Game（探索中）：未来与 GUI 共享 Runtime 契约。
+- **可观测性**：Telemetry Schema 与 Snapshot 双缓冲是协议演进核心；所有前端使用 schema version 校验以避免破坏性更新。
 
-## 短期（P1-P2，多需求与信息流）
-- 规划层迭代
-  - [ ] 引入能量/社交等多需求 Utility 评估与行为链
-  - [ ] 冲突与调度：地点容量、资源锁、排队/抢占策略
-- 信息流与交互
-  - [ ] `Fact`/`Observation`/`Rumor` 数据通路与失真模型
-  - [ ] 基础对话系统：社交需求恢复 + 信息交换 + 信任度
+## 阶段规划
+
+### 近期（P0 · GUI 框架稳定与运行时加固）
+- 运行时与协议
+  - [ ] 双缓冲 `SimulationSnapshot` 与版本标记，确保 GUI/CLI 安全读取。
+  - [ ] 快照差异与事件注入 API，支撑回放、断言与工具链。
+  - [ ] 长时运行（24h）回归脚本，纳入指标追踪（饥饿/库存/旅行成本）。
+- GUI 主线
+  - [x] 里程碑 1-2：GLFW + ImGui Docking 框架、RuntimeBridge 后台线程、WorldAtlas 静态视图。
+  - [x] 里程碑 3：OCEAN 人格、命名标签、模拟时间语义化、第二资源点验证。
+  - [ ] 里程碑 3 文档补齐（可视化策略/Scene View 说明）。
+  - [ ] 里程碑 4：Inspector 面板（实体列表、详情、Map 联动）。
+- 工程与支持
+  - [ ] CLI 烟雾测试迁移至 GUI 驱动的基本巡检（保留 CLI 作为 fallback）。
+  - [ ] 构建流水线：Windows/Linux GUI 构建、符号与依赖打包。
+
+### 短期（P1 · GUI 能力扩展与遥测体系）
+- 调试体验
+  - [ ] Inspector 深化：Needs/ActionQueue/位置轨迹、关注列表。
+  - [ ] Telemetry 面板图表化：长期趋势、阈值告警、对比视图。
+  - [ ] 地图视图优化：视锥裁剪、抽样/热力模式、名称/标签层管理。
+- 世界生成
+  - [ ] WorldGen 面板参数持久化（预设/导入导出）。
+  - [ ] 布局热加载与 Undo/Redo，暴露验证报告（孤岛/资源不足）。
+- 工具链
+  - [ ] GUI 录制/截图工具、Headless 模式生成快照。
+  - [ ] Telemetry 序列化格式固定（JSONL/Parquet 评估），配套分析脚本。
+
+### 中期（P2 · 行为系统与世界互联）
+- 多需求规划
+  - [ ] 能量/社交/安全等 Utility 链路与 Planner 模块。
+  - [ ] 冲突与调度：地点容量、排队、抢占策略。
+- 信息流与社交
+  - [ ] Fact/Observation/Rumor 管线，模型化信息传播失真。
+  - [ ] 基础对话系统：社交需求恢复、信息交换、信任度影响。
+- 世界事件
+  - [ ] 天气/节律事件影响需求阈值与行动代价。
+  - [ ] 任务/委托系统：可拆分目标链、失败恢复策略。
 - 可观测性
-  - [ ] 遥测指标整理与统计脚本（分布/趋势/异常）
-  - [ ] 统一日志标签与采样策略，支持按代理/地点过滤
+  - [ ] 遥测指标分层（即时/区间/趋势）、异常检测、报告生成。
 
-## 中期（P3-P4，系统互联与工具）
-- 系统扩展
-  - [ ] 经济与工作：产出/消费回路、价格/库存反馈
-  - [ ] 事件/天气/节律：外部扰动影响需求与路径
-  - [ ] 任务/委托：可拆分的目标链与失败恢复
-- 工具链与前端
-  - [ ] `sandbox_gui`（GUI）消费同一快照协议：地图/代理卡片/时间轴
-  - [ ] 回放与对比：基于快照的“录制/回放/差异视图”
+### 中远期（P3-P4 · 规模、性能与生态）
 - 性能与规模
-  - [ ] 性能基线与画像（Top N 热点、内存占用）
-  - [ ] 批处理与缓存：路径/效用计算复用、热点降频
+  - [ ] 性能基线采样：Top N 热点、内存画像、线程调度策略。
+  - [ ] 批处理与缓存：路径/规划计算复用、热点降频。
+  - [ ] 分块加载（Chunked Tile Graph）落地，支撑大地图按需更新。
+- 生态扩展
+  - [ ] 数据驱动配置与热加载（行为原型、数值、对话模板）。
+  - [ ] 插件系统评估（Lua/JS），定义安全沙箱与扩展 API。
+  - [ ] 跨平台打包与发布（Win/macOS/Linux），自动化交付流水线。
+- 知识体系
+  - [ ] 文档站/示例场景库、教程化引导。
+  - [ ] GUI/Runtime API 版本策略与升级指南。
 
-## 远期（P5+，生态与可扩展）
-- 模组化
-  - [ ] 数据驱动配置（行为原型、数值、对话模板）与热加载
-  - [ ] 插件化子系统注册/启停，脚本化扩展（后评估 Lua/JS）
-- 品质与交付
-  - [ ] 跨平台打包（Windows/macOS/Linux），持续交付构建
-  - [ ] 文档站与示例场景库（教程化引导）
+## CLI 暂缓策略
+- 不再追加新命令，仅修复阻塞性缺陷并维持与 Runtime Facade 的兼容。
+- 烟雾测试迁移至 GUI；CLI 仅用于 Headless 场景与快速脚本回放。
+- 文档保留现有使用指南与排错，新增重大变化时需注明 GUI 等价操作。
 
-## 里程碑摘录（对应上方阶段）
-- P0：快照双缓冲 + CLI 核心命令 + E2E/长时回归
-- P1：多需求规划 + 调度/冲突 + 信息流起步
-- P2：对话系统 + 遥测统计 + 指标看板
-- P3：经济/工作 + GUI Sandbox + 回放/对比
-- P4：性能基线 + 批处理/缓存 + 大规模稳定运行
+## 里程碑速览
+- P0：Runtime 快照双缓冲 + GUI 里程碑 4（Inspector）+ 24h 回归落地。
+- P1：GUI 调试工具完善（Telemetry/WorldGen/录制）+ Schema 固定。
+- P2：多需求规划 + 信息流/事件 + 遥测分层。
+- P3：性能画像 + 批处理/分块 + 扩展生态。
+- P4+：模块化扩展 + 插件/脚本化 + 全平台交付。
 
 ## 风险与依赖
-- 路径/规划热区计算量增加：需要明确缓存策略与一致性边界
-- 快照体量与频率：权衡观测粒度与性能开销，必要时分层采样
-- GUI 接入时序：协议冻结在 P0/P1 完成后推进，以避免频繁破坏性变更
+- GUI 渲染性能：大图裁剪/批处理不足会导致帧率下滑；需持续 Profiling。
+- 快照协议演进：需同步更新 GUI/CLI，避免 schema 破裂导致读取失败。
+- 多线程交互：RuntimeBridge 与 UI 通信必须保持锁策略/队列边界，防止死锁与数据竞态。
+- 长时运行稳定性：需尽快建立 24h 回归与内存泄漏检测。
+- 依赖治理：GLFW/ImGui/OpenGL 驱动差异需在 CI 中覆盖多平台。
 
-## 参考与历史
-- MVP 阶段性目标：`history/mvp-roadmap.md`
-- MVP：Scene/Interactive 节点树重构：`../roadmap/MVP_SCENE_INTERACTIVE.md`
-- 规划器细化：`history/planner-roadmap.md`
-- 进度与欠账：`../status/progress-summary.md`
+## 参考资料
+- 架构索引：`docs/architecture/README.md`
+- 运行时 API：`docs/architecture/runtime_api.md`
+- GUI 设计：`docs/architecture/SANDBOX_GUI.md`、`docs/architecture/SANDBOX_GUI_SIM_LOOP.md`
+- 世界模型：`docs/architecture/world_model.md`、`docs/roadmap/MVP_SCENE_INTERACTIVE.md`
+- 进度概览：`docs/status/progress-summary.md`
 
-## Roadmap 与 Status 的边界
-- Roadmap：聚焦未来目标、主题与里程碑，不记录日常进展与细节任务。
-- Status：聚焦当前进展、风险与下一步，链接到 Issues/PR 和 Roadmap 的对应目标。
-- Backlog：以 Issue/Milestone 为准；`docs/status/todo.md` 仅作临时收集。
+## Roadmap 与 Status 边界
+- Roadmap：聚焦未来目标、主题与里程碑，描述优先级与能力边界。
+- Status：记录当前进展、风险与下一步，链接到 Issues/PR 与本路线图条目。
+- Backlog：以 Issue/Milestone 为准；`docs/status/todo.md` 用作临时收集，更新时需关联到路线图阶段。

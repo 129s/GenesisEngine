@@ -183,7 +183,7 @@ min_connectivity = 1
 
 相关文档：`world_model.md`（数据契约）、`world_representation.md`（渲染参考）、`MVP_SCENE_INTERACTIVE.md`（路线规划）、`sandbox_gui_tilemap_rendering.md`（Tilemap 消费）。
 ## 12. 运行时整合与 Sandbox GUI
-- genesis::core::Engine 提供显式 loadWorldFromFile/loadWorldFromJsonString 接口并移除演示世界回退，xportWorldGraph 用于导出当前 LocationGraph。
+- genesis::core::Engine 提供显式 loadWorldFromFile/loadWorldFromJsonString 接口并移除演示世界回退，exportWorldGraph 用于导出当前 LocationGraph。
 - genesis::runtime::Runtime 将 generateWorldFromConfig 与 loadWorldFromFile、saveWorldToFile 解耦：生成阶段仅产出图和日志，可选写入 JSON，加载时再手动调用。
 - Sandbox::Gui::RuntimeBridge 扩展 generateWorld/loadWorld/saveWorld，执行过程中暂停后台线程，加载成功后重建 WorldAtlas 并清理旧快照。
 - Sandbox GUI “World Generation” 面板支持配置路径、输出文件、随机/指定种子，以及独立的加载/保存操作，Scene 视图以棋盘格占位 Tilemap 区域。

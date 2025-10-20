@@ -80,6 +80,7 @@ private:
     std::array<float, 4> clear_color_;
     bool glfw_initialized_{false};
     bool imgui_initialized_{false};
+    bool dock_layout_initialized_{false};
     std::unique_ptr<RuntimeBridge> runtime_bridge_;
     std::optional<RuntimeBridge::Snapshot> latest_snapshot_;
     double speed_multiplier_ui_{1.0};

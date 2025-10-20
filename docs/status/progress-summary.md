@@ -2,6 +2,9 @@
 # 项目进度概览
 
 ## 最新进展（本次）
+- Sandbox GUI 结构重构：
+  - 将 `AppHost` 单体实现拆分成 `AppHostCore/AppHostLayout/AppHostPanelWorld/AppHostPanelViews` 多个编译单元，并抽出 `CommandUiHelpers`、`FilesystemHelpers`、`ImGuiLogSink` 等私有头以复用逻辑。
+  - CMake 目标 `genesis_sandbox_gui` 已更新引用新的模块化结构，后续可按面板粒度维护与扩展。
 - 运行时快照 diff 与事件注入 API：
   - 新增 `Runtime::latestSnapshotDiff()` 与 `SimulationSnapshotDiff`，支持快速检测资源/需求/行动变化并携带事件日志。
   - 引入 `Runtime::enqueueEvent` 命令队列，在每个模拟步执行并写入 `RuntimeEventReport`，用于 GUI 交互与自动化回放。

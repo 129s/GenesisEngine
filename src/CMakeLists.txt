@@ -128,7 +128,10 @@ set_target_properties(genesis_sandbox_cli PROPERTIES
 
 add_executable(genesis_sandbox_gui
     apps/sandbox_gui/Main.cpp
-    sandbox/gui/AppHost.cpp
+    sandbox/gui/AppHostCore.cpp
+    sandbox/gui/AppHostLayout.cpp
+    sandbox/gui/AppHostPanelWorld.cpp
+    sandbox/gui/AppHostPanelViews.cpp
     sandbox/gui/RuntimeBridge.cpp
 )
 

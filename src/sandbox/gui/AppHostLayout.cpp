@@ -5,8 +5,6 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
-#include <limits>
-
 namespace Genesis::Sandbox::Gui
 {
 
@@ -25,8 +23,6 @@ void AppHost::drawDockspace()
         ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->Size);
 
         ImGuiID dock_main = dockspace_id;
-        ImGuiID dock_top = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Up, 0.08f, nullptr, &dock_main);
-        ImGuiID dock_status = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.05f, nullptr, &dock_main);
         ImGuiID dock_bottom = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.28f, nullptr, &dock_main);
         ImGuiID dock_right = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.26f, nullptr, &dock_main);
         ImGuiID dock_left = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.22f, nullptr, &dock_main);
@@ -35,8 +31,6 @@ void AppHost::drawDockspace()
         ImGuiID dock_bottom_right = ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Right, 0.5f, nullptr, &dock_bottom);
         ImGuiID dock_bottom_left = dock_bottom;
 
-        ImGui::DockBuilderDockWindow("Control Toolbar", dock_top);
-        ImGui::DockBuilderDockWindow("Status Bar", dock_status);
         ImGui::DockBuilderDockWindow("Log Console", dock_bottom_left);
         ImGui::DockBuilderDockWindow("Telemetry", dock_bottom_right);
         ImGui::DockBuilderDockWindow("Scene View", dock_left);
@@ -77,19 +71,17 @@ void AppHost::drawMainMenuBar()
 
 void AppHost::drawControlToolbar()
 {
-    const float menuHeight = ImGui::GetFrameHeight();
-    const float paddingY = ImGui::GetStyle().FramePadding.y;
-    const float height = menuHeight + paddingY * 2.0f;
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float height = ImGui::GetFrameHeight() + style.FramePadding.y * 2.0f;
 
-    ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, height), ImVec2(std::numeric_limits<float>::max(), height));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, paddingY));
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                                   ImGuiWindowFlags_NoSavedSettings;
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                                   ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
 
-    if (ImGui::Begin("Control Toolbar", nullptr, flags))
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, style.FramePadding.y));
+    const bool open = ImGui::BeginViewportSideBar("Control Toolbar", viewport, ImGuiDir_Up, height, flags);
+    if (open)
     {
         if (runtime_bridge_)
         {
@@ -149,7 +141,7 @@ void AppHost::drawControlToolbar()
                 ImGui::SameLine(0.0f, 18.0f);
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
                 ImGui::SameLine(0.0f, 12.0f);
-                ImGui::TextUnformatted("Waiting for snapshot...");
+                ImGui::TextUnformatted("Waiting for snapshot…");
             }
         }
         else
@@ -158,21 +150,22 @@ void AppHost::drawControlToolbar()
         }
     }
     ImGui::End();
-    ImGui::PopStyleVar(3);
+    ImGui::PopStyleVar();
 }
 
 void AppHost::drawStatusBar()
 {
-    const float height = ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.y;
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float height = ImGui::GetFrameHeight() + style.FramePadding.y;
 
-    ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, height), ImVec2(std::numeric_limits<float>::max(), height));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                                   ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 4.0f));
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                                   ImGuiWindowFlags_NoSavedSettings;
-    if (ImGui::Begin("Status Bar", nullptr, flags))
+    const bool open = ImGui::BeginViewportSideBar("Status Bar", viewport, ImGuiDir_Down, height, flags);
+    if (open)
     {
         if (latest_snapshot_)
         {
@@ -197,7 +190,8 @@ void AppHost::drawStatusBar()
         }
     }
     ImGui::End();
-    ImGui::PopStyleVar(3);
+    ImGui::PopStyleVar();
 }
 
 } // namespace Genesis::Sandbox::Gui
+

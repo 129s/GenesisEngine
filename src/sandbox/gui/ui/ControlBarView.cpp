@@ -2,11 +2,8 @@
 #include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
 
-#include <GLFW/glfw3.h>
-
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <cmath>
 
 namespace Genesis::Sandbox::Gui
 {
@@ -108,26 +105,18 @@ void ControlBarView::render(UiContext& ctx)
                 ctx.runtime_bridge->setSpeedMultiplier(ctx.speed_multiplier_ui);
             }
 
-            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
-            if (ImGui::Checkbox("VSync", &ctx.config.vsync))
-            {
-                glfwSwapInterval(ctx.config.vsync ? 1 : 0);
-            }
-
-            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
-            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
-
             if (ctx.latest_snapshot)
             {
-                const auto& tick = ctx.latest_snapshot->telemetry;
-                const int fpsRounded = static_cast<int>(std::lround(ctx.state.ui_fps_display));
-                ImGui::Text("Step %llu  |  FPS %d",
-                            static_cast<unsigned long long>(tick.step),
-                            fpsRounded);
+                ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+                ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+                ImGui::TextUnformatted("快照同步就绪");
             }
             else
             {
+                ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+                ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
                 ImGui::TextUnformatted("等待快照同步…");
             }
         }

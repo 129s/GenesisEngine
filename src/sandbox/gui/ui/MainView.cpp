@@ -1,10 +1,12 @@
 #include "sandbox/gui/ui/MainView.hpp"
 #include "../CommandUiHelpers.hpp"
 #include "../ImGuiLogSink.hpp"
+#include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <GLFW/glfw3.h>
 
 #include <algorithm>
 #include <array>
@@ -1783,6 +1785,15 @@ void MainView::drawMonitorTab(UiContext &ctx)
 
     void MainView::drawSettingsTab(UiContext &ctx)
     {
+        ImGui::TextUnformatted("显示设置");
+        ImGui::Separator();
+
+        if (ImGui::Checkbox("启用 VSync", &ctx.config.vsync))
+        {
+            glfwSwapInterval(ctx.config.vsync ? 1 : 0);
+        }
+
+        ImGui::Spacing();
         ImGui::TextUnformatted("设计令牌预览");
         ImGui::Separator();
 

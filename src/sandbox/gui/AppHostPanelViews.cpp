@@ -25,7 +25,7 @@ using json = nlohmann::json;
 void AppHost::drawSceneTabContent()
 {
     auto drawModeButton = [&](const char* label, SceneViewMode mode) {
-        const bool active = (scene_view_mode_ == mode);
+        const bool active = (ui_state_.scene_view_mode == mode);
         if (active)
         {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.80f, 0.90f));
@@ -34,7 +34,7 @@ void AppHost::drawSceneTabContent()
         }
         if (ImGui::Button(label))
         {
-            scene_view_mode_ = mode;
+            ui_state_.scene_view_mode = mode;
         }
         if (active)
         {
@@ -48,7 +48,7 @@ void AppHost::drawSceneTabContent()
 
     ImGui::Separator();
 
-    if (scene_view_mode_ == SceneViewMode::Map)
+    if (ui_state_.scene_view_mode == SceneViewMode::Map)
     {
         drawSceneWorldMapContent();
     }
@@ -60,12 +60,12 @@ void AppHost::drawSceneTabContent()
 
 void AppHost::drawInspectorPanel()
 {
-    if (!show_inspector_)
+    if (!ui_state_.show_inspector)
     {
         return;
     }
 
-    if (!ImGui::Begin("Inspector", &show_inspector_))
+    if (!ImGui::Begin("Inspector", &ui_state_.show_inspector))
     {
         ImGui::End();
         return;
@@ -82,8 +82,8 @@ void AppHost::drawInspectorPanel()
         const auto &tick = snapshot.telemetry;
         const RuntimeBridge::WorldAtlas *atlasPtr = runtime_bridge_ ? &runtime_bridge_->atlas() : nullptr;
 
-        ImGui::InputTextWithHint("##InspectorSearch", "Search name/id/type", inspector_search_buffer_.data(), inspector_search_buffer_.size());
-        std::string filterRaw(inspector_search_buffer_.data());
+        ImGui::InputTextWithHint("##InspectorSearch", "Search name/id/type", ui_state_.inspector_search_buffer.data(), ui_state_.inspector_search_buffer.size());
+        std::string filterRaw(ui_state_.inspector_search_buffer.data());
         std::string filterLower = filterRaw;
         std::transform(filterLower.begin(), filterLower.end(), filterLower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         const bool filterEmpty = filterLower.empty();
@@ -193,18 +193,18 @@ void AppHost::drawInspectorPanel()
                     std::snprintf(label, sizeof(label), "Agent [#%u]", agent.entityId);
                 }
 
-                const bool selected = inspector_selection_type_ == InspectorSelectionType::Agent && inspector_selected_primary_ == agent.entityId;
+                const bool selected = ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Agent && ui_state_.inspector_selected_primary == agent.entityId;
                 ImGui::PushID(static_cast<int>(agent.entityId));
                 if (ImGui::Selectable(label, selected))
                 {
-                    inspector_selection_type_ = InspectorSelectionType::Agent;
-                    inspector_selected_primary_ = agent.entityId;
-                    inspector_selected_secondary_ = static_cast<std::uint32_t>(idx);
-                    inspector_highlight_node_ = agent.location.value;
-                    map_selected_node_ = agent.location.value;
-                    if (inspector_follow_selection_)
+                    ui_state_.inspector_selection_type = UiState::InspectorSelectionType::Agent;
+                    ui_state_.inspector_selected_primary = agent.entityId;
+                    ui_state_.inspector_selected_secondary = static_cast<std::uint32_t>(idx);
+                    ui_state_.inspector_highlight_node = agent.location.value;
+                    ui_state_.map_selected_node = agent.location.value;
+                    if (ui_state_.inspector_follow_selection)
                     {
-                        scene_selected_node_ = agent.location.value;
+                        ui_state_.scene_selected_node = agent.location.value;
                     }
                 }
                 ImGui::PopID();
@@ -242,15 +242,15 @@ void AppHost::drawInspectorPanel()
             char label[160];
             std::snprintf(label, sizeof(label), "%s (%s) [Node #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
 
-                const bool selected = inspector_selection_type_ == InspectorSelectionType::Resource && inspector_selected_primary_ == static_cast<std::uint32_t>(i);
+                const bool selected = ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Resource && ui_state_.inspector_selected_primary == static_cast<std::uint32_t>(i);
                 ImGui::PushID(static_cast<int>(resource.location.value * 4096 + static_cast<std::uint32_t>(i)));
                 if (ImGui::Selectable(label, selected))
                 {
-                    inspector_selection_type_ = InspectorSelectionType::Resource;
-                    inspector_selected_primary_ = static_cast<std::uint32_t>(i);
-                    inspector_selected_secondary_ = resource.location.value;
-                    inspector_highlight_node_ = resource.location.value;
-                    map_selected_node_ = resource.location.value;
+                    ui_state_.inspector_selection_type = UiState::InspectorSelectionType::Resource;
+                    ui_state_.inspector_selected_primary = static_cast<std::uint32_t>(i);
+                    ui_state_.inspector_selected_secondary = resource.location.value;
+                    ui_state_.inspector_highlight_node = resource.location.value;
+                    ui_state_.map_selected_node = resource.location.value;
                 }
                 ImGui::PopID();
             }
@@ -268,15 +268,15 @@ void AppHost::drawInspectorPanel()
                 char label[128];
                 std::snprintf(label, sizeof(label), "%s [#%u]", node.name.c_str(), node.id.value);
 
-                const bool selected = inspector_selection_type_ == InspectorSelectionType::Node && inspector_selected_primary_ == node.id.value;
+                const bool selected = ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Node && ui_state_.inspector_selected_primary == node.id.value;
                 ImGui::PushID(static_cast<int>(node.id.value));
                 if (ImGui::Selectable(label, selected))
                 {
-                    inspector_selection_type_ = InspectorSelectionType::Node;
-                    inspector_selected_primary_ = node.id.value;
-                    inspector_selected_secondary_ = 0;
-                    inspector_highlight_node_ = node.id.value;
-                    map_selected_node_ = node.id.value;
+                    ui_state_.inspector_selection_type = UiState::InspectorSelectionType::Node;
+                    ui_state_.inspector_selected_primary = node.id.value;
+                    ui_state_.inspector_selected_secondary = 0;
+                    ui_state_.inspector_highlight_node = node.id.value;
+                    ui_state_.map_selected_node = node.id.value;
                 }
                 ImGui::PopID();
             }
@@ -287,17 +287,17 @@ void AppHost::drawInspectorPanel()
         ImGui::SameLine();
         ImGui::BeginChild("InspectorDetails", ImVec2(0.0f, listSize.y), false);
 
-        switch (inspector_selection_type_)
+        switch (ui_state_.inspector_selection_type)
         {
-        case InspectorSelectionType::None:
+        case UiState::InspectorSelectionType::None:
             ImGui::TextUnformatted("Select an entry on the left to view details.");
             break;
-        case InspectorSelectionType::Agent:
+        case UiState::InspectorSelectionType::Agent:
         {
             const genesis::telemetry::AgentSnapshot *agent = nullptr;
             for (const auto &candidate : tick.agents)
             {
-                if (candidate.entityId == inspector_selected_primary_)
+                if (candidate.entityId == ui_state_.inspector_selected_primary)
                 {
                     agent = &candidate;
                     break;
@@ -306,7 +306,7 @@ void AppHost::drawInspectorPanel()
 
             if (!agent)
             {
-                ImGui::Text("Agent #%u is not present in the current snapshot.", inspector_selected_primary_);
+                ImGui::Text("Agent #%u is not present in the current snapshot.", ui_state_.inspector_selected_primary);
                 break;
             }
 
@@ -336,26 +336,26 @@ void AppHost::drawInspectorPanel()
             ImGui::SameLine(0.0f, 12.0f);
             if (ImGui::Button("定位地图##agentFocus"))
             {
-                main_view_active_tab_ = MainViewTab::Scene;
-                browser_active_section_ = BrowserSection::Scene;
-                scene_view_mode_ = SceneViewMode::Map;
-                inspector_highlight_node_ = agent->location.value;
-                map_selected_node_ = agent->location.value;
+                ui_state_.main_view_active_tab = MainViewTab::Scene;
+                ui_state_.browser_active_section = BrowserSection::Scene;
+                ui_state_.scene_view_mode = SceneViewMode::Map;
+                ui_state_.inspector_highlight_node = agent->location.value;
+                ui_state_.map_selected_node = agent->location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
             if (ImGui::Button("打开节点视图##agentScene"))
             {
-                main_view_active_tab_ = MainViewTab::Scene;
-                browser_active_section_ = BrowserSection::Scene;
-                scene_view_mode_ = SceneViewMode::Node;
-                scene_selected_node_ = agent->location.value;
+                ui_state_.main_view_active_tab = MainViewTab::Scene;
+                ui_state_.browser_active_section = BrowserSection::Scene;
+                ui_state_.scene_view_mode = SceneViewMode::Node;
+                ui_state_.scene_selected_node = agent->location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
-            bool followChanged = ImGui::Checkbox("Follow##agentFollow", &inspector_follow_selection_);
-            if (followChanged && inspector_follow_selection_)
+            bool followChanged = ImGui::Checkbox("Follow##agentFollow", &ui_state_.inspector_follow_selection);
+            if (followChanged && ui_state_.inspector_follow_selection)
             {
-                scene_selected_node_ = agent->location.value;
-                map_selected_node_ = agent->location.value;
+                ui_state_.scene_selected_node = agent->location.value;
+                ui_state_.map_selected_node = agent->location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
             if (ImGui::Button("Copy JSON##agentCopy"))
@@ -616,15 +616,15 @@ void AppHost::drawInspectorPanel()
             }
             break;
         }
-        case InspectorSelectionType::Resource:
+        case UiState::InspectorSelectionType::Resource:
         {
-            if (inspector_selected_primary_ >= tick.resources.size())
+            if (ui_state_.inspector_selected_primary >= tick.resources.size())
             {
                 ImGui::TextUnformatted("Selected resource index is stale.");
                 break;
             }
 
-            const auto &resource = tick.resources[inspector_selected_primary_];
+            const auto &resource = tick.resources[ui_state_.inspector_selected_primary];
             std::string nodeName = "(Unknown)";
             const RuntimeBridge::WorldAtlas::Node *nodeInfo = nullptr;
             if (atlasPtr)
@@ -643,19 +643,19 @@ void AppHost::drawInspectorPanel()
             ImGui::SameLine(0.0f, 12.0f);
             if (ImGui::Button("定位地图##resourceFocus"))
             {
-                main_view_active_tab_ = MainViewTab::Scene;
-                browser_active_section_ = BrowserSection::Scene;
-                scene_view_mode_ = SceneViewMode::Map;
-                inspector_highlight_node_ = resource.location.value;
-                map_selected_node_ = resource.location.value;
+                ui_state_.main_view_active_tab = MainViewTab::Scene;
+                ui_state_.browser_active_section = BrowserSection::Scene;
+                ui_state_.scene_view_mode = SceneViewMode::Map;
+                ui_state_.inspector_highlight_node = resource.location.value;
+                ui_state_.map_selected_node = resource.location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
             if (ImGui::Button("打开节点视图##resourceScene"))
             {
-                main_view_active_tab_ = MainViewTab::Scene;
-                browser_active_section_ = BrowserSection::Scene;
-                scene_view_mode_ = SceneViewMode::Node;
-                scene_selected_node_ = resource.location.value;
+                ui_state_.main_view_active_tab = MainViewTab::Scene;
+                ui_state_.browser_active_section = BrowserSection::Scene;
+                ui_state_.scene_view_mode = SceneViewMode::Node;
+                ui_state_.scene_selected_node = resource.location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
             if (ImGui::Button("Copy JSON##resourceCopy"))
@@ -733,7 +733,7 @@ void AppHost::drawInspectorPanel()
             ImGui::Text("Inventory: %u / %u", resource.current, resource.capacity);
             break;
         }
-        case InspectorSelectionType::Node:
+        case UiState::InspectorSelectionType::Node:
         {
             if (!atlasPtr)
             {
@@ -744,7 +744,7 @@ void AppHost::drawInspectorPanel()
             const RuntimeBridge::WorldAtlas::Node *selectedNode = nullptr;
             for (const auto &node : atlasPtr->nodes)
             {
-                if (node.id.value == inspector_selected_primary_)
+                if (node.id.value == ui_state_.inspector_selected_primary)
                 {
                     selectedNode = &node;
                     break;
@@ -753,7 +753,7 @@ void AppHost::drawInspectorPanel()
 
             if (!selectedNode)
             {
-                ImGui::Text("节点 #%u 不存在。", inspector_selected_primary_);
+                ImGui::Text("节点 #%u 不存在。", ui_state_.inspector_selected_primary);
                 break;
             }
 
@@ -761,11 +761,11 @@ void AppHost::drawInspectorPanel()
             ImGui::SameLine(0.0f, 12.0f);
             if (ImGui::Button("定位地图##nodeFocus"))
             {
-                main_view_active_tab_ = MainViewTab::Scene;
-                browser_active_section_ = BrowserSection::Scene;
-                scene_view_mode_ = SceneViewMode::Map;
-                inspector_highlight_node_ = selectedNode->id.value;
-                map_selected_node_ = selectedNode->id.value;
+                ui_state_.main_view_active_tab = MainViewTab::Scene;
+                ui_state_.browser_active_section = BrowserSection::Scene;
+                ui_state_.scene_view_mode = SceneViewMode::Map;
+                ui_state_.inspector_highlight_node = selectedNode->id.value;
+                ui_state_.map_selected_node = selectedNode->id.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
             if (ImGui::Button("Copy JSON##nodeCopy"))
@@ -890,22 +890,22 @@ void AppHost::drawSceneWorldMapContent()
         const auto& atlas = runtime_bridge_->atlas();
         const auto* agentPositionsPtr = latest_snapshot_ ? &latest_snapshot_->agentPositions : nullptr;
 
-        ImGui::Checkbox("显示实体##Agents", &show_agent_overlay_);
+        ImGui::Checkbox("显示实体##Agents", &ui_state_.show_agent_overlay);
         ImGui::SameLine();
-        ImGui::Checkbox("描绘轨迹##Trails", &show_agent_trails_);
+        ImGui::Checkbox("描绘轨迹##Trails", &ui_state_.show_agent_trails);
         ImGui::SameLine();
-        ImGui::Checkbox("插值平滑##Interpolate", &map_interpolate_);
-        if (show_agent_trails_)
+        ImGui::Checkbox("插值平滑##Interpolate", &ui_state_.map_interpolate);
+        if (ui_state_.show_agent_trails)
         {
             ImGui::SameLine();
-            int trailSamples = static_cast<int>(agent_trail_samples_);
+            int trailSamples = static_cast<int>(ui_state_.agent_trail_samples);
             ImGui::SetNextItemWidth(120.0f);
             if (ImGui::SliderInt("轨迹长度", &trailSamples, 4, 64))
             {
-                agent_trail_samples_ = static_cast<std::size_t>(trailSamples);
-                for (auto &[id, trail] : agent_trails_)
+                ui_state_.agent_trail_samples = static_cast<std::size_t>(trailSamples);
+                for (auto &[id, trail] : ui_state_.agent_trails)
                 {
-                    while (trail.size() > agent_trail_samples_)
+                    while (trail.size() > ui_state_.agent_trail_samples)
                     {
                         trail.pop_front();
                     }
@@ -926,7 +926,7 @@ void AppHost::drawSceneWorldMapContent()
         const ImVec4 colorUnknown{0.82f, 0.52f, 0.90f, 1.0f};
         const ImU32 highlightColor = ImGui::GetColorU32(ImVec4(0.98f, 0.83f, 0.37f, 1.0f));
 
-        if (show_agent_overlay_)
+        if (ui_state_.show_agent_overlay)
         {
             ImGui::Spacing();
             auto legendEntry = [](const char* id, const char* text, const ImVec4& color)
@@ -990,24 +990,24 @@ void AppHost::drawSceneWorldMapContent()
             if (canvasHovered && io.MouseWheel != 0.0f)
             {
                 const float zoomStep = io.MouseWheel > 0.0f ? 1.1f : 0.9f;
-                const float newZoom = std::clamp(map_zoom_ * zoomStep, 0.25f, 5.0f);
+                const float newZoom = std::clamp(ui_state_.map_zoom * zoomStep, 0.25f, 5.0f);
 
-                ImVec2 delta{io.MousePos.x - (baseCenter.x + map_pan_x_), io.MousePos.y - (baseCenter.y + map_pan_y_)};
-                ImVec2 worldDelta{delta.x / map_zoom_, delta.y / map_zoom_};
+                ImVec2 delta{io.MousePos.x - (baseCenter.x + ui_state_.map_pan_x), io.MousePos.y - (baseCenter.y + ui_state_.map_pan_y)};
+                ImVec2 worldDelta{delta.x / ui_state_.map_zoom, delta.y / ui_state_.map_zoom};
 
-                map_zoom_ = newZoom;
+                ui_state_.map_zoom = newZoom;
                 ImVec2 newPan{
-                    io.MousePos.x - baseCenter.x - worldDelta.x * map_zoom_,
-                    io.MousePos.y - baseCenter.y - worldDelta.y * map_zoom_};
-                map_pan_x_ = newPan.x;
-                map_pan_y_ = newPan.y;
+                    io.MousePos.x - baseCenter.x - worldDelta.x * ui_state_.map_zoom,
+                    io.MousePos.y - baseCenter.y - worldDelta.y * ui_state_.map_zoom};
+                ui_state_.map_pan_x = newPan.x;
+                ui_state_.map_pan_y = newPan.y;
             }
 
             if (canvasActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
             {
                 ImVec2 delta = io.MouseDelta;
-                map_pan_x_ += delta.x;
-                map_pan_y_ += delta.y;
+                ui_state_.map_pan_x += delta.x;
+                ui_state_.map_pan_y += delta.y;
             }
 
             if (canvasHovered && ImGui::IsKeyPressed(ImGuiKey_Space))
@@ -1022,10 +1022,10 @@ void AppHost::drawSceneWorldMapContent()
             auto toScreen = [&](const RuntimeBridge::Vector2 &pos)
             {
                 const ImVec2 base{pos.x * scaleX, pos.y * scaleY};
-                const ImVec2 centered{(base.x - worldHalf.x) * map_zoom_, (base.y - worldHalf.y) * map_zoom_};
+                const ImVec2 centered{(base.x - worldHalf.x) * ui_state_.map_zoom, (base.y - worldHalf.y) * ui_state_.map_zoom};
                 return ImVec2(
-                    baseCenter.x + map_pan_x_ + centered.x,
-                    baseCenter.y + map_pan_y_ + centered.y);
+                    baseCenter.x + ui_state_.map_pan_x + centered.x,
+                    baseCenter.y + ui_state_.map_pan_y + centered.y);
             };
 
             std::unordered_map<std::uint32_t, ImVec2> nodePositions;
@@ -1036,7 +1036,7 @@ void AppHost::drawSceneWorldMapContent()
             }
 
             // Selected node edges (parent/children only)
-            std::optional<std::uint32_t> selectedEdgeNode = map_selected_node_ ? map_selected_node_ : inspector_highlight_node_;
+            std::optional<std::uint32_t> selectedEdgeNode = ui_state_.map_selected_node ? ui_state_.map_selected_node : ui_state_.inspector_highlight_node;
             const RuntimeBridge::WorldAtlas::Node *selectedNodeInfo = nullptr;
             if (selectedEdgeNode)
             {
@@ -1129,8 +1129,8 @@ void AppHost::drawSceneWorldMapContent()
                 drawList->AddCircleFilled(it->second, radius, fillColor, 20);
                 drawList->AddCircle(it->second, radius, ImGui::GetColorU32(ImGuiCol_Border), 20, 1.5f);
 
-                const bool isSelected = map_selected_node_ && node.id.value == *map_selected_node_;
-                const bool highlighted = (inspector_highlight_node_ && node.id.value == *inspector_highlight_node_) || isSelected;
+                const bool isSelected = ui_state_.map_selected_node && node.id.value == *ui_state_.map_selected_node;
+                const bool highlighted = (ui_state_.inspector_highlight_node && node.id.value == *ui_state_.inspector_highlight_node) || isSelected;
                 if (highlighted)
                 {
                     drawList->AddCircle(it->second, radius + 4.0f, highlightColor, 24, 2.5f);
@@ -1160,7 +1160,7 @@ void AppHost::drawSceneWorldMapContent()
                     if (r.Overlaps(labelRect)) { overlaps = true; break; }
                 }
                 const bool forceLabel = hovered || highlighted;
-                if ((map_zoom_ >= nodeLabelZoomThreshold || forceLabel) && (!overlaps || forceLabel))
+                if ((ui_state_.map_zoom >= nodeLabelZoomThreshold || forceLabel) && (!overlaps || forceLabel))
                 {
                     drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
                     placedLabels.push_back(labelRect);
@@ -1185,11 +1185,11 @@ void AppHost::drawSceneWorldMapContent()
                         }
                         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         {
-                            map_selected_node_ = node.id.value;
-                            scene_selected_node_ = node.id.value;
-                            main_view_active_tab_ = MainViewTab::Scene;
-                            browser_active_section_ = BrowserSection::Scene;
-                            scene_view_mode_ = SceneViewMode::Node;
+                            ui_state_.map_selected_node = node.id.value;
+                            ui_state_.scene_selected_node = node.id.value;
+                            ui_state_.main_view_active_tab = MainViewTab::Scene;
+                            ui_state_.browser_active_section = BrowserSection::Scene;
+                            ui_state_.scene_view_mode = SceneViewMode::Node;
                         }
                     }
                 }
@@ -1200,7 +1200,7 @@ void AppHost::drawSceneWorldMapContent()
                 const ImVec2 drag = io.MouseDragMaxDistanceAbs[ImGuiMouseButton_Right];
                 if (drag.x < 4.0f && drag.y < 4.0f)
                 {
-                    map_selected_node_.reset();
+                    ui_state_.map_selected_node.reset();
                 }
             }
 
@@ -1245,9 +1245,9 @@ void AppHost::drawSceneWorldMapContent()
                     {
                         continue;
                     }
-                    const bool forceOverlay = (map_selected_node_ && *map_selected_node_ == locationId) ||
-                                              (inspector_highlight_node_ && *inspector_highlight_node_ == locationId);
-                    if (map_zoom_ < resourceOverlayZoomThreshold && !forceOverlay)
+                    const bool forceOverlay = (ui_state_.map_selected_node && *ui_state_.map_selected_node == locationId) ||
+                                              (ui_state_.inspector_highlight_node && *ui_state_.inspector_highlight_node == locationId);
+                    if (ui_state_.map_zoom < resourceOverlayZoomThreshold && !forceOverlay)
                     {
                         continue;
                     }
@@ -1279,11 +1279,11 @@ void AppHost::drawSceneWorldMapContent()
                 }
             }
 
-            if (show_agent_overlay_ && latest_snapshot_)
+            if (ui_state_.show_agent_overlay && latest_snapshot_)
             {
                 // Build movement progress map for interpolation (optional)
                 std::unordered_map<std::uint32_t, std::tuple<RuntimeBridge::Vector2, RuntimeBridge::Vector2, float>> progress;
-                if (map_interpolate_ && !latest_snapshot_->telemetry.movementProgress.empty())
+                if (ui_state_.map_interpolate && !latest_snapshot_->telemetry.movementProgress.empty())
                 {
                     for (const auto &mp : latest_snapshot_->telemetry.movementProgress)
                     {
@@ -1350,7 +1350,7 @@ void AppHost::drawSceneWorldMapContent()
                     {
                         agentPos = (*agentPositionsPtr)[i];
                     }
-                    if (map_interpolate_)
+                    if (ui_state_.map_interpolate)
                     {
                         if (auto itp = progress.find(agent.entityId); itp != progress.end())
                         {
@@ -1369,23 +1369,23 @@ void AppHost::drawSceneWorldMapContent()
                     drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
                     drawList->AddCircle(screenPos, 7.0f, borderColor, 16, 1.4f);
 
-                    const bool agentSelected = inspector_selection_type_ == InspectorSelectionType::Agent && inspector_selected_primary_ == agent.entityId;
+                    const bool agentSelected = ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Agent && ui_state_.inspector_selected_primary == agent.entityId;
                     if (agentSelected)
                     {
                         drawList->AddCircle(screenPos, 11.0f, highlightColor, 24, 2.5f);
                     }
 
                     // Agent name label
-                    if (!agent.name.empty() && (map_zoom_ >= agentLabelZoomThreshold || agentSelected))
+                    if (!agent.name.empty() && (ui_state_.map_zoom >= agentLabelZoomThreshold || agentSelected))
                     {
                         const ImVec2 namePos{screenPos.x + 9.0f, screenPos.y - ImGui::GetTextLineHeight() * 0.5f};
                         drawList->AddText(namePos, ImGui::GetColorU32(ImGuiCol_Text), agent.name.c_str());
                     }
 
-                    if (show_agent_trails_)
+                    if (ui_state_.show_agent_trails)
                     {
-                        auto trailIt = agent_trails_.find(agent.entityId);
-                        if (trailIt != agent_trails_.end() && trailIt->second.size() > 1)
+                        auto trailIt = ui_state_.agent_trails.find(agent.entityId);
+                        if (trailIt != ui_state_.agent_trails.end() && trailIt->second.size() > 1)
                         {
                             const auto &trail = trailIt->second;
                             ImVec2 previous = toScreen(trail.front());
@@ -1420,26 +1420,26 @@ void AppHost::drawSceneNodeContent()
         const auto& atlas = runtime_bridge_->atlas();
 
         // Node selector
-        if (scene_selected_node_ == 0 && !atlas.nodes.empty())
+        if (ui_state_.scene_selected_node == 0 && !atlas.nodes.empty())
         {
-            scene_selected_node_ = atlas.nodes.front().id.value;
+            ui_state_.scene_selected_node = atlas.nodes.front().id.value;
         }
 
         if (ImGui::BeginCombo("节点", [this, &atlas]()
                               {
             for (const auto& n : atlas.nodes)
             {
-                if (n.id.value == scene_selected_node_)
+                if (n.id.value == ui_state_.scene_selected_node)
                     return n.name.c_str();
             }
             return "(none)"; }()))
         {
             for (const auto &n : atlas.nodes)
             {
-                const bool selected = (n.id.value == scene_selected_node_);
+                const bool selected = (n.id.value == ui_state_.scene_selected_node);
                 if (ImGui::Selectable(n.name.c_str(), selected))
                 {
-                    scene_selected_node_ = n.id.value;
+                    ui_state_.scene_selected_node = n.id.value;
                 }
                 if (selected)
                     ImGui::SetItemDefaultFocus();
@@ -1448,11 +1448,11 @@ void AppHost::drawSceneNodeContent()
         }
 
         // Toggles
-        ImGui::Checkbox("网格##SceneGrid", &scene_show_grid_);
+        ImGui::Checkbox("网格##SceneGrid", &ui_state_.scene_show_grid);
         ImGui::SameLine();
-        ImGui::Checkbox("锚点##SceneAnchors", &scene_show_anchors_);
+        ImGui::Checkbox("锚点##SceneAnchors", &ui_state_.scene_show_anchors);
         ImGui::SameLine();
-        ImGui::Checkbox("资源##SceneResources", &scene_show_resources_);
+        ImGui::Checkbox("资源##SceneResources", &ui_state_.scene_show_resources);
 
         // Canvas setup
         const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
@@ -1471,20 +1471,20 @@ void AppHost::drawSceneNodeContent()
         if (hovered && io.MouseWheel != 0.0f)
         {
             const float zoomStep = 1.0f + (io.MouseWheel > 0.0f ? 0.1f : -0.1f);
-            scene_cam_zoom_ = std::max(scene_cam_zoom_ * zoomStep, 0.05f);
+            ui_state_.scene_cam_zoom = std::max(ui_state_.scene_cam_zoom * zoomStep, 0.05f);
         }
         if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
         {
             ImVec2 delta = ImGui::GetIO().MouseDelta;
-            scene_cam_offset_x_ += delta.x;
-            scene_cam_offset_y_ += delta.y;
+            ui_state_.scene_cam_offset_x += delta.x;
+            ui_state_.scene_cam_offset_y += delta.y;
         }
 
         // Gather local points: resource spawns and anchors for selected node
         std::vector<ImVec2> resourcePts;
         for (const auto &sp : atlas.spawns)
         {
-            if (sp.resource.location.value != scene_selected_node_)
+            if (sp.resource.location.value != ui_state_.scene_selected_node)
                 continue;
             if (sp.resource.local_coord.has_value())
             {
@@ -1494,11 +1494,11 @@ void AppHost::drawSceneNodeContent()
         std::vector<std::pair<ImVec2, std::string>> anchorPts; // pos, label
         for (const auto &e : atlas.edges)
         {
-            if (e.from.value == scene_selected_node_ && e.anchorFrom.has_value())
+            if (e.from.value == ui_state_.scene_selected_node && e.anchorFrom.has_value())
             {
                 anchorPts.emplace_back(ImVec2(e.anchorFrom->x, e.anchorFrom->y), std::string("→ ") + std::to_string(e.to.value));
             }
-            if (e.to.value == scene_selected_node_ && e.anchorTo.has_value())
+            if (e.to.value == ui_state_.scene_selected_node && e.anchorTo.has_value())
             {
                 anchorPts.emplace_back(ImVec2(e.anchorTo->x, e.anchorTo->y), std::string("→ ") + std::to_string(e.from.value));
             }
@@ -1508,7 +1508,7 @@ void AppHost::drawSceneNodeContent()
         int minX = 0, minY = 0, maxX = 9, maxY = 9; // default 10x10
         for (const auto &tm : atlas.tilemaps)
         {
-            if (tm.nodeId == scene_selected_node_ && tm.width > 0 && tm.height > 0)
+            if (tm.nodeId == ui_state_.scene_selected_node && tm.width > 0 && tm.height > 0)
             {
                 minX = 0;
                 minY = 0;
@@ -1528,7 +1528,7 @@ void AppHost::drawSceneNodeContent()
         bool hasMeta = false;
         for (const auto &tm : atlas.tilemaps)
         {
-            if (tm.nodeId == scene_selected_node_ && tm.width > 0 && tm.height > 0)
+            if (tm.nodeId == ui_state_.scene_selected_node && tm.width > 0 && tm.height > 0)
             {
                 hasMeta = true;
                 break;
@@ -1545,17 +1545,17 @@ void AppHost::drawSceneNodeContent()
         float basePx = 24.0f;
         for (const auto &tm : atlas.tilemaps)
         {
-            if (tm.nodeId == scene_selected_node_ && tm.tileW > 0)
+            if (tm.nodeId == ui_state_.scene_selected_node && tm.tileW > 0)
             {
                 basePx = std::max(basePx, static_cast<float>(tm.tileW));
                 break;
             }
         }
-        const float cellPx = basePx * scene_cam_zoom_;
+        const float cellPx = basePx * ui_state_.scene_cam_zoom;
         auto toScreen = [&](float gx, float gy)
         {
-            const float sx = canvasPos.x + scene_cam_offset_x_ + (gx - minX) * cellPx + 8.0f;
-            const float sy = canvasPos.y + scene_cam_offset_y_ + (gy - minY) * cellPx + 8.0f;
+            const float sx = canvasPos.x + ui_state_.scene_cam_offset_x + (gx - minX) * cellPx + 8.0f;
+            const float sy = canvasPos.y + ui_state_.scene_cam_offset_y + (gy - minY) * cellPx + 8.0f;
             return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
         };
 
@@ -1569,7 +1569,7 @@ void AppHost::drawSceneNodeContent()
         const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
         for (const auto &tm : atlas.tilemaps)
         {
-            if (tm.nodeId != scene_selected_node_ || tm.width <= 0 || tm.height <= 0)
+            if (tm.nodeId != ui_state_.scene_selected_node || tm.width <= 0 || tm.height <= 0)
             {
                 continue;
             }
@@ -1591,7 +1591,7 @@ void AppHost::drawSceneNodeContent()
             break; // use the first matching tilemap per node
         }
 
-        if (scene_show_grid_)
+        if (ui_state_.scene_show_grid)
         {
             for (int x = 0; x <= cols; ++x)
             {
@@ -1609,7 +1609,7 @@ void AppHost::drawSceneNodeContent()
 
         // Draw resources
         const ImU32 foodColor = ImGui::GetColorU32(ImVec4(0.93f, 0.67f, 0.27f, 1.0f));
-        if (scene_show_resources_)
+        if (ui_state_.scene_show_resources)
         {
             for (const auto &p : resourcePts)
             {
@@ -1622,7 +1622,7 @@ void AppHost::drawSceneNodeContent()
 
         // Draw anchors
         const ImU32 anchorColor = ImGui::GetColorU32(ImVec4(0.38f, 0.74f, 0.88f, 1.0f));
-        if (scene_show_anchors_)
+        if (ui_state_.scene_show_anchors)
         {
             for (const auto &ap : anchorPts)
             {
@@ -1762,20 +1762,20 @@ void AppHost::drawMonitorTelemetryContent()
 
 void AppHost::drawMonitorLogContent()
     {
-        if (!log_sink_)
+        if (!ui_state_.log_sink)
         {
             ImGui::TextUnformatted("日志缓冲不可用。");
             return;
         }
 
-        ImGui::Checkbox("自动滚动", &log_auto_scroll_);
+        ImGui::Checkbox("自动滚动", &ui_state_.log_auto_scroll);
         ImGui::Separator();
 
-        const auto lines = log_sink_->snapshot();
+        const auto lines = ui_state_.log_sink->snapshot();
 
         ImGui::BeginChild("LogConsole.ScrollRegion", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_HorizontalScrollbar);
-        const bool stickToBottom = log_auto_scroll_ &&
-                                   (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f || log_last_line_count_ == 0);
+        const bool stickToBottom = ui_state_.log_auto_scroll &&
+                                   (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f || ui_state_.log_last_line_count == 0);
 
         for (const auto &line : lines)
         {
@@ -1787,7 +1787,7 @@ void AppHost::drawMonitorLogContent()
             ImGui::SetScrollHereY(1.0f);
         }
 
-        log_last_line_count_ = lines.size();
+        ui_state_.log_last_line_count = lines.size();
 
         ImGui::EndChild();
     }

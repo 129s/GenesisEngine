@@ -132,6 +132,8 @@ add_executable(genesis_sandbox_gui
     sandbox/gui/AppHostLayout.cpp
     sandbox/gui/AppHostPanelWorld.cpp
     sandbox/gui/AppHostPanelViews.cpp
+    sandbox/gui/ui/UiState.cpp
+    sandbox/gui/ui/UiContext.cpp
     sandbox/gui/RuntimeBridge.cpp
 )
 

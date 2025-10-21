@@ -94,12 +94,12 @@ void AppHost::drawStatusBar()
 
         auto drawNavButton = [&](const char* label, MainViewTab tab, BrowserSection section) {
             ImGui::SameLine(0.0f, 12.0f);
-            const bool active = (main_view_active_tab_ == tab);
+            const bool active = (ui_state_.main_view_active_tab == tab);
             PushActiveButtonStyle(active);
             if (ImGui::Button(label))
             {
-                main_view_active_tab_ = tab;
-                browser_active_section_ = section;
+                ui_state_.main_view_active_tab = tab;
+                ui_state_.browser_active_section = section;
             }
             PopActiveButtonStyle(active);
         };
@@ -258,19 +258,19 @@ void AppHost::drawBrowserPanel()
             ImGui::SameLine();
         }
 
-        const bool active = browser_active_section_ == sections[i].section;
+        const bool active = ui_state_.browser_active_section == sections[i].section;
         PushActiveButtonStyle(active);
         if (ImGui::Button(sections[i].label))
         {
-            browser_active_section_ = sections[i].section;
-            main_view_active_tab_ = sections[i].target;
+            ui_state_.browser_active_section = sections[i].section;
+            ui_state_.main_view_active_tab = sections[i].target;
         }
         PopActiveButtonStyle(active);
     }
     ImGui::PopStyleVar();
     ImGui::Separator();
 
-    switch (browser_active_section_)
+    switch (ui_state_.browser_active_section)
     {
     case BrowserSection::Scene:
     {
@@ -301,17 +301,17 @@ void AppHost::drawBrowserPanel()
             for (std::size_t idx : nodeIndices)
             {
                 const auto& node = atlas->nodes[idx];
-                const bool selected = scene_selected_node_ == node.id.value;
+                const bool selected = ui_state_.scene_selected_node == node.id.value;
                 std::string label = node.name.empty() ? ("Node " + std::to_string(node.id.value))
                                                       : node.name;
                 label += "##SceneBrowserNode";
                 label += std::to_string(node.id.value);
                 if (ImGui::Selectable(label.c_str(), selected))
                 {
-                    scene_selected_node_ = node.id.value;
-                    map_selected_node_ = node.id.value;
-                    scene_view_mode_ = SceneViewMode::Node;
-                    main_view_active_tab_ = MainViewTab::Scene;
+                    ui_state_.scene_selected_node = node.id.value;
+                    ui_state_.map_selected_node = node.id.value;
+                    ui_state_.scene_view_mode = SceneViewMode::Node;
+                    ui_state_.main_view_active_tab = MainViewTab::Scene;
                 }
                 if (ImGui::IsItemHovered())
                 {
@@ -331,22 +331,22 @@ void AppHost::drawBrowserPanel()
         ImGui::TextUnformatted("世界生成 / 加载 / 保存");
         ImGui::Separator();
 
-        ImGui::Text("配置文件：%s", worldgen_config_buffer_.data());
-        ImGui::Text("输出目录：%s", worldgen_output_buffer_.data());
-        ImGui::Text("最近状态：%s", world_command_status_.empty() ? "—" : world_command_status_.c_str());
-        if (!world_load_status_.empty())
+        ImGui::Text("配置文件：%s", ui_state_.worldgen_config_buffer.data());
+        ImGui::Text("输出目录：%s", ui_state_.worldgen_output_buffer.data());
+        ImGui::Text("最近状态：%s", ui_state_.world_command_status.empty() ? "—" : ui_state_.world_command_status.c_str());
+        if (!ui_state_.world_load_status.empty())
         {
-            ImGui::Text("加载：%s", world_load_status_.c_str());
+            ImGui::Text("加载：%s", ui_state_.world_load_status.c_str());
         }
-        if (!world_save_status_.empty())
+        if (!ui_state_.world_save_status.empty())
         {
-            ImGui::Text("保存：%s", world_save_status_.c_str());
+            ImGui::Text("保存：%s", ui_state_.world_save_status.c_str());
         }
 
         if (ImGui::Button("打开世界面板"))
         {
-            main_view_active_tab_ = MainViewTab::World;
-            browser_active_section_ = BrowserSection::World;
+            ui_state_.main_view_active_tab = MainViewTab::World;
+            ui_state_.browser_active_section = BrowserSection::World;
         }
 
         if (runtime_bridge_)
@@ -385,8 +385,8 @@ void AppHost::drawBrowserPanel()
 
         if (ImGui::Button("跳转 Monitor 面板"))
         {
-            main_view_active_tab_ = MainViewTab::Monitor;
-            browser_active_section_ = BrowserSection::Monitor;
+            ui_state_.main_view_active_tab = MainViewTab::Monitor;
+            ui_state_.browser_active_section = BrowserSection::Monitor;
         }
         break;
     }
@@ -398,8 +398,8 @@ void AppHost::drawBrowserPanel()
             "后续任务将提供布局/主题的导入导出与预设管理。当前可通过 Main View > Settings 预览设计令牌。");
         if (ImGui::Button("打开 Settings 面板"))
         {
-            main_view_active_tab_ = MainViewTab::Settings;
-            browser_active_section_ = BrowserSection::LayoutsThemes;
+            ui_state_.main_view_active_tab = MainViewTab::Settings;
+            ui_state_.browser_active_section = BrowserSection::LayoutsThemes;
         }
         break;
     }
@@ -417,12 +417,12 @@ void AppHost::drawMainViewPanel()
     }
 
     auto drawTabButton = [&](const char* label, MainViewTab tab, BrowserSection section) {
-        const bool active = (main_view_active_tab_ == tab);
+        const bool active = (ui_state_.main_view_active_tab == tab);
         PushActiveButtonStyle(active);
         if (ImGui::Button(label, ImVec2(0.0f, 0.0f)))
         {
-            main_view_active_tab_ = tab;
-            browser_active_section_ = section;
+            ui_state_.main_view_active_tab = tab;
+            ui_state_.browser_active_section = section;
         }
         PopActiveButtonStyle(active);
     };
@@ -439,7 +439,7 @@ void AppHost::drawMainViewPanel()
 
     if (ImGui::BeginChild("MainViewContent", ImVec2(0.0f, 0.0f), false))
     {
-        switch (main_view_active_tab_)
+        switch (ui_state_.main_view_active_tab)
         {
         case MainViewTab::Scene:
             drawSceneTabContent();

@@ -49,34 +49,16 @@ AppHost::AppHost(AppHostConfig config)
     , clear_color_{0.07f, 0.07f, 0.10f, 1.0f}
     , runtime_bridge_(std::make_unique<RuntimeBridge>())
     , speed_multiplier_ui_(1.0)
-    , show_inspector_(true)
-    , browser_active_section_(BrowserSection::Scene)
-    , main_view_active_tab_(MainViewTab::Scene)
-    , scene_view_mode_(SceneViewMode::Map)
-    , log_auto_scroll_(true)
-    , show_agent_overlay_(true)
-    , show_agent_trails_(false)
-    , agent_trail_samples_(24)
-    , inspector_selection_type_(InspectorSelectionType::None)
-    , inspector_selected_primary_(0)
-    , inspector_selected_secondary_(0)
-    , inspector_follow_selection_(false)
-    , scene_selected_node_(0)
-    , scene_cam_offset_x_(0.0f)
-    , scene_cam_offset_y_(0.0f)
-    , scene_cam_zoom_(1.5f)
-    , scene_show_grid_(true)
-    , scene_show_anchors_(true)
-    , scene_show_resources_(true)
+    , ui_context_{*this, ui_state_, runtime_bridge_.get(), latest_snapshot_, speed_multiplier_ui_, config_}
 {
     refreshDefaultWorldgenConfig();
-    worldgen_seed_ = static_cast<std::uint64_t>(std::random_device{}());
-    std::fill(inspector_search_buffer_.begin(), inspector_search_buffer_.end(), '\0');
+    ui_state_.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
+    std::fill(ui_state_.inspector_search_buffer.begin(), ui_state_.inspector_search_buffer.end(), '\0');
 
     if (auto logger = spdlog::default_logger())
     {
-        log_sink_ = std::make_shared<ImGuiLogSink>(512);
-        logger->sinks().push_back(log_sink_);
+        ui_state_.log_sink = std::make_shared<ImGuiLogSink>(512);
+        logger->sinks().push_back(ui_state_.log_sink);
     }
 }
 
@@ -346,7 +328,7 @@ void AppHost::updateRuntimeSnapshot()
     if (!runtime_bridge_)
     {
         latest_snapshot_.reset();
-        agent_trails_.clear();
+        ui_state_.agent_trails.clear();
         return;
     }
 
@@ -356,19 +338,19 @@ void AppHost::updateRuntimeSnapshot()
         if (latest_snapshot_)
         {
             updateAgentTrails(*latest_snapshot_);
-            if (inspector_selection_type_ == InspectorSelectionType::Agent)
+            if (ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Agent)
             {
-                const auto trackedId = inspector_selected_primary_;
+                const auto trackedId = ui_state_.inspector_selected_primary;
                 bool foundAgent = false;
                 for (const auto& agent : latest_snapshot_->telemetry.agents)
                 {
                     if (agent.entityId == trackedId)
                     {
-                        inspector_highlight_node_ = agent.location.value;
-                        map_selected_node_ = agent.location.value;
-                        if (inspector_follow_selection_)
+                        ui_state_.inspector_highlight_node = agent.location.value;
+                        ui_state_.map_selected_node = agent.location.value;
+                        if (ui_state_.inspector_follow_selection)
                         {
-                            scene_selected_node_ = agent.location.value;
+                            ui_state_.scene_selected_node = agent.location.value;
                         }
                         foundAgent = true;
                         break;
@@ -376,26 +358,26 @@ void AppHost::updateRuntimeSnapshot()
                 }
                 if (!foundAgent)
                 {
-                    inspector_highlight_node_.reset();
+                    ui_state_.inspector_highlight_node.reset();
                 }
             }
-            else if (inspector_selection_type_ == InspectorSelectionType::Resource)
+            else if (ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Resource)
             {
-                if (inspector_selected_primary_ < latest_snapshot_->telemetry.resources.size())
+                if (ui_state_.inspector_selected_primary < latest_snapshot_->telemetry.resources.size())
                 {
-                    inspector_highlight_node_ =
-                        latest_snapshot_->telemetry.resources[inspector_selected_primary_].location.value;
-                    map_selected_node_ = inspector_highlight_node_;
+                    ui_state_.inspector_highlight_node =
+                        latest_snapshot_->telemetry.resources[ui_state_.inspector_selected_primary].location.value;
+                    ui_state_.map_selected_node = ui_state_.inspector_highlight_node;
                 }
                 else
                 {
-                    inspector_highlight_node_.reset();
+                    ui_state_.inspector_highlight_node.reset();
                 }
             }
-            else if (inspector_selection_type_ == InspectorSelectionType::Node)
+            else if (ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Node)
             {
-                inspector_highlight_node_ = inspector_selected_primary_;
-                map_selected_node_ = inspector_selected_primary_;
+                ui_state_.inspector_highlight_node = ui_state_.inspector_selected_primary;
+                ui_state_.map_selected_node = ui_state_.inspector_selected_primary;
             }
         }
     }
@@ -405,7 +387,7 @@ void AppHost::updateAgentTrails(const RuntimeBridge::Snapshot& snapshot)
 {
     if (!runtime_bridge_)
     {
-        agent_trails_.clear();
+        ui_state_.agent_trails.clear();
         return;
     }
 
@@ -424,23 +406,23 @@ void AppHost::updateAgentTrails(const RuntimeBridge::Snapshot& snapshot)
             position = (*agentPositionsPtr)[i];
         }
 
-        auto& trail = agent_trails_[agent.entityId];
+        auto& trail = ui_state_.agent_trails[agent.entityId];
         if (trail.empty() || std::fabs(trail.back().x - position.x) > std::numeric_limits<float>::epsilon() ||
             std::fabs(trail.back().y - position.y) > std::numeric_limits<float>::epsilon())
         {
             trail.push_back(position);
-            while (trail.size() > agent_trail_samples_)
+            while (trail.size() > ui_state_.agent_trail_samples)
             {
                 trail.pop_front();
             }
         }
     }
 
-    for (auto it = agent_trails_.begin(); it != agent_trails_.end();)
+    for (auto it = ui_state_.agent_trails.begin(); it != ui_state_.agent_trails.end();)
     {
         if (!observed.contains(it->first))
         {
-            it = agent_trails_.erase(it);
+            it = ui_state_.agent_trails.erase(it);
         }
         else
         {
@@ -451,16 +433,13 @@ void AppHost::updateAgentTrails(const RuntimeBridge::Snapshot& snapshot)
 
 void AppHost::drawToasts()
 {
-    if (toasts_.empty())
+    if (ui_state_.toasts.empty())
     {
         return;
     }
     const double now = ImGui::GetTime();
-    while (!toasts_.empty() && toasts_.front().expiresAt <= now)
-    {
-        toasts_.pop_front();
-    }
-    if (toasts_.empty())
+    ui_state_.pruneExpiredToasts(now);
+    if (ui_state_.toasts.empty())
     {
         return;
     }
@@ -470,7 +449,7 @@ void AppHost::drawToasts()
     ImVec2 cursor{viewport->Pos.x + viewport->Size.x - margin, viewport->Pos.y + margin};
 
     int index = 0;
-    for (auto& t : toasts_)
+    for (auto& t : ui_state_.toasts)
     {
         const ImVec2 textSize = ImGui::CalcTextSize(t.text.c_str());
         const ImVec2 winSize{textSize.x + 24.0f, textSize.y + 16.0f};
@@ -499,15 +478,7 @@ void AppHost::drawToasts()
 
 void AppHost::pushToast(const std::string& text, const ImVec4& color, double lifetimeSec)
 {
-    Toast t;
-    t.text = text;
-    t.color = color;
-    t.expiresAt = ImGui::GetTime() + lifetimeSec;
-    toasts_.push_back(std::move(t));
-    if (toasts_.size() > 8)
-    {
-        toasts_.pop_front();
-    }
+    ui_state_.pushToast(text, color, lifetimeSec);
 }
 
 void AppHost::handleShortcuts()
@@ -533,14 +504,14 @@ void AppHost::handleShortcuts()
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F8))
         {
-            main_view_active_tab_ = MainViewTab::Monitor;
-            browser_active_section_ = BrowserSection::Monitor;
+            ui_state_.main_view_active_tab = MainViewTab::Monitor;
+            ui_state_.browser_active_section = BrowserSection::Monitor;
             pushToast("主视图 → Monitor", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F9))
         {
-            main_view_active_tab_ = MainViewTab::World;
-            browser_active_section_ = BrowserSection::World;
+            ui_state_.main_view_active_tab = MainViewTab::World;
+            ui_state_.browser_active_section = BrowserSection::World;
             pushToast("主视图 → World", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
         }
     }

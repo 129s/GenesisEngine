@@ -60,7 +60,8 @@
 ## 跨阶段架构重构任务（2025-10-21 新增）
 1. **UI 模块解耦**  
    - 拆分 Status/Control/Browser/Main/Inspector 为独立视图类，`AppHost` 只负责装配。  
-   - 建立共享 `UiContext`，明确状态归属与数据流向。
+   - 建立共享 `UiContext`，明确状态归属与数据流向。  
+   - ✅ 2025-10-21：完成 `UiState` 与 `UiContext` 抽离，为视图迁移提供统一入口。
 2. **Presenter / ViewModel 架构**  
    - 为 Scene / World / Monitor 页签编写 Presenter，负责数据聚合与缓存。  
    - 为 Presenter 引入单元测试与回归样例，验证过滤、统计、排序逻辑。

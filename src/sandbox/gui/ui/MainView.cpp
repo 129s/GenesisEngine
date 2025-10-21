@@ -1,4 +1,5 @@
 #include "sandbox/gui/ui/MainView.hpp"
+#include "../CommandUiHelpers.hpp"
 #include "../ImGuiLogSink.hpp"
 
 
@@ -135,13 +136,19 @@ void MainView::drawSceneTab(UiContext& ctx)
 
 void MainView::drawWorldTab(UiContext& ctx)
 {
-    const bool bridgeReady = ctx.runtime_bridge != nullptr;
+    const bool runtimeReady = (ctx.runtime_bridge != nullptr);
     std::vector<RuntimeBridge::CommandProgress> commandStatuses;
-    if (bridgeReady)
+    if (runtimeReady)
     {
         commandStatuses = ctx.runtime_bridge->commandStatusSnapshot();
         ctx.refreshCommandStatusTexts(commandStatuses);
     }
+
+    WorldPresenterInput presenterInput{
+        ctx.state,
+        ctx.runtime_bridge,
+        runtimeReady ? &commandStatuses : nullptr};
+    const WorldViewModel worldVm = world_presenter_.buildWorldViewModel(presenterInput);
 
     ImGui::TextUnformatted("世界生成 / 加载 / 保存");
     ImGui::Separator();
@@ -174,19 +181,19 @@ void MainView::drawWorldTab(UiContext& ctx)
 
     const std::string configInput(ctx.state.worldgen_config_buffer.data());
     const std::string outputInput(ctx.state.worldgen_output_buffer.data());
-    const bool hasConfig = !configInput.empty();
+    const bool hasConfig = worldVm.hasConfigPath;
     if (!hasConfig)
     {
         ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写配置文件路径");
     }
 
-    if (!bridgeReady || !hasConfig)
+    if (!runtimeReady || !hasConfig)
     {
         ImGui::BeginDisabled();
     }
     if (ImGui::Button("生成世界"))
     {
-        if (bridgeReady)
+        if (runtimeReady)
         {
             json command = {
                 {"action", "world.generate"},
@@ -213,7 +220,7 @@ void MainView::drawWorldTab(UiContext& ctx)
             }
         }
     }
-    if (!bridgeReady || !hasConfig)
+    if (!runtimeReady || !hasConfig)
     {
         ImGui::EndDisabled();
     }
@@ -222,7 +229,7 @@ void MainView::drawWorldTab(UiContext& ctx)
         ImGui::TextWrapped("%s", ctx.state.world_command_status.c_str());
     }
 
-    if (bridgeReady)
+    if (runtimeReady)
     {
         if (auto resultOpt = ctx.runtime_bridge->lastGeneration(); resultOpt)
         {
@@ -271,13 +278,13 @@ void MainView::drawWorldTab(UiContext& ctx)
         ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写加载路径");
     }
 
-    if (!bridgeReady || loadInput.empty())
+    if (!runtimeReady || loadInput.empty())
     {
         ImGui::BeginDisabled();
     }
     if (ImGui::Button("加载世界"))
     {
-        if (bridgeReady)
+        if (runtimeReady)
         {
             json command = {
                 {"action", "world.load"},
@@ -295,7 +302,7 @@ void MainView::drawWorldTab(UiContext& ctx)
             }
         }
     }
-    if (!bridgeReady || loadInput.empty())
+    if (!runtimeReady || loadInput.empty())
     {
         ImGui::EndDisabled();
     }
@@ -311,13 +318,13 @@ void MainView::drawWorldTab(UiContext& ctx)
         ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写保存路径");
     }
 
-    if (!bridgeReady || saveInput.empty())
+    if (!runtimeReady || saveInput.empty())
     {
         ImGui::BeginDisabled();
     }
     if (ImGui::Button("保存世界"))
     {
-        if (bridgeReady)
+        if (runtimeReady)
         {
             json command = {
                 {"action", "world.save"},
@@ -335,7 +342,7 @@ void MainView::drawWorldTab(UiContext& ctx)
             }
         }
     }
-    if (!bridgeReady || saveInput.empty())
+    if (!runtimeReady || saveInput.empty())
     {
         ImGui::EndDisabled();
     }
@@ -352,7 +359,7 @@ void MainView::drawWorldTab(UiContext& ctx)
         ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写脚本路径");
     }
 
-    if (!bridgeReady)
+    if (!runtimeReady)
     {
         ImGui::BeginDisabled();
     }
@@ -362,7 +369,7 @@ void MainView::drawWorldTab(UiContext& ctx)
         {
             ctx.state.command_script_status = "请先填写脚本路径";
         }
-        else if (bridgeReady)
+        else if (runtimeReady)
         {
             std::string error;
             if (ctx.runtime_bridge->enqueueCommandScript(std::filesystem::path(scriptPath), "script", error))
@@ -375,13 +382,39 @@ void MainView::drawWorldTab(UiContext& ctx)
             }
         }
     }
-    if (!bridgeReady)
+    if (!runtimeReady)
     {
         ImGui::EndDisabled();
     }
     if (!ctx.state.command_script_status.empty())
     {
         ImGui::TextWrapped("%s", ctx.state.command_script_status.c_str());
+    }
+
+    if (!worldVm.commands.empty())
+    {
+        ImGui::Separator();
+        ImGui::TextUnformatted("命令状态");
+        if (ImGui::BeginChild("WorldCommandStatusList", ImVec2(0.0f, 180.0f), true))
+        {
+            for (const auto& command : worldVm.commands)
+            {
+                ImGui::TextColored(commandStateColor(command.state), "%s", command.summary.c_str());
+                ImGui::SameLine();
+                ImGui::TextDisabled("源：%s", command.source.c_str());
+                if (!command.message.empty())
+                {
+                    ImGui::BulletText("%s", command.message.c_str());
+                }
+                if (command.payloadJson && !command.payloadJson->empty())
+                {
+                    ImGui::PushTextWrapPos();
+                    ImGui::TextWrapped("%s", command.payloadJson->c_str());
+                    ImGui::PopTextWrapPos();
+                }
+            }
+        }
+        ImGui::EndChild();
     }
 }
 
@@ -1207,15 +1240,21 @@ void InspectorView::render(UiContext& ctx)
     }
 
 void MainView::drawSceneWorldMap(UiContext& ctx)
-    {
-        if (!ctx.runtime_bridge)
-        {
-            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
-            return;
-        }
+{
+    ScenePresenterInput presenterInput{
+        ctx.state,
+        ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr,
+        ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
+    const SceneMapViewModel mapVm = scene_presenter_.buildMapViewModel(presenterInput);
 
-        const auto& atlas = ctx.runtime_bridge->atlas();
-        const auto* agentPositionsPtr = ctx.latest_snapshot ? &ctx.latest_snapshot->agentPositions : nullptr;
+    if (!mapVm.runtimeReady || mapVm.atlas == nullptr)
+    {
+        ImGui::TextUnformatted("RuntimeBridge 未就绪。");
+        return;
+    }
+
+    const auto& atlas = *mapVm.atlas;
+    const auto* agentPositionsPtr = ctx.latest_snapshot ? &ctx.latest_snapshot->agentPositions : nullptr;
 
         ImGui::Checkbox("显示实体##Agents", &ctx.state.show_agent_overlay);
         ImGui::SameLine();
@@ -1277,14 +1316,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
             ImGui::Separator();
         }
 
-        std::unordered_map<std::uint32_t, std::vector<const genesis::telemetry::ResourceSnapshot *>> resourcesByLocation;
-        if (ctx.latest_snapshot)
-        {
-            for (const auto &resource : ctx.latest_snapshot->telemetry.resources)
-            {
-                resourcesByLocation[resource.location.value].push_back(&resource);
-            }
-        }
+        const auto& resourceBuckets = mapVm.resourceBuckets;
 
         const ImVec2 canvasAvail = ImGui::GetContentRegionAvail();
         const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
@@ -1565,15 +1597,15 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                 const ImU32 barBackground = ImGui::GetColorU32(ImVec4(0.15f, 0.15f, 0.18f, 0.9f));
                 const ImU32 barBorder = ImGui::GetColorU32(ImGuiCol_Border);
 
-                for (const auto &[locationId, resources] : resourcesByLocation)
+                for (const auto& bucket : resourceBuckets)
                 {
-                    auto posIt = nodePositions.find(locationId);
+                    auto posIt = nodePositions.find(bucket.locationId);
                     if (posIt == nodePositions.end())
                     {
                         continue;
                     }
-                    const bool forceOverlay = (ctx.state.map_selected_node && *ctx.state.map_selected_node == locationId) ||
-                                              (ctx.state.inspector_highlight_node && *ctx.state.inspector_highlight_node == locationId);
+                    const bool forceOverlay = (ctx.state.map_selected_node && *ctx.state.map_selected_node == bucket.locationId) ||
+                                              (ctx.state.inspector_highlight_node && *ctx.state.inspector_highlight_node == bucket.locationId);
                     if (ctx.state.map_zoom < resourceOverlayZoomThreshold && !forceOverlay)
                     {
                         continue;
@@ -1582,22 +1614,22 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                     const ImVec2 basePos = ImVec2(std::floor(posIt->second.x) + 0.5f, std::floor(posIt->second.y) + 0.5f);
                     float offsetY = 20.0f;
 
-                    for (const auto *resource : resources)
+                    for (const auto& resource : bucket.resources)
                     {
-                        const float capacity = static_cast<float>(resource->capacity);
-                        const float current = static_cast<float>(resource->current);
+                        const float capacity = static_cast<float>(resource.capacity);
+                        const float current = static_cast<float>(resource.current);
                         const float ratio = capacity > 0.0f ? std::clamp(current / capacity, 0.0f, 1.0f) : 0.0f;
 
                         const ImVec2 barMin{std::floor(basePos.x - 28.0f) + 0.5f, std::floor(basePos.y + offsetY) + 0.5f};
                         const ImVec2 barMax{std::floor(basePos.x + 28.0f) + 0.5f, std::floor(barMin.y + 7.5f) + 0.5f};
                         drawList->AddRectFilled(barMin, barMax, barBackground, 3.0f);
                         const ImVec2 fillMax{barMin.x + (barMax.x - barMin.x) * ratio, barMax.y};
-                        drawList->AddRectFilled(barMin, fillMax, colorForResource(resource->type), 3.0f);
+                        drawList->AddRectFilled(barMin, fillMax, colorForResource(resource.type), 3.0f);
                         drawList->AddRect(barMin, barMax, barBorder, 3.0f);
 
                         char buffer[48];
                         std::snprintf(buffer, sizeof(buffer), "%-12s %2u/%2u",
-                                      resource->name.c_str(), resource->current, resource->capacity);
+                                      resource.name.c_str(), resource.current, resource.capacity);
                         const ImVec2 textPos{std::floor(barMin.x) + 0.5f, std::floor(barMax.y + 1.0f) + 0.5f};
                         drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
 
@@ -1608,44 +1640,8 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
 
             if (ctx.state.show_agent_overlay && ctx.latest_snapshot)
             {
-                // Build movement progress map for interpolation (optional)
-                std::unordered_map<std::uint32_t, std::tuple<RuntimeBridge::Vector2, RuntimeBridge::Vector2, float>> progress;
-                if (ctx.state.map_interpolate && !ctx.latest_snapshot->telemetry.movementProgress.empty())
-                {
-                    for (const auto &mp : ctx.latest_snapshot->telemetry.movementProgress)
-                    {
-                        auto fromPos = atlas.nodePosition(mp.from).value_or(RuntimeBridge::Vector2{});
-                        auto toPos = atlas.nodePosition(mp.to).value_or(fromPos);
-                        progress.emplace(mp.entityId, std::make_tuple(fromPos, toPos, std::clamp(mp.t01, 0.0f, 1.0f)));
-                    }
-                }
-                enum class AgentState
-                {
-                    Idle,
-                    Move,
-                    Consume,
-                    Other
-                };
-
-                std::unordered_map<std::uint32_t, AgentState> agentStates;
-                agentStates.reserve(ctx.latest_snapshot->telemetry.actions.size());
-                for (const auto &action : ctx.latest_snapshot->telemetry.actions)
-                {
-                    AgentState state = AgentState::Other;
-                    if (action.currentAction == "MoveTo")
-                    {
-                        state = AgentState::Move;
-                    }
-                    else if (action.currentAction == "ConsumeResource")
-                    {
-                        state = AgentState::Consume;
-                    }
-                    else if (action.currentAction == "Idle")
-                    {
-                        state = AgentState::Idle;
-                    }
-                    agentStates[action.entityId] = state;
-                }
+                const auto& movement = mapVm.movement;
+                const auto& agentView = mapVm.agents;
 
                 const ImU32 moveColor = ImGui::GetColorU32(colorMove);
                 const ImU32 consumeColor = ImGui::GetColorU32(colorConsume);
@@ -1653,17 +1649,16 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                 const ImU32 otherColor = ImGui::GetColorU32(colorUnknown);
                 const ImU32 borderColor = ImGui::GetColorU32(ImGuiCol_Text);
 
-                auto colorForState = [&](AgentState state) -> ImU32
-                {
-                    switch (state)
+                auto colorForActivity = [&](SceneAgentActivity activity) -> ImU32 {
+                    switch (activity)
                     {
-                    case AgentState::Move:
+                    case SceneAgentActivity::Move:
                         return moveColor;
-                    case AgentState::Consume:
+                    case SceneAgentActivity::Consume:
                         return consumeColor;
-                    case AgentState::Idle:
+                    case SceneAgentActivity::Idle:
                         return idleColor;
-                    case AgentState::Other:
+                    case SceneAgentActivity::Other:
                     default:
                         return otherColor;
                     }
@@ -1671,7 +1666,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
 
                 for (std::size_t i = 0; i < ctx.latest_snapshot->telemetry.agents.size(); ++i)
                 {
-                    const auto &agent = ctx.latest_snapshot->telemetry.agents[i];
+                    const auto& agent = ctx.latest_snapshot->telemetry.agents[i];
                     RuntimeBridge::Vector2 agentPos = atlas.nodePosition(agent.location).value_or(RuntimeBridge::Vector2{});
                     if (agentPositionsPtr && i < agentPositionsPtr->size())
                     {
@@ -1679,20 +1674,26 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                     }
                     if (ctx.state.map_interpolate)
                     {
-                        if (auto itp = progress.find(agent.entityId); itp != progress.end())
+                        if (auto it = movement.find(agent.entityId); it != movement.end())
                         {
-                            const auto &[fromP, toP, t] = itp->second;
-                            agentPos.x = fromP.x + (toP.x - fromP.x) * t;
-                            agentPos.y = fromP.y + (toP.y - fromP.y) * t;
+                            const auto& progress = it->second;
+                            agentPos.x = progress.from.x + (progress.to.x - progress.from.x) * progress.t;
+                            agentPos.y = progress.from.y + (progress.to.y - progress.from.y) * progress.t;
                         }
                     }
 
                     ImVec2 screenPos = toScreen(agentPos);
                     screenPos = ImVec2(std::floor(screenPos.x) + 0.5f, std::floor(screenPos.y) + 0.5f);
 
-                    auto posIt = nodePositions.find(agent.location.value);
-                    const auto state = agentStates.contains(agent.entityId) ? agentStates[agent.entityId] : AgentState::Idle;
-                    const ImU32 fillColor = colorForState(state);
+                    const SceneAgentActivity activity = [&]() {
+                        if (auto it = agentView.find(agent.entityId); it != agentView.end())
+                        {
+                            return it->second.activity;
+                        }
+                        return SceneAgentActivity::Idle;
+                    }();
+
+                    const ImU32 fillColor = colorForActivity(activity);
                     drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
                     drawList->AddCircle(screenPos, 7.0f, borderColor, 16, 1.4f);
 
@@ -1702,7 +1703,6 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                         drawList->AddCircle(screenPos, 11.0f, highlightColor, 24, 2.5f);
                     }
 
-                    // Agent name label
                     if (!agent.name.empty() && (ctx.state.map_zoom >= agentLabelZoomThreshold || agentSelected))
                     {
                         const ImVec2 namePos{screenPos.x + 9.0f, screenPos.y - ImGui::GetTextLineHeight() * 0.5f};
@@ -1714,12 +1714,12 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                         auto trailIt = ctx.state.agent_trails.find(agent.entityId);
                         if (trailIt != ctx.state.agent_trails.end() && trailIt->second.size() > 1)
                         {
-                            const auto &trail = trailIt->second;
+                            const auto& trail = trailIt->second;
                             ImVec2 previous = toScreen(trail.front());
                             previous = ImVec2(std::floor(previous.x) + 0.5f, std::floor(previous.y) + 0.5f);
-                            for (std::size_t i = 1; i < trail.size(); ++i)
+                            for (std::size_t trailIndex = 1; trailIndex < trail.size(); ++trailIndex)
                             {
-                                ImVec2 current = toScreen(trail[i]);
+                                ImVec2 current = toScreen(trail[trailIndex]);
                                 current = ImVec2(std::floor(current.x) + 0.5f, std::floor(current.y) + 0.5f);
                                 drawList->AddLine(previous, current, fillColor, 2.0f);
                                 previous = current;
@@ -1737,236 +1737,180 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
         ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
     }
 void MainView::drawSceneNode(UiContext& ctx)
+{
+    if (!ctx.runtime_bridge)
     {
-        if (!ctx.runtime_bridge)
+        ImGui::TextUnformatted("RuntimeBridge 未就绪。");
+        return;
+    }
+
+    const auto& atlas = ctx.runtime_bridge->atlas();
+
+    if (ctx.state.scene_selected_node == 0 && !atlas.nodes.empty())
+    {
+        ctx.state.scene_selected_node = atlas.nodes.front().id.value;
+    }
+
+    ScenePresenterInput presenterInput{
+        ctx.state,
+        &atlas,
+        ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
+    const SceneNodeViewModel nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
+
+    const char* previewLabel = "(none)";
+    if (nodeVm.active)
+    {
+        previewLabel = nodeVm.active->name.c_str();
+    }
+    else
+    {
+        for (const auto& summary : nodeVm.nodes)
         {
-            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
-            return;
-        }
-
-        const auto& atlas = ctx.runtime_bridge->atlas();
-
-        // Node selector
-        if (ctx.state.scene_selected_node == 0 && !atlas.nodes.empty())
-        {
-            ctx.state.scene_selected_node = atlas.nodes.front().id.value;
-        }
-
-        if (ImGui::BeginCombo("节点", [&]() -> const char*
-                              {
-            for (const auto& n : atlas.nodes)
+            if (summary.id == ctx.state.scene_selected_node)
             {
-                if (n.id.value == ctx.state.scene_selected_node)
-                    return n.name.c_str();
-            }
-            return "(none)"; }()))
-        {
-            for (const auto &n : atlas.nodes)
-            {
-                const bool selected = (n.id.value == ctx.state.scene_selected_node);
-                if (ImGui::Selectable(n.name.c_str(), selected))
-                {
-                    ctx.state.scene_selected_node = n.id.value;
-                }
-                if (selected)
-                    ImGui::SetItemDefaultFocus();
-            }
-            ImGui::EndCombo();
-        }
-
-        // Toggles
-        ImGui::Checkbox("网格##SceneGrid", &ctx.state.scene_show_grid);
-        ImGui::SameLine();
-        ImGui::Checkbox("锚点##SceneAnchors", &ctx.state.scene_show_anchors);
-        ImGui::SameLine();
-        ImGui::Checkbox("资源##SceneResources", &ctx.state.scene_show_resources);
-
-        // Canvas setup
-        const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
-        const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-        const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
-        ImDrawList *drawList = ImGui::GetWindowDrawList();
-        const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
-        drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
-        drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
-
-        // Camera controls (mouse drag/scroll)
-        ImGui::InvisibleButton("SceneCanvas", ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y), ImGuiButtonFlags_MouseButtonRight);
-        const bool hovered = ImGui::IsItemHovered();
-        const bool active = ImGui::IsItemActive();
-        ImGuiIO &io = ImGui::GetIO();
-        if (hovered && io.MouseWheel != 0.0f)
-        {
-            const float zoomStep = 1.0f + (io.MouseWheel > 0.0f ? 0.1f : -0.1f);
-            ctx.state.scene_cam_zoom = std::max(ctx.state.scene_cam_zoom * zoomStep, 0.05f);
-        }
-        if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
-        {
-            ImVec2 delta = ImGui::GetIO().MouseDelta;
-            ctx.state.scene_cam_offset_x += delta.x;
-            ctx.state.scene_cam_offset_y += delta.y;
-        }
-
-        // Gather local points: resource spawns and anchors for selected node
-        std::vector<ImVec2> resourcePts;
-        for (const auto &sp : atlas.spawns)
-        {
-            if (sp.resource.location.value != ctx.state.scene_selected_node)
-                continue;
-            if (sp.resource.local_coord.has_value())
-            {
-                resourcePts.emplace_back(static_cast<float>(sp.resource.local_coord->first), static_cast<float>(sp.resource.local_coord->second));
-            }
-        }
-        std::vector<std::pair<ImVec2, std::string>> anchorPts; // pos, label
-        for (const auto &e : atlas.edges)
-        {
-            if (e.from.value == ctx.state.scene_selected_node && e.anchorFrom.has_value())
-            {
-                anchorPts.emplace_back(ImVec2(e.anchorFrom->x, e.anchorFrom->y), std::string("→ ") + std::to_string(e.to.value));
-            }
-            if (e.to.value == ctx.state.scene_selected_node && e.anchorTo.has_value())
-            {
-                anchorPts.emplace_back(ImVec2(e.anchorTo->x, e.anchorTo->y), std::string("→ ") + std::to_string(e.from.value));
-            }
-        }
-
-        // Determine grid bounds (prefer tilemap meta)
-        int minX = 0, minY = 0, maxX = 9, maxY = 9; // default 10x10
-        for (const auto &tm : atlas.tilemaps)
-        {
-            if (tm.nodeId == ctx.state.scene_selected_node && tm.width > 0 && tm.height > 0)
-            {
-                minX = 0;
-                minY = 0;
-                maxX = tm.width - 1;
-                maxY = tm.height - 1;
+                previewLabel = summary.name.c_str();
                 break;
             }
         }
-        auto incorporate = [&](const ImVec2 &p)
+    }
+
+    if (ImGui::BeginCombo("节点", previewLabel))
+    {
+        for (const auto& summary : nodeVm.nodes)
         {
-            minX = std::min(minX, static_cast<int>(std::floor(p.x)));
-            minY = std::min(minY, static_cast<int>(std::floor(p.y)));
-            maxX = std::max(maxX, static_cast<int>(std::ceil(p.x)));
-            maxY = std::max(maxY, static_cast<int>(std::ceil(p.y)));
-        };
-        // If no tilemap meta, extend from points
-        bool hasMeta = false;
-        for (const auto &tm : atlas.tilemaps)
-        {
-            if (tm.nodeId == ctx.state.scene_selected_node && tm.width > 0 && tm.height > 0)
+            const bool selected = (summary.id == ctx.state.scene_selected_node);
+            if (ImGui::Selectable(summary.name.c_str(), selected))
             {
-                hasMeta = true;
-                break;
+                ctx.state.scene_selected_node = summary.id;
+            }
+            if (selected)
+            {
+                ImGui::SetItemDefaultFocus();
             }
         }
-        if (!hasMeta)
-        {
-            for (const auto &p : resourcePts)
-                incorporate(p);
-            for (const auto &ap : anchorPts)
-                incorporate(ap.first);
-        }
+        ImGui::EndCombo();
+    }
 
-        float basePx = 24.0f;
-        for (const auto &tm : atlas.tilemaps)
-        {
-            if (tm.nodeId == ctx.state.scene_selected_node && tm.tileW > 0)
-            {
-                basePx = std::max(basePx, static_cast<float>(tm.tileW));
-                break;
-            }
-        }
-        const float cellPx = basePx * ctx.state.scene_cam_zoom;
-        auto toScreen = [&](float gx, float gy)
-        {
-            const float sx = canvasPos.x + ctx.state.scene_cam_offset_x + (gx - minX) * cellPx + 8.0f;
-            const float sy = canvasPos.y + ctx.state.scene_cam_offset_y + (gy - minY) * cellPx + 8.0f;
-            return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
-        };
+    ImGui::Checkbox("网格##SceneGrid", &ctx.state.scene_show_grid);
+    ImGui::SameLine();
+    ImGui::Checkbox("锚点##SceneAnchors", &ctx.state.scene_show_anchors);
+    ImGui::SameLine();
+    ImGui::Checkbox("资源##SceneResources", &ctx.state.scene_show_resources);
 
-        // Draw grid
-        const int cols = (maxX - minX + 1);
-        const int rows = (maxY - minY + 1);
-        const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.25f, 0.25f, 0.28f, 1.0f));
+    if (!nodeVm.active)
+    {
+        ImGui::TextUnformatted("暂无节点数据。");
+        return;
+    }
 
-        // Draw tile coverage using solid colors as placeholder for actual textures
+    const SceneNodeDetails& details = *nodeVm.active;
+    const SceneNodeGridInfo& grid = details.grid;
+
+    const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
+    const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
+    const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
+    drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
+    drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
+
+    ImGui::InvisibleButton("SceneCanvas", ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y), ImGuiButtonFlags_MouseButtonRight);
+    const bool hovered = ImGui::IsItemHovered();
+    const bool active = ImGui::IsItemActive();
+    ImGuiIO& io = ImGui::GetIO();
+    if (hovered && io.MouseWheel != 0.0f)
+    {
+        const float zoomStep = 1.0f + (io.MouseWheel > 0.0f ? 0.1f : -0.1f);
+        ctx.state.scene_cam_zoom = std::max(ctx.state.scene_cam_zoom * zoomStep, 0.05f);
+    }
+    if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+    {
+        ImVec2 delta = ImGui::GetIO().MouseDelta;
+        ctx.state.scene_cam_offset_x += delta.x;
+        ctx.state.scene_cam_offset_y += delta.y;
+    }
+
+    const float basePx = grid.baseTileSize;
+    const float cellPx = basePx * ctx.state.scene_cam_zoom;
+
+    auto toScreen = [&](float gx, float gy) {
+        const float sx = canvasPos.x + ctx.state.scene_cam_offset_x + (gx - static_cast<float>(grid.minX)) * cellPx + 8.0f;
+        const float sy = canvasPos.y + ctx.state.scene_cam_offset_y + (gy - static_cast<float>(grid.minY)) * cellPx + 8.0f;
+        return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
+    };
+
+    const int cols = (grid.maxX - grid.minX + 1);
+    const int rows = (grid.maxY - grid.minY + 1);
+    const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.25f, 0.25f, 0.28f, 1.0f));
+
+    if (details.tilemap)
+    {
         const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
         const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
-        for (const auto &tm : atlas.tilemaps)
+        for (int y = 0; y < details.tilemap->height; ++y)
         {
-            if (tm.nodeId != ctx.state.scene_selected_node || tm.width <= 0 || tm.height <= 0)
+            for (int x = 0; x < details.tilemap->width; ++x)
             {
-                continue;
-            }
-
-            for (int y = 0; y < tm.height; ++y)
-            {
-                for (int x = 0; x < tm.width; ++x)
-                {
-                    const float gx0 = static_cast<float>(minX + x);
-                    const float gy0 = static_cast<float>(minY + y);
-                    const float gx1 = gx0 + 1.0f;
-                    const float gy1 = gy0 + 1.0f;
-                    const ImVec2 cellMin = toScreen(gx0, gy0);
-                    const ImVec2 cellMax = toScreen(gx1, gy1);
-                    const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
-                    drawList->AddRectFilled(cellMin, cellMax, fill);
-                }
-            }
-            break; // use the first matching tilemap per node
-        }
-
-        if (ctx.state.scene_show_grid)
-        {
-            for (int x = 0; x <= cols; ++x)
-            {
-                const ImVec2 a = toScreen(static_cast<float>(minX + x), static_cast<float>(minY));
-                const ImVec2 b = toScreen(static_cast<float>(minX + x), static_cast<float>(maxY + 1));
-                drawList->AddLine(a, b, gridColor, 1.0f);
-            }
-            for (int y = 0; y <= rows; ++y)
-            {
-                const ImVec2 a = toScreen(static_cast<float>(minX), static_cast<float>(minY + y));
-                const ImVec2 b = toScreen(static_cast<float>(maxX + 1), static_cast<float>(minY + y));
-                drawList->AddLine(a, b, gridColor, 1.0f);
+                const float gx0 = static_cast<float>(grid.minX + x);
+                const float gy0 = static_cast<float>(grid.minY + y);
+                const float gx1 = gx0 + 1.0f;
+                const float gy1 = gy0 + 1.0f;
+                const ImVec2 cellMin = toScreen(gx0, gy0);
+                const ImVec2 cellMax = toScreen(gx1, gy1);
+                const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
+                drawList->AddRectFilled(cellMin, cellMax, fill);
             }
         }
-
-        // Draw resources
-        const ImU32 foodColor = ImGui::GetColorU32(ImVec4(0.93f, 0.67f, 0.27f, 1.0f));
-        if (ctx.state.scene_show_resources)
-        {
-            for (const auto &p : resourcePts)
-            {
-                const ImVec2 center = toScreen(p.x + 0.5f, p.y + 0.5f);
-                const float r = std::max(3.0f, cellPx * 0.25f);
-                drawList->AddCircleFilled(center, r, foodColor, 12);
-                drawList->AddCircle(center, r, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.2f);
-            }
-        }
-
-        // Draw anchors
-        const ImU32 anchorColor = ImGui::GetColorU32(ImVec4(0.38f, 0.74f, 0.88f, 1.0f));
-        if (ctx.state.scene_show_anchors)
-        {
-            for (const auto &ap : anchorPts)
-            {
-                const ImVec2 base = toScreen(ap.first.x + 0.5f, ap.first.y + 0.5f);
-                const float w = std::max(4.0f, cellPx * 0.2f);
-                const ImVec2 a{base.x - w, base.y};
-                const ImVec2 b{base.x + w, base.y};
-                const ImVec2 c{base.x, base.y + w * 1.6f};
-                drawList->AddTriangleFilled(a, b, c, anchorColor);
-                drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
-                const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
-                drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), ap.second.c_str());
-            }
-        }
-
-        ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
     }
+
+    if (ctx.state.scene_show_grid)
+    {
+        for (int x = 0; x <= cols; ++x)
+        {
+            const ImVec2 a = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.minY));
+            const ImVec2 b = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.maxY + 1));
+            drawList->AddLine(a, b, gridColor, 1.0f);
+        }
+        for (int y = 0; y <= rows; ++y)
+        {
+            const ImVec2 a = toScreen(static_cast<float>(grid.minX), static_cast<float>(grid.minY + y));
+            const ImVec2 b = toScreen(static_cast<float>(grid.maxX + 1), static_cast<float>(grid.minY + y));
+            drawList->AddLine(a, b, gridColor, 1.0f);
+        }
+    }
+
+    if (ctx.state.scene_show_resources)
+    {
+        const ImU32 resourceColor = ImGui::GetColorU32(ImVec4(0.93f, 0.67f, 0.27f, 1.0f));
+        for (const auto& resource : details.resources)
+        {
+            const ImVec2 center = toScreen(resource.x + 0.5f, resource.y + 0.5f);
+            const float radius = std::max(3.0f, cellPx * 0.25f);
+            drawList->AddCircleFilled(center, radius, resourceColor, 12);
+            drawList->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.2f);
+        }
+    }
+
+    if (ctx.state.scene_show_anchors)
+    {
+        const ImU32 anchorColor = ImGui::GetColorU32(ImVec4(0.38f, 0.74f, 0.88f, 1.0f));
+        for (const auto& anchor : details.anchors)
+        {
+            const ImVec2 base = toScreen(anchor.x + 0.5f, anchor.y + 0.5f);
+            const float w = std::max(4.0f, cellPx * 0.2f);
+            const ImVec2 a{base.x - w, base.y};
+            const ImVec2 b{base.x + w, base.y};
+            const ImVec2 c{base.x, base.y + w * 1.6f};
+            drawList->AddTriangleFilled(a, b, c, anchorColor);
+            drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
+            const std::string label = std::string("-> ") + std::to_string(anchor.targetNodeId);
+            const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
+            drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
+        }
+    }
+
+    ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
+}
 void MainView::drawMonitorTab(UiContext& ctx)
     {
         ImGui::TextUnformatted("运行概览");
@@ -2042,50 +1986,42 @@ void MainView::drawSettingsTab(UiContext& ctx)
     }
 
 void MainView::drawMonitorTelemetry(UiContext& ctx)
+{
+    MonitorPresenterInput presenterInput{
+        ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
+    const MonitorTelemetryViewModel telemetryVm = monitor_presenter_.buildTelemetryViewModel(presenterInput);
+
+    if (!telemetryVm.hasSnapshot)
     {
-        if (!ctx.latest_snapshot)
-        {
-            ImGui::TextUnformatted("等待监控数据…");
-            return;
-        }
+        ImGui::TextUnformatted("等待监控数据…");
+        return;
+    }
 
-        const auto& tick = ctx.latest_snapshot->telemetry;
-        ImGui::Text("步数：%llu", static_cast<unsigned long long>(tick.step));
-        ImGui::Text("实体：%zu", tick.agents.size());
-        ImGui::Text("执行命令：%zu", tick.actions.size());
-        ImGui::Text("需求项：%zu", tick.needs.size());
+    ImGui::Text("步数：%llu", static_cast<unsigned long long>(telemetryVm.step));
+    ImGui::Text("实体：%zu", telemetryVm.agentCount);
+    ImGui::Text("执行命令：%zu", telemetryVm.actionCount);
+    ImGui::Text("需求项：%zu", telemetryVm.needCount);
 
-        if (!tick.needs.empty())
-        {
-            float needSum = 0.0f;
-            std::uint32_t critical = 0;
-            for (const auto& need : tick.needs)
-            {
-                needSum += need.value;
-                if (need.critical)
-                {
-                    ++critical;
-                }
-            }
-            const float average = needSum / static_cast<float>(tick.needs.size());
-            ImGui::Separator();
-            ImGui::Text("平均需求值：%.2f", average);
-            ImGui::Text("危急需求：%u", critical);
-        }
+    if (telemetryVm.needCount > 0)
+    {
+        ImGui::Separator();
+        ImGui::Text("平均需求值：%.2f", telemetryVm.averageNeed);
+        ImGui::Text("危急需求：%u", telemetryVm.criticalNeedCount);
+    }
 
-        if (!tick.resources.empty())
+    if (!telemetryVm.resources.empty())
+    {
+        ImGui::Separator();
+        for (const auto& resource : telemetryVm.resources)
         {
-            ImGui::Separator();
-            for (const auto& resource : tick.resources)
-            {
-                ImGui::Text("#%u %s (%u / %u)",
-                            resource.location.value,
-                            resource.name.c_str(),
-                            resource.current,
-                            resource.capacity);
-            }
+            ImGui::Text("#%u %s (%u / %u)",
+                        resource.locationId,
+                        resource.name.c_str(),
+                        resource.current,
+                        resource.capacity);
         }
     }
+}
 
 void MainView::drawMonitorLog(UiContext& ctx)
     {

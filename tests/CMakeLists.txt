@@ -51,6 +51,26 @@ target_link_libraries(genesis_runtime_tests
         GTest::gtest_main
 )
 
+add_executable(genesis_sandbox_gui_tests
+    test_sandbox_gui_presenters.cpp
+    ../src/sandbox/gui/presenter/MainViewPresenters.cpp
+)
+
+target_include_directories(genesis_sandbox_gui_tests
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(genesis_sandbox_gui_tests
+    PRIVATE
+        GTest::gtest_main
+        imgui::imgui
+        tomlplusplus::tomlplusplus
+)
+
+gtest_discover_tests(genesis_sandbox_gui_tests)
+
 add_custom_command(TARGET genesis_runtime_tests POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:genesis_runtime> $<TARGET_FILE_DIR:genesis_runtime_tests>
 )

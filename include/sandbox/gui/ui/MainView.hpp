@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sandbox/gui/presenter/MainViewPresenters.hpp"
 #include "sandbox/gui/ui/UiContext.hpp"
 
 namespace Genesis::Sandbox::Gui
@@ -11,6 +12,10 @@ public:
     void render(UiContext& ctx);
 
 private:
+    ScenePresenter scene_presenter_;
+    WorldPresenter world_presenter_;
+    MonitorPresenter monitor_presenter_;
+
     void drawSceneTab(UiContext& ctx);
     void drawWorldTab(UiContext& ctx);
     void drawMonitorTab(UiContext& ctx);

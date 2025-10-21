@@ -131,6 +131,7 @@ add_executable(genesis_sandbox_gui
     sandbox/gui/AppHostCore.cpp
     sandbox/gui/AppHostLayout.cpp
     sandbox/gui/AppHostPanelWorld.cpp
+    sandbox/gui/presenter/MainViewPresenters.cpp
     sandbox/gui/ui/UiState.cpp
     sandbox/gui/ui/UiContext.cpp
     sandbox/gui/ui/StatusBarView.cpp

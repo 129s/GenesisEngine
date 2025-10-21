@@ -66,6 +66,7 @@
 2. **Presenter / ViewModel 架构**  
    - 为 Scene / World / Monitor 页签编写 Presenter，负责数据聚合与缓存。  
    - 为 Presenter 引入单元测试与回归样例，验证过滤、统计、排序逻辑。
+   - ✅ 2025-10-21：完成 Scene/World/Monitor Presenter 拆分并补充回归测试，MainView 渲染逻辑与数据整形解耦。
 3. **命令与事件总线**  
    - 实现 `WorldCommandController` 统一处理生成/加载/保存命令及状态轮询。  
    - 建立事件总线驱动 toast、日志、时间轴写入与快捷键反馈。

@@ -208,8 +208,9 @@ bool AppHost::initializeImGui()
         config.FontDataOwnedByAtlas = false;
         config.OversampleH = 2;
         config.OversampleV = 2;
-        ImWchar ranges[] = {0x4e00, 0x9fff, 0};
-        if (io.Fonts->AddFontFromFileTTF(cjkFont.string().c_str(), 17.0f, &config, ranges))
+        const auto u8Path = cjkFont.u8string();
+        const std::string pathUtf8(u8Path.begin(), u8Path.end());
+        if (io.Fonts->AddFontFromFileTTF(pathUtf8.c_str(), 17.0f, &config, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()))
         {
             hasCjkFont = true;
         }
@@ -221,14 +222,15 @@ bool AppHost::initializeImGui()
     }
 
     ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameRounding = 4.0f;
+    style.FrameRounding = 0.0f;
     style.FrameBorderSize = 1.0f;
-    style.WindowRounding = 6.0f;
+    style.WindowRounding = 0.0f;
     style.WindowBorderSize = 1.0f;
-    style.PopupRounding = 4.0f;
-    style.ChildRounding = 4.0f;
-    style.ScrollbarRounding = 6.0f;
-    style.TabRounding = 4.0f;
+    style.PopupRounding = 0.0f;
+    style.ChildRounding = 0.0f;
+    style.ScrollbarRounding = 0.0f;
+    style.TabRounding = 0.0f;
+    style.GrabRounding = 0.0f;
 
     style.Colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.10f, 0.12f, 1.0f);
     style.Colors[ImGuiCol_Header] = ImVec4(0.21f, 0.29f, 0.46f, 1.0f);

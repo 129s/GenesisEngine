@@ -57,6 +57,23 @@
    - 时间轴选择区间导出录像、单点生成截图并关联条目。  
    - 输出历史记录与路径管理整合进 Browser/Settings。
 
+## 跨阶段架构重构任务（2025-10-21 新增）
+1. **UI 模块解耦**  
+   - 拆分 Status/Control/Browser/Main/Inspector 为独立视图类，`AppHost` 只负责装配。  
+   - 建立共享 `UiContext`，明确状态归属与数据流向。
+2. **Presenter / ViewModel 架构**  
+   - 为 Scene / World / Monitor 页签编写 Presenter，负责数据聚合与缓存。  
+   - 为 Presenter 引入单元测试与回归样例，验证过滤、统计、排序逻辑。
+3. **命令与事件总线**  
+   - 实现 `WorldCommandController` 统一处理生成/加载/保存命令及状态轮询。  
+   - 建立事件总线驱动 toast、日志、时间轴写入与快捷键反馈。
+4. **布局/主题配置层**  
+   - 设计可序列化的 `SandboxLayoutConfig` 与 `UiTheme`，供 Layout/Theme 管理与初始化使用。  
+   - 将 DockBuilder、快捷键映射、主题颜色从代码常量迁移到配置层。
+5. **源码拆分与测试支撑**  
+   - 按页签拆分 `AppHostPanelViews.cpp` 并创建独立编译单元。  
+   - 添加命令控制器、事件总线、布局序列化等核心模块的自动化测试。
+
 ## 交付与验证
 - 每个阶段结束需要完成：代码实现、相关文档更新、手动/自动化测试计划。  
 - 建议在 Phase A 完成后进行一次 UI 风格审查，Phase B 完成后做全面可用性回顾。  

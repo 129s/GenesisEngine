@@ -54,18 +54,22 @@ private:
     void endFrame();
 
     void drawDockspace();
-    void drawMainMenuBar();
-    void drawControlToolbar();
-    void drawWelcomePanel();
-    void drawWorldGenerationPanel();
-    void drawWorldViewPanel();
-    void drawSceneViewPanel();
-    void drawTelemetryPanel();
-    void drawInspectorPanel();
-    void drawLogPanel();
     void drawStatusBar();
+    void drawControlBar();
+    void drawBrowserPanel();
+    void drawMainViewPanel();
+    void drawInspectorPanel();
     void drawToasts();
     void handleShortcuts();
+
+    void drawSceneTabContent();
+    void drawWorldTabContent();
+    void drawMonitorTabContent();
+    void drawSettingsTabContent();
+    void drawSceneWorldMapContent();
+    void drawSceneNodeContent();
+    void drawMonitorTelemetryContent();
+    void drawMonitorLogContent();
 
     void updateRuntimeSnapshot();
     void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
@@ -84,12 +88,33 @@ private:
     std::unique_ptr<RuntimeBridge> runtime_bridge_;
     std::optional<RuntimeBridge::Snapshot> latest_snapshot_;
     double speed_multiplier_ui_{1.0};
+
+    enum class BrowserSection
+    {
+        Scene,
+        World,
+        Monitor,
+        LayoutsThemes
+    };
+
+    enum class MainViewTab
+    {
+        Scene,
+        World,
+        Monitor,
+        Settings
+    };
+
+    enum class SceneViewMode
+    {
+        Map,
+        Node
+    };
+
     bool show_inspector_{true};
-    bool show_world_view_{true};
-    bool show_scene_view_{true};
-    bool show_telemetry_{true};
-    bool show_logs_{true};
-    bool show_worldgen_panel_{true};
+    BrowserSection browser_active_section_{BrowserSection::Scene};
+    MainViewTab main_view_active_tab_{MainViewTab::Scene};
+    SceneViewMode scene_view_mode_{SceneViewMode::Map};
     bool log_auto_scroll_{true};
     std::shared_ptr<ImGuiLogSink> log_sink_;
     std::size_t log_last_line_count_{0};
@@ -152,10 +177,6 @@ private:
     std::string world_load_status_;
     std::string world_save_status_;
     std::string command_script_status_;
-    bool world_queue_show_pending_{true};
-    bool world_queue_show_succeeded_{true};
-    bool world_queue_show_failed_{true};
-    std::unordered_set<std::uint64_t> world_queue_hidden_completed_;
 };
 
 } // namespace Genesis::Sandbox::Gui

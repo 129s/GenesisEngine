@@ -22,27 +22,63 @@ namespace Genesis::Sandbox::Gui
 {
 using json = nlohmann::json;
 
+void AppHost::drawSceneTabContent()
+{
+    auto drawModeButton = [&](const char* label, SceneViewMode mode) {
+        const bool active = (scene_view_mode_ == mode);
+        if (active)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.80f, 0.90f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.50f, 0.88f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.18f, 0.40f, 0.72f, 1.0f));
+        }
+        if (ImGui::Button(label))
+        {
+            scene_view_mode_ = mode;
+        }
+        if (active)
+        {
+            ImGui::PopStyleColor(3);
+        }
+    };
+
+    drawModeButton("世界概览", SceneViewMode::Map);
+    ImGui::SameLine();
+    drawModeButton("节点细节", SceneViewMode::Node);
+
+    ImGui::Separator();
+
+    if (scene_view_mode_ == SceneViewMode::Map)
+    {
+        drawSceneWorldMapContent();
+    }
+    else
+    {
+        drawSceneNodeContent();
+    }
+}
+
 void AppHost::drawInspectorPanel()
 {
-        if (!show_inspector_)
-        {
-            return;
-        }
+    if (!show_inspector_)
+    {
+        return;
+    }
 
-        if (!ImGui::Begin("Inspector", &show_inspector_))
-        {
-            ImGui::End();
-            return;
-        }
+    if (!ImGui::Begin("Inspector", &show_inspector_))
+    {
+        ImGui::End();
+        return;
+    }
 
-        if (!latest_snapshot_)
-        {
-            ImGui::TextUnformatted("Waiting for snapshot...");
-            ImGui::End();
-            return;
-        }
+    if (!latest_snapshot_)
+    {
+        ImGui::TextUnformatted("Waiting for snapshot...");
+        ImGui::End();
+        return;
+    }
 
-        const auto &snapshot = *latest_snapshot_;
+    const auto& snapshot = *latest_snapshot_;
         const auto &tick = snapshot.telemetry;
         const RuntimeBridge::WorldAtlas *atlasPtr = runtime_bridge_ ? &runtime_bridge_->atlas() : nullptr;
 
@@ -298,16 +334,20 @@ void AppHost::drawInspectorPanel()
                 ImGui::Text("Agent #%u", agent->entityId);
             }
             ImGui::SameLine(0.0f, 12.0f);
-            if (ImGui::Button("Focus on Map##agentFocus"))
+            if (ImGui::Button("定位地图##agentFocus"))
             {
-                show_world_view_ = true;
+                main_view_active_tab_ = MainViewTab::Scene;
+                browser_active_section_ = BrowserSection::Scene;
+                scene_view_mode_ = SceneViewMode::Map;
                 inspector_highlight_node_ = agent->location.value;
                 map_selected_node_ = agent->location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
-            if (ImGui::Button("Open Scene##agentScene"))
+            if (ImGui::Button("打开节点视图##agentScene"))
             {
-                show_scene_view_ = true;
+                main_view_active_tab_ = MainViewTab::Scene;
+                browser_active_section_ = BrowserSection::Scene;
+                scene_view_mode_ = SceneViewMode::Node;
                 scene_selected_node_ = agent->location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
@@ -601,16 +641,20 @@ void AppHost::drawInspectorPanel()
             }
             ImGui::Text("%s", resource.name.c_str());
             ImGui::SameLine(0.0f, 12.0f);
-            if (ImGui::Button("Focus on Map##resourceFocus"))
+            if (ImGui::Button("定位地图##resourceFocus"))
             {
-                show_world_view_ = true;
+                main_view_active_tab_ = MainViewTab::Scene;
+                browser_active_section_ = BrowserSection::Scene;
+                scene_view_mode_ = SceneViewMode::Map;
                 inspector_highlight_node_ = resource.location.value;
                 map_selected_node_ = resource.location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
-            if (ImGui::Button("Open Scene##resourceScene"))
+            if (ImGui::Button("打开节点视图##resourceScene"))
             {
-                show_scene_view_ = true;
+                main_view_active_tab_ = MainViewTab::Scene;
+                browser_active_section_ = BrowserSection::Scene;
+                scene_view_mode_ = SceneViewMode::Node;
                 scene_selected_node_ = resource.location.value;
             }
             ImGui::SameLine(0.0f, 8.0f);
@@ -693,7 +737,7 @@ void AppHost::drawInspectorPanel()
         {
             if (!atlasPtr)
             {
-                ImGui::TextUnformatted("No node information available.");
+                ImGui::TextUnformatted("暂无节点信息。");
                 break;
             }
 
@@ -709,15 +753,17 @@ void AppHost::drawInspectorPanel()
 
             if (!selectedNode)
             {
-                ImGui::Text("Node #%u does not exist.", inspector_selected_primary_);
+                ImGui::Text("节点 #%u 不存在。", inspector_selected_primary_);
                 break;
             }
 
             ImGui::Text("%s", selectedNode->name.c_str());
             ImGui::SameLine(0.0f, 12.0f);
-            if (ImGui::Button("Focus on Map##nodeFocus"))
+            if (ImGui::Button("定位地图##nodeFocus"))
             {
-                show_world_view_ = true;
+                main_view_active_tab_ = MainViewTab::Scene;
+                browser_active_section_ = BrowserSection::Scene;
+                scene_view_mode_ = SceneViewMode::Map;
                 inspector_highlight_node_ = selectedNode->id.value;
                 map_selected_node_ = selectedNode->id.value;
             }
@@ -832,40 +878,29 @@ void AppHost::drawInspectorPanel()
         ImGui::EndChild();
         ImGui::End();
     }
-    void AppHost::drawWorldViewPanel()
+
+void AppHost::drawSceneWorldMapContent()
     {
-        if (!show_world_view_)
-        {
-            return;
-        }
-
-        if (!ImGui::Begin("Map View", &show_world_view_))
-        {
-            ImGui::End();
-            return;
-        }
-
         if (!runtime_bridge_)
         {
-            ImGui::TextUnformatted("RuntimeBridge unavailable.");
-            ImGui::End();
+            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
             return;
         }
 
-        const auto &atlas = runtime_bridge_->atlas();
-        const auto *agentPositionsPtr = latest_snapshot_ ? &latest_snapshot_->agentPositions : nullptr;
+        const auto& atlas = runtime_bridge_->atlas();
+        const auto* agentPositionsPtr = latest_snapshot_ ? &latest_snapshot_->agentPositions : nullptr;
 
-        ImGui::Checkbox("Agents", &show_agent_overlay_);
+        ImGui::Checkbox("显示实体##Agents", &show_agent_overlay_);
         ImGui::SameLine();
-        ImGui::Checkbox("Trails", &show_agent_trails_);
+        ImGui::Checkbox("描绘轨迹##Trails", &show_agent_trails_);
         ImGui::SameLine();
-        ImGui::Checkbox("Interpolate", &map_interpolate_);
+        ImGui::Checkbox("插值平滑##Interpolate", &map_interpolate_);
         if (show_agent_trails_)
         {
             ImGui::SameLine();
             int trailSamples = static_cast<int>(agent_trail_samples_);
             ImGui::SetNextItemWidth(120.0f);
-            if (ImGui::SliderInt("Trail Length", &trailSamples, 4, 64))
+            if (ImGui::SliderInt("轨迹长度", &trailSamples, 4, 64))
             {
                 agent_trail_samples_ = static_cast<std::size_t>(trailSamples);
                 for (auto &[id, trail] : agent_trails_)
@@ -878,12 +913,12 @@ void AppHost::drawInspectorPanel()
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Reset View"))
+        if (ImGui::Button("重置视图"))
         {
             resetMapViewCamera();
         }
         ImGui::SameLine();
-        ImGui::TextDisabled("Scroll zoom | Right-drag pan | Space reset");
+        ImGui::TextDisabled("滚轮缩放｜右键拖拽｜Space 重置");
 
         const ImVec4 colorMove{0.30f, 0.63f, 0.96f, 1.0f};
         const ImVec4 colorConsume{0.97f, 0.62f, 0.24f, 1.0f};
@@ -894,19 +929,19 @@ void AppHost::drawInspectorPanel()
         if (show_agent_overlay_)
         {
             ImGui::Spacing();
-            auto legendEntry = [](const char *id, const char *text, const ImVec4 &color)
+            auto legendEntry = [](const char* id, const char* text, const ImVec4& color)
             {
                 ImGui::ColorButton(id, color, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(12.0f, 12.0f));
                 ImGui::SameLine();
                 ImGui::TextUnformatted(text);
             };
-            legendEntry("##legend_move", "MoveTo", colorMove);
+            legendEntry("##legend_move", "移动", colorMove);
             ImGui::SameLine();
-            legendEntry("##legend_consume", "Consume", colorConsume);
+            legendEntry("##legend_consume", "消耗", colorConsume);
             ImGui::SameLine();
-            legendEntry("##legend_idle", "Idle", colorIdle);
+            legendEntry("##legend_idle", "空闲", colorIdle);
             ImGui::SameLine();
-            legendEntry("##legend_other", "Other", colorUnknown);
+            legendEntry("##legend_other", "其它", colorUnknown);
             ImGui::Separator();
         }
         else
@@ -1152,7 +1187,9 @@ void AppHost::drawInspectorPanel()
                         {
                             map_selected_node_ = node.id.value;
                             scene_selected_node_ = node.id.value;
-                            show_scene_view_ = true;
+                            main_view_active_tab_ = MainViewTab::Scene;
+                            browser_active_section_ = BrowserSection::Scene;
+                            scene_view_mode_ = SceneViewMode::Node;
                         }
                     }
                 }
@@ -1367,35 +1404,20 @@ void AppHost::drawInspectorPanel()
         }
         else
         {
-            ImGui::TextUnformatted("World data not available.");
+            ImGui::TextUnformatted("暂无世界数据。");
         }
 
         ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
-        ImGui::End();
     }
-
-    void AppHost::drawSceneViewPanel()
+void AppHost::drawSceneNodeContent()
     {
-        if (!show_scene_view_)
-        {
-            return;
-        }
-
-        constexpr ImGuiWindowFlags sceneViewFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-        if (!ImGui::Begin("Scene View", &show_scene_view_, sceneViewFlags))
-        {
-            ImGui::End();
-            return;
-        }
-
         if (!runtime_bridge_)
         {
-            ImGui::TextUnformatted("RuntimeBridge unavailable.");
-            ImGui::End();
+            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
             return;
         }
 
-        const auto &atlas = runtime_bridge_->atlas();
+        const auto& atlas = runtime_bridge_->atlas();
 
         // Node selector
         if (scene_selected_node_ == 0 && !atlas.nodes.empty())
@@ -1403,7 +1425,7 @@ void AppHost::drawInspectorPanel()
             scene_selected_node_ = atlas.nodes.front().id.value;
         }
 
-        if (ImGui::BeginCombo("Node", [this, &atlas]()
+        if (ImGui::BeginCombo("节点", [this, &atlas]()
                               {
             for (const auto& n : atlas.nodes)
             {
@@ -1426,11 +1448,11 @@ void AppHost::drawInspectorPanel()
         }
 
         // Toggles
-        ImGui::Checkbox("Grid", &scene_show_grid_);
+        ImGui::Checkbox("网格##SceneGrid", &scene_show_grid_);
         ImGui::SameLine();
-        ImGui::Checkbox("Anchors", &scene_show_anchors_);
+        ImGui::Checkbox("锚点##SceneAnchors", &scene_show_anchors_);
         ImGui::SameLine();
-        ImGui::Checkbox("Resources", &scene_show_resources_);
+        ImGui::Checkbox("资源##SceneResources", &scene_show_resources_);
 
         // Canvas setup
         const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
@@ -1474,11 +1496,11 @@ void AppHost::drawInspectorPanel()
         {
             if (e.from.value == scene_selected_node_ && e.anchorFrom.has_value())
             {
-                anchorPts.emplace_back(ImVec2(e.anchorFrom->x, e.anchorFrom->y), std::string("to ") + std::to_string(e.to.value));
+                anchorPts.emplace_back(ImVec2(e.anchorFrom->x, e.anchorFrom->y), std::string("→ ") + std::to_string(e.to.value));
             }
             if (e.to.value == scene_selected_node_ && e.anchorTo.has_value())
             {
-                anchorPts.emplace_back(ImVec2(e.anchorTo->x, e.anchorTo->y), std::string("to ") + std::to_string(e.from.value));
+                anchorPts.emplace_back(ImVec2(e.anchorTo->x, e.anchorTo->y), std::string("→ ") + std::to_string(e.from.value));
             }
         }
 
@@ -1617,90 +1639,136 @@ void AppHost::drawInspectorPanel()
         }
 
         ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
-        ImGui::End();
+    }
+void AppHost::drawMonitorTabContent()
+    {
+        ImGui::TextUnformatted("运行概览");
+        ImGui::SameLine(0.0f, 12.0f);
+        if (latest_snapshot_)
+        {
+            const auto& tick = latest_snapshot_->telemetry;
+            ImGui::Text("Step %llu | Agents %zu | Actions %zu",
+                        static_cast<unsigned long long>(tick.step),
+                        tick.agents.size(),
+                        tick.actions.size());
+        }
+        else
+        {
+            ImGui::TextUnformatted("(等待快照)");
+        }
+
+        ImGui::Separator();
+
+        const float totalHeight = std::max(240.0f, ImGui::GetContentRegionAvail().y);
+        const float telemetryHeight = totalHeight * 0.45f;
+
+        if (ImGui::BeginChild("MonitorTelemetry", ImVec2(0.0f, telemetryHeight), true))
+        {
+            drawMonitorTelemetryContent();
+        }
+        ImGui::EndChild();
+
+        ImGui::Spacing();
+
+        if (ImGui::BeginChild("MonitorLogs", ImVec2(0.0f, 0.0f), true))
+        {
+            drawMonitorLogContent();
+        }
+        ImGui::EndChild();
     }
 
-    void AppHost::drawTelemetryPanel()
+void AppHost::drawSettingsTabContent()
     {
-        if (!show_telemetry_)
+        ImGui::TextUnformatted("设计令牌预览");
+        ImGui::Separator();
+
+        const ImGuiStyle& style = ImGui::GetStyle();
+
+        ImGui::Text("颜色样本");
+        if (ImGui::BeginTable("SettingsColors", 4, ImGuiTableFlags_SizingFixedFit))
         {
-            return;
+            const std::array<std::pair<const char*, ImGuiCol>, 4> swatches = {
+                std::pair{"WindowBg", ImGuiCol_WindowBg},
+                std::pair{"Header", ImGuiCol_Header},
+                std::pair{"Button", ImGuiCol_Button},
+                std::pair{"Accent", ImGuiCol_TabActive}};
+            for (const auto& [label, col] : swatches)
+            {
+                ImGui::TableNextColumn();
+                const ImVec4 color = style.Colors[col];
+                ImGui::ColorButton(label, color, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(40.0f, 18.0f));
+                ImGui::SameLine();
+                ImGui::TextUnformatted(label);
+            }
+            ImGui::EndTable();
         }
 
-        if (!ImGui::Begin("Telemetry", &show_telemetry_))
-        {
-            ImGui::End();
-            return;
-        }
+        ImGui::Separator();
+        ImGui::TextUnformatted("间距设置");
+        ImGui::Text("窗口内边距：%.1f / %.1f", style.WindowPadding.x, style.WindowPadding.y);
+        ImGui::Text("元素间距：%.1f / %.1f", style.ItemSpacing.x, style.ItemSpacing.y);
+        ImGui::Text("控件圆角：%.1f", style.FrameRounding);
 
+        ImGui::Separator();
+        ImGui::TextWrapped(
+            "后续任务将补充：主题切换、布局预设管理、快捷键自定义等功能。当前阶段仅提供设计指标预览，方便在开发过程中校准 UI 令牌。");
+    }
+
+void AppHost::drawMonitorTelemetryContent()
+    {
         if (!latest_snapshot_)
         {
-            ImGui::TextUnformatted("Waiting for telemetry…");
-            ImGui::End();
+            ImGui::TextUnformatted("等待监控数据…");
             return;
         }
 
-        const auto &tick = latest_snapshot_->telemetry;
-        ImGui::Text("Step: %llu", static_cast<unsigned long long>(tick.step));
-        ImGui::Text("Agents: %zu", tick.agents.size());
-        ImGui::Text("Actions: %zu", tick.actions.size());
-        ImGui::Text("Needs: %zu", tick.needs.size());
+        const auto& tick = latest_snapshot_->telemetry;
+        ImGui::Text("步数：%llu", static_cast<unsigned long long>(tick.step));
+        ImGui::Text("实体：%zu", tick.agents.size());
+        ImGui::Text("执行命令：%zu", tick.actions.size());
+        ImGui::Text("需求项：%zu", tick.needs.size());
 
         if (!tick.needs.empty())
         {
-            float hungerSum = 0.0f;
+            float needSum = 0.0f;
             std::uint32_t critical = 0;
-            for (const auto &need : tick.needs)
+            for (const auto& need : tick.needs)
             {
-                hungerSum += need.value;
+                needSum += need.value;
                 if (need.critical)
                 {
                     ++critical;
                 }
             }
-            const float average = hungerSum / static_cast<float>(tick.needs.size());
+            const float average = needSum / static_cast<float>(tick.needs.size());
             ImGui::Separator();
-            ImGui::Text("Avg Need: %.2f", average);
-            ImGui::Text("Critical Needs: %u", critical);
+            ImGui::Text("平均需求值：%.2f", average);
+            ImGui::Text("危急需求：%u", critical);
         }
 
         if (!tick.resources.empty())
         {
             ImGui::Separator();
-            for (const auto &resource : tick.resources)
+            for (const auto& resource : tick.resources)
             {
-                ImGui::Text("#%u %s (%u/%u)",
+                ImGui::Text("#%u %s (%u / %u)",
                             resource.location.value,
                             resource.name.c_str(),
                             resource.current,
                             resource.capacity);
             }
         }
-
-        ImGui::End();
     }
 
-    void AppHost::drawLogPanel()
+void AppHost::drawMonitorLogContent()
     {
-        if (!show_logs_)
-        {
-            return;
-        }
-
-        if (!ImGui::Begin("Log Console", &show_logs_))
-        {
-            ImGui::End();
-            return;
-        }
-
         if (!log_sink_)
         {
-            ImGui::TextUnformatted("Log sink unavailable.");
-            ImGui::End();
+            ImGui::TextUnformatted("日志缓冲不可用。");
             return;
         }
 
-        ImGui::Checkbox("Auto-scroll", &log_auto_scroll_);
+        ImGui::Checkbox("自动滚动", &log_auto_scroll_);
         ImGui::Separator();
 
         const auto lines = log_sink_->snapshot();
@@ -1722,6 +1790,5 @@ void AppHost::drawInspectorPanel()
         log_last_line_count_ = lines.size();
 
         ImGui::EndChild();
-        ImGui::End();
     }
 }

@@ -6,7 +6,8 @@
 1. **UI 骨架重构**  
    - 建立新的主布局（Status Bar / Control Bar / Browser / Main View / Inspector）。  
    - 移除 Welcome 面板与命令队列面板；调整 DockBuilder 默认布局。  
-   - 确认旧代码路径中任何直接引用被删除的面板均已替换或清理。
+   - 确认旧代码路径中任何直接引用被删除的面板均已替换或清理。  
+   - ✅ 2025-10-21：完成顶/底栏重新布置、新 Browser & Main View 框架，并彻底移除 Welcome 与命令队列 UI；相关代码/测试已通过。
 2. **视觉主题与设计令牌落地**  
    - 定义颜色、字号、间距、阴影等 design tokens。  
    - 更新全局 ImGui 主题，统一直角、分割线、间距。  

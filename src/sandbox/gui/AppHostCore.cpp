@@ -50,11 +50,9 @@ AppHost::AppHost(AppHostConfig config)
     , runtime_bridge_(std::make_unique<RuntimeBridge>())
     , speed_multiplier_ui_(1.0)
     , show_inspector_(true)
-    , show_world_view_(true)
-    , show_scene_view_(true)
-    , show_telemetry_(true)
-    , show_logs_(true)
-    , show_worldgen_panel_(true)
+    , browser_active_section_(BrowserSection::Scene)
+    , main_view_active_tab_(MainViewTab::Scene)
+    , scene_view_mode_(SceneViewMode::Map)
     , log_auto_scroll_(true)
     , show_agent_overlay_(true)
     , show_agent_trails_(false)
@@ -310,17 +308,12 @@ void AppHost::renderGui()
 {
     updateRuntimeSnapshot();
     drawDockspace();
-    drawMainMenuBar();
-    drawWelcomePanel();
-    drawWorldGenerationPanel();
+    drawBrowserPanel();
+    drawMainViewPanel();
     drawInspectorPanel();
-    drawWorldViewPanel();
-    drawSceneViewPanel();
-    drawTelemetryPanel();
-    drawLogPanel();
-    drawControlToolbar();
-    drawToasts();
     drawStatusBar();
+    drawControlBar();
+    drawToasts();
 }
 
 void AppHost::endFrame()
@@ -540,13 +533,15 @@ void AppHost::handleShortcuts()
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F8))
         {
-            show_logs_ = !show_logs_;
-            pushToast(show_logs_ ? "Log: On" : "Log: Off", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+            main_view_active_tab_ = MainViewTab::Monitor;
+            browser_active_section_ = BrowserSection::Monitor;
+            pushToast("主视图 → Monitor", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F9))
         {
-            show_telemetry_ = !show_telemetry_;
-            pushToast(show_telemetry_ ? "Telemetry: On" : "Telemetry: Off", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+            main_view_active_tab_ = MainViewTab::World;
+            browser_active_section_ = BrowserSection::World;
+            pushToast("主视图 → World", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
         }
     }
 }

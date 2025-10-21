@@ -39,3 +39,36 @@
 2) 确认 `schema_version` 与 Runtime/GUI 约定一致。
 3) 使用最小示例数据验证渲染（来自迁移指南的片段）。
 4) Loader 报错：自 2025-10 起，WorldLoader 将强校验上述必备字段，缺失会返回错误并拒绝加载（不再提供旧版回退路径）。
+
+## 2025-10-21 · 锚点标签 “锚/拽” 渲染成 “?”
+
+症状：
+- Sandbox 场景内锚点标注中文字 “锚”、“拽” 显示为问号，其余中文字符正常。
+
+根因：
+- `AppHost::initializeImGui` 仅通过 `io.Fonts->GetGlyphRangesChineseSimplifiedCommon()` 将系统 CJK 字体合并至 ImGui 字体图集。
+- 该 2500 常用字范围不含 U+951A（锚）与 U+62FD（拽），导致 Freetype 构建图集时丢弃对应字形，呈现为 fallback `'?'`。
+
+排查要点：
+1) 复现后抓取 `imgui_draw.cpp` 中 `accumulative_offsets_from_0x4E00[]` 并验证目标编码不在常用字列表内，例如：
+
+```powershell
+$content = Get-Content -Path 'build/_deps/imgui-src/imgui_draw.cpp' -Raw
+$token = 'accumulative_offsets_from_0x4E00[] ='
+$start = $content.IndexOf($token)
+$braceStart = $content.IndexOf('{', $start)
+$braceEnd = $content.IndexOf('};', $braceStart)
+$body = $content.Substring($braceStart + 1, $braceEnd - $braceStart - 1)
+$nums = $body -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+$base = 0x4E00
+$total = 0
+$codepoints = @()
+foreach ($n in $nums) { $total += [int]$n; $codepoints += $base + $total }
+'锚' + ' in range? ' + ($codepoints -contains 0x951A)
+'拽' + ' in range? ' + ($codepoints -contains 0x62FD)
+```
+2) 确认 `data/fonts` 未提供自定义字体时，实际加载的是 `C:\Windows\Fonts\simsun.ttc` 等系统字体，本身包含所需字形，排除字体文件缺失的可能。
+
+修复建议：
+- 改用 `io.Fonts->GetGlyphRangesChineseSimplifiedCommon()` + 自行追加稀用字（`ImFontGlyphRangesBuilder::AddText("锚拽")`），或直接采用 `GetGlyphRangesChineseFull()`。
+- 若关注 atlas 体积，可仅在场景锚点模块按需追加关键字形并缓存生成的 `fonts/.cache`，避免每次启动重新构建。

@@ -60,6 +60,10 @@ struct UiState
     float map_zoom{1.0f};
     float map_pan_x{0.0f};
     float map_pan_y{0.0f};
+    bool scene_show_graph{true};
+    bool scene_show_ruler{false};
+    std::optional<RuntimeBridge::Vector2> scene_ruler_anchor;
+    std::optional<std::uint32_t> scene_focus_node_request;
 
     struct Toast
     {

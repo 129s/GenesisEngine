@@ -17,6 +17,7 @@
    - 将 MapView 功能合并为 Scene 的节点关系叠加层。  
    - 实现叠加层切换按钮/快捷键（节点、网格、标尺等）。  
    - 确保 Browser 选中项与 Scene 高亮同步正常。
+   - ✅ 2025-10-21：Scene/Map 叠加层统一为按钮栏，提供 Ctrl+1~6 快捷键切换节点/资源/实体/轨迹/插值/标尺；Browser 选中节点自动聚焦 Scene 并保留高亮，即便隐藏图层亦可定位。
 4. **Browser 框架重建**  
    - 支持分类（Scene/World/Monitor/Layouts & Themes）。  
    - 实现树状层级、搜索、过滤、记忆折叠状态。  

@@ -487,36 +487,99 @@ namespace Genesis::Sandbox::Gui
     void AppHost::handleShortcuts()
     {
         ImGuiIO &io = ImGui::GetIO();
-        if (!io.WantCaptureKeyboard && runtime_bridge_)
+        if (io.WantCaptureKeyboard)
         {
-            if (ImGui::IsKeyPressed(ImGuiKey_F5))
+            return;
+        }
+
+        auto pushThemedToast = [&](const char *text, Style::ColorToken token) {
+            pushToast(text, Style::DesignTokens::color(token));
+        };
+        auto toggleFlag = [&](bool &flag, const char *enabledMsg, const char *disabledMsg) {
+            flag = !flag;
+            pushThemedToast(flag ? enabledMsg : disabledMsg,
+                            flag ? Style::ColorToken::Success : Style::ColorToken::Muted);
+        };
+
+        if (io.KeyCtrl)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_1))
             {
-                const bool paused = runtime_bridge_->paused();
-                runtime_bridge_->setPaused(!paused);
-                pushToast(paused ? "Resume" : "Pause", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+                toggleFlag(ui_state_.scene_show_graph, "节点叠加：开启", "节点叠加：关闭");
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_F6))
+            bool resourceToggleHandled = false;
+            if (ImGui::IsKeyPressed(ImGuiKey_2))
             {
-                runtime_bridge_->requestStep(1);
-                pushToast("Step x1", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                toggleFlag(ui_state_.scene_show_resources, "资源叠加：开启", "资源叠加：关闭");
+                resourceToggleHandled = true;
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_F7))
+            if (ImGui::IsKeyPressed(ImGuiKey_3))
             {
-                runtime_bridge_->requestStep(10);
-                pushToast("Step x10", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                toggleFlag(ui_state_.show_agent_overlay, "实体叠加：开启", "实体叠加：关闭");
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_F8))
+            if (ImGui::IsKeyPressed(ImGuiKey_4))
             {
-                ui_state_.main_view_active_tab = MainViewTab::Monitor;
-                ui_state_.browser_active_section = BrowserSection::Monitor;
-                pushToast("主视图 → Monitor", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                toggleFlag(ui_state_.show_agent_trails, "轨迹叠加：开启", "轨迹叠加：关闭");
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_F9))
+            if (ImGui::IsKeyPressed(ImGuiKey_5))
             {
-                ui_state_.main_view_active_tab = MainViewTab::World;
-                ui_state_.browser_active_section = BrowserSection::World;
-                pushToast("主视图 → World", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                toggleFlag(ui_state_.map_interpolate, "插值平滑：开启", "插值平滑：关闭");
             }
+            if (ImGui::IsKeyPressed(ImGuiKey_6))
+            {
+                toggleFlag(ui_state_.scene_show_ruler, "标尺：开启", "标尺：关闭");
+                if (!ui_state_.scene_show_ruler)
+                {
+                    ui_state_.scene_ruler_anchor.reset();
+                }
+            }
+
+            if (ImGui::IsKeyPressed(ImGuiKey_G))
+            {
+                toggleFlag(ui_state_.scene_show_grid, "网格：开启", "网格：关闭");
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_A))
+            {
+                toggleFlag(ui_state_.scene_show_anchors, "锚点：开启", "锚点：关闭");
+            }
+            if (!resourceToggleHandled && ImGui::IsKeyPressed(ImGuiKey_R))
+            {
+                toggleFlag(ui_state_.scene_show_resources, "资源叠加：开启", "资源叠加：关闭");
+            }
+        }
+
+        if (!runtime_bridge_)
+        {
+            return;
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_F5))
+        {
+            const bool paused = runtime_bridge_->paused();
+            runtime_bridge_->setPaused(!paused);
+            pushThemedToast(paused ? "Resume" : "Pause", Style::ColorToken::Info);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_F6))
+        {
+            runtime_bridge_->requestStep(1);
+            pushThemedToast("Step x1", Style::ColorToken::Accent);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_F7))
+        {
+            runtime_bridge_->requestStep(10);
+            pushThemedToast("Step x10", Style::ColorToken::AccentHover);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_F8))
+        {
+            ui_state_.main_view_active_tab = MainViewTab::Monitor;
+            ui_state_.browser_active_section = BrowserSection::Monitor;
+            pushThemedToast("主视图 → Monitor", Style::ColorToken::Info);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_F9))
+        {
+            ui_state_.main_view_active_tab = MainViewTab::World;
+            ui_state_.browser_active_section = BrowserSection::World;
+            pushThemedToast("主视图 → World", Style::ColorToken::Info);
         }
     }
 

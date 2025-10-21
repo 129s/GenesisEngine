@@ -42,6 +42,12 @@
 - Status Bar、Control Bar、Browser、Main View 等主导航组件统一改用设计令牌提供的按钮与 Toast 配色，移除零散的 `PushStyleColor` 魔法数。
 - 引入 `SpacingToken` 统一常用间距（XS/SM/MD/LG/XL），Status/Control/Main/Nav 等常用 `SameLine`/`WindowPadding` 均改为令牌值，后续叠加层与数据面板只需引用同一接口即可维护一致节奏。
 
+### 3.7 实施进展（Phase A · Task 3，2025-10-21）
+- Scene > Map 视图新增叠加层按钮栏，统一控制节点、资源、实体、轨迹、插值与标尺叠加；配套 Ctrl+1~6 快捷键，按键反馈写入 Toast。
+- Node 视图改用同款按钮样式管理网格/锚点/资源图层（Ctrl+G/A/R），与设计令牌色板保持一致。
+- Browser 选择节点时自动写入聚焦请求：Map 视图平滑居中至目标节点，并在隐藏节点图层时仍高亮选中轮廓，Inspector 高亮同样保持同步。
+- 标尺模式支持左键设锚点、右键清除，实时展示 dx/dy 与距离，适配设计令牌的强调色；关闭标尺会自动重置锚点状态。
+
 ## 4. 主要板块设计要点
 ### 4.1 Status Bar
 - 显示 `Running / Paused / Stepping` 状态与速度倍率，提供快捷键提示。

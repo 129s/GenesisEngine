@@ -1,5 +1,6 @@
 #include "sandbox/gui/ui/ControlBarView.hpp"
 #include "sandbox/gui/AppHost.hpp"
+#include "sandbox/gui/style/DesignTokens.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -19,7 +20,10 @@ void ControlBarView::render(UiContext& ctx)
                                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
                                    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, style.FramePadding.y));
+    ImGui::PushStyleVar(
+        ImGuiStyleVar_WindowPadding,
+        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Lg),
+               style.FramePadding.y));
     const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Down, height, flags);
     if (open)
     {
@@ -29,26 +33,26 @@ void ControlBarView::render(UiContext& ctx)
             if (ImGui::Button(paused ? "继续" : "暂停"))
             {
                 ctx.runtime_bridge->setPaused(!paused);
-                ctx.pushToast(paused ? "Resume" : "Pause", ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+                ctx.pushToast(paused ? "Resume" : "Pause", Style::DesignTokens::color(Style::ColorToken::Info));
             }
 
-            ImGui::SameLine(0.0f, 10.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("单步"))
             {
                 ctx.runtime_bridge->requestStep(1);
-                ctx.pushToast("Step x1", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                ctx.pushToast("Step x1", Style::DesignTokens::color(Style::ColorToken::Accent));
             }
 
             ImGui::SameLine();
             if (ImGui::Button("快进×10"))
             {
                 ctx.runtime_bridge->requestStep(10);
-                ctx.pushToast("Step x10", ImVec4(0.8f, 0.86f, 0.98f, 1.0f));
+                ctx.pushToast("Step x10", Style::DesignTokens::color(Style::ColorToken::AccentHover));
             }
 
-            ImGui::SameLine(0.0f, 18.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
             ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine(0.0f, 18.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
 
             float speed = static_cast<float>(ctx.speed_multiplier_ui);
             ImGui::SetNextItemWidth(200.0f);
@@ -58,15 +62,15 @@ void ControlBarView::render(UiContext& ctx)
                 ctx.runtime_bridge->setSpeedMultiplier(ctx.speed_multiplier_ui);
             }
 
-            ImGui::SameLine(0.0f, 18.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
             if (ImGui::Checkbox("VSync", &ctx.config.vsync))
             {
                 glfwSwapInterval(ctx.config.vsync ? 1 : 0);
             }
 
-            ImGui::SameLine(0.0f, 18.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
             ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine(0.0f, 18.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
 
             if (ctx.latest_snapshot)
             {

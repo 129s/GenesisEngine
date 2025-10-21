@@ -5,6 +5,7 @@
 #include <imgui.h>
 
 #include "sandbox/gui/RuntimeBridge.hpp"
+#include "sandbox/gui/style/DesignTokens.hpp"
 
 namespace Genesis::Sandbox::Gui
 {
@@ -29,13 +30,13 @@ inline ImVec4 commandStateColor(RuntimeBridge::CommandState state)
     switch (state)
     {
     case RuntimeBridge::CommandState::Pending:
-        return ImVec4(0.95f, 0.78f, 0.35f, 1.0f);
+        return Style::DesignTokens::color(Style::ColorToken::Warning);
     case RuntimeBridge::CommandState::Succeeded:
-        return ImVec4(0.45f, 0.85f, 0.45f, 1.0f);
+        return Style::DesignTokens::color(Style::ColorToken::Success);
     case RuntimeBridge::CommandState::Failed:
-        return ImVec4(0.95f, 0.4f, 0.35f, 1.0f);
+        return Style::DesignTokens::color(Style::ColorToken::Danger);
     default:
-        return ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+        return Style::DesignTokens::color(Style::ColorToken::Muted);
     }
 }
 
@@ -50,4 +51,3 @@ inline std::string commandStateSummary(const RuntimeBridge::CommandProgress& com
 }
 
 } // namespace Genesis::Sandbox::Gui
-

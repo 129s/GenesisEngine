@@ -31,6 +31,7 @@
 
 #include "FilesystemHelpers.hpp"
 #include "ImGuiLogSink.hpp"
+#include "sandbox/gui/style/DesignTokens.hpp"
 
 namespace Genesis::Sandbox::Gui
 {
@@ -231,23 +232,9 @@ namespace Genesis::Sandbox::Gui
         io.Fonts->Build();
 
         ImGuiStyle &style = ImGui::GetStyle();
-        style.FrameRounding = 0.0f;
-        style.FrameBorderSize = 1.0f;
-        style.WindowRounding = 0.0f;
-        style.WindowBorderSize = 1.0f;
-        style.PopupRounding = 0.0f;
-        style.ChildRounding = 0.0f;
-        style.ScrollbarRounding = 0.0f;
-        style.TabRounding = 0.0f;
-        style.GrabRounding = 0.0f;
-
-        style.Colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.10f, 0.12f, 1.0f);
-        style.Colors[ImGuiCol_Header] = ImVec4(0.21f, 0.29f, 0.46f, 1.0f);
-        style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.27f, 0.36f, 0.55f, 1.0f);
-        style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.30f, 0.40f, 0.63f, 1.0f);
-        style.Colors[ImGuiCol_Button] = ImVec4(0.32f, 0.40f, 0.56f, 1.0f);
-        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.38f, 0.46f, 0.66f, 1.0f);
-        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.44f, 0.52f, 0.76f, 1.0f);
+        Style::DesignTokens::applyTo(style);
+        const ImVec4 canvas = Style::DesignTokens::color(Style::ColorToken::Canvas);
+        clear_color_ = {canvas.x, canvas.y, canvas.z, canvas.w};
 
         if (!ImGui_ImplGlfw_InitForOpenGL(window_, true))
         {

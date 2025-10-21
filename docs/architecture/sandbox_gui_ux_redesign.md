@@ -37,6 +37,11 @@
 - Welcome 面板与命令队列 UI 已完全移除，相关调用点重定向到 Browser 与 World 标签；命令状态通过世界页摘要呈现。
 - Inspector 与 Browser 联动：在 Inspector 点击“定位地图/节点视图”时自动激活 Scene Tab 并更新高亮/跟随状态。
 
+### 3.6 实施进展（Phase A · Task 2，2025-10-21）
+- 新增 `DesignTokens` 模块，对颜色、间距、圆角、边框厚度等令牌进行集中管理，并在 AppHost 初始化阶段一次性应用到 ImGui Style。
+- Status Bar、Control Bar、Browser、Main View 等主导航组件统一改用设计令牌提供的按钮与 Toast 配色，移除零散的 `PushStyleColor` 魔法数。
+- 引入 `SpacingToken` 统一常用间距（XS/SM/MD/LG/XL），Status/Control/Main/Nav 等常用 `SameLine`/`WindowPadding` 均改为令牌值，后续叠加层与数据面板只需引用同一接口即可维护一致节奏。
+
 ## 4. 主要板块设计要点
 ### 4.1 Status Bar
 - 显示 `Running / Paused / Stepping` 状态与速度倍率，提供快捷键提示。

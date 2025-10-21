@@ -1,6 +1,7 @@
 #include "sandbox/gui/ui/MainView.hpp"
 #include "../CommandUiHelpers.hpp"
 #include "../ImGuiLogSink.hpp"
+#include "sandbox/gui/style/DesignTokens.hpp"
 
 
 #include <imgui.h>
@@ -31,9 +32,9 @@ namespace
     {
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.80f, 0.90f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.50f, 0.88f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.18f, 0.40f, 0.72f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, Style::DesignTokens::color(Style::ColorToken::Primary));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Style::DesignTokens::color(Style::ColorToken::PrimaryHover));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Style::DesignTokens::color(Style::ColorToken::PrimaryActive));
         }
     }
 
@@ -102,20 +103,12 @@ void MainView::drawSceneTab(UiContext& ctx)
 {
     auto drawModeButton = [&](const char* label, SceneViewMode mode) {
         const bool active = (ctx.state.scene_view_mode == mode);
-        if (active)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.80f, 0.90f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.50f, 0.88f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.18f, 0.40f, 0.72f, 1.0f));
-        }
+        PushActiveButtonStyle(active);
         if (ImGui::Button(label))
         {
             ctx.state.scene_view_mode = mode;
         }
-        if (active)
-        {
-            ImGui::PopStyleColor(3);
-        }
+        PopActiveButtonStyle(active);
     };
 
     drawModeButton("世界概览", SceneViewMode::Map);
@@ -184,7 +177,7 @@ void MainView::drawWorldTab(UiContext& ctx)
     const bool hasConfig = worldVm.hasConfigPath;
     if (!hasConfig)
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写配置文件路径");
+        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写配置文件路径");
     }
 
     if (!runtimeReady || !hasConfig)
@@ -253,7 +246,7 @@ void MainView::drawWorldTab(UiContext& ctx)
             }
             else
             {
-                ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "生成失败：%s", result.error.c_str());
+                ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "生成失败：%s", result.error.c_str());
             }
 
             if (!result.logs.empty())
@@ -275,7 +268,7 @@ void MainView::drawWorldTab(UiContext& ctx)
     const std::string loadInput(ctx.state.world_load_buffer.data());
     if (loadInput.empty())
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写加载路径");
+        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写加载路径");
     }
 
     if (!runtimeReady || loadInput.empty())
@@ -315,7 +308,7 @@ void MainView::drawWorldTab(UiContext& ctx)
     const std::string saveInput(ctx.state.world_save_buffer.data());
     if (saveInput.empty())
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写保存路径");
+        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写保存路径");
     }
 
     if (!runtimeReady || saveInput.empty())
@@ -356,7 +349,7 @@ void MainView::drawWorldTab(UiContext& ctx)
     const std::string scriptPath(ctx.state.command_script_buffer.data());
     if (scriptPath.empty())
     {
-        ImGui::TextColored(ImVec4(0.95f, 0.55f, 0.35f, 1.0f), "请填写脚本路径");
+        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写脚本路径");
     }
 
     if (!runtimeReady)
@@ -693,7 +686,7 @@ void InspectorView::render(UiContext& ctx)
             {
                 ImGui::Text("Agent #%u", agent->entityId);
             }
-            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
             if (ImGui::Button("定位地图##agentFocus"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
@@ -702,7 +695,7 @@ void InspectorView::render(UiContext& ctx)
                 ctx.state.inspector_highlight_node = agent->location.value;
                 ctx.state.map_selected_node = agent->location.value;
             }
-            ImGui::SameLine(0.0f, 8.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("打开节点视图##agentScene"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
@@ -710,14 +703,14 @@ void InspectorView::render(UiContext& ctx)
                 ctx.state.scene_view_mode = SceneViewMode::Node;
                 ctx.state.scene_selected_node = agent->location.value;
             }
-            ImGui::SameLine(0.0f, 8.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             bool followChanged = ImGui::Checkbox("Follow##agentFollow", &ctx.state.inspector_follow_selection);
             if (followChanged && ctx.state.inspector_follow_selection)
             {
                 ctx.state.scene_selected_node = agent->location.value;
                 ctx.state.map_selected_node = agent->location.value;
             }
-            ImGui::SameLine(0.0f, 8.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##agentCopy"))
             {
                 json agentJson;
@@ -845,11 +838,11 @@ void InspectorView::render(UiContext& ctx)
 
                 std::string serialized = agentJson.dump(2);
                 ImGui::SetClipboardText(serialized.c_str());
-                ctx.pushToast("Agent snapshot copied", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
+                ctx.pushToast("Agent snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
-            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
             ImGui::Text("ID: %u", agent->entityId);
-            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
             ImGui::Text("Location: #%u %s", agent->location.value, nodeName.c_str());
 
             ImGui::Separator();
@@ -1000,7 +993,7 @@ void InspectorView::render(UiContext& ctx)
                 }
             }
             ImGui::Text("%s", resource.name.c_str());
-            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
             if (ImGui::Button("定位地图##resourceFocus"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
@@ -1009,7 +1002,7 @@ void InspectorView::render(UiContext& ctx)
                 ctx.state.inspector_highlight_node = resource.location.value;
                 ctx.state.map_selected_node = resource.location.value;
             }
-            ImGui::SameLine(0.0f, 8.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("打开节点视图##resourceScene"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
@@ -1017,7 +1010,7 @@ void InspectorView::render(UiContext& ctx)
                 ctx.state.scene_view_mode = SceneViewMode::Node;
                 ctx.state.scene_selected_node = resource.location.value;
             }
-            ImGui::SameLine(0.0f, 8.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##resourceCopy"))
             {
                 json resourceJson;
@@ -1084,9 +1077,9 @@ void InspectorView::render(UiContext& ctx)
 
                 std::string serialized = resourceJson.dump(2);
                 ImGui::SetClipboardText(serialized.c_str());
-                ctx.pushToast("Resource snapshot copied", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
+                ctx.pushToast("Resource snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
-            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
             ImGui::Text("Node: #%u %s", resource.location.value, nodeName.c_str());
 
             ImGui::Text("Type: %s", resourceTypeName(resource.type));
@@ -1118,7 +1111,7 @@ void InspectorView::render(UiContext& ctx)
             }
 
             ImGui::Text("%s", selectedNode->name.c_str());
-            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
             if (ImGui::Button("定位地图##nodeFocus"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
@@ -1127,7 +1120,7 @@ void InspectorView::render(UiContext& ctx)
                 ctx.state.inspector_highlight_node = selectedNode->id.value;
                 ctx.state.map_selected_node = selectedNode->id.value;
             }
-            ImGui::SameLine(0.0f, 8.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##nodeCopy"))
             {
                 json nodeJson;
@@ -1205,9 +1198,9 @@ void InspectorView::render(UiContext& ctx)
 
                 std::string serialized = nodeJson.dump(2);
                 ImGui::SetClipboardText(serialized.c_str());
-                ctx.pushToast("Node snapshot copied", ImVec4(0.62f, 0.84f, 0.58f, 1.0f));
+                ctx.pushToast("Node snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
-            ImGui::SameLine(0.0f, 12.0f);
+            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
             ImGui::Text("ID: %u", selectedNode->id.value);
 
             ImGui::Text("Parent: %u", selectedNode->parent.value);
@@ -1224,7 +1217,7 @@ void InspectorView::render(UiContext& ctx)
             {
                 for (const auto &evt : snapshot.events)
                 {
-                    ImGui::TextColored(evt.success ? ImVec4(0.62f, 0.84f, 0.58f, 1.0f) : ImVec4(0.95f, 0.45f, 0.45f, 1.0f),
+                    ImGui::TextColored(evt.success ? Style::DesignTokens::color(Style::ColorToken::Success) : Style::DesignTokens::color(Style::ColorToken::Danger),
                                        "[#%llu] %s", static_cast<unsigned long long>(evt.id), evt.label.c_str());
                     if (!evt.message.empty())
                     {
@@ -1290,7 +1283,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
         const ImVec4 colorConsume{0.97f, 0.62f, 0.24f, 1.0f};
         const ImVec4 colorIdle{0.66f, 0.66f, 0.66f, 1.0f};
         const ImVec4 colorUnknown{0.82f, 0.52f, 0.90f, 1.0f};
-        const ImU32 highlightColor = ImGui::GetColorU32(ImVec4(0.98f, 0.83f, 0.37f, 1.0f));
+        const ImU32 highlightColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight));
 
         if (ctx.state.show_agent_overlay)
         {
@@ -1914,7 +1907,7 @@ void MainView::drawSceneNode(UiContext& ctx)
 void MainView::drawMonitorTab(UiContext& ctx)
     {
         ImGui::TextUnformatted("运行概览");
-        ImGui::SameLine(0.0f, 12.0f);
+        ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
         if (ctx.latest_snapshot)
         {
             const auto& tick = ctx.latest_snapshot->telemetry;

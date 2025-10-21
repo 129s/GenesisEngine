@@ -1,4 +1,5 @@
 #include "sandbox/gui/ui/BrowserView.hpp"
+#include "sandbox/gui/style/DesignTokens.hpp"
 
 #include <algorithm>
 #include <numeric>
@@ -15,9 +16,9 @@ namespace
     {
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.80f, 0.90f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.50f, 0.88f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.18f, 0.40f, 0.72f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, Style::DesignTokens::color(Style::ColorToken::Primary));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Style::DesignTokens::color(Style::ColorToken::PrimaryHover));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Style::DesignTokens::color(Style::ColorToken::PrimaryActive));
         }
     }
 
@@ -54,7 +55,9 @@ void BrowserView::render(UiContext& ctx)
         {BrowserSection::LayoutsThemes, "Layouts & Themes", MainViewTab::Settings},
     };
 
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f, 6.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm),
+                               Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
     for (int i = 0; i < static_cast<int>(std::size(sections)); ++i)
     {
         if (i > 0)
@@ -160,7 +163,7 @@ void BrowserView::render(UiContext& ctx)
                 ImGui::Text("节点：%zu  |  边：%zu", lastGen->locationCount, lastGen->edgeCount);
                 if (!lastGen->error.empty())
                 {
-                    ImGui::TextColored(ImVec4(0.95f, 0.35f, 0.35f, 1.0f), "%s", lastGen->error.c_str());
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "%s", lastGen->error.c_str());
                 }
             }
         }

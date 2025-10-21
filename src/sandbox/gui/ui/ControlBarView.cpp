@@ -9,6 +9,26 @@
 
 namespace Genesis::Sandbox::Gui
 {
+namespace
+{
+    void PushActiveButtonStyle(bool active)
+    {
+        if (active)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, Style::DesignTokens::color(Style::ColorToken::Primary));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Style::DesignTokens::color(Style::ColorToken::PrimaryHover));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Style::DesignTokens::color(Style::ColorToken::PrimaryActive));
+        }
+    }
+
+    void PopActiveButtonStyle(bool active)
+    {
+        if (active)
+        {
+            ImGui::PopStyleColor(3);
+        }
+    }
+} // namespace
 
 void ControlBarView::render(UiContext& ctx)
 {
@@ -24,9 +44,34 @@ void ControlBarView::render(UiContext& ctx)
         ImGuiStyleVar_WindowPadding,
         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Lg),
                style.FramePadding.y));
-    const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Down, height, flags);
+    const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Up, height, flags);
     if (open)
     {
+        const float navSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Md);
+        auto drawNavButton = [&](const char* label, MainViewTab tab, BrowserSection section, bool first) {
+            if (!first)
+            {
+                ImGui::SameLine(0.0f, navSpacing);
+            }
+            const bool active = (ctx.state.main_view_active_tab == tab);
+            PushActiveButtonStyle(active);
+            if (ImGui::Button(label))
+            {
+                ctx.state.main_view_active_tab = tab;
+                ctx.state.browser_active_section = section;
+            }
+            PopActiveButtonStyle(active);
+        };
+
+        drawNavButton("Monitor", MainViewTab::Monitor, BrowserSection::Monitor, true);
+        drawNavButton("Scene", MainViewTab::Scene, BrowserSection::Scene, false);
+        drawNavButton("World", MainViewTab::World, BrowserSection::World, false);
+        drawNavButton("Settings", MainViewTab::Settings, BrowserSection::LayoutsThemes, false);
+
+        ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+
         if (ctx.runtime_bridge)
         {
             bool paused = ctx.runtime_bridge->paused();

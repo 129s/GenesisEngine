@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "sandbox/gui/RuntimeBridge.hpp"
+#include "sandbox/gui/Version.hpp"
 #include "sandbox/gui/controller/WorldCommandController.hpp"
 #include "sandbox/gui/ui/UiContext.hpp"
 #include "sandbox/gui/ui/StatusBarView.hpp"
@@ -32,6 +33,7 @@ struct AppHostConfig
     int height = 900;
     std::string title = "Genesis Sandbox GUI";
     bool vsync = true;
+    std::string version = std::string(SandboxGuiVersion);
 };
 
 class AppHost

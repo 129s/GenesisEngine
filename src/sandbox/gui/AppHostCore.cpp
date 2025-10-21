@@ -214,7 +214,7 @@ namespace Genesis::Sandbox::Gui
             config.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_Bitmap | ImGuiFreeTypeBuilderFlags_Monochrome | ImGuiFreeTypeBuilderFlags_MonoHinting;
             const auto u8Path = cjkFont.u8string();
             const std::string pathUtf8(u8Path.begin(), u8Path.end());
-            if (ImFont *cjkFont = io.Fonts->AddFontFromFileTTF(pathUtf8.c_str(), baseFontSize, &config, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()))
+            if (ImFont *cjkFont = io.Fonts->AddFontFromFileTTF(pathUtf8.c_str(), baseFontSize, &config, io.Fonts->GetGlyphRangesChineseFull()))
             {
                 hasCjkFont = true;
                 io.FontDefault = cjkFont;
@@ -287,26 +287,26 @@ namespace Genesis::Sandbox::Gui
         ImGui::NewFrame();
     }
 
-void AppHost::renderGui()
-{
-    updateRuntimeSnapshot();
+    void AppHost::renderGui()
     {
-        ImGuiIO &io = ImGui::GetIO();
-        const double now = ImGui::GetTime();
-        if (ui_state_.ui_fps_last_sample_time <= 0.0 || now - ui_state_.ui_fps_last_sample_time >= 0.25)
+        updateRuntimeSnapshot();
         {
-            ui_state_.ui_fps_display = io.Framerate;
-            ui_state_.ui_fps_last_sample_time = now;
+            ImGuiIO &io = ImGui::GetIO();
+            const double now = ImGui::GetTime();
+            if (ui_state_.ui_fps_last_sample_time <= 0.0 || now - ui_state_.ui_fps_last_sample_time >= 0.25)
+            {
+                ui_state_.ui_fps_display = io.Framerate;
+                ui_state_.ui_fps_last_sample_time = now;
+            }
         }
+        drawDockspace();
+        browser_view_.render(ui_context_);
+        main_view_.render(ui_context_);
+        inspector_view_.render(ui_context_);
+        status_bar_view_.render(ui_context_);
+        control_bar_view_.render(ui_context_);
+        drawToasts();
     }
-    drawDockspace();
-    browser_view_.render(ui_context_);
-    main_view_.render(ui_context_);
-    inspector_view_.render(ui_context_);
-    status_bar_view_.render(ui_context_);
-    control_bar_view_.render(ui_context_);
-    drawToasts();
-}
 
     void AppHost::endFrame()
     {
@@ -499,10 +499,12 @@ void AppHost::renderGui()
             return;
         }
 
-        auto pushThemedToast = [&](const char *text, Style::ColorToken token) {
+        auto pushThemedToast = [&](const char *text, Style::ColorToken token)
+        {
             pushToast(text, Style::DesignTokens::color(token));
         };
-        auto toggleFlag = [&](bool &flag, const char *enabledMsg, const char *disabledMsg) {
+        auto toggleFlag = [&](bool &flag, const char *enabledMsg, const char *disabledMsg)
+        {
             flag = !flag;
             pushThemedToast(flag ? enabledMsg : disabledMsg,
                             flag ? Style::ColorToken::Success : Style::ColorToken::Muted);

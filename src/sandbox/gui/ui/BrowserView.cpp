@@ -241,6 +241,21 @@ void BrowserView::render(UiContext& ctx)
                 }
             }
 
+            std::unordered_map<std::uint32_t, std::vector<std::size_t>> agentsByNode;
+            std::unordered_map<std::uint32_t, std::vector<std::size_t>> resourcesByNode;
+            if (snapshot)
+            {
+                const auto& tick = snapshot->telemetry;
+                for (std::size_t i = 0; i < tick.agents.size(); ++i)
+                {
+                    agentsByNode[tick.agents[i].location.value].push_back(i);
+                }
+                for (std::size_t i = 0; i < tick.resources.size(); ++i)
+                {
+                    resourcesByNode[tick.resources[i].location.value].push_back(i);
+                }
+            }
+
             if (tree.empty())
             {
                 ImGui::TextUnformatted(hasSearch ? "未找到匹配的节点。" : "暂无导航数据。");
@@ -299,6 +314,10 @@ void BrowserView::render(UiContext& ctx)
                         ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                         ctx.state.scene_focus_node_request = node.id.value;
                         ctx.state.main_view_active_tab = MainViewTab::Scene;
+                        ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Node;
+                        ctx.state.inspector_selected_primary = node.id.value;
+                        ctx.state.inspector_selected_secondary = 0;
+                        ctx.state.inspector_highlight_node = node.id.value;
                     }
                     if (ImGui::IsItemHovered())
                     {
@@ -321,6 +340,81 @@ void BrowserView::render(UiContext& ctx)
                         else if (hasSearch && open)
                         {
                             ctx.state.browser_scene_expanded_nodes.insert(node.id.value);
+                        }
+                    }
+
+                    const float indentAmount = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+                    if (open)
+                    {
+                        const bool hasAgents = agentsByNode.contains(node.id.value);
+                        const bool hasResources = resourcesByNode.contains(node.id.value);
+                        if (hasAgents || hasResources)
+                        {
+                            ImGui::Indent(indentAmount);
+                            if (hasAgents && snapshot)
+                            {
+                                ImGui::TextDisabled("Agents");
+                                const auto& indices = agentsByNode[node.id.value];
+                                const auto& tick = snapshot->telemetry;
+                                for (std::size_t idx : indices)
+                                {
+                                    const auto& agent = tick.agents[idx];
+                                    std::string label = agent.name.empty()
+                                                            ? ("Agent #" + std::to_string(agent.entityId))
+                                                            : (agent.name + " [#" + std::to_string(agent.entityId) + "]");
+                                    const bool selectedAgent =
+                                        ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Agent &&
+                                        ctx.state.inspector_selected_primary == agent.entityId;
+                                    ImGui::PushID(static_cast<int>(agent.entityId));
+                                    if (ImGui::Selectable(label.c_str(), selectedAgent))
+                                    {
+                                        ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Agent;
+                                        ctx.state.inspector_selected_primary = agent.entityId;
+                                        ctx.state.inspector_selected_secondary = static_cast<std::uint32_t>(idx);
+                                        ctx.state.inspector_highlight_node = node.id.value;
+                                        ctx.state.map_selected_node = node.id.value;
+                                        if (ctx.state.inspector_follow_selection)
+                                        {
+                                            ctx.state.scene_selected_node = node.id.value;
+                                            ctx.state.scene_tile_selection.reset();
+                                            ctx.state.scene_focus_node_request = node.id.value;
+                                        }
+                                    }
+                                    ImGui::PopID();
+                                }
+                            }
+                            if (hasResources && snapshot)
+                            {
+                                if (hasAgents)
+                                {
+                                    ImGui::Spacing();
+                                }
+                                ImGui::TextDisabled("Resources");
+                                const auto& indices = resourcesByNode[node.id.value];
+                                const auto& tick = snapshot->telemetry;
+                                for (std::size_t idx : indices)
+                                {
+                                    const auto& resource = tick.resources[idx];
+                                    std::string label = resource.name.empty()
+                                                            ? ("Resource #" + std::to_string(idx))
+                                                            : (resource.name + " (" + std::to_string(resource.current) + "/" +
+                                                               std::to_string(resource.capacity) + ")");
+                                    const bool selectedResource =
+                                        ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Resource &&
+                                        ctx.state.inspector_selected_primary == static_cast<std::uint32_t>(idx);
+                                    ImGui::PushID(static_cast<int>(resource.location.value * 4096 + static_cast<std::uint32_t>(idx)));
+                                    if (ImGui::Selectable(label.c_str(), selectedResource))
+                                    {
+                                        ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Resource;
+                                        ctx.state.inspector_selected_primary = static_cast<std::uint32_t>(idx);
+                                        ctx.state.inspector_selected_secondary = resource.location.value;
+                                        ctx.state.inspector_highlight_node = node.id.value;
+                                        ctx.state.map_selected_node = node.id.value;
+                                    }
+                                    ImGui::PopID();
+                                }
+                            }
+                            ImGui::Unindent(indentAmount);
                         }
                     }
 

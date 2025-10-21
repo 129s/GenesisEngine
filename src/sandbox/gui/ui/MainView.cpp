@@ -425,149 +425,10 @@ namespace Genesis::Sandbox::Gui
 
         ImGui::Separator();
 
-        const float listWidth = 260.0f;
-        const ImVec2 listSize{listWidth, ImGui::GetContentRegionAvail().y};
-        ImGui::BeginChild("InspectorList", listSize, true);
-
-        if (ImGui::CollapsingHeader("Agents", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            std::vector<std::size_t> indices(tick.agents.size());
-            std::iota(indices.begin(), indices.end(), 0);
-            std::sort(indices.begin(), indices.end(), [&](std::size_t lhs, std::size_t rhs)
-                      {
-                const auto &a = tick.agents[lhs];
-                const auto &b = tick.agents[rhs];
-                if (a.name == b.name)
-                {
-                    return a.entityId < b.entityId;
-                }
-                if (a.name.empty())
-                {
-                    return false;
-                }
-                if (b.name.empty())
-                {
-                    return true;
-                }
-                return a.name < b.name; });
-
-            for (std::size_t idx : indices)
-            {
-                const auto &agent = tick.agents[idx];
-                std::string nodeName;
-                if (atlasPtr)
-                {
-                    for (const auto &node : atlasPtr->nodes)
-                    {
-                        if (node.id.value == agent.location.value)
-                        {
-                            nodeName = node.name;
-                            break;
-                        }
-                    }
-                }
-
-                char label[128];
-                if (!agent.name.empty())
-                {
-                    std::snprintf(label, sizeof(label), "%s [#%u]", agent.name.c_str(), agent.entityId);
-                }
-                else
-                {
-                    std::snprintf(label, sizeof(label), "Agent [#%u]", agent.entityId);
-                }
-
-                const bool selected = ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Agent && ctx.state.inspector_selected_primary == agent.entityId;
-                ImGui::PushID(static_cast<int>(agent.entityId));
-                if (ImGui::Selectable(label, selected))
-                {
-                    ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Agent;
-                    ctx.state.inspector_selected_primary = agent.entityId;
-                    ctx.state.inspector_selected_secondary = static_cast<std::uint32_t>(idx);
-                    ctx.state.inspector_highlight_node = agent.location.value;
-                    ctx.state.map_selected_node = agent.location.value;
-                    if (ctx.state.inspector_follow_selection)
-                    {
-                        ctx.state.scene_selected_node = agent.location.value;
-                    }
-                }
-                ImGui::PopID();
-                if (!nodeName.empty() && ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("Node: %s", nodeName.c_str());
-                }
-            }
-        }
-
-        if (ImGui::CollapsingHeader("Resources", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            for (std::size_t i = 0; i < tick.resources.size(); ++i)
-            {
-                const auto &resource = tick.resources[i];
-                std::string nodeName;
-                if (atlasPtr)
-                {
-                    for (const auto &node : atlasPtr->nodes)
-                    {
-                        if (node.id.value == resource.location.value)
-                        {
-                            nodeName = node.name;
-                            break;
-                        }
-                    }
-                }
-
-                char label[160];
-                std::snprintf(label, sizeof(label), "%s (%s) [Node #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
-
-                const bool selected = ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Resource && ctx.state.inspector_selected_primary == static_cast<std::uint32_t>(i);
-                ImGui::PushID(static_cast<int>(resource.location.value * 4096 + static_cast<std::uint32_t>(i)));
-                if (ImGui::Selectable(label, selected))
-                {
-                    ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Resource;
-                    ctx.state.inspector_selected_primary = static_cast<std::uint32_t>(i);
-                    ctx.state.inspector_selected_secondary = resource.location.value;
-                    ctx.state.inspector_highlight_node = resource.location.value;
-                    ctx.state.map_selected_node = resource.location.value;
-                }
-                ImGui::PopID();
-                if (!nodeName.empty() && ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("Node: %s", nodeName.c_str());
-                }
-            }
-        }
-
-        if (atlasPtr && ImGui::CollapsingHeader("Nodes", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            for (const auto &node : atlasPtr->nodes)
-            {
-                char label[128];
-                std::snprintf(label, sizeof(label), "%s [#%u]", node.name.c_str(), node.id.value);
-
-                const bool selected = ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Node && ctx.state.inspector_selected_primary == node.id.value;
-                ImGui::PushID(static_cast<int>(node.id.value));
-                if (ImGui::Selectable(label, selected))
-                {
-                    ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Node;
-                    ctx.state.inspector_selected_primary = node.id.value;
-                    ctx.state.inspector_selected_secondary = 0;
-                    ctx.state.inspector_highlight_node = node.id.value;
-                    ctx.state.map_selected_node = node.id.value;
-                }
-                ImGui::PopID();
-            }
-        }
-
-        ImGui::EndChild();
-
-        ImGui::SameLine();
-        ImGui::BeginChild("InspectorDetails", ImVec2(0.0f, listSize.y), false);
-
         switch (ctx.state.inspector_selection_type)
         {
         case UiState::InspectorSelectionType::None:
-            ImGui::TextUnformatted("Select an entry on the left to view details.");
+            ImGui::TextUnformatted("请使用 Browser 选择实体以查看详情。");
             break;
         case UiState::InspectorSelectionType::Agent:
         {
@@ -1158,8 +1019,6 @@ namespace Genesis::Sandbox::Gui
             }
             ImGui::EndChild();
         }
-
-        ImGui::EndChild();
         ImGui::End();
     }
 
@@ -1174,6 +1033,13 @@ namespace Genesis::Sandbox::Gui
     if (ctx.state.scene_selected_node == 0 && atlasPtr && !atlasPtr->nodes.empty())
     {
         ctx.state.scene_selected_node = atlasPtr->nodes.front().id.value;
+        if (ctx.state.inspector_selection_type == UiState::InspectorSelectionType::None)
+        {
+            ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Node;
+            ctx.state.inspector_selected_primary = ctx.state.scene_selected_node;
+            ctx.state.inspector_selected_secondary = 0;
+            ctx.state.inspector_highlight_node = ctx.state.scene_selected_node;
+        }
     }
 
     SceneNodeViewModel nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
@@ -1181,6 +1047,13 @@ namespace Genesis::Sandbox::Gui
     {
         ctx.state.scene_selected_node = nodeVm.nodes.front().id;
         nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
+        if (ctx.state.inspector_selection_type == UiState::InspectorSelectionType::None)
+        {
+            ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Node;
+            ctx.state.inspector_selected_primary = ctx.state.scene_selected_node;
+            ctx.state.inspector_selected_secondary = 0;
+            ctx.state.inspector_highlight_node = ctx.state.scene_selected_node;
+        }
     }
 
     const SceneNodeDetails *detailsPtr = nodeVm.active ? &*nodeVm.active : nullptr;

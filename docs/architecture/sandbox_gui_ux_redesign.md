@@ -32,7 +32,7 @@
 
 ### 3.5 实施进展（Phase A · Task 1，2025-10-21）
 - 已上线顶栏/底栏新布局：状态栏改为顶部展示运行模式与主视图快捷键，控制栏驻留底部集中播放控制、速度倍率与 VSync。
-- Browser 面板拆分 Scene / World / Monitor / Layouts & Themes，并驱动 Main View 同步切换；Scene 分类内提供节点快速跳转与当前世界统计。
+- Browser 面板拆分 Scene / World / Monitor / Layouts & Themes，并驱动 Main View 同步切换；Scene 分类保留树状节点导航，移除数量统计改为聚焦操作与全宽搜索栏。
 - Main View 引入四象限切换：Scene 子视图包含“世界概览（Map）/ 节点细节（Tilemap）”双模式，World 子视图整合生成/加载/保存操作，Monitor 子视图合并遥测与日志。
 - Welcome 面板与命令队列 UI 已完全移除，相关调用点重定向到 Browser 与 World 标签；命令状态通过世界页摘要呈现。
 - Inspector 与 Browser 联动：在 Inspector 点击“定位地图/节点视图”时自动激活 Scene Tab 并更新高亮/跟随状态。

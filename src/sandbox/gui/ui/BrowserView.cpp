@@ -120,12 +120,20 @@ void BrowserView::render(UiContext& ctx)
     case BrowserSection::Scene:
     {
         const char* searchHint = "搜索节点或 ID...";
-        ImGui::SetNextItemWidth(-ImGui::GetStyle().IndentSpacing);
+        const bool hasQuery = ctx.state.browser_search_buffer[0] != '\0';
+        const ImGuiStyle& style = ImGui::GetStyle();
+        float available = ImGui::GetContentRegionAvail().x;
+        if (hasQuery)
+        {
+            const float buttonWidth = ImGui::CalcTextSize("清除").x + style.FramePadding.x * 2.0f;
+            available = std::max(available - buttonWidth - style.ItemSpacing.x, 120.0f);
+        }
+        ImGui::SetNextItemWidth(available);
         if (ImGui::InputTextWithHint("##BrowserSceneSearch", searchHint, ctx.state.browser_search_buffer.data(), ctx.state.browser_search_buffer.size()))
         {
             // 输入框已直接更新搜索缓冲
         }
-        if (ctx.state.browser_search_buffer[0] != '\0')
+        if (hasQuery)
         {
             ImGui::SameLine();
             if (ImGui::SmallButton("清除"))
@@ -152,14 +160,6 @@ void BrowserView::render(UiContext& ctx)
             return idStr.find(searchLower) != std::string::npos;
         };
 
-        if (snapshot)
-        {
-            ImGui::Text("实体：%zu  |  资源：%zu", snapshot->telemetry.agents.size(), snapshot->telemetry.resources.size());
-        }
-        if (atlas)
-        {
-            ImGui::Text("节点：%zu  |  边：%zu", atlas->nodes.size(), atlas->edges.size());
-        }
         ImGui::Separator();
 
         if (atlas && ImGui::BeginChild("BrowserSceneTree", ImVec2(0.0f, 0.0f), true))
@@ -374,7 +374,6 @@ void BrowserView::render(UiContext& ctx)
                 ImGui::Separator();
                 ImGui::Text("最近生成：%s", lastGen->success ? "Success" : "Failed");
                 ImGui::Text("Seed：%llu", static_cast<unsigned long long>(lastGen->seed.value));
-                ImGui::Text("节点：%zu  |  边：%zu", lastGen->locationCount, lastGen->edgeCount);
                 if (!lastGen->error.empty())
                 {
                     ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "%s", lastGen->error.c_str());

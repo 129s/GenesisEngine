@@ -4,7 +4,7 @@
 - 为内部开发者提供统一的实体观察与调试入口，支持选中/跟随、字段查看与高亮，覆盖属性→需求→决策链路以及人格/Traits 的调试需求。
 
 ## 当前实现（2025-10-19）
-- 实体列表：按 Agent / Resource / Node 三类展示，支持名称/ID/类型模糊搜索；选中后自动高亮对应地图节点。
+- 实体列表：按 Agent / Resource / Node 三类展示，依托 Browser 负责筛选/搜索；选中后自动高亮对应地图节点。
 - 详情面板：
   - Agent：显示 ID、名称、所在节点、需求强度、需求临界标记、当前行动/Planner 结果、移动进度；支持“定位到地图”“打开 Scene”以及跟随模式（同步 SceneView 节点）。
   - Resource：显示所属节点、类型与库存；支持一键定位。
@@ -17,10 +17,10 @@
 - Agent 详情需补充属性、人格 Big5、Traits 及最近日志。
 - Resource 需展示消耗历史与再生速率趋势。
 - Portal/Scene 详情尚未落地。
-- 搜索栏未来可支持标签过滤、收藏列表与多选。
+- （改由 Browser 实现的）搜索与标签过滤迁移完成，Inspector 后续聚焦编辑与详情强化。
 
 ## 功能范围（MVP）
-- **实体列表与搜索**：按类型（Agent / Scene / Interactive:Resource / Interactive:Portal）分组，可按名称、ID、Trait、mapId 过滤。
+- **实体列表**：按类型（Agent / Scene / Interactive:Resource / Interactive:Portal）分组展示；名称、ID、Trait、mapId 等过滤统一在 Browser 侧实现。
 - **选中与跟随**
   - MapView 高亮对应节点/代理，显示 Portal 方向箭头。
   - SceneView 若存在 insideView，则自动切换并聚焦代理；Follow 开关可在两视图中同步追踪（默认仅平移）。
@@ -49,7 +49,7 @@
 
 ## 性能与并发
 - Inspector 仅消费最新快照，不跨线程访问 Runtime 数据结构。
-- 列表/搜索使用 UI 端缓存，按需增量更新，避免每帧全量重建。
+- 列表使用 UI 端缓存，按需增量更新，避免每帧全量重建。
 - 对高频刷新字段（需求强度、属性值）使用环形历史缓冲，防止内存膨胀。
 
 ## 验收标准

@@ -108,7 +108,6 @@ struct UiState
         Node
     };
 
-    std::array<char, 128> inspector_search_buffer{};
     InspectorSelectionType inspector_selection_type{InspectorSelectionType::None};
     std::uint32_t inspector_selected_primary{0};
     std::uint32_t inspector_selected_secondary{0};

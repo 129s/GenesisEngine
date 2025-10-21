@@ -37,7 +37,7 @@ cmake --build build --target genesis_sandbox_gui
   - 相机平移（右键拖拽）与缩放（滚轮）。
   - 网格/锚点/资源显示开关。
 - Telemetry 面板：当前帧的 Agents/Needs/Actions 摘要。
-- Inspector 面板：提供 Agent / Resource / Node 列表与搜索，详情面板展示需求、行动、Planner 结果及 Runtime 事件，支持快速定位到 Map/Scene 以及跟随模式。
+- Inspector 面板：提供 Agent / Resource / Node 列表与详情（筛选统一由 Browser 负责），展示需求、行动、Planner 结果及 Runtime 事件，支持快速定位到 Map/Scene 以及跟随模式。
 - 底部状态栏：快速统计（Step/Agents/Resources/Actions）
 
 ## World Generation 面板 · 命令队列

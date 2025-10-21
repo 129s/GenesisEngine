@@ -54,8 +54,6 @@ namespace Genesis::Sandbox::Gui
     {
         refreshDefaultWorldgenConfig();
         ui_state_.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
-        std::fill(ui_state_.inspector_search_buffer.begin(), ui_state_.inspector_search_buffer.end(), '\0');
-
         if (auto logger = spdlog::default_logger())
         {
             ui_state_.log_sink = std::make_shared<ImGuiLogSink>(512);

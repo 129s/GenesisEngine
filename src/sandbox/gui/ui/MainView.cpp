@@ -408,48 +408,6 @@ namespace Genesis::Sandbox::Gui
         const auto &tick = snapshot.telemetry;
         const RuntimeBridge::WorldAtlas *atlasPtr = ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr;
 
-        ImGui::InputTextWithHint("##InspectorSearch", "Search name/id/type", ctx.state.inspector_search_buffer.data(), ctx.state.inspector_search_buffer.size());
-        std::string filterRaw(ctx.state.inspector_search_buffer.data());
-        std::string filterLower = filterRaw;
-        std::transform(filterLower.begin(), filterLower.end(), filterLower.begin(), [](unsigned char c)
-                       { return static_cast<char>(std::tolower(c)); });
-        const bool filterEmpty = filterLower.empty();
-
-        auto toLowerString = [](std::string value)
-        {
-            std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch)
-                           { return static_cast<char>(std::tolower(ch)); });
-            return value;
-        };
-
-        auto matchesFilter = [&](const std::string &text, std::uint32_t id, const std::string &extra) -> bool
-        {
-            if (filterEmpty)
-            {
-                return true;
-            }
-            if (!text.empty())
-            {
-                auto lowered = toLowerString(text);
-                if (lowered.find(filterLower) != std::string::npos)
-                {
-                    return true;
-                }
-            }
-            if (!extra.empty())
-            {
-                auto lowered = toLowerString(extra);
-                if (lowered.find(filterLower) != std::string::npos)
-                {
-                    return true;
-                }
-            }
-            char buffer[32];
-            std::snprintf(buffer, sizeof(buffer), "%u", id);
-            auto lowered = toLowerString(std::string{buffer});
-            return lowered.find(filterLower) != std::string::npos;
-        };
-
         const auto resourceTypeName = [](genesis::world::ResourceType type) -> const char *
         {
             switch (type)
@@ -509,11 +467,6 @@ namespace Genesis::Sandbox::Gui
                     }
                 }
 
-                if (!matchesFilter(agent.name, agent.entityId, nodeName))
-                {
-                    continue;
-                }
-
                 char label[128];
                 if (!agent.name.empty())
                 {
@@ -564,12 +517,6 @@ namespace Genesis::Sandbox::Gui
                     }
                 }
 
-                const std::string extra = std::string(resourceTypeName(resource.type)) + " " + nodeName;
-                if (!matchesFilter(resource.name, resource.location.value, extra))
-                {
-                    continue;
-                }
-
                 char label[160];
                 std::snprintf(label, sizeof(label), "%s (%s) [Node #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
 
@@ -584,6 +531,10 @@ namespace Genesis::Sandbox::Gui
                     ctx.state.map_selected_node = resource.location.value;
                 }
                 ImGui::PopID();
+                if (!nodeName.empty() && ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("Node: %s", nodeName.c_str());
+                }
             }
         }
 
@@ -591,11 +542,6 @@ namespace Genesis::Sandbox::Gui
         {
             for (const auto &node : atlasPtr->nodes)
             {
-                if (!matchesFilter(node.name, node.id.value, ""))
-                {
-                    continue;
-                }
-
                 char label[128];
                 std::snprintf(label, sizeof(label), "%s [#%u]", node.name.c_str(), node.id.value);
 

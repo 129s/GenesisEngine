@@ -183,6 +183,7 @@
 > - UI 层状态已抽离为 `UiState`，统一维护 Inspector/Scene/World 等界面字段，并新增 `UiContext` 作为后续视图模块化的共享入口。  
 > - 首批视图模块（StatusBar / ControlBar / Browser / MainView / Inspector）已拆分为独立类，通过 `UiContext` 获取共享状态并由 `AppHost` 统一装配调用。
 > - Scene / World / Monitor 页签已接入 Presenter 层，数据整形逻辑独立于 ImGui 渲染，并配套基础单元测试验证排序与聚合规则。
+> - WorldCommandController 已落地，统一命令状态轮询与 toast 反馈，为后续事件总线解耦 AppHost 提供支点。
 > - 后续视图拆分将基于上述上下文继续推进，计划先从 Status/Control/Browser 三块着手逐步迁移。
 
 上述调整与 Phase B/C 的功能目标互为前置条件，应优先在 Phase B 启动前规划落地节奏，并在每次重构完成后更新示意图与交互文档。

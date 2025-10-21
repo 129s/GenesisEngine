@@ -49,7 +49,12 @@ AppHost::AppHost(AppHostConfig config)
     , clear_color_{0.07f, 0.07f, 0.10f, 1.0f}
     , runtime_bridge_(std::make_unique<RuntimeBridge>())
     , speed_multiplier_ui_(1.0)
-    , ui_context_{*this, ui_state_, runtime_bridge_.get(), latest_snapshot_, speed_multiplier_ui_, config_}
+    , ui_state_()
+    , world_command_controller_(ui_state_,
+                                [this]() -> RuntimeBridge* { return runtime_bridge_.get(); },
+                                [this](const std::string& text, const ImVec4& color, double lifetime) { pushToast(text, color, lifetime); },
+                                [this]() { resetSceneForNewWorld(); })
+    , ui_context_{*this, ui_state_, runtime_bridge_.get(), latest_snapshot_, speed_multiplier_ui_, config_, world_command_controller_}
 {
     refreshDefaultWorldgenConfig();
     ui_state_.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());

@@ -141,7 +141,7 @@ void MainView::drawWorldTab(UiContext& ctx)
     if (runtimeReady)
     {
         commandStatuses = ctx.runtime_bridge->commandStatusSnapshot();
-        ctx.refreshCommandStatusTexts(commandStatuses);
+        ctx.updateWorldCommandStatuses(commandStatuses);
     }
 
     WorldPresenterInput presenterInput{

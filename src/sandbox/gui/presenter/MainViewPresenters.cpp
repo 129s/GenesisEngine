@@ -4,7 +4,7 @@
 #include <cmath>
 #include <unordered_map>
 
-#include "sandbox/gui/CommandUiHelpers.hpp"
+#include "../CommandUiHelpers.hpp"
 
 namespace Genesis::Sandbox::Gui
 {
@@ -331,4 +331,3 @@ MonitorTelemetryViewModel MonitorPresenter::buildTelemetryViewModel(const Monito
 }
 
 } // namespace Genesis::Sandbox::Gui
-

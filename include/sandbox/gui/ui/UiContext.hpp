@@ -10,6 +10,7 @@ namespace Genesis::Sandbox::Gui
 
 class AppHost;
 struct AppHostConfig;
+class WorldCommandController;
 
 struct UiContext
 {
@@ -19,11 +20,12 @@ struct UiContext
     std::optional<RuntimeBridge::Snapshot>& latest_snapshot;
     double& speed_multiplier_ui;
     AppHostConfig& config;
+    WorldCommandController& world_commands;
 
     void pushToast(const std::string& text, const ImVec4& color, double lifetime_sec = 3.0);
     void resetSceneForNewWorld();
     void resetMapViewCamera();
-    void refreshCommandStatusTexts(const std::vector<RuntimeBridge::CommandProgress>& commands);
+    void updateWorldCommandStatuses(const std::vector<RuntimeBridge::CommandProgress>& commands);
 };
 
 } // namespace Genesis::Sandbox::Gui

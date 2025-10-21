@@ -70,6 +70,7 @@
 3. **命令与事件总线**  
    - 实现 `WorldCommandController` 统一处理生成/加载/保存命令及状态轮询。  
    - 建立事件总线驱动 toast、日志、时间轴写入与快捷键反馈。
+   - ✅ 2025-10-21：引入 `WorldCommandController` 承接命令状态刷新与提示，下沉 AppHost 直接操作 UI 状态的权限。
 4. **布局/主题配置层**  
    - 设计可序列化的 `SandboxLayoutConfig` 与 `UiTheme`，供 Layout/Theme 管理与初始化使用。  
    - 将 DockBuilder、快捷键映射、主题颜色从代码常量迁移到配置层。

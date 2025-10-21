@@ -1,6 +1,7 @@
 #include "sandbox/gui/ui/UiContext.hpp"
 
 #include "sandbox/gui/AppHost.hpp"
+#include "sandbox/gui/controller/WorldCommandController.hpp"
 
 namespace Genesis::Sandbox::Gui
 {
@@ -20,9 +21,9 @@ void UiContext::resetMapViewCamera()
     host.resetMapViewCamera();
 }
 
-void UiContext::refreshCommandStatusTexts(const std::vector<RuntimeBridge::CommandProgress>& commands)
+void UiContext::updateWorldCommandStatuses(const std::vector<RuntimeBridge::CommandProgress>& commands)
 {
-    host.refreshCommandStatusTexts(commands);
+    world_commands.refreshStatuses(commands);
 }
 
 } // namespace Genesis::Sandbox::Gui

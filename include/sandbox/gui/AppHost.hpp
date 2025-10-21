@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "sandbox/gui/RuntimeBridge.hpp"
+#include "sandbox/gui/controller/WorldCommandController.hpp"
 #include "sandbox/gui/ui/UiContext.hpp"
 #include "sandbox/gui/ui/StatusBarView.hpp"
 #include "sandbox/gui/ui/ControlBarView.hpp"
@@ -64,7 +65,6 @@ private:
     void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
     void resetSceneForNewWorld();
     void resetMapViewCamera();
-    void refreshCommandStatusTexts(const std::vector<RuntimeBridge::CommandProgress>& commands);
     void refreshDefaultWorldgenConfig();
 
     friend struct UiContext;
@@ -81,6 +81,7 @@ private:
     double speed_multiplier_ui_{1.0};
 
     UiState ui_state_;
+    WorldCommandController world_command_controller_;
     UiContext ui_context_;
     StatusBarView status_bar_view_;
     ControlBarView control_bar_view_;

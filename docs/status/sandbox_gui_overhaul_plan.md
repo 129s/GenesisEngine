@@ -22,6 +22,7 @@
    - 支持分类（Scene/World/Monitor/Layouts & Themes）。  
    - 实现树状层级、搜索、过滤、记忆折叠状态。  
    - 接入主视图联动（切换分类时同步 Main View）。
+   - ✅ 2025-10-21：Scene 分类引入树状结构与搜索缓冲（支持节点/ID 匹配），折叠状态按节点记忆；Browser 点击节点将同步刷新 Scene / Map 聚焦，分类切换保持状态一致。
 
 ## Phase B · 功能整合与体验优化
 1. **Monitor 面板升级**  

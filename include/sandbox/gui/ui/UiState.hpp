@@ -64,6 +64,8 @@ struct UiState
     bool scene_show_ruler{false};
     std::optional<RuntimeBridge::Vector2> scene_ruler_anchor;
     std::optional<std::uint32_t> scene_focus_node_request;
+    std::array<char, 128> browser_search_buffer{};
+    std::unordered_set<std::uint32_t> browser_scene_expanded_nodes;
 
     struct Toast
     {

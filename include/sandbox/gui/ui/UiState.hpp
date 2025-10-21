@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <imgui.h>
@@ -34,10 +35,18 @@ enum class MainViewTab
     Settings
 };
 
-enum class SceneViewMode
+enum class SceneSelectionTool
 {
-    Map,
-    Node
+    Any,
+    Node,
+    Tile
+};
+
+struct SceneTileSelection
+{
+    std::uint32_t nodeId{0};
+    int tileX{0};
+    int tileY{0};
 };
 
 struct UiState
@@ -45,7 +54,7 @@ struct UiState
     bool show_inspector{true};
     BrowserSection browser_active_section{BrowserSection::Scene};
     MainViewTab main_view_active_tab{MainViewTab::Scene};
-    SceneViewMode scene_view_mode{SceneViewMode::Map};
+    SceneSelectionTool scene_selection_tool{SceneSelectionTool::Any};
 
     bool log_auto_scroll{true};
     std::shared_ptr<ImGuiLogSink> log_sink;
@@ -80,6 +89,7 @@ struct UiState
 
     // Scene View state
     std::uint32_t scene_selected_node{0};
+    std::optional<SceneTileSelection> scene_tile_selection;
     float scene_cam_offset_x{0.0f};
     float scene_cam_offset_y{0.0f};
     float scene_cam_zoom{1.5f};

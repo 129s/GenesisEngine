@@ -294,7 +294,8 @@ void BrowserView::render(UiContext& ctx)
                     {
                         ctx.state.scene_selected_node = node.id.value;
                         ctx.state.map_selected_node = node.id.value;
-                        ctx.state.scene_view_mode = SceneViewMode::Node;
+                        ctx.state.scene_tile_selection.reset();
+                        ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                         ctx.state.scene_focus_node_request = node.id.value;
                         ctx.state.main_view_active_tab = MainViewTab::Scene;
                     }

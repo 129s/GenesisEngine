@@ -253,6 +253,16 @@ SceneNodeViewModel ScenePresenter::buildNodeViewModel(const ScenePresenterInput&
     return viewModel;
 }
 
+SceneUnifiedViewModel ScenePresenter::buildUnifiedViewModel(const ScenePresenterInput& input) const
+{
+    SceneUnifiedViewModel viewModel{};
+    viewModel.map = buildMapViewModel(input);
+    viewModel.node = buildNodeViewModel(input);
+    viewModel.runtimeReady = viewModel.map.runtimeReady && viewModel.map.atlas != nullptr;
+    viewModel.hasSnapshot = viewModel.map.hasSnapshot;
+    return viewModel;
+}
+
 WorldViewModel WorldPresenter::buildWorldViewModel(const WorldPresenterInput& input) const
 {
     WorldViewModel viewModel{};

@@ -119,6 +119,14 @@ struct SceneNodeViewModel
     std::optional<SceneNodeDetails> active;
 };
 
+struct SceneUnifiedViewModel
+{
+    SceneMapViewModel map;
+    SceneNodeViewModel node;
+    bool runtimeReady{false};
+    bool hasSnapshot{false};
+};
+
 struct WorldPresenterInput
 {
     const UiState& state;
@@ -179,6 +187,7 @@ class ScenePresenter
 public:
     [[nodiscard]] SceneMapViewModel buildMapViewModel(const ScenePresenterInput& input) const;
     [[nodiscard]] SceneNodeViewModel buildNodeViewModel(const ScenePresenterInput& input) const;
+    [[nodiscard]] SceneUnifiedViewModel buildUnifiedViewModel(const ScenePresenterInput& input) const;
 };
 
 class WorldPresenter
@@ -194,4 +203,3 @@ public:
 };
 
 } // namespace Genesis::Sandbox::Gui
-

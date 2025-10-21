@@ -95,31 +95,7 @@ namespace Genesis::Sandbox::Gui
 
     void MainView::drawSceneTab(UiContext &ctx)
     {
-        auto drawModeButton = [&](const char *label, SceneViewMode mode)
-        {
-            const bool active = (ctx.state.scene_view_mode == mode);
-            PushActiveButtonStyle(active);
-            if (ImGui::Button(label))
-            {
-                ctx.state.scene_view_mode = mode;
-            }
-            PopActiveButtonStyle(active);
-        };
-
-        drawModeButton("世界概览", SceneViewMode::Map);
-        ImGui::SameLine();
-        drawModeButton("节点细节", SceneViewMode::Node);
-
-        ImGui::Separator();
-
-        if (ctx.state.scene_view_mode == SceneViewMode::Map)
-        {
-            drawSceneWorldMap(ctx);
-        }
-        else
-        {
-            drawSceneNode(ctx);
-        }
+        drawSceneUnified(ctx);
     }
 
     void MainView::drawWorldTab(UiContext &ctx)
@@ -691,17 +667,22 @@ namespace Genesis::Sandbox::Gui
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.browser_active_section = BrowserSection::Scene;
-                ctx.state.scene_view_mode = SceneViewMode::Map;
+                ctx.state.scene_selection_tool = SceneSelectionTool::Node;
+                ctx.state.scene_tile_selection.reset();
                 ctx.state.inspector_highlight_node = agent->location.value;
                 ctx.state.map_selected_node = agent->location.value;
+                ctx.state.scene_focus_node_request = agent->location.value;
             }
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("打开节点视图##agentScene"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.browser_active_section = BrowserSection::Scene;
-                ctx.state.scene_view_mode = SceneViewMode::Node;
+                ctx.state.scene_selection_tool = SceneSelectionTool::Tile;
                 ctx.state.scene_selected_node = agent->location.value;
+                ctx.state.map_selected_node = agent->location.value;
+                ctx.state.scene_tile_selection.reset();
+                ctx.state.scene_focus_node_request = agent->location.value;
             }
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             bool followChanged = ImGui::Checkbox("Follow##agentFollow", &ctx.state.inspector_follow_selection);
@@ -709,6 +690,7 @@ namespace Genesis::Sandbox::Gui
             {
                 ctx.state.scene_selected_node = agent->location.value;
                 ctx.state.map_selected_node = agent->location.value;
+                ctx.state.scene_tile_selection.reset();
             }
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##agentCopy"))
@@ -996,17 +978,22 @@ namespace Genesis::Sandbox::Gui
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.browser_active_section = BrowserSection::Scene;
-                ctx.state.scene_view_mode = SceneViewMode::Map;
+                ctx.state.scene_selection_tool = SceneSelectionTool::Node;
+                ctx.state.scene_tile_selection.reset();
                 ctx.state.inspector_highlight_node = resource.location.value;
                 ctx.state.map_selected_node = resource.location.value;
+                ctx.state.scene_focus_node_request = resource.location.value;
             }
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("打开节点视图##resourceScene"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.browser_active_section = BrowserSection::Scene;
-                ctx.state.scene_view_mode = SceneViewMode::Node;
+                ctx.state.scene_selection_tool = SceneSelectionTool::Tile;
                 ctx.state.scene_selected_node = resource.location.value;
+                ctx.state.map_selected_node = resource.location.value;
+                ctx.state.scene_tile_selection.reset();
+                ctx.state.scene_focus_node_request = resource.location.value;
             }
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##resourceCopy"))
@@ -1113,9 +1100,11 @@ namespace Genesis::Sandbox::Gui
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.browser_active_section = BrowserSection::Scene;
-                ctx.state.scene_view_mode = SceneViewMode::Map;
+                ctx.state.scene_selection_tool = SceneSelectionTool::Node;
+                ctx.state.scene_tile_selection.reset();
                 ctx.state.inspector_highlight_node = selectedNode->id.value;
                 ctx.state.map_selected_node = selectedNode->id.value;
+                ctx.state.scene_focus_node_request = selectedNode->id.value;
             }
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##nodeCopy"))
@@ -1226,15 +1215,47 @@ namespace Genesis::Sandbox::Gui
         ImGui::End();
     }
 
-    void MainView::drawSceneWorldMap(UiContext &ctx)
+    void MainView::drawSceneUnified(UiContext &ctx)
     {
         ScenePresenterInput presenterInput{
             ctx.state,
             ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr,
             ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
-        const SceneMapViewModel mapVm = scene_presenter_.buildMapViewModel(presenterInput);
+        const SceneUnifiedViewModel viewModel = scene_presenter_.buildUnifiedViewModel(presenterInput);
+        const SceneMapViewModel &mapVm = viewModel.map;
+        const SceneNodeViewModel &nodeVm = viewModel.node;
 
-        if (!mapVm.runtimeReady || mapVm.atlas == nullptr)
+        if (!nodeVm.nodes.empty())
+        {
+            const bool nodeStillValid = std::any_of(nodeVm.nodes.begin(), nodeVm.nodes.end(), [&](const SceneNodeSummary &summary) {
+                return summary.id == ctx.state.scene_selected_node;
+            });
+            if (!nodeStillValid)
+            {
+                ctx.state.scene_selected_node = nodeVm.nodes.front().id;
+                ctx.state.scene_tile_selection.reset();
+            }
+        }
+
+        std::string nodePreviewLabel = "(未选择)";
+        if (nodeVm.active)
+        {
+            nodePreviewLabel = nodeVm.active->name.empty()
+                                   ? "节点 " + std::to_string(nodeVm.active->nodeId)
+                                   : nodeVm.active->name;
+        }
+        else if (ctx.state.scene_selected_node != 0)
+        {
+            if (auto it = std::find_if(nodeVm.nodes.begin(), nodeVm.nodes.end(), [&](const SceneNodeSummary &summary) {
+                    return summary.id == ctx.state.scene_selected_node;
+                });
+                it != nodeVm.nodes.end())
+            {
+                nodePreviewLabel = it->name.empty() ? "节点 " + std::to_string(it->id) : it->name;
+            }
+        }
+
+        if (!viewModel.runtimeReady || mapVm.atlas == nullptr)
         {
             ImGui::TextUnformatted("RuntimeBridge 未就绪。");
             return;
@@ -1244,6 +1265,25 @@ namespace Genesis::Sandbox::Gui
         const auto *agentPositionsPtr = ctx.latest_snapshot ? &ctx.latest_snapshot->agentPositions : nullptr;
 
         const float toggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        auto drawToolButton = [&](const char *label, SceneSelectionTool tool)
+        {
+            const bool active = (ctx.state.scene_selection_tool == tool);
+            PushActiveButtonStyle(active);
+            if (ImGui::Button(label))
+            {
+                ctx.state.scene_selection_tool = tool;
+            }
+            PopActiveButtonStyle(active);
+        };
+
+        drawToolButton("任意", SceneSelectionTool::Any);
+        ImGui::SameLine(0.0f, toggleSpacing);
+        drawToolButton("节点", SceneSelectionTool::Node);
+        ImGui::SameLine(0.0f, toggleSpacing);
+        drawToolButton("瓦片", SceneSelectionTool::Tile);
+        ImGui::SameLine(0.0f, toggleSpacing);
+        ImGui::TextDisabled("叠加层：");
+        ImGui::SameLine(0.0f, toggleSpacing);
         DrawOverlayToggleButton("SceneOverlayNodes", ctx.state.scene_show_graph, "节点", "Ctrl+1 切换节点/连线叠加");
         ImGui::SameLine(0.0f, toggleSpacing);
         DrawOverlayToggleButton("SceneOverlayResources", ctx.state.scene_show_resources, "资源", "Ctrl+2 切换资源叠加");
@@ -1255,6 +1295,44 @@ namespace Genesis::Sandbox::Gui
         DrawOverlayToggleButton("SceneOverlaySmooth", ctx.state.map_interpolate, "插值", "Ctrl+5 切换轨迹插值平滑");
         ImGui::SameLine(0.0f, toggleSpacing);
         DrawOverlayToggleButton("SceneOverlayRuler", ctx.state.scene_show_ruler, "标尺", "Ctrl+6 切换标尺（左键设起点，右键清除）");
+        if (!nodeVm.nodes.empty())
+        {
+            ImGui::SameLine(0.0f, toggleSpacing);
+            ImGui::TextDisabled("节点：");
+            ImGui::SameLine(0.0f, toggleSpacing);
+            ImGui::SetNextItemWidth(180.0f);
+            if (ImGui::BeginCombo("##SceneNodeSelector", nodePreviewLabel.c_str()))
+            {
+                for (const auto &summary : nodeVm.nodes)
+                {
+                    const bool selected = (summary.id == ctx.state.scene_selected_node);
+                    const std::string label = summary.name.empty() ? "节点 " + std::to_string(summary.id) : summary.name;
+                    if (ImGui::Selectable(label.c_str(), selected))
+                    {
+                        ctx.state.scene_selected_node = summary.id;
+                        ctx.state.map_selected_node = summary.id;
+                        ctx.state.scene_tile_selection.reset();
+                        ctx.state.scene_focus_node_request = summary.id;
+                    }
+                    if (selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+        if (nodeVm.active)
+        {
+            ImGui::SameLine(0.0f, toggleSpacing);
+            ImGui::TextDisabled("瓦片：");
+            ImGui::SameLine(0.0f, toggleSpacing);
+            DrawOverlayToggleButton("SceneGridToggle", ctx.state.scene_show_grid, "网格", "Ctrl+G 切换网格显示");
+            ImGui::SameLine(0.0f, toggleSpacing);
+            DrawOverlayToggleButton("SceneAnchorsToggle", ctx.state.scene_show_anchors, "锚点", "Ctrl+A 切换锚点显示");
+            ImGui::SameLine(0.0f, toggleSpacing);
+            DrawOverlayToggleButton("SceneResourcesToggle", ctx.state.scene_show_resources, "节点资源", "Ctrl+R 切换节点资源显示");
+        }
         if (ctx.state.show_agent_trails)
         {
             ImGui::SameLine();
@@ -1276,6 +1354,9 @@ namespace Genesis::Sandbox::Gui
         if (ImGui::Button("重置视图"))
         {
             ctx.resetMapViewCamera();
+            ctx.state.scene_cam_offset_x = 0.0f;
+            ctx.state.scene_cam_offset_y = 0.0f;
+            ctx.state.scene_cam_zoom = 1.5f;
         }
         ImGui::SameLine(0.0f, toggleSpacing);
         ImGui::TextDisabled("滚轮缩放｜右键拖拽｜Space 重置");
@@ -1317,8 +1398,28 @@ namespace Genesis::Sandbox::Gui
         const ImVec2 canvasExtent{std::max(120.0f, canvasAvail.x), std::max(120.0f, canvasAvail.y)};
         const ImVec2 canvasMax{canvasPos.x + canvasExtent.x, canvasPos.y + canvasExtent.y};
 
+        const bool hasTileOverlay = nodeVm.active.has_value();
+        ImVec2 tileOverlayPos{0.0f, 0.0f};
+        ImVec2 tileOverlaySize{0.0f, 0.0f};
+        ImRect tileOverlayRect;
+        if (hasTileOverlay)
+        {
+            const float overlayMargin = 18.0f;
+            const float minDimension = std::min(canvasExtent.x, canvasExtent.y);
+            const float widthAllowance = std::max(canvasExtent.x - overlayMargin * 2.0f, 140.0f);
+            const float heightAllowance = std::max(canvasExtent.y - overlayMargin * 2.0f, 140.0f);
+            const float desiredSize = std::max(minDimension * 0.55f, 220.0f);
+            const float overlayWidth = std::clamp(desiredSize, 140.0f, widthAllowance);
+            const float overlayHeight = std::clamp(desiredSize, 140.0f, heightAllowance);
+            tileOverlaySize = ImVec2(overlayWidth, overlayHeight);
+            tileOverlayPos = ImVec2(canvasMax.x - tileOverlaySize.x - overlayMargin,
+                                    canvasMax.y - tileOverlaySize.y - overlayMargin);
+            tileOverlayRect = ImRect(tileOverlayPos, ImVec2(tileOverlayPos.x + tileOverlaySize.x, tileOverlayPos.y + tileOverlaySize.y));
+        }
+
         ImGui::SetCursorScreenPos(canvasPos);
         ImGui::InvisibleButton("MapView.Canvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+        ImGui::SetItemAllowOverlap();
         const bool canvasHovered = ImGui::IsItemHovered();
         const bool canvasActive = ImGui::IsItemActive();
 
@@ -1328,6 +1429,7 @@ namespace Genesis::Sandbox::Gui
         drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
 
         ImGuiIO &io = ImGui::GetIO();
+        const bool pointerInsideOverlay = hasTileOverlay && tileOverlayRect.Contains(io.MousePos);
 
         if (!atlas.nodes.empty())
         {
@@ -1356,7 +1458,7 @@ namespace Genesis::Sandbox::Gui
                 ctx.state.scene_focus_node_request.reset();
             }
 
-            if (canvasHovered && io.MouseWheel != 0.0f)
+            if (canvasHovered && !pointerInsideOverlay && io.MouseWheel != 0.0f)
             {
                 const float zoomStep = io.MouseWheel > 0.0f ? 1.1f : 0.9f;
                 const float newZoom = std::clamp(ctx.state.map_zoom * zoomStep, 0.25f, 5.0f);
@@ -1372,7 +1474,7 @@ namespace Genesis::Sandbox::Gui
                 ctx.state.map_pan_y = newPan.y;
             }
 
-            if (canvasActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+            if (canvasActive && !pointerInsideOverlay && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
             {
                 ImVec2 delta = io.MouseDelta;
                 ctx.state.map_pan_x += delta.x;
@@ -1557,8 +1659,8 @@ namespace Genesis::Sandbox::Gui
                     }
                 }
 
-                // Click to open Scene View on this node
-                if (canvasHovered)
+                // Click to update selection states for this node
+                if (canvasHovered && !pointerInsideOverlay)
                 {
                     const ImVec2 mouse = io.MousePos;
                     const float dx = mouse.x - it->second.x;
@@ -1574,19 +1676,19 @@ namespace Genesis::Sandbox::Gui
                             ImGui::Text("Kind: %u", static_cast<unsigned int>(node.kind));
                             ImGui::EndTooltip();
                         }
-                        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        const bool nodeToolActive = ctx.state.scene_selection_tool == SceneSelectionTool::Any ||
+                                                     ctx.state.scene_selection_tool == SceneSelectionTool::Node;
+                        if (nodeToolActive && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         {
                             ctx.state.map_selected_node = node.id.value;
                             ctx.state.scene_selected_node = node.id.value;
-                            ctx.state.main_view_active_tab = MainViewTab::Scene;
-                            ctx.state.browser_active_section = BrowserSection::Scene;
-                            ctx.state.scene_view_mode = SceneViewMode::Node;
+                            ctx.state.scene_tile_selection.reset();
                         }
                     }
                 }
             }
 
-            if (canvasHovered && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+            if (canvasHovered && !pointerInsideOverlay && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
             {
                 const ImVec2 drag = io.MouseDragMaxDistanceAbs[ImGuiMouseButton_Right];
                 if (drag.x < 4.0f && drag.y < 4.0f)
@@ -1763,23 +1865,205 @@ namespace Genesis::Sandbox::Gui
                 }
             }
 
+            if (hasTileOverlay)
+            {
+                const SceneNodeDetails &details = *nodeVm.active;
+                const SceneNodeGridInfo &grid = details.grid;
+                const ImVec2 overlayMin = tileOverlayPos;
+                const ImVec2 overlayMax = ImVec2(tileOverlayPos.x + tileOverlaySize.x, tileOverlayPos.y + tileOverlaySize.y);
+                const ImU32 overlayBg = ImGui::GetColorU32(ImGuiCol_PopupBg);
+                const ImU32 overlayBorder = ImGui::GetColorU32(ImGuiCol_Border);
+                drawList->AddRectFilled(overlayMin, overlayMax, overlayBg, 8.0f);
+                drawList->AddRect(overlayMin, overlayMax, overlayBorder, 8.0f);
+
+                ImGui::SetCursorScreenPos(overlayMin);
+                ImGui::InvisibleButton("SceneTileOverlay.Canvas", tileOverlaySize, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+                ImGui::SetItemAllowOverlap();
+                const bool tileHovered = ImGui::IsItemHovered();
+                const bool tileActive = ImGui::IsItemActive();
+
+                const float headerLineHeight = ImGui::GetTextLineHeightWithSpacing();
+                const bool hasTileSelection = ctx.state.scene_tile_selection && ctx.state.scene_tile_selection->nodeId == details.nodeId;
+                const float headerLines = hasTileSelection ? 2.0f : 1.0f;
+                const float headerHeight = 12.0f + headerLineHeight * headerLines;
+
+                const ImVec2 titlePos{overlayMin.x + 12.0f, overlayMin.y + 8.0f};
+                drawList->AddText(titlePos, ImGui::GetColorU32(ImGuiCol_Text), nodePreviewLabel.c_str());
+                if (hasTileSelection)
+                {
+                    const auto &selected = *ctx.state.scene_tile_selection;
+                    char selectionBuf[64];
+                    std::snprintf(selectionBuf, sizeof(selectionBuf), "瓦片 (%d, %d)", selected.tileX, selected.tileY);
+                    drawList->AddText(ImVec2(titlePos.x, titlePos.y + headerLineHeight), ImGui::GetColorU32(ImGuiCol_Text), selectionBuf);
+                }
+                else
+                {
+                    drawList->AddText(ImVec2(titlePos.x, titlePos.y + headerLineHeight), ImGui::GetColorU32(ImGuiCol_TextDisabled), "左键选中瓦片｜右键拖拽");
+                }
+
+                if (tileHovered && io.MouseWheel != 0.0f)
+                {
+                    const float zoomStep = io.MouseWheel > 0.0f ? 1.15f : 0.9f;
+                    ctx.state.scene_cam_zoom = std::clamp(ctx.state.scene_cam_zoom * zoomStep, 0.05f, 12.0f);
+                }
+                if (tileActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+                {
+                    ctx.state.scene_cam_offset_x += io.MouseDelta.x;
+                    ctx.state.scene_cam_offset_y += io.MouseDelta.y;
+                }
+
+                const float tileZoom = std::max(0.05f, ctx.state.scene_cam_zoom);
+                const float cellPx = grid.baseTileSize * tileZoom;
+                const ImVec2 gridMin{overlayMin.x + 10.0f, overlayMin.y + headerHeight};
+                const ImVec2 gridMax{overlayMax.x - 10.0f, overlayMax.y - 12.0f};
+
+                auto toTileScreen = [&](float gx, float gy)
+                {
+                    const float sx = gridMin.x + ctx.state.scene_cam_offset_x + (gx - static_cast<float>(grid.minX)) * cellPx;
+                    const float sy = gridMin.y + ctx.state.scene_cam_offset_y + (gy - static_cast<float>(grid.minY)) * cellPx;
+                    return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
+                };
+
+                auto tileFromScreen = [&](const ImVec2 &screen) -> std::optional<std::pair<int, int>>
+                {
+                    const float gx = (screen.x - gridMin.x - ctx.state.scene_cam_offset_x) / cellPx + static_cast<float>(grid.minX);
+                    const float gy = (screen.y - gridMin.y - ctx.state.scene_cam_offset_y) / cellPx + static_cast<float>(grid.minY);
+                    const int tileX = static_cast<int>(std::floor(gx));
+                    const int tileY = static_cast<int>(std::floor(gy));
+                    if (tileX < grid.minX || tileX > grid.maxX || tileY < grid.minY || tileY > grid.maxY)
+                    {
+                        return std::nullopt;
+                    }
+                    return std::pair{tileX, tileY};
+                };
+
+                drawList->PushClipRect(gridMin, gridMax, true);
+
+                if (details.tilemap)
+                {
+                    const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
+                    const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
+                    for (int y = 0; y < details.tilemap->height; ++y)
+                    {
+                        for (int x = 0; x < details.tilemap->width; ++x)
+                        {
+                            const float gx0 = static_cast<float>(grid.minX + x);
+                            const float gy0 = static_cast<float>(grid.minY + y);
+                            const ImVec2 cellMin = toTileScreen(gx0, gy0);
+                            const ImVec2 cellMax = toTileScreen(gx0 + 1.0f, gy0 + 1.0f);
+                            const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
+                            drawList->AddRectFilled(cellMin, cellMax, fill);
+                        }
+                    }
+                }
+
+                if (ctx.state.scene_show_grid)
+                {
+                    const ImU32 gridColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+                    for (int x = grid.minX; x <= grid.maxX + 1; ++x)
+                    {
+                        const ImVec2 a = toTileScreen(static_cast<float>(x), static_cast<float>(grid.minY));
+                        const ImVec2 b = toTileScreen(static_cast<float>(x), static_cast<float>(grid.maxY + 1));
+                        drawList->AddLine(a, b, gridColor, 1.0f);
+                    }
+                    for (int y = grid.minY; y <= grid.maxY + 1; ++y)
+                    {
+                        const ImVec2 a = toTileScreen(static_cast<float>(grid.minX), static_cast<float>(y));
+                        const ImVec2 b = toTileScreen(static_cast<float>(grid.maxX + 1), static_cast<float>(y));
+                        drawList->AddLine(a, b, gridColor, 1.0f);
+                    }
+                }
+
+                if (ctx.state.scene_show_resources)
+                {
+                    const ImU32 resourceColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
+                    for (const auto &resource : details.resources)
+                    {
+                        const ImVec2 center = toTileScreen(resource.x + 0.5f, resource.y + 0.5f);
+                        const float radius = std::max(3.0f, cellPx * 0.25f);
+                        drawList->AddCircleFilled(center, radius, resourceColor, 12);
+                        drawList->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.1f);
+                    }
+                }
+
+                if (ctx.state.scene_show_anchors)
+                {
+                    const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+                    for (const auto &anchor : details.anchors)
+                    {
+                        const ImVec2 base = toTileScreen(anchor.x + 0.5f, anchor.y + 0.5f);
+                        const float w = std::max(4.0f, cellPx * 0.2f);
+                        const ImVec2 a{base.x - w, base.y};
+                        const ImVec2 b{base.x + w, base.y};
+                        const ImVec2 c{base.x, base.y + w * 1.6f};
+                        drawList->AddTriangleFilled(a, b, c, anchorColor);
+                        drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
+                        const std::string label = std::string("-> ") + std::to_string(anchor.targetNodeId);
+                        const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
+                        drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
+                    }
+                }
+
+                const std::optional<std::pair<int, int>> hoveredTile = (tileHovered ? tileFromScreen(io.MousePos) : std::nullopt);
+                if (hoveredTile)
+                {
+                    const ImVec2 hMin = toTileScreen(static_cast<float>(hoveredTile->first), static_cast<float>(hoveredTile->second));
+                    const ImVec2 hMax = toTileScreen(static_cast<float>(hoveredTile->first + 1), static_cast<float>(hoveredTile->second + 1));
+                    drawList->AddRect(hMin, hMax, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight)), 0.0f, 0, 1.5f);
+                }
+
+                if (ctx.state.scene_tile_selection && ctx.state.scene_tile_selection->nodeId == details.nodeId)
+                {
+                    const auto &sel = *ctx.state.scene_tile_selection;
+                    const ImVec2 sMin = toTileScreen(static_cast<float>(sel.tileX), static_cast<float>(sel.tileY));
+                    const ImVec2 sMax = toTileScreen(static_cast<float>(sel.tileX + 1), static_cast<float>(sel.tileY + 1));
+                    drawList->AddRect(sMin, sMax, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent)), 0.0f, 0, 2.0f);
+                }
+
+                drawList->PopClipRect();
+                drawList->AddRect(gridMin, gridMax, overlayBorder, 4.0f);
+
+                const bool tileToolActive = ctx.state.scene_selection_tool == SceneSelectionTool::Any ||
+                                             ctx.state.scene_selection_tool == SceneSelectionTool::Tile;
+                if (tileToolActive && tileHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    if (auto picked = tileFromScreen(io.MousePos))
+                    {
+                        ctx.state.scene_tile_selection = SceneTileSelection{details.nodeId, picked->first, picked->second};
+                        ctx.state.scene_selected_node = details.nodeId;
+                        ctx.state.map_selected_node = details.nodeId;
+                    }
+                }
+
+                if (tileHovered)
+                {
+                    if (auto hover = tileFromScreen(io.MousePos))
+                    {
+                        char hoverBuf[64];
+                        std::snprintf(hoverBuf, sizeof(hoverBuf), "指向 (%d, %d)", hover->first, hover->second);
+                        drawList->AddText(ImVec2(gridMin.x, overlayMax.y - 18.0f), ImGui::GetColorU32(ImGuiCol_Text), hoverBuf);
+                    }
+                }
+            }
+
             if (ctx.state.scene_show_ruler)
             {
                 const ImU32 rulerColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive));
                 const ImVec2 cursor = io.MousePos;
                 const bool cursorInside = cursor.x >= canvasPos.x && cursor.x <= canvasMax.x &&
                                           cursor.y >= canvasPos.y && cursor.y <= canvasMax.y;
-                if (cursorInside)
+                const bool cursorInsideWithOverlay = cursorInside && !pointerInsideOverlay;
+                if (cursorInsideWithOverlay)
                 {
                     drawList->AddLine(ImVec2(cursor.x, canvasPos.y), ImVec2(cursor.x, canvasMax.y), rulerColor, 1.0f);
                     drawList->AddLine(ImVec2(canvasPos.x, cursor.y), ImVec2(canvasMax.x, cursor.y), rulerColor, 1.0f);
                 }
 
-                if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                if (canvasHovered && !pointerInsideOverlay && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 {
                     ctx.state.scene_ruler_anchor = fromScreen(cursor);
                 }
-                if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                if (!pointerInsideOverlay && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
                 {
                     ctx.state.scene_ruler_anchor.reset();
                 }
@@ -1800,7 +2084,7 @@ namespace Genesis::Sandbox::Gui
                     ImVec2 textPos{cursor.x + 12.0f, cursor.y - 18.0f};
                     drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
                 }
-                else if (cursorInside)
+                else if (cursorInsideWithOverlay)
                 {
                     const RuntimeBridge::Vector2 cursorWorld = fromScreen(cursor);
                     char buffer[64];
@@ -1829,182 +2113,6 @@ namespace Genesis::Sandbox::Gui
             const ImU32 textColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::TextSecondary));
             drawList->AddRectFilled(bgMin, bgMax, bgColorOverlay);
             drawList->AddText(textPos, textColor, message);
-        }
-
-    }
-    void MainView::drawSceneNode(UiContext &ctx)
-    {
-        if (!ctx.runtime_bridge)
-        {
-            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
-            return;
-        }
-
-        const auto &atlas = ctx.runtime_bridge->atlas();
-
-        if (ctx.state.scene_selected_node == 0 && !atlas.nodes.empty())
-        {
-            ctx.state.scene_selected_node = atlas.nodes.front().id.value;
-        }
-
-        ScenePresenterInput presenterInput{
-            ctx.state,
-            &atlas,
-            ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
-        const SceneNodeViewModel nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
-
-        const char *previewLabel = "(none)";
-        if (nodeVm.active)
-        {
-            previewLabel = nodeVm.active->name.c_str();
-        }
-        else
-        {
-            for (const auto &summary : nodeVm.nodes)
-            {
-                if (summary.id == ctx.state.scene_selected_node)
-                {
-                    previewLabel = summary.name.c_str();
-                    break;
-                }
-            }
-        }
-
-        if (ImGui::BeginCombo("节点", previewLabel))
-        {
-            for (const auto &summary : nodeVm.nodes)
-            {
-                const bool selected = (summary.id == ctx.state.scene_selected_node);
-                if (ImGui::Selectable(summary.name.c_str(), selected))
-                {
-                    ctx.state.scene_selected_node = summary.id;
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-
-        const float nodeToggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        DrawOverlayToggleButton("SceneGridToggle", ctx.state.scene_show_grid, "网格", "Ctrl+G 切换网格显示");
-        ImGui::SameLine(0.0f, nodeToggleSpacing);
-        DrawOverlayToggleButton("SceneAnchorsToggle", ctx.state.scene_show_anchors, "锚点", "Ctrl+A 切换锚点显示");
-        ImGui::SameLine(0.0f, nodeToggleSpacing);
-        DrawOverlayToggleButton("SceneResourcesToggle", ctx.state.scene_show_resources, "资源", "Ctrl+R 切换资源显示");
-
-        if (!nodeVm.active)
-        {
-            ImGui::TextUnformatted("暂无节点数据。");
-            return;
-        }
-
-        const SceneNodeDetails &details = *nodeVm.active;
-        const SceneNodeGridInfo &grid = details.grid;
-
-        const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
-        const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-        const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
-        ImDrawList *drawList = ImGui::GetWindowDrawList();
-        const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
-        drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
-        drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
-
-        ImGui::InvisibleButton("SceneCanvas", ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y), ImGuiButtonFlags_MouseButtonRight);
-        const bool hovered = ImGui::IsItemHovered();
-        const bool active = ImGui::IsItemActive();
-        ImGuiIO &io = ImGui::GetIO();
-        if (hovered && io.MouseWheel != 0.0f)
-        {
-            const float zoomStep = 1.0f + (io.MouseWheel > 0.0f ? 0.1f : -0.1f);
-            ctx.state.scene_cam_zoom = std::max(ctx.state.scene_cam_zoom * zoomStep, 0.05f);
-        }
-        if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
-        {
-            ImVec2 delta = ImGui::GetIO().MouseDelta;
-            ctx.state.scene_cam_offset_x += delta.x;
-            ctx.state.scene_cam_offset_y += delta.y;
-        }
-
-        const float basePx = grid.baseTileSize;
-        const float cellPx = basePx * ctx.state.scene_cam_zoom;
-
-        auto toScreen = [&](float gx, float gy)
-        {
-            const float sx = canvasPos.x + ctx.state.scene_cam_offset_x + (gx - static_cast<float>(grid.minX)) * cellPx + 8.0f;
-            const float sy = canvasPos.y + ctx.state.scene_cam_offset_y + (gy - static_cast<float>(grid.minY)) * cellPx + 8.0f;
-            return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
-        };
-
-        const int cols = (grid.maxX - grid.minX + 1);
-        const int rows = (grid.maxY - grid.minY + 1);
-        const ImU32 gridColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-
-        if (details.tilemap)
-        {
-            const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
-            const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
-            for (int y = 0; y < details.tilemap->height; ++y)
-            {
-                for (int x = 0; x < details.tilemap->width; ++x)
-                {
-                    const float gx0 = static_cast<float>(grid.minX + x);
-                    const float gy0 = static_cast<float>(grid.minY + y);
-                    const float gx1 = gx0 + 1.0f;
-                    const float gy1 = gy0 + 1.0f;
-                    const ImVec2 cellMin = toScreen(gx0, gy0);
-                    const ImVec2 cellMax = toScreen(gx1, gy1);
-                    const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
-                    drawList->AddRectFilled(cellMin, cellMax, fill);
-                }
-            }
-        }
-
-        if (ctx.state.scene_show_grid)
-        {
-            for (int x = 0; x <= cols; ++x)
-            {
-                const ImVec2 a = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.minY));
-                const ImVec2 b = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.maxY + 1));
-                drawList->AddLine(a, b, gridColor, 1.0f);
-            }
-            for (int y = 0; y <= rows; ++y)
-            {
-                const ImVec2 a = toScreen(static_cast<float>(grid.minX), static_cast<float>(grid.minY + y));
-                const ImVec2 b = toScreen(static_cast<float>(grid.maxX + 1), static_cast<float>(grid.minY + y));
-                drawList->AddLine(a, b, gridColor, 1.0f);
-            }
-        }
-
-        if (ctx.state.scene_show_resources)
-        {
-            const ImU32 resourceColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-            for (const auto &resource : details.resources)
-            {
-                const ImVec2 center = toScreen(resource.x + 0.5f, resource.y + 0.5f);
-                const float radius = std::max(3.0f, cellPx * 0.25f);
-                drawList->AddCircleFilled(center, radius, resourceColor, 12);
-                drawList->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.2f);
-            }
-        }
-
-        if (ctx.state.scene_show_anchors)
-        {
-            const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-            for (const auto &anchor : details.anchors)
-            {
-                const ImVec2 base = toScreen(anchor.x + 0.5f, anchor.y + 0.5f);
-                const float w = std::max(4.0f, cellPx * 0.2f);
-                const ImVec2 a{base.x - w, base.y};
-                const ImVec2 b{base.x + w, base.y};
-                const ImVec2 c{base.x, base.y + w * 1.6f};
-                drawList->AddTriangleFilled(a, b, c, anchorColor);
-                drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
-                const std::string label = std::string("-> ") + std::to_string(anchor.targetNodeId);
-                const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
-                drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
-            }
         }
 
     }

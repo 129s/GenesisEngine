@@ -17,11 +17,10 @@ private:
     MonitorPresenter monitor_presenter_;
 
     void drawSceneTab(UiContext& ctx);
+    void drawSceneUnified(UiContext& ctx);
     void drawWorldTab(UiContext& ctx);
     void drawMonitorTab(UiContext& ctx);
     void drawSettingsTab(UiContext& ctx);
-    void drawSceneWorldMap(UiContext& ctx);
-    void drawSceneNode(UiContext& ctx);
     void drawMonitorTelemetry(UiContext& ctx);
     void drawMonitorLog(UiContext& ctx);
 };

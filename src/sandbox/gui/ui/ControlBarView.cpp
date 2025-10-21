@@ -6,6 +6,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <cmath>
 
 namespace Genesis::Sandbox::Gui
 {
@@ -120,9 +121,10 @@ void ControlBarView::render(UiContext& ctx)
             if (ctx.latest_snapshot)
             {
                 const auto& tick = ctx.latest_snapshot->telemetry;
-                ImGui::Text("Step %llu  |  FPS %.1f",
+                const int fpsRounded = static_cast<int>(std::lround(ctx.state.ui_fps_display));
+                ImGui::Text("Step %llu  |  FPS %d",
                             static_cast<unsigned long long>(tick.step),
-                            ImGui::GetIO().Framerate);
+                            fpsRounded);
             }
             else
             {

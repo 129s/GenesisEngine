@@ -1528,6 +1528,21 @@ namespace Genesis::Sandbox::Gui
         drawList->AddRect(selMin, selMax, highlightColor, 0.0f, 0, 2.0f);
     }
 
+    if (ctx.state.ui_fps_display > 0.0f)
+    {
+        const int fpsRounded = static_cast<int>(std::lround(ctx.state.ui_fps_display));
+        char fpsBuffer[16];
+        std::snprintf(fpsBuffer, sizeof(fpsBuffer), "FPS %d", fpsRounded);
+        const ImVec2 textSize = ImGui::CalcTextSize(fpsBuffer);
+        const ImVec2 padding{6.0f, 4.0f};
+        const ImVec2 textPos{canvasPos.x + 10.0f, canvasPos.y + 10.0f};
+        const ImVec2 bgMin{textPos.x - padding.x, textPos.y - padding.y};
+        const ImVec2 bgMax{textPos.x + textSize.x + padding.x, textPos.y + textSize.y + padding.y};
+        drawList->AddRectFilled(bgMin, bgMax, ImGui::GetColorU32(ImVec4(0.08f, 0.09f, 0.12f, 0.85f)), 4.0f);
+        drawList->AddRect(bgMin, bgMax, ImGui::GetColorU32(ImGuiCol_Border), 0.0f, ImDrawFlags_RoundCornersAll, 1.0f);
+        drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), fpsBuffer);
+    }
+
     if (hoveredTile)
     {
         ImVec2 hMin = toScreenRaw(static_cast<float>(hoveredTile->first), static_cast<float>(hoveredTile->second));

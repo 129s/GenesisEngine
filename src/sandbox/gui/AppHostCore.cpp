@@ -289,17 +289,26 @@ namespace Genesis::Sandbox::Gui
         ImGui::NewFrame();
     }
 
-    void AppHost::renderGui()
+void AppHost::renderGui()
+{
+    updateRuntimeSnapshot();
     {
-        updateRuntimeSnapshot();
-        drawDockspace();
-        browser_view_.render(ui_context_);
-        main_view_.render(ui_context_);
-        inspector_view_.render(ui_context_);
-        status_bar_view_.render(ui_context_);
-        control_bar_view_.render(ui_context_);
-        drawToasts();
+        ImGuiIO &io = ImGui::GetIO();
+        const double now = ImGui::GetTime();
+        if (ui_state_.ui_fps_last_sample_time <= 0.0 || now - ui_state_.ui_fps_last_sample_time >= 0.25)
+        {
+            ui_state_.ui_fps_display = io.Framerate;
+            ui_state_.ui_fps_last_sample_time = now;
+        }
     }
+    drawDockspace();
+    browser_view_.render(ui_context_);
+    main_view_.render(ui_context_);
+    inspector_view_.render(ui_context_);
+    status_bar_view_.render(ui_context_);
+    control_bar_view_.render(ui_context_);
+    drawToasts();
+}
 
     void AppHost::endFrame()
     {

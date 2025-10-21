@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <functional>
 #include <cstdint>
 #include <numeric>
@@ -386,8 +387,8 @@ void BrowserView::render(UiContext& ctx)
     {
         ImGui::TextUnformatted("运行状态与告警总览");
         ImGui::Separator();
-        const ImGuiIO& io = ImGui::GetIO();
-        ImGui::Text("UI FPS %.1f", io.Framerate);
+        const int fpsRounded = static_cast<int>(std::lround(ctx.state.ui_fps_display));
+        ImGui::Text("UI FPS %d", fpsRounded);
 
         if (snapshot)
         {

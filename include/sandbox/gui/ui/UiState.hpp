@@ -59,6 +59,8 @@ struct UiState
     bool log_auto_scroll{true};
     std::shared_ptr<ImGuiLogSink> log_sink;
     std::size_t log_last_line_count{0};
+    float ui_fps_display{0.0f};
+    double ui_fps_last_sample_time{0.0};
 
     bool show_agent_overlay{true};
     bool show_agent_trails{false};

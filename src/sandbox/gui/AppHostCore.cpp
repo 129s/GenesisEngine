@@ -202,8 +202,11 @@ bool AppHost::initializeImGui()
     defaultCfg.OversampleH = 1;
     defaultCfg.OversampleV = 1;
     defaultCfg.PixelSnapH = true;
-    ImFont* defaultFont = io.Fonts->AddFontDefault(&defaultCfg);
-    const float baseFontSize = defaultFont ? defaultFont->FontSize : 14.0f;
+    if (!io.Fonts->AddFontDefault(&defaultCfg))
+    {
+        io.Fonts->AddFontDefault();
+    }
+    const float baseFontSize = 14.0f;
 
     bool hasCjkFont = false;
     if (auto cjkFont = locateCjkFont(); !cjkFont.empty())
@@ -211,12 +214,9 @@ bool AppHost::initializeImGui()
         ImFontConfig config;
         config.MergeMode = true;
         config.FontDataOwnedByAtlas = false;
-        config.OversampleH = 2;
-        config.OversampleV = 2;
+        config.OversampleH = 1;
+        config.OversampleV = 1;
         config.PixelSnapH = true;
-        config.GlyphMinAdvanceX = baseFontSize;
-        config.GlyphMaxAdvanceX = baseFontSize;
-        config.GlyphOffset.y = -0.5f;
 #ifdef IMGUI_ENABLE_FREETYPE
         config.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_Monochrome | ImGuiFreeTypeBuilderFlags_ForceAutoHint;
 #endif

@@ -13,6 +13,10 @@
 
 #include "sandbox/gui/RuntimeBridge.hpp"
 #include "sandbox/gui/ui/UiContext.hpp"
+#include "sandbox/gui/ui/StatusBarView.hpp"
+#include "sandbox/gui/ui/ControlBarView.hpp"
+#include "sandbox/gui/ui/BrowserView.hpp"
+#include "sandbox/gui/ui/MainView.hpp"
 
 #include <imgui.h>
 
@@ -53,22 +57,8 @@ private:
     void endFrame();
 
     void drawDockspace();
-    void drawStatusBar();
-    void drawControlBar();
-    void drawBrowserPanel();
-    void drawMainViewPanel();
-    void drawInspectorPanel();
     void drawToasts();
     void handleShortcuts();
-
-    void drawSceneTabContent();
-    void drawWorldTabContent();
-    void drawMonitorTabContent();
-    void drawSettingsTabContent();
-    void drawSceneWorldMapContent();
-    void drawSceneNodeContent();
-    void drawMonitorTelemetryContent();
-    void drawMonitorLogContent();
 
     void updateRuntimeSnapshot();
     void updateAgentTrails(const RuntimeBridge::Snapshot& snapshot);
@@ -92,6 +82,11 @@ private:
 
     UiState ui_state_;
     UiContext ui_context_;
+    StatusBarView status_bar_view_;
+    ControlBarView control_bar_view_;
+    BrowserView browser_view_;
+    MainView main_view_;
+    InspectorView inspector_view_;
     void pushToast(const std::string& text, const ImVec4& color, double lifetimeSec = 3.0);
 
 };

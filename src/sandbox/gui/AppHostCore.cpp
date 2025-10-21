@@ -290,11 +290,11 @@ void AppHost::renderGui()
 {
     updateRuntimeSnapshot();
     drawDockspace();
-    drawBrowserPanel();
-    drawMainViewPanel();
-    drawInspectorPanel();
-    drawStatusBar();
-    drawControlBar();
+    browser_view_.render(ui_context_);
+    main_view_.render(ui_context_);
+    inspector_view_.render(ui_context_);
+    status_bar_view_.render(ui_context_);
+    control_bar_view_.render(ui_context_);
     drawToasts();
 }
 

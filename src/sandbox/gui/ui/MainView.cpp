@@ -3,7 +3,6 @@
 #include "../ImGuiLogSink.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
 
-
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -24,445 +23,429 @@
 
 namespace Genesis::Sandbox::Gui
 {
-using json = nlohmann::json;
+    using json = nlohmann::json;
 
-namespace
-{
-    void PushActiveButtonStyle(bool active)
+    namespace
     {
-        if (active)
+        void PushActiveButtonStyle(bool active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, Style::DesignTokens::color(Style::ColorToken::Primary));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Style::DesignTokens::color(Style::ColorToken::PrimaryHover));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Style::DesignTokens::color(Style::ColorToken::PrimaryActive));
-        }
-    }
-
-    void PopActiveButtonStyle(bool active)
-    {
-        if (active)
-        {
-            ImGui::PopStyleColor(3);
-        }
-    }
-
-    void DrawOverlayToggleButton(const char* id, bool& value, const char* label, const char* tooltip)
-    {
-        const bool initiallyActive = value;
-        PushActiveButtonStyle(initiallyActive);
-        std::string buttonLabel = std::string(label) + "##" + id;
-        if (ImGui::Button(buttonLabel.c_str()))
-        {
-            value = !value;
-        }
-        if (tooltip && tooltip[0] != '\0' && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
-        {
-            ImGui::SetTooltip("%s", tooltip);
-        }
-        PopActiveButtonStyle(initiallyActive);
-    }
-} // namespace
-
-void MainView::render(UiContext& ctx)
-{
-    if (!ImGui::Begin("Main View", nullptr, ImGuiWindowFlags_NoCollapse))
-    {
-        ImGui::End();
-        return;
-    }
-
-    auto drawTabButton = [&](const char* label, MainViewTab tab, BrowserSection section) {
-        const bool active = (ctx.state.main_view_active_tab == tab);
-        PushActiveButtonStyle(active);
-        if (ImGui::Button(label, ImVec2(0.0f, 0.0f)))
-        {
-            ctx.state.main_view_active_tab = tab;
-            ctx.state.browser_active_section = section;
-        }
-        PopActiveButtonStyle(active);
-    };
-
-    drawTabButton("Scene", MainViewTab::Scene, BrowserSection::Scene);
-    ImGui::SameLine();
-    drawTabButton("World", MainViewTab::World, BrowserSection::World);
-    ImGui::SameLine();
-    drawTabButton("Monitor", MainViewTab::Monitor, BrowserSection::Monitor);
-    ImGui::SameLine();
-    drawTabButton("Settings", MainViewTab::Settings, BrowserSection::LayoutsThemes);
-
-    ImGui::Separator();
-
-    if (ImGui::BeginChild("MainViewContent", ImVec2(0.0f, 0.0f), false))
-    {
-        switch (ctx.state.main_view_active_tab)
-        {
-        case MainViewTab::Scene:
-            drawSceneTab(ctx);
-            break;
-        case MainViewTab::World:
-            drawWorldTab(ctx);
-            break;
-        case MainViewTab::Monitor:
-            drawMonitorTab(ctx);
-            break;
-        case MainViewTab::Settings:
-            drawSettingsTab(ctx);
-            break;
-        }
-    }
-    ImGui::EndChild();
-
-    ImGui::End();
-}
-
-void MainView::drawSceneTab(UiContext& ctx)
-{
-    auto drawModeButton = [&](const char* label, SceneViewMode mode) {
-        const bool active = (ctx.state.scene_view_mode == mode);
-        PushActiveButtonStyle(active);
-        if (ImGui::Button(label))
-        {
-            ctx.state.scene_view_mode = mode;
-        }
-        PopActiveButtonStyle(active);
-    };
-
-    drawModeButton("世界概览", SceneViewMode::Map);
-    ImGui::SameLine();
-    drawModeButton("节点细节", SceneViewMode::Node);
-
-    ImGui::Separator();
-
-    if (ctx.state.scene_view_mode == SceneViewMode::Map)
-    {
-        drawSceneWorldMap(ctx);
-    }
-    else
-    {
-        drawSceneNode(ctx);
-    }
-}
-
-void MainView::drawWorldTab(UiContext& ctx)
-{
-    const bool runtimeReady = (ctx.runtime_bridge != nullptr);
-    std::vector<RuntimeBridge::CommandProgress> commandStatuses;
-    if (runtimeReady)
-    {
-        commandStatuses = ctx.runtime_bridge->commandStatusSnapshot();
-        ctx.updateWorldCommandStatuses(commandStatuses);
-    }
-
-    WorldPresenterInput presenterInput{
-        ctx.state,
-        ctx.runtime_bridge,
-        runtimeReady ? &commandStatuses : nullptr};
-    const WorldViewModel worldVm = world_presenter_.buildWorldViewModel(presenterInput);
-
-    ImGui::TextUnformatted("世界生成 / 加载 / 保存");
-    ImGui::Separator();
-
-    ImGui::InputText("配置路径", ctx.state.worldgen_config_buffer.data(), ctx.state.worldgen_config_buffer.size());
-    ImGui::InputText("输出路径", ctx.state.worldgen_output_buffer.data(), ctx.state.worldgen_output_buffer.size());
-
-    if (ImGui::Checkbox("随机种子", &ctx.state.worldgen_use_random_seed))
-    {
-        if (ctx.state.worldgen_use_random_seed)
-        {
-            ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
-        }
-    }
-
-    if (ctx.state.worldgen_use_random_seed)
-    {
-        ImGui::SameLine();
-        if (ImGui::Button("刷新种子"))
-        {
-            ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
-        }
-        ImGui::SameLine();
-        ImGui::Text("Seed %llu", static_cast<unsigned long long>(ctx.state.worldgen_seed));
-    }
-    else
-    {
-        ImGui::InputScalar("固定种子", ImGuiDataType_U64, &ctx.state.worldgen_seed);
-    }
-
-    const std::string configInput(ctx.state.worldgen_config_buffer.data());
-    const std::string outputInput(ctx.state.worldgen_output_buffer.data());
-    const bool hasConfig = worldVm.hasConfigPath;
-    if (!hasConfig)
-    {
-        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写配置文件路径");
-    }
-
-    if (!runtimeReady || !hasConfig)
-    {
-        ImGui::BeginDisabled();
-    }
-    if (ImGui::Button("生成世界"))
-    {
-        if (runtimeReady)
-        {
-            json command = {
-                {"action", "world.generate"},
-                {"configPath", configInput},
-            };
-            if (!ctx.state.worldgen_use_random_seed)
+            if (active)
             {
-                command["seed"] = ctx.state.worldgen_seed;
-            }
-            if (!outputInput.empty())
-            {
-                command["outputPath"] = outputInput;
-            }
-
-            std::string error;
-            if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
-            {
-                ctx.state.worldgen_command_id = id;
-                ctx.state.world_command_status = "命令已提交 #" + std::to_string(*id);
-            }
-            else
-            {
-                ctx.state.world_command_status = "提交失败：" + error;
+                ImGui::PushStyleColor(ImGuiCol_Button, Style::DesignTokens::color(Style::ColorToken::Primary));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Style::DesignTokens::color(Style::ColorToken::PrimaryHover));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, Style::DesignTokens::color(Style::ColorToken::PrimaryActive));
             }
         }
-    }
-    if (!runtimeReady || !hasConfig)
-    {
-        ImGui::EndDisabled();
-    }
-    if (!ctx.state.world_command_status.empty())
-    {
-        ImGui::TextWrapped("%s", ctx.state.world_command_status.c_str());
-    }
 
-    if (runtimeReady)
-    {
-        if (auto resultOpt = ctx.runtime_bridge->lastGeneration(); resultOpt)
+        void PopActiveButtonStyle(bool active)
         {
-            const auto& result = *resultOpt;
-            ImGui::Separator();
-            if (result.success)
+            if (active)
             {
-                ImGui::TextUnformatted("最近一次生成成功");
-                ImGui::BulletText("Config: %s", result.configPath.string().c_str());
-                ImGui::BulletText("Seed: %llu", static_cast<unsigned long long>(result.seed.value));
-                ImGui::BulletText("Locations: %zu · Edges: %zu", result.locationCount, result.edgeCount);
-                ImGui::BulletText("Duration: %.2f ms", result.durationMs);
-                if (result.outputPath)
-                {
-                    ImGui::BulletText("Output: %s", result.outputPath->string().c_str());
-                }
-                else
-                {
-                    ImGui::BulletText("Output: in-memory");
-        }
-    }
-    else
-            {
-                ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "生成失败：%s", result.error.c_str());
-            }
-
-            if (!result.logs.empty())
-            {
-                if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 160.0f), true))
-                {
-                    for (const auto& entry : result.logs)
-                    {
-                        ImGui::TextUnformatted(entry.message.c_str());
-                    }
-                }
-                ImGui::EndChild();
+                ImGui::PopStyleColor(3);
             }
         }
-    }
 
-    ImGui::Separator();
-    ImGui::InputText("加载路径", ctx.state.world_load_buffer.data(), ctx.state.world_load_buffer.size());
-    const std::string loadInput(ctx.state.world_load_buffer.data());
-    if (loadInput.empty())
-    {
-        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写加载路径");
-    }
-
-    if (!runtimeReady || loadInput.empty())
-    {
-        ImGui::BeginDisabled();
-    }
-    if (ImGui::Button("加载世界"))
-    {
-        if (runtimeReady)
+        void DrawOverlayToggleButton(const char *id, bool &value, const char *label, const char *tooltip)
         {
-            json command = {
-                {"action", "world.load"},
-                {"path", loadInput},
-            };
-            std::string error;
-            if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+            const bool initiallyActive = value;
+            PushActiveButtonStyle(initiallyActive);
+            std::string buttonLabel = std::string(label) + "##" + id;
+            if (ImGui::Button(buttonLabel.c_str()))
             {
-                ctx.state.world_load_command_id = id;
-                ctx.state.world_load_status = "加载任务已提交 #" + std::to_string(*id);
+                value = !value;
             }
-            else
+            if (tooltip && tooltip[0] != '\0' && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
             {
-                ctx.state.world_load_status = "加载失败：" + error;
+                ImGui::SetTooltip("%s", tooltip);
             }
+            PopActiveButtonStyle(initiallyActive);
         }
-    }
-    if (!runtimeReady || loadInput.empty())
-    {
-        ImGui::EndDisabled();
-    }
-    if (!ctx.state.world_load_status.empty())
-    {
-        ImGui::TextWrapped("%s", ctx.state.world_load_status.c_str());
-    }
+    } // namespace
 
-    ImGui::InputText("保存路径", ctx.state.world_save_buffer.data(), ctx.state.world_save_buffer.size());
-    const std::string saveInput(ctx.state.world_save_buffer.data());
-    if (saveInput.empty())
+    void MainView::render(UiContext &ctx)
     {
-        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写保存路径");
-    }
-
-    if (!runtimeReady || saveInput.empty())
-    {
-        ImGui::BeginDisabled();
-    }
-    if (ImGui::Button("保存世界"))
-    {
-        if (runtimeReady)
+        if (!ImGui::Begin("Main View", nullptr, ImGuiWindowFlags_NoCollapse))
         {
-            json command = {
-                {"action", "world.save"},
-                {"path", saveInput},
-            };
-            std::string error;
-            if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
-            {
-                ctx.state.world_save_command_id = id;
-                ctx.state.world_save_status = "保存任务已提交 #" + std::to_string(*id);
-            }
-            else
-            {
-                ctx.state.world_save_status = "保存失败：" + error;
-            }
+            ImGui::End();
+            return;
         }
-    }
-    if (!runtimeReady || saveInput.empty())
-    {
-        ImGui::EndDisabled();
-    }
-    if (!ctx.state.world_save_status.empty())
-    {
-        ImGui::TextWrapped("%s", ctx.state.world_save_status.c_str());
-    }
 
-    ImGui::Separator();
-    ImGui::InputText("脚本路径", ctx.state.command_script_buffer.data(), ctx.state.command_script_buffer.size());
-    const std::string scriptPath(ctx.state.command_script_buffer.data());
-    if (scriptPath.empty())
-    {
-        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写脚本路径");
-    }
-
-    if (!runtimeReady)
-    {
-        ImGui::BeginDisabled();
-    }
-    if (ImGui::Button("运行脚本"))
-    {
-        if (scriptPath.empty())
+        if (ImGui::BeginChild("MainViewContent", ImVec2(0.0f, 0.0f), false))
         {
-            ctx.state.command_script_status = "请先填写脚本路径";
-        }
-        else if (runtimeReady)
-        {
-            std::string error;
-            if (ctx.runtime_bridge->enqueueCommandScript(std::filesystem::path(scriptPath), "script", error))
+            switch (ctx.state.main_view_active_tab)
             {
-                ctx.state.command_script_status = "脚本已入队";
-            }
-            else
-            {
-                ctx.state.command_script_status = "脚本执行失败：" + error;
-            }
-        }
-    }
-    if (!runtimeReady)
-    {
-        ImGui::EndDisabled();
-    }
-    if (!ctx.state.command_script_status.empty())
-    {
-        ImGui::TextWrapped("%s", ctx.state.command_script_status.c_str());
-    }
-
-    if (!worldVm.commands.empty())
-    {
-        ImGui::Separator();
-        ImGui::TextUnformatted("命令状态");
-        if (ImGui::BeginChild("WorldCommandStatusList", ImVec2(0.0f, 180.0f), true))
-        {
-            for (const auto& command : worldVm.commands)
-            {
-                ImGui::TextColored(commandStateColor(command.state), "%s", command.summary.c_str());
-                ImGui::SameLine();
-                ImGui::TextDisabled("源：%s", command.source.c_str());
-                if (!command.message.empty())
-                {
-                    ImGui::BulletText("%s", command.message.c_str());
-                }
-                if (command.payloadJson && !command.payloadJson->empty())
-                {
-                    ImGui::PushTextWrapPos();
-                    ImGui::TextWrapped("%s", command.payloadJson->c_str());
-                    ImGui::PopTextWrapPos();
-                }
+            case MainViewTab::Scene:
+                drawSceneTab(ctx);
+                break;
+            case MainViewTab::World:
+                drawWorldTab(ctx);
+                break;
+            case MainViewTab::Monitor:
+                drawMonitorTab(ctx);
+                break;
+            case MainViewTab::Settings:
+                drawSettingsTab(ctx);
+                break;
             }
         }
         ImGui::EndChild();
-    }
-}
 
-void InspectorView::render(UiContext& ctx)
-{
-    if (!ctx.state.show_inspector)
-    {
-        return;
-    }
-
-    if (!ImGui::Begin("Inspector", &ctx.state.show_inspector))
-    {
         ImGui::End();
-        return;
     }
 
-    if (!ctx.latest_snapshot)
+    void MainView::drawSceneTab(UiContext &ctx)
     {
-        ImGui::TextUnformatted("Waiting for snapshot...");
-        ImGui::End();
-        return;
+        auto drawModeButton = [&](const char *label, SceneViewMode mode)
+        {
+            const bool active = (ctx.state.scene_view_mode == mode);
+            PushActiveButtonStyle(active);
+            if (ImGui::Button(label))
+            {
+                ctx.state.scene_view_mode = mode;
+            }
+            PopActiveButtonStyle(active);
+        };
+
+        drawModeButton("世界概览", SceneViewMode::Map);
+        ImGui::SameLine();
+        drawModeButton("节点细节", SceneViewMode::Node);
+
+        ImGui::Separator();
+
+        if (ctx.state.scene_view_mode == SceneViewMode::Map)
+        {
+            drawSceneWorldMap(ctx);
+        }
+        else
+        {
+            drawSceneNode(ctx);
+        }
     }
 
-    const auto& snapshot = *ctx.latest_snapshot;
+    void MainView::drawWorldTab(UiContext &ctx)
+    {
+        const bool runtimeReady = (ctx.runtime_bridge != nullptr);
+        std::vector<RuntimeBridge::CommandProgress> commandStatuses;
+        if (runtimeReady)
+        {
+            commandStatuses = ctx.runtime_bridge->commandStatusSnapshot();
+            ctx.updateWorldCommandStatuses(commandStatuses);
+        }
+
+        WorldPresenterInput presenterInput{
+            ctx.state,
+            ctx.runtime_bridge,
+            runtimeReady ? &commandStatuses : nullptr};
+        const WorldViewModel worldVm = world_presenter_.buildWorldViewModel(presenterInput);
+
+        ImGui::TextUnformatted("世界生成 / 加载 / 保存");
+        ImGui::Separator();
+
+        ImGui::InputText("配置路径", ctx.state.worldgen_config_buffer.data(), ctx.state.worldgen_config_buffer.size());
+        ImGui::InputText("输出路径", ctx.state.worldgen_output_buffer.data(), ctx.state.worldgen_output_buffer.size());
+
+        if (ImGui::Checkbox("随机种子", &ctx.state.worldgen_use_random_seed))
+        {
+            if (ctx.state.worldgen_use_random_seed)
+            {
+                ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
+            }
+        }
+
+        if (ctx.state.worldgen_use_random_seed)
+        {
+            ImGui::SameLine();
+            if (ImGui::Button("刷新种子"))
+            {
+                ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
+            }
+            ImGui::SameLine();
+            ImGui::Text("Seed %llu", static_cast<unsigned long long>(ctx.state.worldgen_seed));
+        }
+        else
+        {
+            ImGui::InputScalar("固定种子", ImGuiDataType_U64, &ctx.state.worldgen_seed);
+        }
+
+        const std::string configInput(ctx.state.worldgen_config_buffer.data());
+        const std::string outputInput(ctx.state.worldgen_output_buffer.data());
+        const bool hasConfig = worldVm.hasConfigPath;
+        if (!hasConfig)
+        {
+            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写配置文件路径");
+        }
+
+        if (!runtimeReady || !hasConfig)
+        {
+            ImGui::BeginDisabled();
+        }
+        if (ImGui::Button("生成世界"))
+        {
+            if (runtimeReady)
+            {
+                json command = {
+                    {"action", "world.generate"},
+                    {"configPath", configInput},
+                };
+                if (!ctx.state.worldgen_use_random_seed)
+                {
+                    command["seed"] = ctx.state.worldgen_seed;
+                }
+                if (!outputInput.empty())
+                {
+                    command["outputPath"] = outputInput;
+                }
+
+                std::string error;
+                if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                {
+                    ctx.state.worldgen_command_id = id;
+                    ctx.state.world_command_status = "命令已提交 #" + std::to_string(*id);
+                }
+                else
+                {
+                    ctx.state.world_command_status = "提交失败：" + error;
+                }
+            }
+        }
+        if (!runtimeReady || !hasConfig)
+        {
+            ImGui::EndDisabled();
+        }
+        if (!ctx.state.world_command_status.empty())
+        {
+            ImGui::TextWrapped("%s", ctx.state.world_command_status.c_str());
+        }
+
+        if (runtimeReady)
+        {
+            if (auto resultOpt = ctx.runtime_bridge->lastGeneration(); resultOpt)
+            {
+                const auto &result = *resultOpt;
+                ImGui::Separator();
+                if (result.success)
+                {
+                    ImGui::TextUnformatted("最近一次生成成功");
+                    ImGui::BulletText("Config: %s", result.configPath.string().c_str());
+                    ImGui::BulletText("Seed: %llu", static_cast<unsigned long long>(result.seed.value));
+                    ImGui::BulletText("Locations: %zu · Edges: %zu", result.locationCount, result.edgeCount);
+                    ImGui::BulletText("Duration: %.2f ms", result.durationMs);
+                    if (result.outputPath)
+                    {
+                        ImGui::BulletText("Output: %s", result.outputPath->string().c_str());
+                    }
+                    else
+                    {
+                        ImGui::BulletText("Output: in-memory");
+                    }
+                }
+                else
+                {
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "生成失败：%s", result.error.c_str());
+                }
+
+                if (!result.logs.empty())
+                {
+                    if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 160.0f), true))
+                    {
+                        for (const auto &entry : result.logs)
+                        {
+                            ImGui::TextUnformatted(entry.message.c_str());
+                        }
+                    }
+                    ImGui::EndChild();
+                }
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::InputText("加载路径", ctx.state.world_load_buffer.data(), ctx.state.world_load_buffer.size());
+        const std::string loadInput(ctx.state.world_load_buffer.data());
+        if (loadInput.empty())
+        {
+            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写加载路径");
+        }
+
+        if (!runtimeReady || loadInput.empty())
+        {
+            ImGui::BeginDisabled();
+        }
+        if (ImGui::Button("加载世界"))
+        {
+            if (runtimeReady)
+            {
+                json command = {
+                    {"action", "world.load"},
+                    {"path", loadInput},
+                };
+                std::string error;
+                if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                {
+                    ctx.state.world_load_command_id = id;
+                    ctx.state.world_load_status = "加载任务已提交 #" + std::to_string(*id);
+                }
+                else
+                {
+                    ctx.state.world_load_status = "加载失败：" + error;
+                }
+            }
+        }
+        if (!runtimeReady || loadInput.empty())
+        {
+            ImGui::EndDisabled();
+        }
+        if (!ctx.state.world_load_status.empty())
+        {
+            ImGui::TextWrapped("%s", ctx.state.world_load_status.c_str());
+        }
+
+        ImGui::InputText("保存路径", ctx.state.world_save_buffer.data(), ctx.state.world_save_buffer.size());
+        const std::string saveInput(ctx.state.world_save_buffer.data());
+        if (saveInput.empty())
+        {
+            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写保存路径");
+        }
+
+        if (!runtimeReady || saveInput.empty())
+        {
+            ImGui::BeginDisabled();
+        }
+        if (ImGui::Button("保存世界"))
+        {
+            if (runtimeReady)
+            {
+                json command = {
+                    {"action", "world.save"},
+                    {"path", saveInput},
+                };
+                std::string error;
+                if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                {
+                    ctx.state.world_save_command_id = id;
+                    ctx.state.world_save_status = "保存任务已提交 #" + std::to_string(*id);
+                }
+                else
+                {
+                    ctx.state.world_save_status = "保存失败：" + error;
+                }
+            }
+        }
+        if (!runtimeReady || saveInput.empty())
+        {
+            ImGui::EndDisabled();
+        }
+        if (!ctx.state.world_save_status.empty())
+        {
+            ImGui::TextWrapped("%s", ctx.state.world_save_status.c_str());
+        }
+
+        ImGui::Separator();
+        ImGui::InputText("脚本路径", ctx.state.command_script_buffer.data(), ctx.state.command_script_buffer.size());
+        const std::string scriptPath(ctx.state.command_script_buffer.data());
+        if (scriptPath.empty())
+        {
+            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写脚本路径");
+        }
+
+        if (!runtimeReady)
+        {
+            ImGui::BeginDisabled();
+        }
+        if (ImGui::Button("运行脚本"))
+        {
+            if (scriptPath.empty())
+            {
+                ctx.state.command_script_status = "请先填写脚本路径";
+            }
+            else if (runtimeReady)
+            {
+                std::string error;
+                if (ctx.runtime_bridge->enqueueCommandScript(std::filesystem::path(scriptPath), "script", error))
+                {
+                    ctx.state.command_script_status = "脚本已入队";
+                }
+                else
+                {
+                    ctx.state.command_script_status = "脚本执行失败：" + error;
+                }
+            }
+        }
+        if (!runtimeReady)
+        {
+            ImGui::EndDisabled();
+        }
+        if (!ctx.state.command_script_status.empty())
+        {
+            ImGui::TextWrapped("%s", ctx.state.command_script_status.c_str());
+        }
+
+        if (!worldVm.commands.empty())
+        {
+            ImGui::Separator();
+            ImGui::TextUnformatted("命令状态");
+            if (ImGui::BeginChild("WorldCommandStatusList", ImVec2(0.0f, 180.0f), true))
+            {
+                for (const auto &command : worldVm.commands)
+                {
+                    ImGui::TextColored(commandStateColor(command.state), "%s", command.summary.c_str());
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("源：%s", command.source.c_str());
+                    if (!command.message.empty())
+                    {
+                        ImGui::BulletText("%s", command.message.c_str());
+                    }
+                    if (command.payloadJson && !command.payloadJson->empty())
+                    {
+                        ImGui::PushTextWrapPos();
+                        ImGui::TextWrapped("%s", command.payloadJson->c_str());
+                        ImGui::PopTextWrapPos();
+                    }
+                }
+            }
+            ImGui::EndChild();
+        }
+    }
+
+    void InspectorView::render(UiContext &ctx)
+    {
+        if (!ctx.state.show_inspector)
+        {
+            return;
+        }
+
+        if (!ImGui::Begin("Inspector", &ctx.state.show_inspector))
+        {
+            ImGui::End();
+            return;
+        }
+
+        if (!ctx.latest_snapshot)
+        {
+            ImGui::TextUnformatted("Waiting for snapshot...");
+            ImGui::End();
+            return;
+        }
+
+        const auto &snapshot = *ctx.latest_snapshot;
         const auto &tick = snapshot.telemetry;
         const RuntimeBridge::WorldAtlas *atlasPtr = ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr;
 
         ImGui::InputTextWithHint("##InspectorSearch", "Search name/id/type", ctx.state.inspector_search_buffer.data(), ctx.state.inspector_search_buffer.size());
         std::string filterRaw(ctx.state.inspector_search_buffer.data());
         std::string filterLower = filterRaw;
-        std::transform(filterLower.begin(), filterLower.end(), filterLower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::transform(filterLower.begin(), filterLower.end(), filterLower.begin(), [](unsigned char c)
+                       { return static_cast<char>(std::tolower(c)); });
         const bool filterEmpty = filterLower.empty();
 
-        auto toLowerString = [](std::string value) {
-            std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        auto toLowerString = [](std::string value)
+        {
+            std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch)
+                           { return static_cast<char>(std::tolower(ch)); });
             return value;
         };
 
-        auto matchesFilter = [&](const std::string &text, std::uint32_t id, const std::string &extra) -> bool {
+        auto matchesFilter = [&](const std::string &text, std::uint32_t id, const std::string &extra) -> bool
+        {
             if (filterEmpty)
             {
                 return true;
@@ -489,7 +472,8 @@ void InspectorView::render(UiContext& ctx)
             return lowered.find(filterLower) != std::string::npos;
         };
 
-        const auto resourceTypeName = [](genesis::world::ResourceType type) -> const char * {
+        const auto resourceTypeName = [](genesis::world::ResourceType type) -> const char *
+        {
             switch (type)
             {
             case genesis::world::ResourceType::Food:
@@ -513,7 +497,8 @@ void InspectorView::render(UiContext& ctx)
         {
             std::vector<std::size_t> indices(tick.agents.size());
             std::iota(indices.begin(), indices.end(), 0);
-            std::sort(indices.begin(), indices.end(), [&](std::size_t lhs, std::size_t rhs) {
+            std::sort(indices.begin(), indices.end(), [&](std::size_t lhs, std::size_t rhs)
+                      {
                 const auto &a = tick.agents[lhs];
                 const auto &b = tick.agents[rhs];
                 if (a.name == b.name)
@@ -528,8 +513,7 @@ void InspectorView::render(UiContext& ctx)
                 {
                     return true;
                 }
-                return a.name < b.name;
-            });
+                return a.name < b.name; });
 
             for (std::size_t idx : indices)
             {
@@ -608,8 +592,8 @@ void InspectorView::render(UiContext& ctx)
                     continue;
                 }
 
-            char label[160];
-            std::snprintf(label, sizeof(label), "%s (%s) [Node #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
+                char label[160];
+                std::snprintf(label, sizeof(label), "%s (%s) [Node #%u]", resource.name.c_str(), resourceTypeName(resource.type), resource.location.value);
 
                 const bool selected = ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Resource && ctx.state.inspector_selected_primary == static_cast<std::uint32_t>(i);
                 ImGui::PushID(static_cast<int>(resource.location.value * 4096 + static_cast<std::uint32_t>(i)));
@@ -755,10 +739,9 @@ void InspectorView::render(UiContext& ctx)
                 {
                     if (need.entityId == agent->entityId)
                     {
-                        needsJson.push_back({
-                            {"name", need.needName},
-                            {"value", need.value},
-                            {"critical", need.critical}});
+                        needsJson.push_back({{"name", need.needName},
+                                             {"value", need.value},
+                                             {"critical", need.critical}});
                     }
                 }
                 if (!needsJson.empty())
@@ -827,11 +810,10 @@ void InspectorView::render(UiContext& ctx)
                 {
                     if (res.location.value == agent->location.value)
                     {
-                        resourcesJson.push_back({
-                            {"name", res.name},
-                            {"type", resourceTypeName(res.type)},
-                            {"current", res.current},
-                            {"capacity", res.capacity}});
+                        resourcesJson.push_back({{"name", res.name},
+                                                 {"type", resourceTypeName(res.type)},
+                                                 {"current", res.current},
+                                                 {"capacity", res.capacity}});
                     }
                 }
                 if (!resourcesJson.empty())
@@ -1081,9 +1063,8 @@ void InspectorView::render(UiContext& ctx)
                 {
                     if (action.target.value == resource.location.value)
                     {
-                        consumers.push_back({
-                            {"entityId", action.entityId},
-                            {"action", action.currentAction}});
+                        consumers.push_back({{"entityId", action.entityId},
+                                             {"action", action.currentAction}});
                     }
                 }
                 if (!consumers.empty())
@@ -1169,10 +1150,9 @@ void InspectorView::render(UiContext& ctx)
                 {
                     if (edge.from.value == selectedNode->id.value || edge.to.value == selectedNode->id.value)
                     {
-                        edges.push_back({
-                            {"from", edge.from.value},
-                            {"to", edge.to.value},
-                            {"bidirectional", edge.bidirectional}});
+                        edges.push_back({{"from", edge.from.value},
+                                         {"to", edge.to.value},
+                                         {"bidirectional", edge.bidirectional}});
                     }
                 }
                 if (!edges.empty())
@@ -1185,11 +1165,10 @@ void InspectorView::render(UiContext& ctx)
                 {
                     if (res.location.value == selectedNode->id.value)
                     {
-                        resourcesJson.push_back({
-                            {"name", res.name},
-                            {"type", resourceTypeName(res.type)},
-                            {"current", res.current},
-                            {"capacity", res.capacity}});
+                        resourcesJson.push_back({{"name", res.name},
+                                                 {"type", resourceTypeName(res.type)},
+                                                 {"current", res.current},
+                                                 {"capacity", res.capacity}});
                     }
                 }
                 if (!resourcesJson.empty())
@@ -1202,9 +1181,8 @@ void InspectorView::render(UiContext& ctx)
                 {
                     if (agent.location.value == selectedNode->id.value)
                     {
-                        agentsJson.push_back({
-                            {"entityId", agent.entityId},
-                            {"name", agent.name}});
+                        agentsJson.push_back({{"entityId", agent.entityId},
+                                              {"name", agent.name}});
                     }
                 }
                 if (!agentsJson.empty())
@@ -1248,22 +1226,22 @@ void InspectorView::render(UiContext& ctx)
         ImGui::End();
     }
 
-void MainView::drawSceneWorldMap(UiContext& ctx)
-{
-    ScenePresenterInput presenterInput{
-        ctx.state,
-        ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr,
-        ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
-    const SceneMapViewModel mapVm = scene_presenter_.buildMapViewModel(presenterInput);
-
-    if (!mapVm.runtimeReady || mapVm.atlas == nullptr)
+    void MainView::drawSceneWorldMap(UiContext &ctx)
     {
-        ImGui::TextUnformatted("RuntimeBridge 未就绪。");
-        return;
-    }
+        ScenePresenterInput presenterInput{
+            ctx.state,
+            ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr,
+            ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
+        const SceneMapViewModel mapVm = scene_presenter_.buildMapViewModel(presenterInput);
 
-    const auto& atlas = *mapVm.atlas;
-    const auto* agentPositionsPtr = ctx.latest_snapshot ? &ctx.latest_snapshot->agentPositions : nullptr;
+        if (!mapVm.runtimeReady || mapVm.atlas == nullptr)
+        {
+            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
+            return;
+        }
+
+        const auto &atlas = *mapVm.atlas;
+        const auto *agentPositionsPtr = ctx.latest_snapshot ? &ctx.latest_snapshot->agentPositions : nullptr;
 
         const float toggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
         DrawOverlayToggleButton("SceneOverlayNodes", ctx.state.scene_show_graph, "节点", "Ctrl+1 切换节点/连线叠加");
@@ -1311,7 +1289,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
         if (ctx.state.show_agent_overlay)
         {
             ImGui::Spacing();
-            auto legendEntry = [](const char* id, const char* text, const ImVec4& color)
+            auto legendEntry = [](const char *id, const char *text, const ImVec4 &color)
             {
                 ImGui::ColorButton(id, color, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(12.0f, 12.0f));
                 ImGui::SameLine();
@@ -1332,7 +1310,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
             ImGui::Separator();
         }
 
-        const auto& resourceBuckets = mapVm.resourceBuckets;
+        const auto &resourceBuckets = mapVm.resourceBuckets;
 
         const ImVec2 canvasAvail = ImGui::GetContentRegionAvail();
         const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
@@ -1484,14 +1462,18 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
             std::vector<ImRect> placedLabels;
             placedLabels.reserve(atlas.nodes.size());
 
-            auto nodeKindIcon = [](genesis::world::LocationKind kind) -> const char*
+            auto nodeKindIcon = [](genesis::world::LocationKind kind) -> const char *
             {
                 switch (kind)
                 {
-                case genesis::world::LocationKind::Region: return "R";
-                case genesis::world::LocationKind::Building: return "B";
-                case genesis::world::LocationKind::Room: return "r";
-                case genesis::world::LocationKind::Point: return "."; // simple dot placeholder
+                case genesis::world::LocationKind::Region:
+                    return "R";
+                case genesis::world::LocationKind::Building:
+                    return "B";
+                case genesis::world::LocationKind::Room:
+                    return "r";
+                case genesis::world::LocationKind::Point:
+                    return "."; // simple dot placeholder
                 }
                 return "?";
             };
@@ -1542,7 +1524,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                 if (ctx.state.scene_show_graph)
                 {
                     // Icon inside the node
-                    const char* icon = nodeKindIcon(node.kind);
+                    const char *icon = nodeKindIcon(node.kind);
                     const ImVec2 iconSize = ImGui::CalcTextSize(icon);
                     const ImVec2 iconPos{it->second.x - iconSize.x * 0.5f, it->second.y - iconSize.y * 0.5f};
                     drawList->AddText(iconPos, ImGui::GetColorU32(ImGuiCol_Text), icon);
@@ -1559,9 +1541,13 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                     const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - nameSize.y * 0.5f};
                     ImRect labelRect{labelPos, ImVec2(labelPos.x + nameSize.x, labelPos.y + nameSize.y)};
                     bool overlaps = false;
-                    for (const auto& r : placedLabels)
+                    for (const auto &r : placedLabels)
                     {
-                        if (r.Overlaps(labelRect)) { overlaps = true; break; }
+                        if (r.Overlaps(labelRect))
+                        {
+                            overlaps = true;
+                            break;
+                        }
                     }
                     const bool forceLabel = hovered || highlighted;
                     if ((ctx.state.map_zoom >= nodeLabelZoomThreshold || forceLabel) && (!overlaps || forceLabel))
@@ -1643,7 +1629,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                 const ImU32 barBackground = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Surface));
                 const ImU32 barBorder = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
 
-                for (const auto& bucket : resourceBuckets)
+                for (const auto &bucket : resourceBuckets)
                 {
                     auto posIt = nodePositions.find(bucket.locationId);
                     if (posIt == nodePositions.end())
@@ -1660,7 +1646,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                     const ImVec2 basePos = ImVec2(std::floor(posIt->second.x) + 0.5f, std::floor(posIt->second.y) + 0.5f);
                     float offsetY = 20.0f;
 
-                    for (const auto& resource : bucket.resources)
+                    for (const auto &resource : bucket.resources)
                     {
                         const float capacity = static_cast<float>(resource.capacity);
                         const float current = static_cast<float>(resource.current);
@@ -1686,8 +1672,8 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
 
             if (ctx.state.show_agent_overlay && ctx.latest_snapshot)
             {
-                const auto& movement = mapVm.movement;
-                const auto& agentView = mapVm.agents;
+                const auto &movement = mapVm.movement;
+                const auto &agentView = mapVm.agents;
 
                 const ImU32 moveColor = ImGui::GetColorU32(colorMove);
                 const ImU32 consumeColor = ImGui::GetColorU32(colorConsume);
@@ -1695,7 +1681,8 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                 const ImU32 otherColor = ImGui::GetColorU32(colorUnknown);
                 const ImU32 borderColor = ImGui::GetColorU32(ImGuiCol_Text);
 
-                auto colorForActivity = [&](SceneAgentActivity activity) -> ImU32 {
+                auto colorForActivity = [&](SceneAgentActivity activity) -> ImU32
+                {
                     switch (activity)
                     {
                     case SceneAgentActivity::Move:
@@ -1712,7 +1699,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
 
                 for (std::size_t i = 0; i < ctx.latest_snapshot->telemetry.agents.size(); ++i)
                 {
-                    const auto& agent = ctx.latest_snapshot->telemetry.agents[i];
+                    const auto &agent = ctx.latest_snapshot->telemetry.agents[i];
                     RuntimeBridge::Vector2 agentPos = atlas.nodePosition(agent.location).value_or(RuntimeBridge::Vector2{});
                     if (agentPositionsPtr && i < agentPositionsPtr->size())
                     {
@@ -1722,7 +1709,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                     {
                         if (auto it = movement.find(agent.entityId); it != movement.end())
                         {
-                            const auto& progress = it->second;
+                            const auto &progress = it->second;
                             agentPos.x = progress.from.x + (progress.to.x - progress.from.x) * progress.t;
                             agentPos.y = progress.from.y + (progress.to.y - progress.from.y) * progress.t;
                         }
@@ -1731,7 +1718,8 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                     ImVec2 screenPos = toScreen(agentPos);
                     screenPos = ImVec2(std::floor(screenPos.x) + 0.5f, std::floor(screenPos.y) + 0.5f);
 
-                    const SceneAgentActivity activity = [&]() {
+                    const SceneAgentActivity activity = [&]()
+                    {
                         if (auto it = agentView.find(agent.entityId); it != agentView.end())
                         {
                             return it->second.activity;
@@ -1760,7 +1748,7 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                         auto trailIt = ctx.state.agent_trails.find(agent.entityId);
                         if (trailIt != ctx.state.agent_trails.end() && trailIt->second.size() > 1)
                         {
-                            const auto& trail = trailIt->second;
+                            const auto &trail = trailIt->second;
                             ImVec2 previous = toScreen(trail.front());
                             previous = ImVec2(std::floor(previous.x) + 0.5f, std::floor(previous.y) + 0.5f);
                             for (std::size_t trailIndex = 1; trailIndex < trail.size(); ++trailIndex)
@@ -1773,249 +1761,260 @@ void MainView::drawSceneWorldMap(UiContext& ctx)
                         }
                     }
                 }
-        }
-
-        if (ctx.state.scene_show_ruler)
-        {
-            const ImU32 rulerColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive));
-            const ImVec2 cursor = io.MousePos;
-            const bool cursorInside = cursor.x >= canvasPos.x && cursor.x <= canvasMax.x &&
-                                      cursor.y >= canvasPos.y && cursor.y <= canvasMax.y;
-            if (cursorInside)
-            {
-                drawList->AddLine(ImVec2(cursor.x, canvasPos.y), ImVec2(cursor.x, canvasMax.y), rulerColor, 1.0f);
-                drawList->AddLine(ImVec2(canvasPos.x, cursor.y), ImVec2(canvasMax.x, cursor.y), rulerColor, 1.0f);
             }
 
-            if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            if (ctx.state.scene_show_ruler)
             {
-                ctx.state.scene_ruler_anchor = fromScreen(cursor);
+                const ImU32 rulerColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive));
+                const ImVec2 cursor = io.MousePos;
+                const bool cursorInside = cursor.x >= canvasPos.x && cursor.x <= canvasMax.x &&
+                                          cursor.y >= canvasPos.y && cursor.y <= canvasMax.y;
+                if (cursorInside)
+                {
+                    drawList->AddLine(ImVec2(cursor.x, canvasPos.y), ImVec2(cursor.x, canvasMax.y), rulerColor, 1.0f);
+                    drawList->AddLine(ImVec2(canvasPos.x, cursor.y), ImVec2(canvasMax.x, cursor.y), rulerColor, 1.0f);
+                }
+
+                if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    ctx.state.scene_ruler_anchor = fromScreen(cursor);
+                }
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                {
+                    ctx.state.scene_ruler_anchor.reset();
+                }
+
+                if (ctx.state.scene_ruler_anchor)
+                {
+                    const RuntimeBridge::Vector2 anchorWorld = *ctx.state.scene_ruler_anchor;
+                    const ImVec2 anchorScreen = toScreen(anchorWorld);
+                    drawList->AddCircleFilled(anchorScreen, 4.0f, rulerColor, 24);
+                    drawList->AddLine(anchorScreen, cursor, rulerColor, 1.2f);
+
+                    const RuntimeBridge::Vector2 cursorWorld = fromScreen(cursor);
+                    const float dx = cursorWorld.x - anchorWorld.x;
+                    const float dy = cursorWorld.y - anchorWorld.y;
+                    const float dist = std::sqrt(dx * dx + dy * dy);
+                    char buffer[96];
+                    std::snprintf(buffer, sizeof(buffer), "dx %.2f  dy %.2f  dist %.2f", dx, dy, dist);
+                    ImVec2 textPos{cursor.x + 12.0f, cursor.y - 18.0f};
+                    drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
+                }
+                else if (cursorInside)
+                {
+                    const RuntimeBridge::Vector2 cursorWorld = fromScreen(cursor);
+                    char buffer[64];
+                    std::snprintf(buffer, sizeof(buffer), "X %.2f  Y %.2f", cursorWorld.x, cursorWorld.y);
+                    ImVec2 textPos{cursor.x + 12.0f, cursor.y - 18.0f};
+                    drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
+                }
             }
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            else
             {
                 ctx.state.scene_ruler_anchor.reset();
-            }
-
-            if (ctx.state.scene_ruler_anchor)
-            {
-                const RuntimeBridge::Vector2 anchorWorld = *ctx.state.scene_ruler_anchor;
-                const ImVec2 anchorScreen = toScreen(anchorWorld);
-                drawList->AddCircleFilled(anchorScreen, 4.0f, rulerColor, 24);
-                drawList->AddLine(anchorScreen, cursor, rulerColor, 1.2f);
-
-                const RuntimeBridge::Vector2 cursorWorld = fromScreen(cursor);
-                const float dx = cursorWorld.x - anchorWorld.x;
-                const float dy = cursorWorld.y - anchorWorld.y;
-                const float dist = std::sqrt(dx * dx + dy * dy);
-                char buffer[96];
-                std::snprintf(buffer, sizeof(buffer), "dx %.2f  dy %.2f  dist %.2f", dx, dy, dist);
-                ImVec2 textPos{cursor.x + 12.0f, cursor.y - 18.0f};
-                drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
-            }
-            else if (cursorInside)
-            {
-                const RuntimeBridge::Vector2 cursorWorld = fromScreen(cursor);
-                char buffer[64];
-                std::snprintf(buffer, sizeof(buffer), "X %.2f  Y %.2f", cursorWorld.x, cursorWorld.y);
-                ImVec2 textPos{cursor.x + 12.0f, cursor.y - 18.0f};
-                drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
             }
         }
         else
         {
             ctx.state.scene_ruler_anchor.reset();
+            const char *message = "暂无世界数据。";
+            const ImVec2 textSize = ImGui::CalcTextSize(message);
+            const ImVec2 canvasCenter{canvasPos.x + canvasExtent.x * 0.5f, canvasPos.y + canvasExtent.y * 0.5f};
+            const ImVec2 textPos{canvasCenter.x - textSize.x * 0.5f, canvasCenter.y - textSize.y * 0.5f};
+            const float paddingX = 12.0f;
+            const float paddingY = 8.0f;
+            const ImVec2 bgMin{textPos.x - paddingX, textPos.y - paddingY};
+            const ImVec2 bgMax{textPos.x + textSize.x + paddingX, textPos.y + textSize.y + paddingY};
+            const ImU32 bgColorOverlay = ImGui::GetColorU32(ImVec4(0.08f, 0.09f, 0.12f, 0.75f));
+            const ImU32 textColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::TextSecondary));
+            drawList->AddRectFilled(bgMin, bgMax, bgColorOverlay);
+            drawList->AddText(textPos, textColor, message);
         }
-    }
-    else
-    {
-        ImGui::TextUnformatted("暂无世界数据。");
-        }
 
-        ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
     }
-void MainView::drawSceneNode(UiContext& ctx)
-{
-    if (!ctx.runtime_bridge)
+    void MainView::drawSceneNode(UiContext &ctx)
     {
-        ImGui::TextUnformatted("RuntimeBridge 未就绪。");
-        return;
-    }
-
-    const auto& atlas = ctx.runtime_bridge->atlas();
-
-    if (ctx.state.scene_selected_node == 0 && !atlas.nodes.empty())
-    {
-        ctx.state.scene_selected_node = atlas.nodes.front().id.value;
-    }
-
-    ScenePresenterInput presenterInput{
-        ctx.state,
-        &atlas,
-        ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
-    const SceneNodeViewModel nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
-
-    const char* previewLabel = "(none)";
-    if (nodeVm.active)
-    {
-        previewLabel = nodeVm.active->name.c_str();
-    }
-    else
-    {
-        for (const auto& summary : nodeVm.nodes)
+        if (!ctx.runtime_bridge)
         {
-            if (summary.id == ctx.state.scene_selected_node)
+            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
+            return;
+        }
+
+        const auto &atlas = ctx.runtime_bridge->atlas();
+
+        if (ctx.state.scene_selected_node == 0 && !atlas.nodes.empty())
+        {
+            ctx.state.scene_selected_node = atlas.nodes.front().id.value;
+        }
+
+        ScenePresenterInput presenterInput{
+            ctx.state,
+            &atlas,
+            ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
+        const SceneNodeViewModel nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
+
+        const char *previewLabel = "(none)";
+        if (nodeVm.active)
+        {
+            previewLabel = nodeVm.active->name.c_str();
+        }
+        else
+        {
+            for (const auto &summary : nodeVm.nodes)
             {
-                previewLabel = summary.name.c_str();
-                break;
+                if (summary.id == ctx.state.scene_selected_node)
+                {
+                    previewLabel = summary.name.c_str();
+                    break;
+                }
             }
         }
-    }
 
-    if (ImGui::BeginCombo("节点", previewLabel))
-    {
-        for (const auto& summary : nodeVm.nodes)
+        if (ImGui::BeginCombo("节点", previewLabel))
         {
-            const bool selected = (summary.id == ctx.state.scene_selected_node);
-            if (ImGui::Selectable(summary.name.c_str(), selected))
+            for (const auto &summary : nodeVm.nodes)
             {
-                ctx.state.scene_selected_node = summary.id;
+                const bool selected = (summary.id == ctx.state.scene_selected_node);
+                if (ImGui::Selectable(summary.name.c_str(), selected))
+                {
+                    ctx.state.scene_selected_node = summary.id;
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
             }
-            if (selected)
+            ImGui::EndCombo();
+        }
+
+        const float nodeToggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        DrawOverlayToggleButton("SceneGridToggle", ctx.state.scene_show_grid, "网格", "Ctrl+G 切换网格显示");
+        ImGui::SameLine(0.0f, nodeToggleSpacing);
+        DrawOverlayToggleButton("SceneAnchorsToggle", ctx.state.scene_show_anchors, "锚点", "Ctrl+A 切换锚点显示");
+        ImGui::SameLine(0.0f, nodeToggleSpacing);
+        DrawOverlayToggleButton("SceneResourcesToggle", ctx.state.scene_show_resources, "资源", "Ctrl+R 切换资源显示");
+
+        if (!nodeVm.active)
+        {
+            ImGui::TextUnformatted("暂无节点数据。");
+            return;
+        }
+
+        const SceneNodeDetails &details = *nodeVm.active;
+        const SceneNodeGridInfo &grid = details.grid;
+
+        const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
+        const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
+        const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
+        const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
+        drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
+        drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
+
+        ImGui::InvisibleButton("SceneCanvas", ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y), ImGuiButtonFlags_MouseButtonRight);
+        const bool hovered = ImGui::IsItemHovered();
+        const bool active = ImGui::IsItemActive();
+        ImGuiIO &io = ImGui::GetIO();
+        if (hovered && io.MouseWheel != 0.0f)
+        {
+            const float zoomStep = 1.0f + (io.MouseWheel > 0.0f ? 0.1f : -0.1f);
+            ctx.state.scene_cam_zoom = std::max(ctx.state.scene_cam_zoom * zoomStep, 0.05f);
+        }
+        if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+        {
+            ImVec2 delta = ImGui::GetIO().MouseDelta;
+            ctx.state.scene_cam_offset_x += delta.x;
+            ctx.state.scene_cam_offset_y += delta.y;
+        }
+
+        const float basePx = grid.baseTileSize;
+        const float cellPx = basePx * ctx.state.scene_cam_zoom;
+
+        auto toScreen = [&](float gx, float gy)
+        {
+            const float sx = canvasPos.x + ctx.state.scene_cam_offset_x + (gx - static_cast<float>(grid.minX)) * cellPx + 8.0f;
+            const float sy = canvasPos.y + ctx.state.scene_cam_offset_y + (gy - static_cast<float>(grid.minY)) * cellPx + 8.0f;
+            return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
+        };
+
+        const int cols = (grid.maxX - grid.minX + 1);
+        const int rows = (grid.maxY - grid.minY + 1);
+        const ImU32 gridColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+
+        if (details.tilemap)
+        {
+            const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
+            const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
+            for (int y = 0; y < details.tilemap->height; ++y)
             {
-                ImGui::SetItemDefaultFocus();
+                for (int x = 0; x < details.tilemap->width; ++x)
+                {
+                    const float gx0 = static_cast<float>(grid.minX + x);
+                    const float gy0 = static_cast<float>(grid.minY + y);
+                    const float gx1 = gx0 + 1.0f;
+                    const float gy1 = gy0 + 1.0f;
+                    const ImVec2 cellMin = toScreen(gx0, gy0);
+                    const ImVec2 cellMax = toScreen(gx1, gy1);
+                    const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
+                    drawList->AddRectFilled(cellMin, cellMax, fill);
+                }
             }
         }
-        ImGui::EndCombo();
-    }
 
-    const float nodeToggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-    DrawOverlayToggleButton("SceneGridToggle", ctx.state.scene_show_grid, "网格", "Ctrl+G 切换网格显示");
-    ImGui::SameLine(0.0f, nodeToggleSpacing);
-    DrawOverlayToggleButton("SceneAnchorsToggle", ctx.state.scene_show_anchors, "锚点", "Ctrl+A 切换锚点显示");
-    ImGui::SameLine(0.0f, nodeToggleSpacing);
-    DrawOverlayToggleButton("SceneResourcesToggle", ctx.state.scene_show_resources, "资源", "Ctrl+R 切换资源显示");
-
-    if (!nodeVm.active)
-    {
-        ImGui::TextUnformatted("暂无节点数据。");
-        return;
-    }
-
-    const SceneNodeDetails& details = *nodeVm.active;
-    const SceneNodeGridInfo& grid = details.grid;
-
-    const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
-    const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-    const ImVec2 canvasMax{canvasPos.x + std::max(120.0f, canvasSize.x), canvasPos.y + std::max(120.0f, canvasSize.y)};
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
-    drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
-    drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
-
-    ImGui::InvisibleButton("SceneCanvas", ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y), ImGuiButtonFlags_MouseButtonRight);
-    const bool hovered = ImGui::IsItemHovered();
-    const bool active = ImGui::IsItemActive();
-    ImGuiIO& io = ImGui::GetIO();
-    if (hovered && io.MouseWheel != 0.0f)
-    {
-        const float zoomStep = 1.0f + (io.MouseWheel > 0.0f ? 0.1f : -0.1f);
-        ctx.state.scene_cam_zoom = std::max(ctx.state.scene_cam_zoom * zoomStep, 0.05f);
-    }
-    if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
-    {
-        ImVec2 delta = ImGui::GetIO().MouseDelta;
-        ctx.state.scene_cam_offset_x += delta.x;
-        ctx.state.scene_cam_offset_y += delta.y;
-    }
-
-    const float basePx = grid.baseTileSize;
-    const float cellPx = basePx * ctx.state.scene_cam_zoom;
-
-    auto toScreen = [&](float gx, float gy) {
-        const float sx = canvasPos.x + ctx.state.scene_cam_offset_x + (gx - static_cast<float>(grid.minX)) * cellPx + 8.0f;
-        const float sy = canvasPos.y + ctx.state.scene_cam_offset_y + (gy - static_cast<float>(grid.minY)) * cellPx + 8.0f;
-        return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
-    };
-
-    const int cols = (grid.maxX - grid.minX + 1);
-    const int rows = (grid.maxY - grid.minY + 1);
-    const ImU32 gridColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-
-    if (details.tilemap)
-    {
-        const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
-        const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
-        for (int y = 0; y < details.tilemap->height; ++y)
+        if (ctx.state.scene_show_grid)
         {
-            for (int x = 0; x < details.tilemap->width; ++x)
+            for (int x = 0; x <= cols; ++x)
             {
-                const float gx0 = static_cast<float>(grid.minX + x);
-                const float gy0 = static_cast<float>(grid.minY + y);
-                const float gx1 = gx0 + 1.0f;
-                const float gy1 = gy0 + 1.0f;
-                const ImVec2 cellMin = toScreen(gx0, gy0);
-                const ImVec2 cellMax = toScreen(gx1, gy1);
-                const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
-                drawList->AddRectFilled(cellMin, cellMax, fill);
+                const ImVec2 a = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.minY));
+                const ImVec2 b = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.maxY + 1));
+                drawList->AddLine(a, b, gridColor, 1.0f);
+            }
+            for (int y = 0; y <= rows; ++y)
+            {
+                const ImVec2 a = toScreen(static_cast<float>(grid.minX), static_cast<float>(grid.minY + y));
+                const ImVec2 b = toScreen(static_cast<float>(grid.maxX + 1), static_cast<float>(grid.minY + y));
+                drawList->AddLine(a, b, gridColor, 1.0f);
             }
         }
-    }
 
-    if (ctx.state.scene_show_grid)
-    {
-        for (int x = 0; x <= cols; ++x)
+        if (ctx.state.scene_show_resources)
         {
-            const ImVec2 a = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.minY));
-            const ImVec2 b = toScreen(static_cast<float>(grid.minX + x), static_cast<float>(grid.maxY + 1));
-            drawList->AddLine(a, b, gridColor, 1.0f);
+            const ImU32 resourceColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
+            for (const auto &resource : details.resources)
+            {
+                const ImVec2 center = toScreen(resource.x + 0.5f, resource.y + 0.5f);
+                const float radius = std::max(3.0f, cellPx * 0.25f);
+                drawList->AddCircleFilled(center, radius, resourceColor, 12);
+                drawList->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.2f);
+            }
         }
-        for (int y = 0; y <= rows; ++y)
-        {
-            const ImVec2 a = toScreen(static_cast<float>(grid.minX), static_cast<float>(grid.minY + y));
-            const ImVec2 b = toScreen(static_cast<float>(grid.maxX + 1), static_cast<float>(grid.minY + y));
-            drawList->AddLine(a, b, gridColor, 1.0f);
-        }
-    }
 
-    if (ctx.state.scene_show_resources)
-    {
-        const ImU32 resourceColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-        for (const auto& resource : details.resources)
+        if (ctx.state.scene_show_anchors)
         {
-            const ImVec2 center = toScreen(resource.x + 0.5f, resource.y + 0.5f);
-            const float radius = std::max(3.0f, cellPx * 0.25f);
-            drawList->AddCircleFilled(center, radius, resourceColor, 12);
-            drawList->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.2f);
+            const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+            for (const auto &anchor : details.anchors)
+            {
+                const ImVec2 base = toScreen(anchor.x + 0.5f, anchor.y + 0.5f);
+                const float w = std::max(4.0f, cellPx * 0.2f);
+                const ImVec2 a{base.x - w, base.y};
+                const ImVec2 b{base.x + w, base.y};
+                const ImVec2 c{base.x, base.y + w * 1.6f};
+                drawList->AddTriangleFilled(a, b, c, anchorColor);
+                drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
+                const std::string label = std::string("-> ") + std::to_string(anchor.targetNodeId);
+                const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
+                drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
+            }
         }
-    }
 
-    if (ctx.state.scene_show_anchors)
-    {
-        const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-        for (const auto& anchor : details.anchors)
-        {
-            const ImVec2 base = toScreen(anchor.x + 0.5f, anchor.y + 0.5f);
-            const float w = std::max(4.0f, cellPx * 0.2f);
-            const ImVec2 a{base.x - w, base.y};
-            const ImVec2 b{base.x + w, base.y};
-            const ImVec2 c{base.x, base.y + w * 1.6f};
-            drawList->AddTriangleFilled(a, b, c, anchorColor);
-            drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
-            const std::string label = std::string("-> ") + std::to_string(anchor.targetNodeId);
-            const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
-            drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
-        }
     }
-
-    ImGui::Dummy(ImVec2(canvasMax.x - canvasPos.x, canvasMax.y - canvasPos.y));
-}
-void MainView::drawMonitorTab(UiContext& ctx)
+    void MainView::drawMonitorTab(UiContext &ctx)
     {
         ImGui::TextUnformatted("运行概览");
         ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
         if (ctx.latest_snapshot)
         {
-            const auto& tick = ctx.latest_snapshot->telemetry;
+            const auto &tick = ctx.latest_snapshot->telemetry;
             ImGui::Text("Step %llu | Agents %zu | Actions %zu",
                         static_cast<unsigned long long>(tick.step),
                         tick.agents.size(),
@@ -2046,22 +2045,22 @@ void MainView::drawMonitorTab(UiContext& ctx)
         ImGui::EndChild();
     }
 
-void MainView::drawSettingsTab(UiContext& ctx)
+    void MainView::drawSettingsTab(UiContext &ctx)
     {
         ImGui::TextUnformatted("设计令牌预览");
         ImGui::Separator();
 
-        const ImGuiStyle& style = ImGui::GetStyle();
+        const ImGuiStyle &style = ImGui::GetStyle();
 
         ImGui::Text("颜色样本");
         if (ImGui::BeginTable("SettingsColors", 4, ImGuiTableFlags_SizingFixedFit))
         {
-            const std::array<std::pair<const char*, ImGuiCol>, 4> swatches = {
+            const std::array<std::pair<const char *, ImGuiCol>, 4> swatches = {
                 std::pair{"WindowBg", ImGuiCol_WindowBg},
                 std::pair{"Header", ImGuiCol_Header},
                 std::pair{"Button", ImGuiCol_Button},
                 std::pair{"Accent", ImGuiCol_TabActive}};
-            for (const auto& [label, col] : swatches)
+            for (const auto &[label, col] : swatches)
             {
                 ImGui::TableNextColumn();
                 const ImVec4 color = style.Colors[col];
@@ -2083,45 +2082,45 @@ void MainView::drawSettingsTab(UiContext& ctx)
             "后续任务将补充：主题切换、布局预设管理、快捷键自定义等功能。当前阶段仅提供设计指标预览，方便在开发过程中校准 UI 令牌。");
     }
 
-void MainView::drawMonitorTelemetry(UiContext& ctx)
-{
-    MonitorPresenterInput presenterInput{
-        ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
-    const MonitorTelemetryViewModel telemetryVm = monitor_presenter_.buildTelemetryViewModel(presenterInput);
-
-    if (!telemetryVm.hasSnapshot)
+    void MainView::drawMonitorTelemetry(UiContext &ctx)
     {
-        ImGui::TextUnformatted("等待监控数据…");
-        return;
-    }
+        MonitorPresenterInput presenterInput{
+            ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
+        const MonitorTelemetryViewModel telemetryVm = monitor_presenter_.buildTelemetryViewModel(presenterInput);
 
-    ImGui::Text("步数：%llu", static_cast<unsigned long long>(telemetryVm.step));
-    ImGui::Text("实体：%zu", telemetryVm.agentCount);
-    ImGui::Text("执行命令：%zu", telemetryVm.actionCount);
-    ImGui::Text("需求项：%zu", telemetryVm.needCount);
-
-    if (telemetryVm.needCount > 0)
-    {
-        ImGui::Separator();
-        ImGui::Text("平均需求值：%.2f", telemetryVm.averageNeed);
-        ImGui::Text("危急需求：%u", telemetryVm.criticalNeedCount);
-    }
-
-    if (!telemetryVm.resources.empty())
-    {
-        ImGui::Separator();
-        for (const auto& resource : telemetryVm.resources)
+        if (!telemetryVm.hasSnapshot)
         {
-            ImGui::Text("#%u %s (%u / %u)",
-                        resource.locationId,
-                        resource.name.c_str(),
-                        resource.current,
-                        resource.capacity);
+            ImGui::TextUnformatted("等待监控数据…");
+            return;
+        }
+
+        ImGui::Text("步数：%llu", static_cast<unsigned long long>(telemetryVm.step));
+        ImGui::Text("实体：%zu", telemetryVm.agentCount);
+        ImGui::Text("执行命令：%zu", telemetryVm.actionCount);
+        ImGui::Text("需求项：%zu", telemetryVm.needCount);
+
+        if (telemetryVm.needCount > 0)
+        {
+            ImGui::Separator();
+            ImGui::Text("平均需求值：%.2f", telemetryVm.averageNeed);
+            ImGui::Text("危急需求：%u", telemetryVm.criticalNeedCount);
+        }
+
+        if (!telemetryVm.resources.empty())
+        {
+            ImGui::Separator();
+            for (const auto &resource : telemetryVm.resources)
+            {
+                ImGui::Text("#%u %s (%u / %u)",
+                            resource.locationId,
+                            resource.name.c_str(),
+                            resource.current,
+                            resource.capacity);
+            }
         }
     }
-}
 
-void MainView::drawMonitorLog(UiContext& ctx)
+    void MainView::drawMonitorLog(UiContext &ctx)
     {
         if (!ctx.state.log_sink)
         {

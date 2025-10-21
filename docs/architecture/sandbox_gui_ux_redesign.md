@@ -26,7 +26,7 @@
   - `Monitor`：概览卡片快捷入口、指标收藏、告警快速过滤。
   - `Layouts & Themes`：系统自带/自定义布局与主题，支持加载、导入导出。
   - 允许根据主视图区分当前分类，并记忆折叠状态。
-- **主视图（Main View）**：通过 toggle 控件在 `Scene` / `Settings` / `World` / `Monitor` 等视图间切换。状态栏快捷入口、Browser 分类与主视图保持联动。
+- **主视图（Main View）**：依据 Browser 当前分类与状态栏快捷入口激活的模式，在单一画布内呈现 `Scene` / `Settings` / `World` / `Monitor` 等视图；顶部不再保留重复的切换按钮，避免与 Control/Browser 导航重叠。
 - **Inspector（主视图右侧）**：展示当前选中对象详情与可编辑字段，提供批量编辑、危险操作保护、撤销快照能力。
 - **附加信息层（Overlay）**：Scene 视图内部可选择叠加节点拓扑、标尺、网格等信息；Map View 合并为 Scene 的“节点关系”叠加层，通过按钮/快捷键控制显示。
 
@@ -36,6 +36,7 @@
 - Main View 引入四象限切换：Scene 子视图包含“世界概览（Map）/ 节点细节（Tilemap）”双模式，World 子视图整合生成/加载/保存操作，Monitor 子视图合并遥测与日志。
 - Welcome 面板与命令队列 UI 已完全移除，相关调用点重定向到 Browser 与 World 标签；命令状态通过世界页摘要呈现。
 - Inspector 与 Browser 联动：在 Inspector 点击“定位地图/节点视图”时自动激活 Scene Tab 并更新高亮/跟随状态。
+- 2025-10-23：Main View 内嵌 Scene/World/Monitor/Settings 标签被移除，导航统一交由状态栏快捷入口与 Browser 分类；Scene Map 空态提示改为画布中心浮层，避免子窗口产生冗余滚动条。
 
 ### 3.6 实施进展（Phase A · Task 2，2025-10-21）
 - 新增 `DesignTokens` 模块，对颜色、间距、圆角、边框厚度等令牌进行集中管理，并在 AppHost 初始化阶段一次性应用到 ImGui Style。

@@ -198,7 +198,8 @@ bool AppHost::initializeImGui()
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigDockingWithShift = false;
 
-    io.Fonts->AddFontDefault();
+    ImFont* defaultFont = io.Fonts->AddFontDefault();
+    const float baseFontSize = defaultFont ? defaultFont->FontSize : 13.0f;
 
     bool hasCjkFont = false;
     if (auto cjkFont = locateCjkFont(); !cjkFont.empty())
@@ -208,9 +209,16 @@ bool AppHost::initializeImGui()
         config.FontDataOwnedByAtlas = false;
         config.OversampleH = 2;
         config.OversampleV = 2;
+        config.PixelSnapH = true;
+        config.GlyphMinAdvanceX = baseFontSize;
+        config.GlyphMaxAdvanceX = baseFontSize;
+        config.GlyphOffset.y = -0.5f;
+#ifdef IMGUI_ENABLE_FREETYPE
+        config.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_Monochrome | ImGuiFreeTypeBuilderFlags_ForceAutoHint;
+#endif
         const auto u8Path = cjkFont.u8string();
         const std::string pathUtf8(u8Path.begin(), u8Path.end());
-        if (io.Fonts->AddFontFromFileTTF(pathUtf8.c_str(), 17.0f, &config, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()))
+        if (io.Fonts->AddFontFromFileTTF(pathUtf8.c_str(), baseFontSize, &config, io.Fonts->GetGlyphRangesChineseSimplifiedCommon()))
         {
             hasCjkFont = true;
         }

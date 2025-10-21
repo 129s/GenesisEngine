@@ -86,6 +86,13 @@ struct SceneNodeResource
     genesis::world::ResourceType type{genesis::world::ResourceType::Food};
 };
 
+struct SceneNodePortal
+{
+    float x{0.0f};
+    float y{0.0f};
+    std::uint32_t targetNodeId{0};
+};
+
 struct SceneNodeTilemapInfo
 {
     int width{0};
@@ -111,20 +118,13 @@ struct SceneNodeDetails
     std::optional<SceneNodeTilemapInfo> tilemap;
     std::vector<SceneNodeResource> resources;
     std::vector<SceneNodeAnchor> anchors;
+    std::vector<SceneNodePortal> portals;
 };
 
 struct SceneNodeViewModel
 {
     std::vector<SceneNodeSummary> nodes;
     std::optional<SceneNodeDetails> active;
-};
-
-struct SceneUnifiedViewModel
-{
-    SceneMapViewModel map;
-    SceneNodeViewModel node;
-    bool runtimeReady{false};
-    bool hasSnapshot{false};
 };
 
 struct WorldPresenterInput
@@ -187,7 +187,6 @@ class ScenePresenter
 public:
     [[nodiscard]] SceneMapViewModel buildMapViewModel(const ScenePresenterInput& input) const;
     [[nodiscard]] SceneNodeViewModel buildNodeViewModel(const ScenePresenterInput& input) const;
-    [[nodiscard]] SceneUnifiedViewModel buildUnifiedViewModel(const ScenePresenterInput& input) const;
 };
 
 class WorldPresenter

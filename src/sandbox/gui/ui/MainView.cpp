@@ -1216,907 +1216,520 @@ namespace Genesis::Sandbox::Gui
     }
 
     void MainView::drawSceneUnified(UiContext &ctx)
+{
+    ScenePresenterInput presenterInput{
+        ctx.state,
+        ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr,
+        ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
+    const RuntimeBridge::WorldAtlas *atlasPtr = presenterInput.atlas;
+
+    if (ctx.state.scene_selected_node == 0 && atlasPtr && !atlasPtr->nodes.empty())
     {
-        ScenePresenterInput presenterInput{
-            ctx.state,
-            ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr,
-            ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
-        const SceneUnifiedViewModel viewModel = scene_presenter_.buildUnifiedViewModel(presenterInput);
-        const SceneMapViewModel &mapVm = viewModel.map;
-        const SceneNodeViewModel &nodeVm = viewModel.node;
+        ctx.state.scene_selected_node = atlasPtr->nodes.front().id.value;
+    }
 
-        if (!nodeVm.nodes.empty())
-        {
-            const bool nodeStillValid = std::any_of(nodeVm.nodes.begin(), nodeVm.nodes.end(), [&](const SceneNodeSummary &summary) {
-                return summary.id == ctx.state.scene_selected_node;
-            });
-            if (!nodeStillValid)
-            {
-                ctx.state.scene_selected_node = nodeVm.nodes.front().id;
-                ctx.state.scene_tile_selection.reset();
-            }
-        }
+    SceneNodeViewModel nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
+    if (!nodeVm.active && !nodeVm.nodes.empty())
+    {
+        ctx.state.scene_selected_node = nodeVm.nodes.front().id;
+        nodeVm = scene_presenter_.buildNodeViewModel(presenterInput);
+    }
 
-        std::string nodePreviewLabel = "(未选择)";
-        if (nodeVm.active)
-        {
-            nodePreviewLabel = nodeVm.active->name.empty()
-                                   ? "节点 " + std::to_string(nodeVm.active->nodeId)
-                                   : nodeVm.active->name;
-        }
-        else if (ctx.state.scene_selected_node != 0)
-        {
-            if (auto it = std::find_if(nodeVm.nodes.begin(), nodeVm.nodes.end(), [&](const SceneNodeSummary &summary) {
-                    return summary.id == ctx.state.scene_selected_node;
-                });
-                it != nodeVm.nodes.end())
-            {
-                nodePreviewLabel = it->name.empty() ? "节点 " + std::to_string(it->id) : it->name;
-            }
-        }
+    const SceneNodeDetails *detailsPtr = nodeVm.active ? &*nodeVm.active : nullptr;
+    const SceneNodeGridInfo *gridPtr = detailsPtr ? &detailsPtr->grid : nullptr;
 
-        if (!viewModel.runtimeReady || mapVm.atlas == nullptr)
+    const float toggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+    auto drawToolButton = [&](const char *label, SceneSelectionTool tool)
+    {
+        const bool active = (ctx.state.scene_selection_tool == tool);
+        PushActiveButtonStyle(active);
+        if (ImGui::Button(label))
         {
-            ImGui::TextUnformatted("RuntimeBridge 未就绪。");
-            return;
+            ctx.state.scene_selection_tool = tool;
         }
+        PopActiveButtonStyle(active);
+    };
 
-        const auto &atlas = *mapVm.atlas;
-        const auto *agentPositionsPtr = ctx.latest_snapshot ? &ctx.latest_snapshot->agentPositions : nullptr;
+    drawToolButton("任意", SceneSelectionTool::Any);
+    ImGui::SameLine(0.0f, toggleSpacing);
+    drawToolButton("节点", SceneSelectionTool::Node);
+    ImGui::SameLine(0.0f, toggleSpacing);
+    drawToolButton("瓦片", SceneSelectionTool::Tile);
 
-        const float toggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        auto drawToolButton = [&](const char *label, SceneSelectionTool tool)
-        {
-            const bool active = (ctx.state.scene_selection_tool == tool);
-            PushActiveButtonStyle(active);
-            if (ImGui::Button(label))
-            {
-                ctx.state.scene_selection_tool = tool;
-            }
-            PopActiveButtonStyle(active);
-        };
+    ImGui::SameLine(0.0f, toggleSpacing);
+    ImGui::TextDisabled("图层：");
+    ImGui::SameLine(0.0f, toggleSpacing);
+    DrawOverlayToggleButton("SceneOverlayGrid", ctx.state.scene_show_grid, "网格", "Ctrl+G 切换网格显示");
+    ImGui::SameLine(0.0f, toggleSpacing);
+    DrawOverlayToggleButton("SceneOverlayPortals", ctx.state.scene_show_graph, "传送门", "Ctrl+1 切换传送门显示");
+    ImGui::SameLine(0.0f, toggleSpacing);
+    DrawOverlayToggleButton("SceneOverlayAnchors", ctx.state.scene_show_anchors, "锚点", "Ctrl+A 切换锚点显示");
+    ImGui::SameLine(0.0f, toggleSpacing);
+    DrawOverlayToggleButton("SceneOverlayResources", ctx.state.scene_show_resources, "资源", "Ctrl+R 切换资源叠加");
+    ImGui::SameLine(0.0f, toggleSpacing);
+    DrawOverlayToggleButton("SceneOverlayRuler", ctx.state.scene_show_ruler, "标尺", "Ctrl+6 切换标尺（左键设起点，右键清除）");
 
-        drawToolButton("任意", SceneSelectionTool::Any);
-        ImGui::SameLine(0.0f, toggleSpacing);
-        drawToolButton("节点", SceneSelectionTool::Node);
-        ImGui::SameLine(0.0f, toggleSpacing);
-        drawToolButton("瓦片", SceneSelectionTool::Tile);
-        ImGui::SameLine(0.0f, toggleSpacing);
-        ImGui::TextDisabled("叠加层：");
-        ImGui::SameLine(0.0f, toggleSpacing);
-        DrawOverlayToggleButton("SceneOverlayNodes", ctx.state.scene_show_graph, "节点", "Ctrl+1 切换节点/连线叠加");
-        ImGui::SameLine(0.0f, toggleSpacing);
-        DrawOverlayToggleButton("SceneOverlayResources", ctx.state.scene_show_resources, "资源", "Ctrl+2 切换资源叠加");
-        ImGui::SameLine(0.0f, toggleSpacing);
-        DrawOverlayToggleButton("SceneOverlayAgents", ctx.state.show_agent_overlay, "实体", "Ctrl+3 切换实体叠加");
-        ImGui::SameLine(0.0f, toggleSpacing);
-        DrawOverlayToggleButton("SceneOverlayTrails", ctx.state.show_agent_trails, "轨迹", "Ctrl+4 切换实体轨迹");
-        ImGui::SameLine(0.0f, toggleSpacing);
-        DrawOverlayToggleButton("SceneOverlaySmooth", ctx.state.map_interpolate, "插值", "Ctrl+5 切换轨迹插值平滑");
-        ImGui::SameLine(0.0f, toggleSpacing);
-        DrawOverlayToggleButton("SceneOverlayRuler", ctx.state.scene_show_ruler, "标尺", "Ctrl+6 切换标尺（左键设起点，右键清除）");
-        if (!nodeVm.nodes.empty())
-        {
-            ImGui::SameLine(0.0f, toggleSpacing);
-            ImGui::TextDisabled("节点：");
-            ImGui::SameLine(0.0f, toggleSpacing);
-            ImGui::SetNextItemWidth(180.0f);
-            if (ImGui::BeginCombo("##SceneNodeSelector", nodePreviewLabel.c_str()))
-            {
-                for (const auto &summary : nodeVm.nodes)
-                {
-                    const bool selected = (summary.id == ctx.state.scene_selected_node);
-                    const std::string label = summary.name.empty() ? "节点 " + std::to_string(summary.id) : summary.name;
-                    if (ImGui::Selectable(label.c_str(), selected))
-                    {
-                        ctx.state.scene_selected_node = summary.id;
-                        ctx.state.map_selected_node = summary.id;
-                        ctx.state.scene_tile_selection.reset();
-                        ctx.state.scene_focus_node_request = summary.id;
-                    }
-                    if (selected)
-                    {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-                ImGui::EndCombo();
-            }
-        }
-        if (nodeVm.active)
-        {
-            ImGui::SameLine(0.0f, toggleSpacing);
-            ImGui::TextDisabled("瓦片：");
-            ImGui::SameLine(0.0f, toggleSpacing);
-            DrawOverlayToggleButton("SceneGridToggle", ctx.state.scene_show_grid, "网格", "Ctrl+G 切换网格显示");
-            ImGui::SameLine(0.0f, toggleSpacing);
-            DrawOverlayToggleButton("SceneAnchorsToggle", ctx.state.scene_show_anchors, "锚点", "Ctrl+A 切换锚点显示");
-            ImGui::SameLine(0.0f, toggleSpacing);
-            DrawOverlayToggleButton("SceneResourcesToggle", ctx.state.scene_show_resources, "节点资源", "Ctrl+R 切换节点资源显示");
-        }
-        if (ctx.state.show_agent_trails)
-        {
-            ImGui::SameLine();
-            int trailSamples = static_cast<int>(ctx.state.agent_trail_samples);
-            ImGui::SetNextItemWidth(120.0f);
-            if (ImGui::SliderInt("轨迹长度", &trailSamples, 4, 64))
-            {
-                ctx.state.agent_trail_samples = static_cast<std::size_t>(trailSamples);
-                for (auto &[id, trail] : ctx.state.agent_trails)
-                {
-                    while (trail.size() > ctx.state.agent_trail_samples)
-                    {
-                        trail.pop_front();
-                    }
-                }
-            }
-        }
-        ImGui::SameLine(0.0f, toggleSpacing);
+    bool resetRequested = false;
+    ImGui::SameLine(0.0f, toggleSpacing);
+    if (detailsPtr)
+    {
         if (ImGui::Button("重置视图"))
         {
-            ctx.resetMapViewCamera();
-            ctx.state.scene_cam_offset_x = 0.0f;
-            ctx.state.scene_cam_offset_y = 0.0f;
-            ctx.state.scene_cam_zoom = 1.5f;
+            resetRequested = true;
         }
-        ImGui::SameLine(0.0f, toggleSpacing);
-        ImGui::TextDisabled("滚轮缩放｜右键拖拽｜Space 重置");
+    }
+    else
+    {
+        ImGui::BeginDisabled();
+        ImGui::Button("重置视图");
+        ImGui::EndDisabled();
+    }
+    ImGui::SameLine(0.0f, toggleSpacing);
+    ImGui::TextDisabled("滚轮缩放｜右键拖拽");
 
-        const ImVec4 colorMove = Style::DesignTokens::color(Style::ColorToken::Accent);
-        const ImVec4 colorConsume = Style::DesignTokens::color(Style::ColorToken::Warning);
-        const ImVec4 colorIdle = Style::DesignTokens::color(Style::ColorToken::Muted);
-        const ImVec4 colorUnknown = Style::DesignTokens::color(Style::ColorToken::Info);
-        const ImU32 highlightColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight));
+    ImGui::Spacing();
 
-        if (ctx.state.show_agent_overlay)
-        {
-            ImGui::Spacing();
-            auto legendEntry = [](const char *id, const char *text, const ImVec4 &color)
-            {
-                ImGui::ColorButton(id, color, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(12.0f, 12.0f));
-                ImGui::SameLine();
-                ImGui::TextUnformatted(text);
-            };
-            legendEntry("##legend_move", "移动", colorMove);
-            ImGui::SameLine();
-            legendEntry("##legend_consume", "消耗", colorConsume);
-            ImGui::SameLine();
-            legendEntry("##legend_idle", "空闲", colorIdle);
-            ImGui::SameLine();
-            legendEntry("##legend_other", "其它", colorUnknown);
-            ImGui::Separator();
-        }
-        else
-        {
-            ImGui::Spacing();
-            ImGui::Separator();
-        }
+    const ImVec2 canvasAvail = ImGui::GetContentRegionAvail();
+    const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
+    const ImVec2 canvasExtent{std::max(160.0f, canvasAvail.x), std::max(160.0f, canvasAvail.y)};
+    const ImVec2 canvasMax{canvasPos.x + canvasExtent.x, canvasPos.y + canvasExtent.y};
+    constexpr float canvasMargin = 24.0f;
 
-        const auto &resourceBuckets = mapVm.resourceBuckets;
-
-        const ImVec2 canvasAvail = ImGui::GetContentRegionAvail();
-        const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-        const ImVec2 canvasExtent{std::max(120.0f, canvasAvail.x), std::max(120.0f, canvasAvail.y)};
-        const ImVec2 canvasMax{canvasPos.x + canvasExtent.x, canvasPos.y + canvasExtent.y};
-
-        const bool hasTileOverlay = nodeVm.active.has_value();
-        ImVec2 tileOverlayPos{0.0f, 0.0f};
-        ImVec2 tileOverlaySize{0.0f, 0.0f};
-        ImRect tileOverlayRect;
-        if (hasTileOverlay)
-        {
-            const float overlayMargin = 18.0f;
-            const float minDimension = std::min(canvasExtent.x, canvasExtent.y);
-            const float widthAllowance = std::max(canvasExtent.x - overlayMargin * 2.0f, 140.0f);
-            const float heightAllowance = std::max(canvasExtent.y - overlayMargin * 2.0f, 140.0f);
-            const float desiredSize = std::max(minDimension * 0.55f, 220.0f);
-            const float overlayWidth = std::clamp(desiredSize, 140.0f, widthAllowance);
-            const float overlayHeight = std::clamp(desiredSize, 140.0f, heightAllowance);
-            tileOverlaySize = ImVec2(overlayWidth, overlayHeight);
-            tileOverlayPos = ImVec2(canvasMax.x - tileOverlaySize.x - overlayMargin,
-                                    canvasMax.y - tileOverlaySize.y - overlayMargin);
-            tileOverlayRect = ImRect(tileOverlayPos, ImVec2(tileOverlayPos.x + tileOverlaySize.x, tileOverlayPos.y + tileOverlaySize.y));
-        }
-
-        ImGui::SetCursorScreenPos(canvasPos);
-        ImGui::InvisibleButton("MapView.Canvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
-        ImGui::SetItemAllowOverlap();
-        const bool canvasHovered = ImGui::IsItemHovered();
-        const bool canvasActive = ImGui::IsItemActive();
-
-        ImDrawList *drawList = ImGui::GetWindowDrawList();
-        const ImU32 bgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
-        drawList->AddRectFilled(canvasPos, canvasMax, bgColor);
+    ImDrawList *drawList = ImGui::GetWindowDrawList();
+    auto drawCanvasBackground = [&]()
+    {
+        drawList->AddRectFilled(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_WindowBg));
         drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
+    };
+    auto drawCanvasMessage = [&](const char *text)
+    {
+        drawCanvasBackground();
+        const ImVec2 textSize = ImGui::CalcTextSize(text);
+        const ImVec2 textPos{
+            canvasPos.x + (canvasExtent.x - textSize.x) * 0.5f,
+            canvasPos.y + (canvasExtent.y - textSize.y) * 0.5f};
+        drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), text);
+    };
 
-        ImGuiIO &io = ImGui::GetIO();
-        const bool pointerInsideOverlay = hasTileOverlay && tileOverlayRect.Contains(io.MousePos);
+    if (!atlasPtr)
+    {
+        drawCanvasMessage("RuntimeBridge 未就绪。");
+        return;
+    }
 
-        if (!atlas.nodes.empty())
+    if (nodeVm.nodes.empty())
+    {
+        drawCanvasMessage("暂无地图节点。");
+        return;
+    }
+
+    if (!detailsPtr || !gridPtr)
+    {
+        drawCanvasMessage("请选择包含瓦片数据的节点。");
+        return;
+    }
+
+    const SceneNodeDetails &details = *detailsPtr;
+    const SceneNodeGridInfo &grid = *gridPtr;
+
+    drawCanvasBackground();
+
+    ImGui::SetCursorScreenPos(canvasPos);
+    ImGui::InvisibleButton("SceneCanvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    const bool canvasHovered = ImGui::IsItemHovered();
+    const bool canvasActive = ImGui::IsItemActive();
+    ImGuiIO &io = ImGui::GetIO();
+
+    drawList->PushClipRect(canvasPos, canvasMax, true);
+
+    bool shouldRecenter = resetRequested;
+    if (ctx.state.scene_camera_node != details.nodeId)
+    {
+        ctx.state.scene_camera_node = details.nodeId;
+        shouldRecenter = true;
+    }
+    if (ctx.state.scene_focus_node_request && *ctx.state.scene_focus_node_request == details.nodeId)
+    {
+        ctx.state.scene_focus_node_request.reset();
+        shouldRecenter = true;
+    }
+
+    auto centerCamera = [&](float zoom)
+    {
+        const float cell = grid.baseTileSize * zoom;
+        const float mapWidthPx = (grid.maxX - grid.minX + 1) * cell;
+        const float mapHeightPx = (grid.maxY - grid.minY + 1) * cell;
+        const float viewWidth = canvasExtent.x - canvasMargin * 2.0f;
+        const float viewHeight = canvasExtent.y - canvasMargin * 2.0f;
+        ctx.state.scene_cam_offset_x = (viewWidth - mapWidthPx) * 0.5f;
+        ctx.state.scene_cam_offset_y = (viewHeight - mapHeightPx) * 0.5f;
+    };
+
+    auto enforceCameraBounds = [&]()
+    {
+        const float cell = grid.baseTileSize * ctx.state.scene_cam_zoom;
+        const float mapWidthPx = (grid.maxX - grid.minX + 1) * cell;
+        const float mapHeightPx = (grid.maxY - grid.minY + 1) * cell;
+        const float viewWidth = canvasExtent.x - canvasMargin * 2.0f;
+        const float viewHeight = canvasExtent.y - canvasMargin * 2.0f;
+
+        auto clampOffset = [&](float mapSize, float viewSize, float &offset)
         {
-            const float padding = 28.0f;
-            const float width = std::max(atlas.extent.x, 1.0f);
-            const float height = std::max(atlas.extent.y, 1.0f);
-            const float scaleX = (canvasExtent.x - padding * 2.0f) / width;
-            const float scaleY = (canvasExtent.y - padding * 2.0f) / height;
-            const ImVec2 canvasOrigin{canvasPos.x + padding, canvasPos.y + padding};
-            const ImVec2 worldHalf{width * scaleX * 0.5f, height * scaleY * 0.5f};
-            const ImVec2 baseCenter{canvasOrigin.x + worldHalf.x, canvasOrigin.y + worldHalf.y};
-
-            if (ctx.state.scene_focus_node_request)
+            if (mapSize <= viewSize)
             {
-                const auto focusId = *ctx.state.scene_focus_node_request;
-                for (const auto &node : atlas.nodes)
+                offset = (viewSize - mapSize) * 0.5f;
+            }
+            else
+            {
+                const float minOffset = viewSize - mapSize;
+                const float maxOffset = 0.0f;
+                if (offset < minOffset)
                 {
-                    if (node.id.value == focusId)
-                    {
-                        const ImVec2 base{node.position.x * scaleX, node.position.y * scaleY};
-                        ctx.state.map_pan_x = -(base.x - worldHalf.x) * ctx.state.map_zoom;
-                        ctx.state.map_pan_y = -(base.y - worldHalf.y) * ctx.state.map_zoom;
-                        break;
-                    }
+                    offset = minOffset;
                 }
-                ctx.state.scene_focus_node_request.reset();
-            }
-
-            if (canvasHovered && !pointerInsideOverlay && io.MouseWheel != 0.0f)
-            {
-                const float zoomStep = io.MouseWheel > 0.0f ? 1.1f : 0.9f;
-                const float newZoom = std::clamp(ctx.state.map_zoom * zoomStep, 0.25f, 5.0f);
-
-                ImVec2 delta{io.MousePos.x - (baseCenter.x + ctx.state.map_pan_x), io.MousePos.y - (baseCenter.y + ctx.state.map_pan_y)};
-                ImVec2 worldDelta{delta.x / ctx.state.map_zoom, delta.y / ctx.state.map_zoom};
-
-                ctx.state.map_zoom = newZoom;
-                ImVec2 newPan{
-                    io.MousePos.x - baseCenter.x - worldDelta.x * ctx.state.map_zoom,
-                    io.MousePos.y - baseCenter.y - worldDelta.y * ctx.state.map_zoom};
-                ctx.state.map_pan_x = newPan.x;
-                ctx.state.map_pan_y = newPan.y;
-            }
-
-            if (canvasActive && !pointerInsideOverlay && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
-            {
-                ImVec2 delta = io.MouseDelta;
-                ctx.state.map_pan_x += delta.x;
-                ctx.state.map_pan_y += delta.y;
-            }
-
-            if (canvasHovered && ImGui::IsKeyPressed(ImGuiKey_Space))
-            {
-                ctx.resetMapViewCamera();
-            }
-
-            const float nodeLabelZoomThreshold = 0.75f;
-            const float resourceOverlayZoomThreshold = 0.60f;
-            const float agentLabelZoomThreshold = 0.90f;
-
-            auto toScreen = [&](const RuntimeBridge::Vector2 &pos)
-            {
-                const ImVec2 base{pos.x * scaleX, pos.y * scaleY};
-                const ImVec2 centered{(base.x - worldHalf.x) * ctx.state.map_zoom, (base.y - worldHalf.y) * ctx.state.map_zoom};
-                return ImVec2(
-                    baseCenter.x + ctx.state.map_pan_x + centered.x,
-                    baseCenter.y + ctx.state.map_pan_y + centered.y);
-            };
-
-            auto fromScreen = [&](const ImVec2 &screen) -> RuntimeBridge::Vector2
-            {
-                const float localX = (screen.x - baseCenter.x - ctx.state.map_pan_x) / ctx.state.map_zoom + worldHalf.x;
-                const float localY = (screen.y - baseCenter.y - ctx.state.map_pan_y) / ctx.state.map_zoom + worldHalf.y;
-                return RuntimeBridge::Vector2{localX / scaleX, localY / scaleY};
-            };
-
-            std::unordered_map<std::uint32_t, ImVec2> nodePositions;
-            nodePositions.reserve(atlas.nodes.size());
-            for (const auto &node : atlas.nodes)
-            {
-                nodePositions.emplace(node.id.value, toScreen(node.position));
-            }
-
-            // Selected node edges (parent/children only)
-            std::optional<std::uint32_t> selectedEdgeNode = ctx.state.map_selected_node ? ctx.state.map_selected_node : ctx.state.inspector_highlight_node;
-            const RuntimeBridge::WorldAtlas::Node *selectedNodeInfo = nullptr;
-            if (selectedEdgeNode)
-            {
-                for (const auto &node : atlas.nodes)
+                else if (offset > maxOffset)
                 {
-                    if (node.id.value == *selectedEdgeNode)
-                    {
-                        selectedNodeInfo = &node;
-                        break;
-                    }
+                    offset = maxOffset;
                 }
             }
+        };
 
-            if (selectedNodeInfo && ctx.state.scene_show_graph)
+        clampOffset(mapWidthPx, viewWidth, ctx.state.scene_cam_offset_x);
+        clampOffset(mapHeightPx, viewHeight, ctx.state.scene_cam_offset_y);
+    };
+
+    if (shouldRecenter)
+    {
+        ctx.state.scene_cam_zoom = 1.0f;
+        centerCamera(ctx.state.scene_cam_zoom);
+        enforceCameraBounds();
+    }
+
+    const float prevZoom = ctx.state.scene_cam_zoom;
+    if (io.MouseWheel != 0.0f)
+    {
+        const float zoomFactor = (io.MouseWheel > 0.0f) ? 1.1f : 0.9f;
+        float newZoom = prevZoom * zoomFactor;
+        newZoom = std::clamp(newZoom, 0.25f, 6.0f);
+
+        if (std::abs(newZoom - prevZoom) > 1e-4f)
+        {
+            const ImVec2 focus = canvasHovered ? io.MousePos : ImVec2(canvasPos.x + canvasExtent.x * 0.5f, canvasPos.y + canvasExtent.y * 0.5f);
+            const float prevCell = grid.baseTileSize * prevZoom;
+            const float newCell = grid.baseTileSize * newZoom;
+            const float localX = focus.x - (canvasPos.x + canvasMargin + ctx.state.scene_cam_offset_x);
+            const float localY = focus.y - (canvasPos.y + canvasMargin + ctx.state.scene_cam_offset_y);
+
+            ctx.state.scene_cam_zoom = newZoom;
+            ctx.state.scene_cam_offset_x = localX - (localX / prevCell) * newCell;
+            ctx.state.scene_cam_offset_y = localY - (localY / prevCell) * newCell;
+            enforceCameraBounds();
+        }
+    }
+
+    if (canvasActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+    {
+        const ImVec2 delta = io.MouseDelta;
+        ctx.state.scene_cam_offset_x += delta.x;
+        ctx.state.scene_cam_offset_y += delta.y;
+        enforceCameraBounds();
+    }
+
+    const float cellPx = grid.baseTileSize * ctx.state.scene_cam_zoom;
+    if (cellPx <= 0.01f)
+    {
+        drawList->AddText(canvasPos, ImGui::GetColorU32(ImGuiCol_Text), "瓦片尺寸异常。");
+        drawList->PopClipRect();
+        ImGui::Dummy(canvasExtent);
+        return;
+    }
+
+    auto toScreenRaw = [&](float gx, float gy) -> ImVec2
+    {
+        const float px = canvasPos.x + canvasMargin + ctx.state.scene_cam_offset_x + (gx - static_cast<float>(grid.minX)) * cellPx;
+        const float py = canvasPos.y + canvasMargin + ctx.state.scene_cam_offset_y + (gy - static_cast<float>(grid.minY)) * cellPx;
+        return ImVec2(px, py);
+    };
+    auto toScreen = [&](float gx, float gy) -> ImVec2
+    {
+        ImVec2 raw = toScreenRaw(gx, gy);
+        return ImVec2(std::floor(raw.x) + 0.5f, std::floor(raw.y) + 0.5f);
+    };
+    auto tileFromScreen = [&](const ImVec2 &screen) -> std::optional<std::pair<int, int>>
+    {
+        const float localX = screen.x - (canvasPos.x + canvasMargin + ctx.state.scene_cam_offset_x);
+        const float localY = screen.y - (canvasPos.y + canvasMargin + ctx.state.scene_cam_offset_y);
+        const float gx = localX / cellPx + static_cast<float>(grid.minX);
+        const float gy = localY / cellPx + static_cast<float>(grid.minY);
+        const int tileX = static_cast<int>(std::floor(gx));
+        const int tileY = static_cast<int>(std::floor(gy));
+        if (tileX < grid.minX || tileX > grid.maxX || tileY < grid.minY || tileY > grid.maxY)
+        {
+            return std::nullopt;
+        }
+        return std::pair{tileX, tileY};
+    };
+
+    if (details.tilemap)
+    {
+        const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
+        const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
+        for (int y = 0; y < details.tilemap->height; ++y)
+        {
+            for (int x = 0; x < details.tilemap->width; ++x)
             {
-                auto selectedPosIt = nodePositions.find(selectedNodeInfo->id.value);
-                if (selectedPosIt != nodePositions.end())
-                {
-                    const ImU32 parentEdgeColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight));
-                    const ImU32 childEdgeColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-
-                    if (selectedNodeInfo->parent.value != 0 && selectedNodeInfo->parent.value != selectedNodeInfo->id.value)
-                    {
-                        auto parentPosIt = nodePositions.find(selectedNodeInfo->parent.value);
-                        if (parentPosIt != nodePositions.end())
-                        {
-                            drawList->AddLine(selectedPosIt->second, parentPosIt->second, parentEdgeColor, 2.4f);
-                        }
-                    }
-
-                    for (const auto &node : atlas.nodes)
-                    {
-                        if (node.parent.value != selectedNodeInfo->id.value)
-                        {
-                            continue;
-                        }
-                        auto childPosIt = nodePositions.find(node.id.value);
-                        if (childPosIt != nodePositions.end())
-                        {
-                            drawList->AddLine(selectedPosIt->second, childPosIt->second, childEdgeColor, 2.4f);
-                        }
-                    }
-                }
+                const float gx0 = static_cast<float>(grid.minX + x);
+                const float gy0 = static_cast<float>(grid.minY + y);
+                ImVec2 cellMin = toScreenRaw(gx0, gy0);
+                ImVec2 cellMax = toScreenRaw(gx0 + 1.0f, gy0 + 1.0f);
+                const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
+                drawList->AddRectFilled(cellMin, cellMax, fill);
             }
+        }
+    }
+    else
+    {
+        const ImVec2 min = toScreenRaw(static_cast<float>(grid.minX), static_cast<float>(grid.minY));
+        const ImVec2 max = toScreenRaw(static_cast<float>(grid.maxX + 1), static_cast<float>(grid.maxY + 1));
+        drawList->AddRectFilled(min, max, ImGui::GetColorU32(ImVec4(0.14f, 0.16f, 0.20f, 0.65f)));
+    }
 
-            // Prepare for label overlap avoidance
-            std::vector<ImRect> placedLabels;
-            placedLabels.reserve(atlas.nodes.size());
+    if (ctx.state.scene_show_grid)
+    {
+        const ImU32 gridColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+        for (int x = grid.minX; x <= grid.maxX + 1; ++x)
+        {
+            drawList->AddLine(toScreen(static_cast<float>(x), static_cast<float>(grid.minY)),
+                              toScreen(static_cast<float>(x), static_cast<float>(grid.maxY + 1)),
+                              gridColor,
+                              1.0f);
+        }
+        for (int y = grid.minY; y <= grid.maxY + 1; ++y)
+        {
+            drawList->AddLine(toScreen(static_cast<float>(grid.minX), static_cast<float>(y)),
+                              toScreen(static_cast<float>(grid.maxX + 1), static_cast<float>(y)),
+                              gridColor,
+                              1.0f);
+        }
+    }
 
-            auto nodeKindIcon = [](genesis::world::LocationKind kind) -> const char *
+    std::optional<std::pair<int, int>> hoveredTile;
+    if (canvasHovered)
+    {
+        hoveredTile = tileFromScreen(io.MousePos);
+    }
+
+    const ImU32 highlightColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight));
+    if (ctx.state.scene_tile_selection && ctx.state.scene_tile_selection->nodeId == details.nodeId)
+    {
+        const auto &sel = *ctx.state.scene_tile_selection;
+        ImVec2 selMin = toScreenRaw(static_cast<float>(sel.tileX), static_cast<float>(sel.tileY));
+        ImVec2 selMax = toScreenRaw(static_cast<float>(sel.tileX + 1), static_cast<float>(sel.tileY + 1));
+        drawList->AddRect(selMin, selMax, highlightColor, 0.0f, 0, 2.0f);
+    }
+
+    if (hoveredTile)
+    {
+        ImVec2 hMin = toScreenRaw(static_cast<float>(hoveredTile->first), static_cast<float>(hoveredTile->second));
+        ImVec2 hMax = toScreenRaw(static_cast<float>(hoveredTile->first + 1), static_cast<float>(hoveredTile->second + 1));
+        drawList->AddRect(hMin, hMax, highlightColor, 0.0f, 0, 1.2f);
+    }
+
+    auto nodeNameById = [&](std::uint32_t id) -> std::string
+    {
+        const auto it = std::find_if(nodeVm.nodes.begin(), nodeVm.nodes.end(), [&](const SceneNodeSummary &entry) {
+            return entry.id == id;
+        });
+        if (it != nodeVm.nodes.end())
+        {
+            return it->name.empty() ? ("节点 " + std::to_string(it->id)) : it->name;
+        }
+        for (const auto &node : atlasPtr->nodes)
+        {
+            if (node.id.value == id)
             {
-                switch (kind)
-                {
-                case genesis::world::LocationKind::Region:
-                    return "R";
-                case genesis::world::LocationKind::Building:
-                    return "B";
-                case genesis::world::LocationKind::Room:
-                    return "r";
-                case genesis::world::LocationKind::Point:
-                    return "."; // simple dot placeholder
-                }
-                return "?";
-            };
+                return node.name.empty() ? ("节点 " + std::to_string(node.id.value)) : node.name;
+            }
+        }
+        return "#" + std::to_string(id);
+    };
 
-            const float nodeRadius = 12.0f;
+    const bool nodeToolActive = ctx.state.scene_selection_tool == SceneSelectionTool::Any ||
+                                ctx.state.scene_selection_tool == SceneSelectionTool::Node;
+    const bool tileToolActive = ctx.state.scene_selection_tool == SceneSelectionTool::Any ||
+                                ctx.state.scene_selection_tool == SceneSelectionTool::Tile;
 
-            for (const auto &node : atlas.nodes)
+    const float portalRadius = std::max(6.0f, cellPx * 0.25f);
+    const ImU32 portalColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+    std::optional<SceneNodePortal> hoveredPortal;
+    if (ctx.state.scene_show_graph)
+    {
+        for (const auto &portal : details.portals)
+        {
+            const ImVec2 center = toScreen(portal.x + 0.5f, portal.y + 0.5f);
+            drawList->AddCircleFilled(center, portalRadius, portalColor, 24);
+            drawList->AddCircle(center, portalRadius, ImGui::GetColorU32(ImGuiCol_Border), 24, 1.2f);
+
+            const std::string label = "→ " + nodeNameById(portal.targetNodeId);
+            drawList->AddText(ImVec2(center.x + portalRadius + 4.0f, center.y - ImGui::GetTextLineHeight() * 0.5f),
+                              ImGui::GetColorU32(ImGuiCol_Text),
+                              label.c_str());
+
+            if (canvasHovered)
             {
-                auto it = nodePositions.find(node.id.value);
-                if (it == nodePositions.end())
+                const float dx = io.MousePos.x - center.x;
+                const float dy = io.MousePos.y - center.y;
+                if ((dx * dx + dy * dy) <= (portalRadius * portalRadius))
                 {
-                    continue;
-                }
-
-                const float radius = nodeRadius;
-                if (ctx.state.scene_show_graph)
-                {
-                    ImU32 fillColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Primary));
-                    switch (node.kind)
-                    {
-                    case genesis::world::LocationKind::Region:
-                        fillColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));
-                        break;
-                    case genesis::world::LocationKind::Building:
-                        fillColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-                        break;
-                    case genesis::world::LocationKind::Room:
-                        fillColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-                        break;
-                    case genesis::world::LocationKind::Point:
-                        fillColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Primary));
-                        break;
-                    }
-
-                    drawList->AddCircleFilled(it->second, radius, fillColor, 20);
-                    drawList->AddCircle(it->second, radius, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft)), 20, 1.5f);
-                }
-
-                const bool isSelected = ctx.state.map_selected_node && node.id.value == *ctx.state.map_selected_node;
-                const bool highlighted = (ctx.state.inspector_highlight_node && node.id.value == *ctx.state.inspector_highlight_node) || isSelected;
-                if (highlighted)
-                {
-                    drawList->AddCircle(it->second, radius + 4.0f, highlightColor, 24, 2.5f);
-                }
-
-                bool hovered = false;
-
-                if (ctx.state.scene_show_graph)
-                {
-                    // Icon inside the node
-                    const char *icon = nodeKindIcon(node.kind);
-                    const ImVec2 iconSize = ImGui::CalcTextSize(icon);
-                    const ImVec2 iconPos{it->second.x - iconSize.x * 0.5f, it->second.y - iconSize.y * 0.5f};
-                    drawList->AddText(iconPos, ImGui::GetColorU32(ImGuiCol_Text), icon);
-
-                    // Label to the right, avoid overlap; force when hovered/selected
-                    if (canvasHovered)
-                    {
-                        const ImVec2 mouse = io.MousePos;
-                        const float dx = mouse.x - it->second.x;
-                        const float dy = mouse.y - it->second.y;
-                        hovered = (dx * dx + dy * dy) <= (radius * radius);
-                    }
-                    const ImVec2 nameSize = ImGui::CalcTextSize(node.name.c_str());
-                    const ImVec2 labelPos{it->second.x + radius + 6.0f, it->second.y - nameSize.y * 0.5f};
-                    ImRect labelRect{labelPos, ImVec2(labelPos.x + nameSize.x, labelPos.y + nameSize.y)};
-                    bool overlaps = false;
-                    for (const auto &r : placedLabels)
-                    {
-                        if (r.Overlaps(labelRect))
-                        {
-                            overlaps = true;
-                            break;
-                        }
-                    }
-                    const bool forceLabel = hovered || highlighted;
-                    if ((ctx.state.map_zoom >= nodeLabelZoomThreshold || forceLabel) && (!overlaps || forceLabel))
-                    {
-                        drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), node.name.c_str());
-                        placedLabels.push_back(labelRect);
-                    }
-                }
-
-                // Click to update selection states for this node
-                if (canvasHovered && !pointerInsideOverlay)
-                {
-                    const ImVec2 mouse = io.MousePos;
-                    const float dx = mouse.x - it->second.x;
-                    const float dy = mouse.y - it->second.y;
-                    if ((dx * dx + dy * dy) <= (radius * radius))
-                    {
-                        if (hovered)
-                        {
-                            ImGui::BeginTooltip();
-                            ImGui::Text("%s", node.name.c_str());
-                            ImGui::Separator();
-                            ImGui::Text("ID: %u", node.id.value);
-                            ImGui::Text("Kind: %u", static_cast<unsigned int>(node.kind));
-                            ImGui::EndTooltip();
-                        }
-                        const bool nodeToolActive = ctx.state.scene_selection_tool == SceneSelectionTool::Any ||
-                                                     ctx.state.scene_selection_tool == SceneSelectionTool::Node;
-                        if (nodeToolActive && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                        {
-                            ctx.state.map_selected_node = node.id.value;
-                            ctx.state.scene_selected_node = node.id.value;
-                            ctx.state.scene_tile_selection.reset();
-                        }
+                    hoveredPortal = portal;
                     }
                 }
             }
+        }
 
-            if (canvasHovered && !pointerInsideOverlay && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+    if (hoveredPortal && nodeToolActive && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        if (hoveredPortal->targetNodeId != 0)
+        {
+            ctx.state.scene_selected_node = hoveredPortal->targetNodeId;
+            ctx.state.map_selected_node = hoveredPortal->targetNodeId;
+            ctx.state.scene_tile_selection.reset();
+            ctx.state.scene_focus_node_request = hoveredPortal->targetNodeId;
+            ctx.state.scene_camera_node = 0;
+        }
+    }
+
+    if (hoveredPortal)
+    {
+        ImGui::BeginTooltip();
+        ImGui::Text("前往：%s", nodeNameById(hoveredPortal->targetNodeId).c_str());
+        ImGui::EndTooltip();
+    }
+
+    if (tileToolActive && hoveredTile && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !hoveredPortal)
+    {
+        ctx.state.scene_tile_selection = SceneTileSelection{details.nodeId, hoveredTile->first, hoveredTile->second};
+        ctx.state.scene_selected_node = details.nodeId;
+    }
+
+    if (!ImGui::IsMouseDragging(ImGuiMouseButton_Right) && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+    {
+        const ImVec2 drag = io.MouseDragMaxDistanceAbs[ImGuiMouseButton_Right];
+        if (drag.x < 4.0f && drag.y < 4.0f)
+        {
+            ctx.state.scene_tile_selection.reset();
+        }
+    }
+
+    if (ctx.state.scene_show_resources)
+    {
+        auto colorForResource = [](genesis::world::ResourceType type) -> ImU32
+        {
+            switch (type)
             {
-                const ImVec2 drag = io.MouseDragMaxDistanceAbs[ImGuiMouseButton_Right];
-                if (drag.x < 4.0f && drag.y < 4.0f)
-                {
-                    ctx.state.map_selected_node.reset();
-                }
+            case genesis::world::ResourceType::Food:
+                return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
+            case genesis::world::ResourceType::Drink:
+                return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+            case genesis::world::ResourceType::Social:
+                return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));
+            default:
+                return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Muted));
             }
+        };
 
-            for (const auto &spawn : atlas.spawns)
+        for (const auto &resource : details.resources)
+        {
+            const ImVec2 center = toScreen(resource.x + 0.5f, resource.y + 0.5f);
+            const float radius = std::max(3.5f, cellPx * 0.25f);
+            const ImU32 fillColor = colorForResource(resource.type);
+            drawList->AddCircleFilled(center, radius, fillColor, 16);
+            drawList->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), 16, 1.1f);
+        }
+    }
+
+    if (ctx.state.scene_show_anchors)
+    {
+        const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive));
+        for (const auto &anchor : details.anchors)
+        {
+            const ImVec2 base = toScreen(anchor.x + 0.5f, anchor.y + 0.5f);
+            const float size = std::max(4.0f, cellPx * 0.2f);
+            const ImVec2 a{base.x - size, base.y};
+            const ImVec2 b{base.x + size, base.y};
+            const ImVec2 c{base.x, base.y + size * 1.6f};
+            drawList->AddTriangleFilled(a, b, c, anchorColor);
+            drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
+            const std::string label = std::string("↔ ") + nodeNameById(anchor.targetNodeId);
+            drawList->AddText(ImVec2(base.x + size + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f),
+                              ImGui::GetColorU32(ImGuiCol_Text),
+                              label.c_str());
+        }
+    }
+
+    if (ctx.state.scene_show_ruler)
+    {
+        const ImU32 rulerColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+        const ImVec2 cursor = io.MousePos;
+        const bool inside = cursor.x >= canvasPos.x && cursor.x <= canvasMax.x &&
+                            cursor.y >= canvasPos.y && cursor.y <= canvasMax.y;
+        if (inside)
+        {
+            drawList->AddLine(ImVec2(cursor.x, canvasPos.y), ImVec2(cursor.x, canvasMax.y), rulerColor, 1.0f);
+            drawList->AddLine(ImVec2(canvasPos.x, cursor.y), ImVec2(canvasMax.x, cursor.y), rulerColor, 1.0f);
+        }
+
+        if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            if (auto tile = tileFromScreen(cursor))
             {
-                auto nodePosIt = nodePositions.find(spawn.resource.location.value);
-                ImVec2 markerBase = nodePosIt != nodePositions.end() ? nodePosIt->second : toScreen(spawn.position);
-                markerBase = ImVec2(std::floor(markerBase.x) + 0.5f, std::floor(markerBase.y) + 0.5f);
-                markerBase.y += 22.0f;
-                const ImVec2 a{markerBase.x - 6.0f, markerBase.y};
-                const ImVec2 b{markerBase.x + 6.0f, markerBase.y};
-                const ImVec2 c{markerBase.x, markerBase.y + 10.0f};
-                const ImU32 markerColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-                drawList->AddTriangleFilled(a, b, c, markerColor);
-                drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.2f);
-            }
-
-            if (ctx.state.scene_show_resources && ctx.latest_snapshot)
-            {
-                auto colorForResource = [](genesis::world::ResourceType type) -> ImU32
-                {
-                    switch (type)
-                    {
-                    case genesis::world::ResourceType::Food:
-                        return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-                    case genesis::world::ResourceType::Drink:
-                        return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-                    case genesis::world::ResourceType::Social:
-                        return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));
-                    default:
-                        return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Muted));
-                    }
-                };
-
-                const ImU32 barBackground = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Surface));
-                const ImU32 barBorder = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-
-                for (const auto &bucket : resourceBuckets)
-                {
-                    auto posIt = nodePositions.find(bucket.locationId);
-                    if (posIt == nodePositions.end())
-                    {
-                        continue;
-                    }
-                    const bool forceOverlay = (ctx.state.map_selected_node && *ctx.state.map_selected_node == bucket.locationId) ||
-                                              (ctx.state.inspector_highlight_node && *ctx.state.inspector_highlight_node == bucket.locationId);
-                    if (ctx.state.map_zoom < resourceOverlayZoomThreshold && !forceOverlay)
-                    {
-                        continue;
-                    }
-
-                    const ImVec2 basePos = ImVec2(std::floor(posIt->second.x) + 0.5f, std::floor(posIt->second.y) + 0.5f);
-                    float offsetY = 20.0f;
-
-                    for (const auto &resource : bucket.resources)
-                    {
-                        const float capacity = static_cast<float>(resource.capacity);
-                        const float current = static_cast<float>(resource.current);
-                        const float ratio = capacity > 0.0f ? std::clamp(current / capacity, 0.0f, 1.0f) : 0.0f;
-
-                        const ImVec2 barMin{std::floor(basePos.x - 28.0f) + 0.5f, std::floor(basePos.y + offsetY) + 0.5f};
-                        const ImVec2 barMax{std::floor(basePos.x + 28.0f) + 0.5f, std::floor(barMin.y + 7.5f) + 0.5f};
-                        drawList->AddRectFilled(barMin, barMax, barBackground, 3.0f);
-                        const ImVec2 fillMax{barMin.x + (barMax.x - barMin.x) * ratio, barMax.y};
-                        drawList->AddRectFilled(barMin, fillMax, colorForResource(resource.type), 3.0f);
-                        drawList->AddRect(barMin, barMax, barBorder, 3.0f);
-
-                        char buffer[48];
-                        std::snprintf(buffer, sizeof(buffer), "%-12s %2u/%2u",
-                                      resource.name.c_str(), resource.current, resource.capacity);
-                        const ImVec2 textPos{std::floor(barMin.x) + 0.5f, std::floor(barMax.y + 1.0f) + 0.5f};
-                        drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
-
-                        offsetY += 22.0f;
-                    }
-                }
-            }
-
-            if (ctx.state.show_agent_overlay && ctx.latest_snapshot)
-            {
-                const auto &movement = mapVm.movement;
-                const auto &agentView = mapVm.agents;
-
-                const ImU32 moveColor = ImGui::GetColorU32(colorMove);
-                const ImU32 consumeColor = ImGui::GetColorU32(colorConsume);
-                const ImU32 idleColor = ImGui::GetColorU32(colorIdle);
-                const ImU32 otherColor = ImGui::GetColorU32(colorUnknown);
-                const ImU32 borderColor = ImGui::GetColorU32(ImGuiCol_Text);
-
-                auto colorForActivity = [&](SceneAgentActivity activity) -> ImU32
-                {
-                    switch (activity)
-                    {
-                    case SceneAgentActivity::Move:
-                        return moveColor;
-                    case SceneAgentActivity::Consume:
-                        return consumeColor;
-                    case SceneAgentActivity::Idle:
-                        return idleColor;
-                    case SceneAgentActivity::Other:
-                    default:
-                        return otherColor;
-                    }
-                };
-
-                for (std::size_t i = 0; i < ctx.latest_snapshot->telemetry.agents.size(); ++i)
-                {
-                    const auto &agent = ctx.latest_snapshot->telemetry.agents[i];
-                    RuntimeBridge::Vector2 agentPos = atlas.nodePosition(agent.location).value_or(RuntimeBridge::Vector2{});
-                    if (agentPositionsPtr && i < agentPositionsPtr->size())
-                    {
-                        agentPos = (*agentPositionsPtr)[i];
-                    }
-                    if (ctx.state.map_interpolate)
-                    {
-                        if (auto it = movement.find(agent.entityId); it != movement.end())
-                        {
-                            const auto &progress = it->second;
-                            agentPos.x = progress.from.x + (progress.to.x - progress.from.x) * progress.t;
-                            agentPos.y = progress.from.y + (progress.to.y - progress.from.y) * progress.t;
-                        }
-                    }
-
-                    ImVec2 screenPos = toScreen(agentPos);
-                    screenPos = ImVec2(std::floor(screenPos.x) + 0.5f, std::floor(screenPos.y) + 0.5f);
-
-                    const SceneAgentActivity activity = [&]()
-                    {
-                        if (auto it = agentView.find(agent.entityId); it != agentView.end())
-                        {
-                            return it->second.activity;
-                        }
-                        return SceneAgentActivity::Idle;
-                    }();
-
-                    const ImU32 fillColor = colorForActivity(activity);
-                    drawList->AddCircleFilled(screenPos, 7.0f, fillColor, 16);
-                    drawList->AddCircle(screenPos, 7.0f, borderColor, 16, 1.4f);
-
-                    const bool agentSelected = ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Agent && ctx.state.inspector_selected_primary == agent.entityId;
-                    if (agentSelected)
-                    {
-                        drawList->AddCircle(screenPos, 11.0f, highlightColor, 24, 2.5f);
-                    }
-
-                    if (!agent.name.empty() && (ctx.state.map_zoom >= agentLabelZoomThreshold || agentSelected))
-                    {
-                        const ImVec2 namePos{screenPos.x + 9.0f, screenPos.y - ImGui::GetTextLineHeight() * 0.5f};
-                        drawList->AddText(namePos, ImGui::GetColorU32(ImGuiCol_Text), agent.name.c_str());
-                    }
-
-                    if (ctx.state.show_agent_trails)
-                    {
-                        auto trailIt = ctx.state.agent_trails.find(agent.entityId);
-                        if (trailIt != ctx.state.agent_trails.end() && trailIt->second.size() > 1)
-                        {
-                            const auto &trail = trailIt->second;
-                            ImVec2 previous = toScreen(trail.front());
-                            previous = ImVec2(std::floor(previous.x) + 0.5f, std::floor(previous.y) + 0.5f);
-                            for (std::size_t trailIndex = 1; trailIndex < trail.size(); ++trailIndex)
-                            {
-                                ImVec2 current = toScreen(trail[trailIndex]);
-                                current = ImVec2(std::floor(current.x) + 0.5f, std::floor(current.y) + 0.5f);
-                                drawList->AddLine(previous, current, fillColor, 2.0f);
-                                previous = current;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (hasTileOverlay)
-            {
-                const SceneNodeDetails &details = *nodeVm.active;
-                const SceneNodeGridInfo &grid = details.grid;
-                const ImVec2 overlayMin = tileOverlayPos;
-                const ImVec2 overlayMax = ImVec2(tileOverlayPos.x + tileOverlaySize.x, tileOverlayPos.y + tileOverlaySize.y);
-                const ImU32 overlayBg = ImGui::GetColorU32(ImGuiCol_PopupBg);
-                const ImU32 overlayBorder = ImGui::GetColorU32(ImGuiCol_Border);
-                drawList->AddRectFilled(overlayMin, overlayMax, overlayBg, 8.0f);
-                drawList->AddRect(overlayMin, overlayMax, overlayBorder, 8.0f);
-
-                ImGui::SetCursorScreenPos(overlayMin);
-                ImGui::InvisibleButton("SceneTileOverlay.Canvas", tileOverlaySize, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
-                ImGui::SetItemAllowOverlap();
-                const bool tileHovered = ImGui::IsItemHovered();
-                const bool tileActive = ImGui::IsItemActive();
-
-                const float headerLineHeight = ImGui::GetTextLineHeightWithSpacing();
-                const bool hasTileSelection = ctx.state.scene_tile_selection && ctx.state.scene_tile_selection->nodeId == details.nodeId;
-                const float headerLines = hasTileSelection ? 2.0f : 1.0f;
-                const float headerHeight = 12.0f + headerLineHeight * headerLines;
-
-                const ImVec2 titlePos{overlayMin.x + 12.0f, overlayMin.y + 8.0f};
-                drawList->AddText(titlePos, ImGui::GetColorU32(ImGuiCol_Text), nodePreviewLabel.c_str());
-                if (hasTileSelection)
-                {
-                    const auto &selected = *ctx.state.scene_tile_selection;
-                    char selectionBuf[64];
-                    std::snprintf(selectionBuf, sizeof(selectionBuf), "瓦片 (%d, %d)", selected.tileX, selected.tileY);
-                    drawList->AddText(ImVec2(titlePos.x, titlePos.y + headerLineHeight), ImGui::GetColorU32(ImGuiCol_Text), selectionBuf);
-                }
-                else
-                {
-                    drawList->AddText(ImVec2(titlePos.x, titlePos.y + headerLineHeight), ImGui::GetColorU32(ImGuiCol_TextDisabled), "左键选中瓦片｜右键拖拽");
-                }
-
-                if (tileHovered && io.MouseWheel != 0.0f)
-                {
-                    const float zoomStep = io.MouseWheel > 0.0f ? 1.15f : 0.9f;
-                    ctx.state.scene_cam_zoom = std::clamp(ctx.state.scene_cam_zoom * zoomStep, 0.05f, 12.0f);
-                }
-                if (tileActive && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
-                {
-                    ctx.state.scene_cam_offset_x += io.MouseDelta.x;
-                    ctx.state.scene_cam_offset_y += io.MouseDelta.y;
-                }
-
-                const float tileZoom = std::max(0.05f, ctx.state.scene_cam_zoom);
-                const float cellPx = grid.baseTileSize * tileZoom;
-                const ImVec2 gridMin{overlayMin.x + 10.0f, overlayMin.y + headerHeight};
-                const ImVec2 gridMax{overlayMax.x - 10.0f, overlayMax.y - 12.0f};
-
-                auto toTileScreen = [&](float gx, float gy)
-                {
-                    const float sx = gridMin.x + ctx.state.scene_cam_offset_x + (gx - static_cast<float>(grid.minX)) * cellPx;
-                    const float sy = gridMin.y + ctx.state.scene_cam_offset_y + (gy - static_cast<float>(grid.minY)) * cellPx;
-                    return ImVec2(std::floor(sx) + 0.5f, std::floor(sy) + 0.5f);
-                };
-
-                auto tileFromScreen = [&](const ImVec2 &screen) -> std::optional<std::pair<int, int>>
-                {
-                    const float gx = (screen.x - gridMin.x - ctx.state.scene_cam_offset_x) / cellPx + static_cast<float>(grid.minX);
-                    const float gy = (screen.y - gridMin.y - ctx.state.scene_cam_offset_y) / cellPx + static_cast<float>(grid.minY);
-                    const int tileX = static_cast<int>(std::floor(gx));
-                    const int tileY = static_cast<int>(std::floor(gy));
-                    if (tileX < grid.minX || tileX > grid.maxX || tileY < grid.minY || tileY > grid.maxY)
-                    {
-                        return std::nullopt;
-                    }
-                    return std::pair{tileX, tileY};
-                };
-
-                drawList->PushClipRect(gridMin, gridMax, true);
-
-                if (details.tilemap)
-                {
-                    const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.25f, 0.32f, 0.65f));
-                    const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.21f, 0.28f, 0.65f));
-                    for (int y = 0; y < details.tilemap->height; ++y)
-                    {
-                        for (int x = 0; x < details.tilemap->width; ++x)
-                        {
-                            const float gx0 = static_cast<float>(grid.minX + x);
-                            const float gy0 = static_cast<float>(grid.minY + y);
-                            const ImVec2 cellMin = toTileScreen(gx0, gy0);
-                            const ImVec2 cellMax = toTileScreen(gx0 + 1.0f, gy0 + 1.0f);
-                            const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
-                            drawList->AddRectFilled(cellMin, cellMax, fill);
-                        }
-                    }
-                }
-
-                if (ctx.state.scene_show_grid)
-                {
-                    const ImU32 gridColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-                    for (int x = grid.minX; x <= grid.maxX + 1; ++x)
-                    {
-                        const ImVec2 a = toTileScreen(static_cast<float>(x), static_cast<float>(grid.minY));
-                        const ImVec2 b = toTileScreen(static_cast<float>(x), static_cast<float>(grid.maxY + 1));
-                        drawList->AddLine(a, b, gridColor, 1.0f);
-                    }
-                    for (int y = grid.minY; y <= grid.maxY + 1; ++y)
-                    {
-                        const ImVec2 a = toTileScreen(static_cast<float>(grid.minX), static_cast<float>(y));
-                        const ImVec2 b = toTileScreen(static_cast<float>(grid.maxX + 1), static_cast<float>(y));
-                        drawList->AddLine(a, b, gridColor, 1.0f);
-                    }
-                }
-
-                if (ctx.state.scene_show_resources)
-                {
-                    const ImU32 resourceColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-                    for (const auto &resource : details.resources)
-                    {
-                        const ImVec2 center = toTileScreen(resource.x + 0.5f, resource.y + 0.5f);
-                        const float radius = std::max(3.0f, cellPx * 0.25f);
-                        drawList->AddCircleFilled(center, radius, resourceColor, 12);
-                        drawList->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.1f);
-                    }
-                }
-
-                if (ctx.state.scene_show_anchors)
-                {
-                    const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-                    for (const auto &anchor : details.anchors)
-                    {
-                        const ImVec2 base = toTileScreen(anchor.x + 0.5f, anchor.y + 0.5f);
-                        const float w = std::max(4.0f, cellPx * 0.2f);
-                        const ImVec2 a{base.x - w, base.y};
-                        const ImVec2 b{base.x + w, base.y};
-                        const ImVec2 c{base.x, base.y + w * 1.6f};
-                        drawList->AddTriangleFilled(a, b, c, anchorColor);
-                        drawList->AddTriangle(a, b, c, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
-                        const std::string label = std::string("-> ") + std::to_string(anchor.targetNodeId);
-                        const ImVec2 labelPos{base.x + w + 4.0f, base.y - ImGui::GetTextLineHeight() * 0.5f};
-                        drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
-                    }
-                }
-
-                const std::optional<std::pair<int, int>> hoveredTile = (tileHovered ? tileFromScreen(io.MousePos) : std::nullopt);
-                if (hoveredTile)
-                {
-                    const ImVec2 hMin = toTileScreen(static_cast<float>(hoveredTile->first), static_cast<float>(hoveredTile->second));
-                    const ImVec2 hMax = toTileScreen(static_cast<float>(hoveredTile->first + 1), static_cast<float>(hoveredTile->second + 1));
-                    drawList->AddRect(hMin, hMax, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight)), 0.0f, 0, 1.5f);
-                }
-
-                if (ctx.state.scene_tile_selection && ctx.state.scene_tile_selection->nodeId == details.nodeId)
-                {
-                    const auto &sel = *ctx.state.scene_tile_selection;
-                    const ImVec2 sMin = toTileScreen(static_cast<float>(sel.tileX), static_cast<float>(sel.tileY));
-                    const ImVec2 sMax = toTileScreen(static_cast<float>(sel.tileX + 1), static_cast<float>(sel.tileY + 1));
-                    drawList->AddRect(sMin, sMax, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent)), 0.0f, 0, 2.0f);
-                }
-
-                drawList->PopClipRect();
-                drawList->AddRect(gridMin, gridMax, overlayBorder, 4.0f);
-
-                const bool tileToolActive = ctx.state.scene_selection_tool == SceneSelectionTool::Any ||
-                                             ctx.state.scene_selection_tool == SceneSelectionTool::Tile;
-                if (tileToolActive && tileHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                {
-                    if (auto picked = tileFromScreen(io.MousePos))
-                    {
-                        ctx.state.scene_tile_selection = SceneTileSelection{details.nodeId, picked->first, picked->second};
-                        ctx.state.scene_selected_node = details.nodeId;
-                        ctx.state.map_selected_node = details.nodeId;
-                    }
-                }
-
-                if (tileHovered)
-                {
-                    if (auto hover = tileFromScreen(io.MousePos))
-                    {
-                        char hoverBuf[64];
-                        std::snprintf(hoverBuf, sizeof(hoverBuf), "指向 (%d, %d)", hover->first, hover->second);
-                        drawList->AddText(ImVec2(gridMin.x, overlayMax.y - 18.0f), ImGui::GetColorU32(ImGuiCol_Text), hoverBuf);
-                    }
-                }
-            }
-
-            if (ctx.state.scene_show_ruler)
-            {
-                const ImU32 rulerColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive));
-                const ImVec2 cursor = io.MousePos;
-                const bool cursorInside = cursor.x >= canvasPos.x && cursor.x <= canvasMax.x &&
-                                          cursor.y >= canvasPos.y && cursor.y <= canvasMax.y;
-                const bool cursorInsideWithOverlay = cursorInside && !pointerInsideOverlay;
-                if (cursorInsideWithOverlay)
-                {
-                    drawList->AddLine(ImVec2(cursor.x, canvasPos.y), ImVec2(cursor.x, canvasMax.y), rulerColor, 1.0f);
-                    drawList->AddLine(ImVec2(canvasPos.x, cursor.y), ImVec2(canvasMax.x, cursor.y), rulerColor, 1.0f);
-                }
-
-                if (canvasHovered && !pointerInsideOverlay && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                {
-                    ctx.state.scene_ruler_anchor = fromScreen(cursor);
-                }
-                if (!pointerInsideOverlay && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-                {
-                    ctx.state.scene_ruler_anchor.reset();
-                }
-
-                if (ctx.state.scene_ruler_anchor)
-                {
-                    const RuntimeBridge::Vector2 anchorWorld = *ctx.state.scene_ruler_anchor;
-                    const ImVec2 anchorScreen = toScreen(anchorWorld);
-                    drawList->AddCircleFilled(anchorScreen, 4.0f, rulerColor, 24);
-                    drawList->AddLine(anchorScreen, cursor, rulerColor, 1.2f);
-
-                    const RuntimeBridge::Vector2 cursorWorld = fromScreen(cursor);
-                    const float dx = cursorWorld.x - anchorWorld.x;
-                    const float dy = cursorWorld.y - anchorWorld.y;
-                    const float dist = std::sqrt(dx * dx + dy * dy);
-                    char buffer[96];
-                    std::snprintf(buffer, sizeof(buffer), "dx %.2f  dy %.2f  dist %.2f", dx, dy, dist);
-                    ImVec2 textPos{cursor.x + 12.0f, cursor.y - 18.0f};
-                    drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
-                }
-                else if (cursorInsideWithOverlay)
-                {
-                    const RuntimeBridge::Vector2 cursorWorld = fromScreen(cursor);
-                    char buffer[64];
-                    std::snprintf(buffer, sizeof(buffer), "X %.2f  Y %.2f", cursorWorld.x, cursorWorld.y);
-                    ImVec2 textPos{cursor.x + 12.0f, cursor.y - 18.0f};
-                    drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), buffer);
-                }
+                ctx.state.scene_ruler_anchor = RuntimeBridge::Vector2{
+                    static_cast<float>(tile->first),
+                    static_cast<float>(tile->second)};
             }
             else
             {
                 ctx.state.scene_ruler_anchor.reset();
             }
         }
-        else
+        if (!ImGui::IsMouseDragging(ImGuiMouseButton_Right) && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
         {
             ctx.state.scene_ruler_anchor.reset();
-            const char *message = "暂无世界数据。";
-            const ImVec2 textSize = ImGui::CalcTextSize(message);
-            const ImVec2 canvasCenter{canvasPos.x + canvasExtent.x * 0.5f, canvasPos.y + canvasExtent.y * 0.5f};
-            const ImVec2 textPos{canvasCenter.x - textSize.x * 0.5f, canvasCenter.y - textSize.y * 0.5f};
-            const float paddingX = 12.0f;
-            const float paddingY = 8.0f;
-            const ImVec2 bgMin{textPos.x - paddingX, textPos.y - paddingY};
-            const ImVec2 bgMax{textPos.x + textSize.x + paddingX, textPos.y + textSize.y + paddingY};
-            const ImU32 bgColorOverlay = ImGui::GetColorU32(ImVec4(0.08f, 0.09f, 0.12f, 0.75f));
-            const ImU32 textColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::TextSecondary));
-            drawList->AddRectFilled(bgMin, bgMax, bgColorOverlay);
-            drawList->AddText(textPos, textColor, message);
         }
 
+        if (ctx.state.scene_ruler_anchor)
+        {
+            const RuntimeBridge::Vector2 anchorTile = *ctx.state.scene_ruler_anchor;
+            const ImVec2 anchorScreen = toScreen(anchorTile.x + 0.5f, anchorTile.y + 0.5f);
+            drawList->AddCircleFilled(anchorScreen, 4.0f, rulerColor, 24);
+            drawList->AddLine(anchorScreen, cursor, rulerColor, 1.3f);
+
+            if (auto tile = tileFromScreen(cursor))
+            {
+                const float dx = static_cast<float>(tile->first) - anchorTile.x;
+                const float dy = static_cast<float>(tile->second) - anchorTile.y;
+                const float dist = std::hypot(dx, dy);
+                char buffer[96];
+                std::snprintf(buffer, sizeof(buffer), "Δ (%d, %d)  dist %.2f", static_cast<int>(dx), static_cast<int>(dy), dist);
+                drawList->AddText(ImVec2(cursor.x + 12.0f, cursor.y - 18.0f),
+                                  ImGui::GetColorU32(ImGuiCol_Text),
+                                  buffer);
+            }
+        }
     }
-    void MainView::drawMonitorTab(UiContext &ctx)
+
+    if (hoveredTile)
+    {
+        char coordBuffer[48];
+        std::snprintf(coordBuffer, sizeof(coordBuffer), "Tile (%d, %d)", hoveredTile->first, hoveredTile->second);
+        drawList->AddText(ImVec2(canvasPos.x + 10.0f, canvasMax.y - ImGui::GetTextLineHeightWithSpacing() - 6.0f),
+                          ImGui::GetColorU32(ImGuiCol_TextDisabled),
+                          coordBuffer);
+    }
+
+    drawList->PopClipRect();
+}
+void MainView::drawMonitorTab(UiContext &ctx)
     {
         ImGui::TextUnformatted("运行概览");
         ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));

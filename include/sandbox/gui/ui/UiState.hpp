@@ -90,9 +90,10 @@ struct UiState
     // Scene View state
     std::uint32_t scene_selected_node{0};
     std::optional<SceneTileSelection> scene_tile_selection;
+    std::uint32_t scene_camera_node{0};
     float scene_cam_offset_x{0.0f};
     float scene_cam_offset_y{0.0f};
-    float scene_cam_zoom{1.5f};
+    float scene_cam_zoom{1.0f};
     bool scene_show_grid{true};
     bool scene_show_anchors{true};
     bool scene_show_resources{true};

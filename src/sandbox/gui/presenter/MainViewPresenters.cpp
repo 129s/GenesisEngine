@@ -204,6 +204,15 @@ SceneNodeViewModel ScenePresenter::buildNodeViewModel(const ScenePresenterInput&
             tilemap.height,
             std::max(tilemap.tileW, 1),
             std::max(tilemap.tileH, 1)};
+
+        details.portals.reserve(tilemap.portals.size());
+        for (const auto& portal : tilemap.portals)
+        {
+            details.portals.push_back(SceneNodePortal{
+                portal.anchor.x,
+                portal.anchor.y,
+                portal.to.value});
+        }
         break;
     }
 
@@ -250,16 +259,6 @@ SceneNodeViewModel ScenePresenter::buildNodeViewModel(const ScenePresenterInput&
     details.tilemap = tilemapInfo;
     viewModel.active = std::move(details);
 
-    return viewModel;
-}
-
-SceneUnifiedViewModel ScenePresenter::buildUnifiedViewModel(const ScenePresenterInput& input) const
-{
-    SceneUnifiedViewModel viewModel{};
-    viewModel.map = buildMapViewModel(input);
-    viewModel.node = buildNodeViewModel(input);
-    viewModel.runtimeReady = viewModel.map.runtimeReady && viewModel.map.atlas != nullptr;
-    viewModel.hasSnapshot = viewModel.map.hasSnapshot;
     return viewModel;
 }
 

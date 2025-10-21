@@ -505,7 +505,7 @@ namespace Genesis::Sandbox::Gui
         {
             if (ImGui::IsKeyPressed(ImGuiKey_1))
             {
-                toggleFlag(ui_state_.scene_show_graph, "节点叠加：开启", "节点叠加：关闭");
+                toggleFlag(ui_state_.scene_show_graph, "传送门叠加：开启", "传送门叠加：关闭");
             }
             bool resourceToggleHandled = false;
             if (ImGui::IsKeyPressed(ImGuiKey_2))

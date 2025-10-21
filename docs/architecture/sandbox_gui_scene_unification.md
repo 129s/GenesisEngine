@@ -1,87 +1,62 @@
-# Sandbox GUI · Scene 画布统一重构笔记
+# Sandbox GUI · 地图树与单画布展示
 
-> 记录单画布改造后的架构要点、状态流以及仍待跟进的事项，方便后续维护与扩展。
+> 记录 Scene 标签页最新的渲染逻辑、状态流以及地图树设计，方便后续迭代和调试。
 
-## 1. 背景回顾
+## 1. 核心概念
 
-最初的 Scene 标签页分成 “世界概览” 与 “节点细节” 两套渲染入口，依赖 `SceneViewMode` 在 `drawSceneWorldMap` / `drawSceneNode` 两个函数之间切换。两套视图拥有独立的摄像机、状态、输入处理，导致：
+### 地图树（生成期）
+- 世界生成仍产出一棵 *地图树*，节点按照空间层次划分（如城镇 → 建筑 → 房间）。
+- Portal 作为地图树中的交互节点，记录本地入口坐标与目标地图 ID，是穿梭的唯一纽带。
+- 地图树保留几何信息，方便设计阶段定位模块产出、调试瓦片布局。
 
-- Browser / Inspector 需要根据 mode 做条件分支，状态同步易错；
-- 画布无法同屏呈现节点拓扑与瓦片细节，用户必须频繁切换；
-- 额外的布局元素撑高子窗口，产生滚动条与多余空白。
+### 地图图（运行期）
+- 运行时使用 *Map Graph*（节点 = Map 实例，边 = 地图切换成本）驱动寻路与场景切换。
+- Portal 只在运行图上体现为“从当前地图到目标地图”的跳转耗时，不再单独建节点。
+- Scene 画布只关心当前地图的瓦片与叠加层，跨地图切换依赖 Portal 点击或外部命令。
 
-## 2. 当前实现概览（2025-10）
+## 2. UI 现状（2025-10）
 
-- `MainView::drawSceneUnified` 取代原有 Map / Node 双函数，负责工具栏、主画布以及瓦片浮动 overlay 的统一绘制。
-- `ScenePresenter::buildUnifiedViewModel` 组合原来的 Map / Node ViewModel，减少重复状态转换。
-- 两类视图数据共用一套摄像机逻辑：世界画布仍使用 `map_zoom` / `map_pan_*`，瓦片 overlay 使用 `scene_cam_zoom` / `scene_cam_offset_*`。
-- Inspector / Browser 跳转时仅设置节点 ID 与工具模式；单画布自动响应并绘制高亮，无需再切换 tab 内部模式。
+- `MainView::drawSceneUnified` 统一处理工具栏、画布与叠加层：
+  1. 画布底层绘制瓦片（棋盘底色暂用于调试）；
+  2. 叠加传送门、锚点、资源等信息；
+  3. 点击 Portal 会切换到目标地图并重置摄像机；
+  4. 点击瓦片会记录选中坐标，供 Inspector/调试使用。
+- Toolbar 保留 `SceneSelectionTool`（任意/节点/瓦片）并新增“传送门”叠加开关；
+- 摄像机状态使用 `scene_cam_*` 字段，支持滚轮缩放、右键平移、重置居中；
+- `scene_show_graph` 现用于控制 Portal 显隐（快捷键 `Ctrl+1`），`scene_show_grid/anchors/resources/ruler` 仍按原语义工作。
 
-## 3. 状态层调整
+## 3. 状态与 Presenter 更新
 
-| 字段 | 说明 |
+| 字段/结构 | 说明 |
 | --- | --- |
-| `SceneSelectionTool` | 任意 / 节点 / 瓦片。决定左键命中的优先级（节点画布只在工具允许时响应）。|
-| `SceneTileSelection` | `nodeId + (tileX, tileY)` 的瓦片选中信息，供 overlay 高亮与 Inspector 联动。|
-| `scene_focus_node_request` | 保留，用于在 Browser / Inspector 请求时重新定位世界摄像机。|
-| `scene_view_mode` | 已移除。所有状态改为对单画布生效。|
+| `UiState::scene_camera_node` | 记录当前摄像机聚焦的地图节点，用于节点切换后自动居中。 |
+| `UiState::scene_cam_zoom` | 默认 1.0，以瓦片像素大小为基准缩放。 |
+| `SceneNodePortal` | ViewModel 中的新结构，暴露 Portal 的目标节点与在瓦片坐标内的 anchor。 |
+| `ScenePresenter::buildNodeViewModel` | 负责从 `atlas.tilemaps` 中抽取 Portal 数据并计算瓦片网格。 |
 
-其它历史字段（`scene_selected_node`、`map_selected_node`、`scene_show_grid` 等）保持不变，但现在同时驱动主画布与瓦片 overlay。
+此前的 `SceneUnifiedViewModel` 已删除：渲染直接使用节点 ViewModel，减少重复构建。
 
-## 4. 画布结构
+## 4. 交互流程
 
-1. **工具栏（顶部单行）**
-   - 选择工具按钮（任意 / 节点 / 瓦片）。
-   - 世界叠加层开关：节点、资源、实体、轨迹、插值、标尺。
-   - 节点列表下拉框（与 Browser 相同的数据源）。
-   - 瓦片辅助开关：网格、锚点、节点资源。
-   - 重置视图会同时清理世界摄像机与瓦片摄像机偏移/缩放。
+1. **Browser 选中地图节点** → 更新 `scene_selected_node`，Scene 画布加载对应瓦片并居中。
+2. **Portal 左键点击**（工具 = 任意/节点）→ 切换到目标地图，重置摄像机并清空瓦片选中。
+3. **瓦片左键点击**（工具 = 任意/瓦片）→ 记录 `scene_tile_selection`，供 Inspector/调试。
+4. **右键短按** → 清除瓦片选中；右键拖拽 → 平移摄像机。
+5. **标尺模式** → 左键设置锚点，右键释放；提示使用瓦片坐标和欧氏距离。
 
-2. **主画布（世界拓扑）**
-   - 继续使用 atlas 节点坐标，支持缩放、平移、标尺测量。
-   - 节点点击遵从工具模式：仅在 “任意/节点” 时更新节点选中。
-   - 右键短按清除 `map_selected_node`，右键拖动平移。
+## 5. 渲染参考
 
-3. **瓦片 overlay**
-   - 固定在画布右下角，根据画布可用空间自适应尺寸。
-   - 维持独立的缩放 / 平移，支持热区裁剪（`PushClipRect`）。
-   - 在 “任意/瓦片” 工具下左键点击记录瓦片坐标，同时同步 `scene_selected_node`。
-   - 悬停显示瓦片坐标，选中瓦片以强调色描边。
-
-## 5. 交互联动
-
-- **Browser 点击节点**：设置 `scene_selected_node`、`map_selected_node`、`scene_selection_tool = Node`，同时触发 `scene_focus_node_request`。
-- **Inspector 操作**：
-  - “定位地图” 将工具切至 `Node` 并重置瓦片选中。
-  - “打开节点视图” 将工具切至 `Tile`，同时清空旧瓦片选中，便于用户直接在 overlay 中拾取瓦片。
-  - Follow 开关更新后会同步节点并清理瓦片选中，避免跨节点残留。
-- **画布点击**：
-  - 节点命中优先受工具影响；当 overlay 覆盖鼠标时，世界画布不再处理同一事件，避免误选。
-  - 瓦片 overlay 点击会同时同步 `scene_selected_node` 和 `map_selected_node`，确保 Inspector 一致。
-
-## 6. 回归检查清单
-
-- [ ] 世界画布无垂直滚动条，重置视图后布局稳定。
-- [ ] 工具栏按钮状态与实际交互一致，快捷键仍能切换原有叠加层。
-- [ ] Inspector / Browser / 画布之间的节点高亮同步。
-- [ ] overlay 缩放、平移、锚点/资源可见性正常。
-- [ ] 标尺、实体轨迹、资源进度条等原有功能维持可用。
-- [ ] `scene_selection_tool` 切换后，瓦片与节点点击逻辑正确。
-
-## 7. 后续迭代事项
-
-1. **多命中候选菜单**：当前未实现 “点击同一点弹出候选列表” 的功能，仍需根据需求补充（可利用 `ImGui::BeginPopup`）。
-2. **键盘快捷键**：考虑为瓦片工具添加快捷键，或与现有叠加层组合。
-3. **持久化瓦片摄像机**：根据反馈决定是否在切换节点时保留缩放 / 偏移。
-4. **性能 Profiling**：统一画布后应重新 Profile 大地图 + 叠加层同时开启时的帧率。
-
-## 8. 关联文件索引
-
-| 文件 | 描述 |
+| 文件 | 说明 |
 | --- | --- |
-| `include/sandbox/gui/ui/UiState.hpp` | 新增工具与瓦片选中状态字段。|
-| `src/sandbox/gui/ui/MainView.cpp` | 工具栏、主画布、瓦片 overlay 的统一渲染与交互实现。|
-| `src/sandbox/gui/presenter/MainViewPresenters.cpp` | 提供统一 ViewModel 构建入口。|
-| `src/sandbox/gui/ui/BrowserView.cpp` | 浏览器节点点击时更新新状态字段。|
-| `docs/architecture/sandbox_gui_ux_redesign.md` | 记录叠加层、快捷键说明，需要与本重构保持同步。|
+| `src/sandbox/gui/ui/MainView.cpp:1260` | 单画布渲染主流程、摄像机与交互处理。|
+| `include/sandbox/gui/presenter/MainViewPresenters.hpp:64` | `SceneNodePortal`、`SceneNodeDetails` 定义。|
+| `src/sandbox/gui/presenter/MainViewPresenters.cpp:222` | 从 `WorldAtlas::Tilemap` 解析 Portal 信息并补充 ViewModel。|
+| `src/sandbox/gui/AppHostCore.cpp:508` | Ctrl+1 快捷键切换“传送门”叠加提示文案。|
 
+## 6. TODO
+
+1. **交互点映射**：为 NPC/交互节点补充瓦片坐标（目前仅资源点/Portal），扩展点击语义。
+2. **地图树可视化**：Browser 面板展示生成期的地图树与 Portal 链接，支持从树结构直接跳转。
+3. **瓦片素材渲染**：接入真实瓦片纹理或 TileSet，替换调试棋盘底色。
+4. **运行图联动**：在 Scene 画布内展示目标地图的基础信息（切换耗时、推荐入口等）。
+5. **相机记忆策略**：按需决定跨地图时是否保留缩放/偏移或记忆每张地图的最后视角。

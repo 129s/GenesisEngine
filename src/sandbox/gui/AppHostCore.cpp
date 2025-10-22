@@ -581,13 +581,11 @@ namespace Genesis::Sandbox::Gui
         if (ImGui::IsKeyPressed(ImGuiKey_F8))
         {
             ui_state_.main_view_active_tab = MainViewTab::Monitor;
-            ui_state_.browser_active_section = BrowserSection::Monitor;
             pushThemedToast("主视图 → Monitor", Style::ColorToken::Info);
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F9))
         {
             ui_state_.main_view_active_tab = MainViewTab::World;
-            ui_state_.browser_active_section = BrowserSection::World;
             pushThemedToast("主视图 → World", Style::ColorToken::Info);
         }
     }

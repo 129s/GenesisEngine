@@ -46,7 +46,7 @@ void ControlBarView::render(UiContext& ctx)
     if (open)
     {
         const float navSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Md);
-        auto drawNavButton = [&](const char* label, MainViewTab tab, BrowserSection section, bool first) {
+        auto drawNavButton = [&](const char* label, MainViewTab tab, bool first) {
             if (!first)
             {
                 ImGui::SameLine(0.0f, navSpacing);
@@ -56,15 +56,14 @@ void ControlBarView::render(UiContext& ctx)
             if (ImGui::Button(label))
             {
                 ctx.state.main_view_active_tab = tab;
-                ctx.state.browser_active_section = section;
             }
             PopActiveButtonStyle(active);
         };
 
-        drawNavButton("Monitor", MainViewTab::Monitor, BrowserSection::Monitor, true);
-        drawNavButton("Scene", MainViewTab::Scene, BrowserSection::Scene, false);
-        drawNavButton("World", MainViewTab::World, BrowserSection::World, false);
-        drawNavButton("Settings", MainViewTab::Settings, BrowserSection::LayoutsThemes, false);
+        drawNavButton("Monitor", MainViewTab::Monitor, true);
+        drawNavButton("Scene", MainViewTab::Scene, false);
+        drawNavButton("World", MainViewTab::World, false);
+        drawNavButton("Settings", MainViewTab::Settings, false);
 
         ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);

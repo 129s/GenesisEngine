@@ -21,6 +21,7 @@ class ImGuiLogSink;
 
 enum class BrowserSection
 {
+    All,
     Scene,
     World,
     Monitor,
@@ -52,7 +53,7 @@ struct SceneTileSelection
 struct UiState
 {
     bool show_inspector{true};
-    BrowserSection browser_active_section{BrowserSection::Scene};
+    BrowserSection browser_active_section{BrowserSection::All};
     MainViewTab main_view_active_tab{MainViewTab::Scene};
     SceneSelectionTool scene_selection_tool{SceneSelectionTool::Any};
 

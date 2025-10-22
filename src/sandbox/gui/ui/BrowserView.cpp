@@ -379,12 +379,14 @@ namespace
                               ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
         {
             ImGui::Dummy(ImVec2(0.0f, guardPadding));
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - outerPadding);
+            // 文本换行宽度对齐到子窗口可用区域，避免额外右侧缩进导致左右不对称
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
+            // 标题与分隔线采用对称的上下留白
             ImGui::TextUnformatted("详情");
-            ImGui::Spacing();
+            ImGui::Dummy(ImVec2(0.0f, blockSpacing));
             ImGui::Separator();
-            ImGui::Spacing();
+            ImGui::Dummy(ImVec2(0.0f, blockSpacing));
 
             if (!warnings.empty())
             {
@@ -401,9 +403,9 @@ namespace
                 }
                 ImGui::Unindent(warningIndent);
 
-                ImGui::Spacing();
+                ImGui::Dummy(ImVec2(0.0f, blockSpacing));
                 ImGui::Separator();
-                ImGui::Spacing();
+                ImGui::Dummy(ImVec2(0.0f, blockSpacing));
             }
 
             const std::string selectionKey =

@@ -5,6 +5,9 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <algorithm>
+#include <cmath>
+
 namespace Genesis::Sandbox::Gui
 {
 namespace
@@ -32,7 +35,10 @@ void ControlBarView::render(UiContext& ctx)
 {
     ImGuiViewport* viewport = ImGui::GetMainViewport();
     const ImGuiStyle& style = ImGui::GetStyle();
-    const float height = ImGui::GetFrameHeight() + style.FramePadding.y * 2.2f;
+    const float rawHeight = ImGui::GetFrameHeight() + style.FramePadding.y * 2.0f;
+    const float axisSize = std::round(rawHeight);
+    const float heightDiff = axisSize - rawHeight;
+    const float verticalPadding = std::max(0.0f, style.FramePadding.y + heightDiff * 0.5f);
 
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
                                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
@@ -41,9 +47,9 @@ void ControlBarView::render(UiContext& ctx)
     ImGui::PushStyleVar(
         ImGuiStyleVar_WindowPadding,
         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Lg),
-               style.FramePadding.y));
+               verticalPadding));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, Style::DesignTokens::windowBorderThickness());
-    const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Up, height, flags);
+    const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Up, axisSize, flags);
     if (open)
     {
         const float navSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Md);

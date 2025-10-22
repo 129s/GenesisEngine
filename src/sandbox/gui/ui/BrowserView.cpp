@@ -364,7 +364,8 @@ namespace
                         const std::filesystem::path& dataRoot,
                         const std::vector<std::string>& warnings)
     {
-        // 自然布局：不再覆盖 WindowPadding / ItemSpacing，不再手工插入 Dummy、Indent 或 wrap 计算
+        // 为整个详情子窗口添加 4px 的统一内边距，避免内容贴边被裁切
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.0f, 4.0f));
         if (ImGui::BeginChild("BrowserDetailCard", ImVec2(0.0f, 0.0f), false))
         {
             ImGui::TextUnformatted("详情");
@@ -420,6 +421,7 @@ namespace
             }
         }
         ImGui::EndChild();
+        ImGui::PopStyleVar();
     }
 } // namespace
 

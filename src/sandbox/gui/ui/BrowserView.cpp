@@ -364,13 +364,23 @@ namespace
                         const std::filesystem::path& dataRoot,
                         const std::vector<std::string>& warnings)
     {
-        const float cardPadding = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
+        const float outerPadding = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
+        const float blockSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        const float guardPadding = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
+        const float warningIndent = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
         const ImVec4 cardBg = Style::DesignTokens::color(Style::ColorToken::Surface);
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(cardPadding, cardPadding));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(outerPadding, outerPadding));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(blockSpacing, blockSpacing));
         ImGui::PushStyleColor(ImGuiCol_ChildBg, cardBg);
-        if (ImGui::BeginChild("BrowserDetailCard", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_NoScrollbar))
+        if (ImGui::BeginChild("BrowserDetailCard",
+                              ImVec2(0.0f, 0.0f),
+                              false,
+                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
         {
+            ImGui::Dummy(ImVec2(0.0f, guardPadding));
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - outerPadding);
+
             ImGui::TextUnformatted("详情");
             ImGui::Spacing();
             ImGui::Separator();
@@ -381,12 +391,16 @@ namespace
                 ImGui::PushStyleColor(ImGuiCol_Text, Style::DesignTokens::color(Style::ColorToken::Warning));
                 ImGui::TextUnformatted("访问警告");
                 ImGui::PopStyleColor();
+
+                ImGui::Indent(warningIndent);
                 for (const auto& warning : warnings)
                 {
                     ImGui::Bullet();
                     ImGui::SameLine();
                     ImGui::TextWrapped("%s", warning.c_str());
                 }
+                ImGui::Unindent(warningIndent);
+
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
@@ -428,10 +442,13 @@ namespace
                     ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
                 }
             }
+
+            ImGui::PopTextWrapPos();
+            ImGui::Dummy(ImVec2(0.0f, guardPadding));
         }
         ImGui::EndChild();
         ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        ImGui::PopStyleVar(2);
     }
 } // namespace
 

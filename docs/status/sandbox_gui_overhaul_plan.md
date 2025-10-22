@@ -2,6 +2,26 @@
 
 依据《docs/architecture/sandbox_gui_ux_redesign.md》中的方案，将整体工作拆分为三大阶段（Phase A/B/C）。所有任务默认状态为 `pending`，后续执行过程中再更新状态并追加负责人、预估工时。
 
+## 下一步迭代计划（2025-10-28 ~ 2025-11-08，pending）
+- **迭代目标**：聚焦 Phase B 前两大模块（Monitor 面板、日志与通知），完成基础数据流梳理与关键 UI 雏形，从而为后续交互细化与性能优化打下基础。
+- **关键里程碑**
+  1. 统一 Monitor 相关数据契约与缓存机制，并输出更新后的接口文档草稿。
+  2. 构建日志/通知重写的事件流原型，实现时间轴联动的最小可用版本（MVP）。
+  3. 交付一轮可操作的 UI 点击路径演示（录屏 + 步骤说明），用于跨团队评审。
+- **任务拆分**
+  1. Monitor 数据管线梳理（负责人待定，预估 3 PD）  
+     - 调整 Scene/World Presenter，补充性能指标聚合接口。  
+     - 引入 `MonitorSnapshotCache` 原型，验证快照合并策略。  
+     - 更新 `docs/architecture/monitor_data_flow.md` 初版草稿。  
+  2. 日志与通知事件流提案（负责人待定，预估 2.5 PD）  
+     - 设计事件总线与日志后端的对接流程，输出序列图。  
+     - 搭建时间轴与 Toast 的共享队列，完成单元测试样例。  
+     - 准备 MVP UI Demo（含过滤与级别配色）。  
+  3. 交互评审素材准备（负责人待定，预估 1 PD）  
+     - 整理 Monitor/日志的用户旅程脚本，列出关键操作步骤。  
+     - 录制当前 UI 原型动线，配套撰写评审说明。  
+     - 收集设计/QA 反馈，纳入后续 backlog。
+
 ## Phase A · 布局与视觉统一
 1. **UI 骨架重构**  
    - 建立新的主布局（Status Bar / Control Bar / Browser / Main View / Inspector）。  

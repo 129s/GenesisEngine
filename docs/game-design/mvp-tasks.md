@@ -152,6 +152,26 @@
   - 依赖：XR6、XR7。
   - 参考：`docs/rendering/core-primitives.md`
 
+- XR9 程序化材质（P0）
+  - 内容：实现 `Wood`、`Brick/Stone` 基础材质（色带+噪声+抖动+接缝）。
+  - DoD：木板地面/砖墙能在像素风下稳定渲染（含板缝/砂浆/裂纹概率）。
+  - 参考：`docs/rendering/materials.md`、`docs/rendering/patterns-and-dither.md`
+
+- XR10 参数化道具 Schema（P0）
+  - 内容：门/柜台/板条箱的最小 Schema 与渲染顺序（mask→material→seams→lighting→fittings→wear→decals）。
+  - DoD：同一 Schema+seed 在不同平台重现一致外观；参数变更即时可见。
+  - 参考：`docs/rendering/props-schema.md`、`docs/rendering/procedural-pixel-art.md`
+
+- XR11 像素化光照与磨损（P0）
+  - 内容：1px 高光/暗边、接缝 AO；边缘擦亮/刮痕/污渍按 seed 生成。
+  - DoD：统一光向；磨损强度可调；无模糊阴影与连续透明。
+  - 参考：`docs/rendering/lighting-style.md`、`docs/rendering/wear-and-decals.md`
+
+- XR12 确定性与锚定（P0）
+  - 内容：图案/抖动相位锚定；种子哈希策略；避免相机移动导致纹理漂移。
+  - DoD：相同 seed/对象在多帧与不同机器上一致；滚动/缩放不破坏相位。
+  - 参考：`docs/rendering/seed-determinism.md`
+
 ## 里程碑映射（对 `mvp.md`）
 - M0：R1/R2 + S1 + G1/G2
 - M1：R3/R4 + S2 + G5

@@ -404,11 +404,11 @@ void BrowserView::render(UiContext& ctx)
 
     ImGui::TextDisabled("根目录：%s", dataRoot.generic_string().c_str());
 
-    const ImGuiStyle& style = ImGui::GetStyle();
     float available = ImGui::GetContentRegionAvail().x;
     bool hasFilter = ctx.state.browser_filter_buffer[0] != '\0';
     if (hasFilter)
     {
+        const ImGuiStyle& style = ImGui::GetStyle();
         const float buttonWidth = ImGui::CalcTextSize("清除").x + style.FramePadding.x * 2.0f;
         available = std::max(available - buttonWidth - style.ItemSpacing.x, 120.0f);
     }
@@ -444,22 +444,22 @@ void BrowserView::render(UiContext& ctx)
         return;
     }
 
-    const ImGuiStyle& style = ImGui::GetStyle();
     const float detailFooterHeight = ImGui::GetTextLineHeightWithSpacing() * 8.0f;
     const ImVec4 highlightColor = Style::DesignTokens::color(Style::ColorToken::Accent);
     const ImVec4 leafBg = Style::DesignTokens::color(Style::ColorToken::SurfaceAlt);
     const ImVec4 leafHoverBg = lerpColor(leafBg, Style::DesignTokens::color(Style::ColorToken::AccentHover), 0.15f);
     const ImVec4 leafActiveBg = lerpColor(leafBg, Style::DesignTokens::color(Style::ColorToken::AccentActive), 0.35f);
 
+    const ImGuiStyle& treeStyle = ImGui::GetStyle();
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                        ImVec2(style.ItemSpacing.x, Style::DesignTokens::spacing(Style::SpacingToken::None)));
+                        ImVec2(treeStyle.ItemSpacing.x, Style::DesignTokens::spacing(Style::SpacingToken::None)));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(style.FramePadding.x, Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
+                        ImVec2(treeStyle.FramePadding.x, Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing,
-                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), style.ItemInnerSpacing.y));
-    ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, style.IndentSpacing * 0.75f);
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), treeStyle.ItemInnerSpacing.y));
+    ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, treeStyle.IndentSpacing * 0.75f);
 
-    if (ImGui::BeginChild("BrowserTreePane", ImVec2(0.0f, -detailFooterHeight - style.ItemSpacing.y), true))
+    if (ImGui::BeginChild("BrowserTreePane", ImVec2(0.0f, -detailFooterHeight - treeStyle.ItemSpacing.y), true))
     {
         if (rootNode->children.empty())
         {

@@ -1,4 +1,5 @@
 #include "sandbox/gui/AppHost.hpp"
+#include "sandbox/gui/style/DesignTokens.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -71,6 +72,27 @@ void AppHost::drawDockspace()
 
         applyFlags(rootNode, applyFlags);
     }
+}
+
+void AppHost::drawOuterFrame()
+{
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    if (viewport == nullptr)
+    {
+        return;
+    }
+
+    const float thickness = Style::DesignTokens::skeletonBorderThickness();
+    const float halfThickness = thickness * 0.5f;
+    const ImU32 borderColor =
+        ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+    const ImVec2 min = ImVec2(viewport->Pos.x + halfThickness, viewport->Pos.y + halfThickness);
+    const ImVec2 max =
+        ImVec2(viewport->Pos.x + viewport->Size.x - halfThickness,
+               viewport->Pos.y + viewport->Size.y - halfThickness);
+
+    ImDrawList* drawList = ImGui::GetForegroundDrawList(viewport);
+    drawList->AddRect(min, max, borderColor, 0.0f, ImDrawFlags_None, thickness);
 }
 
 } // namespace Genesis::Sandbox::Gui

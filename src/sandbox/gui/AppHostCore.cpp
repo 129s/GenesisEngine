@@ -305,6 +305,7 @@ namespace Genesis::Sandbox::Gui
         inspector_view_.render(ui_context_);
         status_bar_view_.render(ui_context_);
         control_bar_view_.render(ui_context_);
+        drawOuterFrame();
         drawToasts();
     }
 

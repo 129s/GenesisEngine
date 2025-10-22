@@ -42,6 +42,7 @@ void ControlBarView::render(UiContext& ctx)
         ImGuiStyleVar_WindowPadding,
         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Lg),
                style.FramePadding.y));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, Style::DesignTokens::skeletonBorderThickness());
     const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Up, height, flags);
     if (open)
     {
@@ -139,9 +140,17 @@ void ControlBarView::render(UiContext& ctx)
         {
             ImGui::TextUnformatted("RuntimeBridge unavailable.");
         }
+
+        const ImU32 borderColor =
+            ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+        const float thickness = Style::DesignTokens::skeletonBorderThickness();
+        const ImVec2 min = ImGui::GetWindowPos();
+        const ImVec2 size = ImGui::GetWindowSize();
+        const ImVec2 max(min.x + size.x, min.y + size.y);
+        ImGui::GetWindowDrawList()->AddLine(ImVec2(min.x, max.y), ImVec2(max.x, max.y), borderColor, thickness);
     }
     ImGui::End();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
 }
 
 } // namespace Genesis::Sandbox::Gui

@@ -60,6 +60,7 @@ private:
     void endFrame();
 
     void drawDockspace();
+    void drawOuterFrame();
     void drawToasts();
     void handleShortcuts();
 

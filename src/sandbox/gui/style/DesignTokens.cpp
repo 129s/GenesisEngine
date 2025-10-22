@@ -62,9 +62,9 @@ void DesignTokens::applyTo(ImGuiStyle &style)
     style.TabRounding = roundingNone();
 
     style.WindowBorderSize = windowBorderThickness();
-    style.ChildBorderSize = windowBorderThickness();
+    style.ChildBorderSize = childBorderThickness();
     style.FrameBorderSize = frameBorderThickness();
-    style.PopupBorderSize = windowBorderThickness();
+    style.PopupBorderSize = frameBorderThickness();
     style.TabBorderSize = frameBorderThickness();
     style.SeparatorTextBorderSize = separatorThickness();
     style.DockingSeparatorSize = dockingSeparatorThickness();

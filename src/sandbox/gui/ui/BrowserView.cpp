@@ -364,27 +364,45 @@ namespace
                         const std::filesystem::path& dataRoot,
                         const std::vector<std::string>& warnings)
     {
-        // 为整个详情子窗口添加 4px 的统一内边距，避免内容贴边被裁切
-        constexpr float detailPadding = 4.0f;
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(detailPadding, 0.0f));
-        if (ImGui::BeginChild("BrowserDetailCard", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysUseWindowPadding))
+        const float horizontalPadding = Style::DesignTokens::spacing(Style::SpacingToken::Md);
+        const float verticalPadding = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        const float sectionSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        const float headerGap = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
+        const float warningIndent = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        const ImVec4 cardBg = Style::DesignTokens::color(Style::ColorToken::Surface);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(horizontalPadding, verticalPadding));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                            ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), sectionSpacing));
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, cardBg);
+        if (ImGui::BeginChild("BrowserDetailCard",
+                              ImVec2(0.0f, 0.0f),
+                              false,
+                              ImGuiWindowFlags_AlwaysUseWindowPadding | ImGuiWindowFlags_NoScrollbar))
         {
-            // 统一控制上下/左右可见间距
-            ImGui::Indent(detailPadding);
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + detailPadding);
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+
             ImGui::TextUnformatted("详情");
+            ImGui::Dummy(ImVec2(0.0f, headerGap));
             ImGui::Separator();
+            ImGui::Dummy(ImVec2(0.0f, headerGap));
 
             if (!warnings.empty())
             {
-                ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "访问警告");
+                ImGui::PushStyleColor(ImGuiCol_Text, Style::DesignTokens::color(Style::ColorToken::Warning));
+                ImGui::TextUnformatted("访问警告");
+                ImGui::PopStyleColor();
+
+                ImGui::Indent(warningIndent);
                 for (const auto& warning : warnings)
                 {
-                    ImGui::Bullet();
-                    ImGui::SameLine();
-                    ImGui::TextWrapped("%s", warning.c_str());
+                    ImGui::BulletText("%s", warning.c_str());
                 }
+                ImGui::Unindent(warningIndent);
+
+                ImGui::Dummy(ImVec2(0.0f, headerGap));
                 ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, headerGap));
             }
 
             const std::string selectionKey =
@@ -423,11 +441,12 @@ namespace
                     ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
                 }
             }
-            ImGui::Dummy(ImVec2(0.0f, detailPadding));
-            ImGui::Unindent(detailPadding);
+
+            ImGui::PopTextWrapPos();
         }
         ImGui::EndChild();
-        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar(2);
     }
 } // namespace
 

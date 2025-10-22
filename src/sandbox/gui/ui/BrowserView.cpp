@@ -365,11 +365,13 @@ namespace
                         const std::vector<std::string>& warnings)
     {
         // 为整个详情子窗口添加 4px 的统一内边距，避免内容贴边被裁切
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.0f, 4.0f));
+        constexpr float detailPadding = 4.0f;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(detailPadding, 0.0f));
         if (ImGui::BeginChild("BrowserDetailCard", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysUseWindowPadding))
         {
-            // 额外保证左侧不贴边：最小 4px 的缩进（与 WindowPadding 一致）
-            ImGui::Indent(4.0f);
+            // 统一控制上下/左右可见间距
+            ImGui::Indent(detailPadding);
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + detailPadding);
             ImGui::TextUnformatted("详情");
             ImGui::Separator();
 
@@ -421,7 +423,8 @@ namespace
                     ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
                 }
             }
-            ImGui::Unindent(4.0f);
+            ImGui::Dummy(ImVec2(0.0f, detailPadding));
+            ImGui::Unindent(detailPadding);
         }
         ImGui::EndChild();
         ImGui::PopStyleVar();

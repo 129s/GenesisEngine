@@ -68,7 +68,7 @@ void DesignTokens::applyTo(ImGuiStyle &style)
     style.TabBorderSize = 0.0f;
     style.SeparatorTextBorderSize = 0.0f;
     style.DockingSeparatorSize = 2.0f;
-    style.TouchExtraPadding = ImVec2(2.0f, 2.0f);
+    style.TouchExtraPadding = ImVec2(6.0f, 6.0f);
 
     style.Colors[ImGuiCol_Text] = color(ColorToken::TextPrimary);
     style.Colors[ImGuiCol_TextDisabled] = color(ColorToken::TextDisabled);

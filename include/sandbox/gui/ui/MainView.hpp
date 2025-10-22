@@ -42,7 +42,7 @@ private:
                                                               const ScenePresenterInput& presenterInput,
                                                               const SceneNodeViewModel& nodeVm,
                                                               bool resetRequested);
-    void drawSceneMiniMap(UiContext& ctx, const SceneViewportRenderState& state);
+    void drawSceneMiniMap(UiContext& ctx, const std::optional<SceneViewportRenderState>& state);
     void drawWorldTab(UiContext& ctx);
     void drawMonitorTab(UiContext& ctx);
     void drawSettingsTab(UiContext& ctx);

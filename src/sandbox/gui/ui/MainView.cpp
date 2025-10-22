@@ -1311,7 +1311,7 @@ namespace Genesis::Sandbox::Gui
     ImGui::BeginChild("SceneTabRoot", ImVec2(0.0f, 0.0f), false);
     const bool resetRequested = drawSceneToolbar(ctx, detailsPtr);
 
-    const bool showSidebar = (detailsPtr != nullptr) || ctx.state.show_inspector;
+    const bool showSidebar = true;
     const float spacing = Style::DesignTokens::spacing(Style::SpacingToken::Md);
 
     ImGui::BeginChild("SceneContentArea", ImVec2(0.0f, 0.0f), false);
@@ -1337,10 +1337,7 @@ namespace Genesis::Sandbox::Gui
     {
         ImGui::SameLine(0.0f, spacing);
         ImGui::BeginChild("SceneSidebarPane", ImVec2(0.0f, 0.0f), false);
-        if (viewportState)
-        {
-            drawSceneMiniMap(ctx, *viewportState);
-        }
+        drawSceneMiniMap(ctx, viewportState);
         if (ctx.state.show_inspector)
         {
             inspector.render(ctx);
@@ -1892,13 +1889,8 @@ namespace Genesis::Sandbox::Gui
         return state;
     }
 
-    void MainView::drawSceneMiniMap(UiContext &ctx, const SceneViewportRenderState &state)
+    void MainView::drawSceneMiniMap(UiContext &ctx, const std::optional<SceneViewportRenderState> &stateOpt)
     {
-        if (!state.details)
-        {
-            return;
-        }
-
         const float miniHeight = 160.0f;
         ImGui::BeginChild("SceneMiniMap", ImVec2(0.0f, miniHeight), false, ImGuiWindowFlags_NoScrollbar);
 
@@ -1912,6 +1904,19 @@ namespace Genesis::Sandbox::Gui
         const ImU32 borderColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
         drawList->AddRectFilled(canvasMin, canvasMax, bgColor, 6.0f);
         drawList->AddRect(canvasMin, canvasMax, borderColor, 6.0f, 0, 1.2f);
+
+        if (!stateOpt || !stateOpt->details)
+        {
+            const char *message = "无世界数据";
+            const ImVec2 textSize = ImGui::CalcTextSize(message);
+            const ImVec2 textPos{canvasMin.x + (canvasSize.x - textSize.x) * 0.5f,
+                                 canvasMin.y + (canvasSize.y - textSize.y) * 0.5f};
+            drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_TextDisabled), message);
+            ImGui::EndChild();
+            return;
+        }
+
+        const SceneViewportRenderState &state = *stateOpt;
 
         const float margin = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
         const ImVec2 innerMin(canvasMin.x + margin, canvasMin.y + margin);

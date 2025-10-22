@@ -23,6 +23,15 @@ namespace Genesis::Sandbox::Gui
 {
 namespace
 {
+    ImVec4 lerpColor(const ImVec4& from, const ImVec4& to, float t)
+    {
+        t = std::clamp(t, 0.0f, 1.0f);
+        return ImVec4(from.x + (to.x - from.x) * t,
+                      from.y + (to.y - from.y) * t,
+                      from.z + (to.z - from.z) * t,
+                      from.w + (to.w - from.w) * t);
+    }
+
     std::string toLowerCopy(std::string_view text)
     {
         std::string lowered;
@@ -192,23 +201,22 @@ namespace
                   UiContext& ctx,
                   const std::filesystem::path& root,
                   bool hasFilter,
-                  const ImVec4& highlightColor)
+                  const ImVec4& highlightColor,
+                  const ImVec4& leafBg,
+                  const ImVec4& leafHoverBg,
+                  const ImVec4& leafActiveBg)
     {
         const std::string key = relativeKey(node.path, root);
-        const bool isRoot = (key == ".");
         const bool hasChildren = !node.children.empty();
+        const bool isLeaf = !hasChildren;
         const bool isSelected =
-            (!ctx.state.browser_selected_path.empty() && ctx.state.browser_selected_path == key) ||
-            (ctx.state.browser_selected_path.empty() && isRoot);
+            (!ctx.state.browser_selected_path.empty() && ctx.state.browser_selected_path == key);
 
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
-        if (!hasChildren)
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_FramePadding |
+                                   ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+        if (isLeaf)
         {
             flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-        }
-        if (!node.isDirectory)
-        {
-            flags |= ImGuiTreeNodeFlags_Bullet;
         }
         if (isSelected)
         {
@@ -225,21 +233,13 @@ namespace
         }
 
         std::string label;
-        if (isRoot)
-        {
-            label = root.filename().generic_string();
-            if (label.empty())
-            {
-                label = root.generic_string();
-            }
-        }
-        else
+        if (node.path.has_filename())
         {
             label = node.path.filename().generic_string();
-            if (label.empty())
-            {
-                label = node.path.generic_string();
-            }
+        }
+        if (label.empty())
+        {
+            label = key;
         }
 
         const bool highlightText = hasFilter && node.selfMatches;
@@ -248,7 +248,21 @@ namespace
         {
             ImGui::PushStyleColor(ImGuiCol_Text, highlightColor);
         }
+
+        if (isLeaf)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Header, leafBg);
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, leafHoverBg);
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, leafActiveBg);
+        }
+
         const bool open = ImGui::TreeNodeEx(nodeId.c_str(), flags, "%s", label.c_str());
+
+        if (isLeaf)
+        {
+            ImGui::PopStyleColor(3);
+        }
+
         if (highlightText)
         {
             ImGui::PopStyleColor();
@@ -259,7 +273,7 @@ namespace
             ctx.state.browser_selected_path = key;
         }
 
-        if (hasChildren)
+        if (!isLeaf)
         {
             if (ImGui::IsItemToggledOpen())
             {
@@ -277,11 +291,81 @@ namespace
             {
                 for (const auto& child : node.children)
                 {
-                    drawNode(child, ctx, root, hasFilter, highlightColor);
+                    drawNode(child, ctx, root, hasFilter, highlightColor, leafBg, leafHoverBg, leafActiveBg);
                 }
                 ImGui::TreePop();
             }
         }
+    }
+
+    void drawDetailCard(UiContext& ctx,
+                        const std::filesystem::path& dataRoot,
+                        const std::vector<std::string>& warnings)
+    {
+        const float cardPadding = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
+        const ImVec4 cardBg = Style::DesignTokens::color(Style::ColorToken::SurfaceAlt);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(cardPadding, cardPadding));
+        ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 6.0f);
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, cardBg);
+        if (ImGui::BeginChild("BrowserDetailCard", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_NoScrollbar))
+        {
+            ImGui::TextUnformatted("详情");
+            ImGui::Separator();
+
+            if (!warnings.empty())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, Style::DesignTokens::color(Style::ColorToken::Warning));
+                ImGui::TextUnformatted("访问警告");
+                ImGui::PopStyleColor();
+                for (const auto& warning : warnings)
+                {
+                    ImGui::BulletText("%s", warning.c_str());
+                }
+                ImGui::Spacing();
+                ImGui::Separator();
+            }
+
+            const std::string selectionKey =
+                ctx.state.browser_selected_path.empty() ? "." : ctx.state.browser_selected_path;
+            const std::filesystem::path selectedPath =
+                (selectionKey == ".") ? dataRoot : (dataRoot / std::filesystem::path(selectionKey));
+
+            std::error_code existsEc;
+            if (!std::filesystem::exists(selectedPath, existsEc) || existsEc)
+            {
+                ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning),
+                                   "所选条目不存在或无法访问。");
+            }
+            else
+            {
+                const bool isDir = std::filesystem::is_directory(selectedPath, existsEc);
+
+                ImGui::Text("相对路径：%s", selectionKey.c_str());
+                ImGui::Text("绝对路径：%s", selectedPath.generic_string().c_str());
+                ImGui::Text("类型：%s", isDir ? "文件夹" : "文件");
+
+                if (!isDir)
+                {
+                    std::error_code sizeEc;
+                    const auto fileSize = std::filesystem::file_size(selectedPath, sizeEc);
+                    if (!sizeEc)
+                    {
+                        ImGui::Text("大小：%s", humanReadableSize(fileSize).c_str());
+                    }
+                }
+
+                std::error_code timeEc;
+                const auto lastWrite = std::filesystem::last_write_time(selectedPath, timeEc);
+                if (!timeEc)
+                {
+                    ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
+                }
+            }
+        }
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar(2);
     }
 } // namespace
 
@@ -360,63 +444,41 @@ void BrowserView::render(UiContext& ctx)
         return;
     }
 
-    const float availableHeight = ImGui::GetContentRegionAvail().y;
-    const float detailReserve = ImGui::GetTextLineHeightWithSpacing() * 7.0f;
-    const float treeHeight = std::max(availableHeight - detailReserve, ImGui::GetTextLineHeightWithSpacing() * 8.0f);
-    if (ImGui::BeginChild("BrowserTree", ImVec2(0.0f, treeHeight), true))
-    {
-        drawNode(*rootNode, ctx, dataRoot, hasFilter, Style::DesignTokens::color(Style::ColorToken::Accent));
-    }
-    ImGui::EndChild();
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float detailFooterHeight = ImGui::GetTextLineHeightWithSpacing() * 8.0f;
+    const ImVec4 highlightColor = Style::DesignTokens::color(Style::ColorToken::Accent);
+    const ImVec4 leafBg = Style::DesignTokens::color(Style::ColorToken::SurfaceAlt);
+    const ImVec4 leafHoverBg = lerpColor(leafBg, Style::DesignTokens::color(Style::ColorToken::AccentHover), 0.15f);
+    const ImVec4 leafActiveBg = lerpColor(leafBg, Style::DesignTokens::color(Style::ColorToken::AccentActive), 0.35f);
 
-    if (!warnings.empty())
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                        ImVec2(style.ItemSpacing.x, Style::DesignTokens::spacing(Style::SpacingToken::None)));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(style.FramePadding.x, Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing,
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), style.ItemInnerSpacing.y));
+    ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, style.IndentSpacing * 0.75f);
+
+    if (ImGui::BeginChild("BrowserTreePane", ImVec2(0.0f, -detailFooterHeight - style.ItemSpacing.y), true))
     {
-        ImGui::Spacing();
-        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "访问警告：");
-        for (const auto& warning : warnings)
+        if (rootNode->children.empty())
         {
-            ImGui::BulletText("%s", warning.c_str());
+            ImGui::TextUnformatted("data 目录为空。");
         }
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextUnformatted("详情");
-    ImGui::Separator();
-
-    const std::string selectionKey = ctx.state.browser_selected_path.empty() ? "." : ctx.state.browser_selected_path;
-    const std::filesystem::path selectedPath =
-        (selectionKey == ".") ? dataRoot : (dataRoot / std::filesystem::path(selectionKey));
-
-    std::error_code existsEc;
-    if (!std::filesystem::exists(selectedPath, existsEc) || existsEc)
-    {
-        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "所选条目不存在或无法访问。");
-    }
-    else
-    {
-        const bool isDir = std::filesystem::is_directory(selectedPath, existsEc);
-        ImGui::Text("相对路径：%s", selectionKey.c_str());
-        ImGui::Text("绝对路径：%s", selectedPath.generic_string().c_str());
-        ImGui::Text("类型：%s", isDir ? "文件夹" : "文件");
-
-        if (!isDir)
+        else
         {
-            std::error_code sizeEc;
-            const auto fileSize = std::filesystem::file_size(selectedPath, sizeEc);
-            if (!sizeEc)
+            for (const auto& child : rootNode->children)
             {
-                ImGui::Text("大小：%s", humanReadableSize(fileSize).c_str());
+                drawNode(child, ctx, dataRoot, hasFilter, highlightColor, leafBg, leafHoverBg, leafActiveBg);
             }
         }
-
-        std::error_code timeEc;
-        const auto lastWrite = std::filesystem::last_write_time(selectedPath, timeEc);
-        if (!timeEc)
-        {
-            ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
-        }
     }
+    ImGui::EndChild();
+    ImGui::PopStyleVar(4);
+
+    ImGui::Spacing();
+
+    drawDetailCard(ctx, dataRoot, warnings);
 
     ImGui::End();
 }

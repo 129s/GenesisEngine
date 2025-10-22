@@ -13,6 +13,7 @@
 - Browser 详情卡、Status Bar、Control Bar、Main View 已接入上述助手，恢复对齐与可读性。
 - Inspector 面板改造为卡片式布局（Agent/Resource/Node/运行事件分节），使用表格/列表统一展示节奏。
 - Monitor 标签采用双卡片（运行概览 / 日志）结构，指标表与日志滚动区域实现统一间距。
+- Settings 标签改写为“显示设置 / 设计令牌”双卡片，标题与控件保持统一留白。
 
 ## 代码位置
 - `src/sandbox/gui/style/DesignTokens.cpp`

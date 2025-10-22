@@ -1867,50 +1867,85 @@ void MainView::drawMonitorTab(UiContext &ctx)
         }
     }
 
-    void MainView::drawSettingsTab(UiContext &ctx)
+void MainView::drawSettingsTab(UiContext &ctx)
     {
-        ImGui::TextUnformatted("显示设置");
-        ImGui::Separator();
+        const auto cardLayout = Style::Layout::detailCard();
+        const float cardSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
 
-        if (ImGui::Checkbox("启用 VSync", &ctx.config.vsync))
+        auto drawCardHeader = [&](const char *title) {
+            ImGui::TextUnformatted(title);
+            ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+            ImGui::Separator();
+            ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+        };
+
         {
-            glfwSwapInterval(ctx.config.vsync ? 1 : 0);
-        }
-
-        ImGui::Spacing();
-        ImGui::TextUnformatted("设计令牌预览");
-        ImGui::Separator();
-
-        const ImGuiStyle &style = ImGui::GetStyle();
-
-        ImGui::Text("颜色样本");
-        if (ImGui::BeginTable("SettingsColors", 4, ImGuiTableFlags_SizingFixedFit))
-        {
-            const std::array<std::pair<const char *, ImGuiCol>, 4> swatches = {
-                std::pair{"WindowBg", ImGuiCol_WindowBg},
-                std::pair{"Header", ImGuiCol_Header},
-                std::pair{"Button", ImGuiCol_Button},
-                std::pair{"Accent", ImGuiCol_TabActive}};
-            for (const auto &[label, col] : swatches)
+            Style::Layout::CardScope card("SettingsDisplayCard", cardLayout, ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
             {
-                ImGui::TableNextColumn();
-                const ImVec4 color = style.Colors[col];
-                ImGui::ColorButton(label, color, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(40.0f, 18.0f));
-                ImGui::SameLine();
-                ImGui::TextUnformatted(label);
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("显示设置");
+
+                if (ImGui::Checkbox("启用 VSync", &ctx.config.vsync))
+                {
+                    glfwSwapInterval(ctx.config.vsync ? 1 : 0);
+                }
+
+                ImGui::PopTextWrapPos();
             }
-            ImGui::EndTable();
         }
 
-        ImGui::Separator();
-        ImGui::TextUnformatted("间距设置");
-        ImGui::Text("窗口内边距：%.1f / %.1f", style.WindowPadding.x, style.WindowPadding.y);
-        ImGui::Text("元素间距：%.1f / %.1f", style.ItemSpacing.x, style.ItemSpacing.y);
-        ImGui::Text("控件圆角：%.1f", style.FrameRounding);
+        ImGui::Dummy(ImVec2(0.0f, cardSpacing));
 
-        ImGui::Separator();
-        ImGui::TextWrapped(
-            "后续任务将补充：主题切换、布局预设管理、快捷键自定义等功能。当前阶段仅提供设计指标预览，方便在开发过程中校准 UI 令牌。");
+        {
+            Style::Layout::CardScope card("SettingsDesignTokensCard", cardLayout, ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
+            {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("设计令牌预览");
+
+                const ImGuiStyle &style = ImGui::GetStyle();
+
+                ImGui::Text("颜色样本");
+                if (ImGui::BeginTable("SettingsColors", 4, ImGuiTableFlags_SizingFixedFit))
+                {
+                    const std::array<std::pair<const char *, ImGuiCol>, 4> swatches = {
+                        std::pair{"WindowBg", ImGuiCol_WindowBg},
+                        std::pair{"Header", ImGuiCol_Header},
+                        std::pair{"Button", ImGuiCol_Button},
+                        std::pair{"Accent", ImGuiCol_TabActive}};
+                    for (const auto &[label, col] : swatches)
+                    {
+                        ImGui::TableNextColumn();
+                        const ImVec4 color = style.Colors[col];
+                        ImGui::ColorButton(label,
+                                           color,
+                                           ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop,
+                                           ImVec2(40.0f, 18.0f));
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted(label);
+                    }
+                    ImGui::EndTable();
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
+                ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+
+                ImGui::Text("间距设置");
+                ImGui::Text("窗口内边距：%.1f / %.1f", style.WindowPadding.x, style.WindowPadding.y);
+                ImGui::Text("元素间距：%.1f / %.1f", style.ItemSpacing.x, style.ItemSpacing.y);
+                ImGui::Text("控件圆角：%.1f", style.FrameRounding);
+
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
+                ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+                ImGui::TextWrapped(
+                    "后续任务将补充：主题切换、布局预设管理、快捷键自定义等功能。当前阶段仅提供设计指标预览，方便在开发过程中校准 UI 令牌。");
+
+                ImGui::PopTextWrapPos();
+            }
+        }
     }
 
     void MainView::drawMonitorTelemetry(UiContext &ctx, const Style::Layout::CardLayoutConfig &layout)

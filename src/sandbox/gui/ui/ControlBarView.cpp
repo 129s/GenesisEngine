@@ -42,7 +42,7 @@ void ControlBarView::render(UiContext& ctx)
         ImGuiStyleVar_WindowPadding,
         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Lg),
                style.FramePadding.y));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, Style::DesignTokens::skeletonBorderThickness());
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, Style::DesignTokens::windowBorderThickness());
     const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Up, height, flags);
     if (open)
     {

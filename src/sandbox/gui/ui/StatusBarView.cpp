@@ -23,7 +23,7 @@ void StatusBarView::render(UiContext& ctx)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Lg),
                                style.FramePadding.y));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, Style::DesignTokens::skeletonBorderThickness());
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, Style::DesignTokens::windowBorderThickness());
     if (ImGui::BeginViewportSideBar("Status Bar", viewport, ImGuiDir_Down, height, flags))
     {
         ImGui::AlignTextToFramePadding();

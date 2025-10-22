@@ -7,18 +7,23 @@
 namespace Genesis::Sandbox::Gui
 {
 
+class InspectorView;
+
 class MainView
 {
 public:
-    void render(UiContext& ctx);
+    void render(UiContext& ctx, InspectorView& inspector);
 
 private:
     ScenePresenter scene_presenter_;
     WorldPresenter world_presenter_;
     MonitorPresenter monitor_presenter_;
 
-    void drawSceneTab(UiContext& ctx);
-    void drawSceneUnified(UiContext& ctx);
+    void drawSceneTab(UiContext& ctx, InspectorView& inspector);
+    void drawSceneUnified(UiContext& ctx, InspectorView& inspector);
+    bool drawSceneViewport(UiContext& ctx,
+                           const ScenePresenterInput& presenterInput,
+                           const SceneNodeViewModel& nodeVm);
     void drawWorldTab(UiContext& ctx);
     void drawMonitorTab(UiContext& ctx);
     void drawSettingsTab(UiContext& ctx);

@@ -301,8 +301,7 @@ namespace Genesis::Sandbox::Gui
         }
         drawDockspace();
         browser_view_.render(ui_context_);
-        main_view_.render(ui_context_);
-        inspector_view_.render(ui_context_);
+        main_view_.render(ui_context_, inspector_view_);
         status_bar_view_.render(ui_context_);
         control_bar_view_.render(ui_context_);
         drawOuterFrame();

@@ -16,6 +16,13 @@
 
 ## 2. UI 现状（2025-10）
 
+- Scene 标签页在 Main View 内分为左右两栏：左侧保留原有画布，右侧依次堆叠“小地图”与 Inspector。右栏宽度占主视图约 34%，会在空间不足时自动降到 220px。
+- 小地图读取 `ScenePresenter::buildMapViewModel` 的数据，支持滚轮缩放（鼠标位置为焦点）、右键平移、双击复位，点击节点会：
+  - 将 `map_selected_node`、`scene_selected_node`、`inspector_*` 同步到该节点；
+  - 请求 Scene 视图聚焦（`scene_focus_node_request`）；
+  - 自动唤起 Inspector 面板。
+- 小地图初次加载或重置时会根据 atlas 范围自适应缩放（新增 `UiState::map_auto_centered` 标记），`resetMapViewCamera()` 会清空缩放和平移状态。
+- Inspector 由独立窗口改为嵌入右栏，通过 `UiState::show_inspector` 控制显隐。隐藏时右栏展示 “显示检查器” 按钮以便快速恢复。
 - `MainView::drawSceneUnified` 统一处理工具栏、画布与叠加层：
   1. 画布底层绘制瓦片（棋盘底色暂用于调试）；
   2. 叠加传送门、锚点、资源等信息；

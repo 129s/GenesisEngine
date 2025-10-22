@@ -17,6 +17,7 @@
   - CLI（遗留调试）：`graph_to_grid.md`
   - GUI：`sandbox_gui.md`、`sandbox_gui_sim_loop.md`、`sandbox_gui_tilemap_rendering.md`、`inspector_panel.md`
   - 渲染内核与模式：`rendering-modes.md`（Sandbox/Game 共享渲染内核与模式差异）
+  - 渲染细节（像素风/零素材）：`../rendering/README.md`
 - **其他**
   - `open_questions.md`：仍待决策的议题与挂起假设。
 

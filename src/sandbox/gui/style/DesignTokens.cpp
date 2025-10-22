@@ -67,8 +67,8 @@ void DesignTokens::applyTo(ImGuiStyle &style)
     style.PopupBorderSize = 0.0f;
     style.TabBorderSize = 0.0f;
     style.SeparatorTextBorderSize = 0.0f;
-    style.DockingSeparatorSize = 0.0f;
-    style.TouchExtraPadding = ImVec2(0.0f, 0.0f);
+    style.DockingSeparatorSize = 2.0f;
+    style.TouchExtraPadding = ImVec2(2.0f, 2.0f);
 
     style.Colors[ImGuiCol_Text] = color(ColorToken::TextPrimary);
     style.Colors[ImGuiCol_TextDisabled] = color(ColorToken::TextDisabled);
@@ -136,6 +136,7 @@ void DesignTokens::applyTo(ImGuiStyle &style)
                                                    color(ColorToken::Primary).z,
                                                    0.35f);
     style.Colors[ImGuiCol_DragDropTarget] = color(ColorToken::Highlight);
+    style.Colors[ImGuiCol_DockingPreview] = color(ColorToken::Accent);
     style.Colors[ImGuiCol_NavHighlight] = color(ColorToken::PrimaryHover);
     style.Colors[ImGuiCol_NavWindowingHighlight] = color(ColorToken::PrimaryHover);
     style.Colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0, 0, 0, 0.45f);

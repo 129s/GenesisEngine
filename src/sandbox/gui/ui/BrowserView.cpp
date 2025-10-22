@@ -145,40 +145,6 @@ namespace
         };
     }
 
-    bool drawVerticalSplitter(const char* id_suffix,
-                              float thickness,
-                              float width,
-                              float* size_above,
-                              float* size_below,
-                              float min_size_above,
-                              float min_size_below)
-    {
-        ImGuiWindow* window = ImGui::GetCurrentWindow();
-        if (window == nullptr)
-        {
-            return false;
-        }
-
-        const ImVec2 cursor_pos = window->DC.CursorPos;
-        ImRect splitter_bb(ImVec2(cursor_pos.x, cursor_pos.y + *size_above),
-                           ImVec2(cursor_pos.x + width, cursor_pos.y + *size_above + thickness));
-
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
-        const ImGuiID splitter_id = window->GetID(id_suffix);
-        const bool active =
-            ImGui::SplitterBehavior(splitter_bb,
-                                    splitter_id,
-                                    ImGuiAxis_Y,
-                                    size_above,
-                                    size_below,
-                                    min_size_above,
-                                    min_size_below,
-                                    2.0f);
-        ImGui::PopStyleVar(2);
-        return active;
-    }
-
     struct BrowserNode
     {
         std::filesystem::path path;
@@ -398,10 +364,11 @@ namespace
     void drawDetailCard(UiContext& ctx,
                         const std::filesystem::path& dataRoot,
                         const std::vector<std::string>& warnings,
-                        float detailHeight,
-                        bool splitterActive)
+                        float detailHeight)
     {
-        const Style::Layout::CardLayoutConfig layout = Style::Layout::detailCard();
+        Style::Layout::CardLayoutConfig layout = Style::Layout::detailCard();
+        layout.padding.y = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
+        layout.headerGap = Style::DesignTokens::spacing(Style::SpacingToken::None);
         Style::Layout::CardScope card("BrowserDetailCard",
                                       layout,
                                       ImGuiWindowFlags_NoScrollbar,
@@ -411,25 +378,14 @@ namespace
             return;
         }
 
-        {
-            ImDrawList* drawList = ImGui::GetWindowDrawList();
-            const ImVec2 cardPos = ImGui::GetWindowPos();
-            const ImVec2 cardSize = ImGui::GetWindowSize();
-            const ImU32 borderColor = ImGui::GetColorU32(splitterActive
-                                                             ? Style::DesignTokens::color(Style::ColorToken::Accent)
-                                                             : Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-            drawList->AddLine(cardPos,
-                              ImVec2(cardPos.x + cardSize.x, cardPos.y),
-                              borderColor,
-                              1.0f);
-        }
-
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
+        const float headerSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        ImGui::Dummy(ImVec2(0.0f, headerSpacing));
         ImGui::TextUnformatted("详情");
-        ImGui::Dummy(ImVec2(0.0f, layout.headerGap));
+        ImGui::Dummy(ImVec2(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Xs)));
         ImGui::Separator();
-        ImGui::Dummy(ImVec2(0.0f, layout.headerGap));
+        ImGui::Dummy(ImVec2(0.0f, headerSpacing));
 
         if (!warnings.empty())
         {
@@ -575,52 +531,106 @@ void BrowserView::render(UiContext& ctx)
     }
 
     const ImVec4 highlightColor = Style::DesignTokens::color(Style::ColorToken::Accent);
+    const ImVec4 accentColor = Style::DesignTokens::color(Style::ColorToken::Accent);
+    const ImVec4 accentActiveColor = Style::DesignTokens::color(Style::ColorToken::AccentActive);
+    const ImVec4 borderColor = Style::DesignTokens::color(Style::ColorToken::BorderSoft);
 
-    ImVec2 contentAvail = ImGui::GetContentRegionAvail();
-    if (contentAvail.x < 0.0f)
-    {
-        contentAvail.x = 0.0f;
-    }
-    if (contentAvail.y < 0.0f)
-    {
-        contentAvail.y = 0.0f;
-    }
+    const ImVec2 initialCursor = ImGui::GetCursorPos();
+    const ImVec2 windowContentMin = ImGui::GetWindowContentRegionMin();
+    const ImVec2 windowContentMax = ImGui::GetWindowContentRegionMax();
+    const ImVec2 windowPos = ImGui::GetWindowPos();
+    const float contentWidth = std::max(0.0f, windowContentMax.x - windowContentMin.x);
+    const float contentHeight = std::max(0.0f, windowContentMax.y - windowContentMin.y);
 
-    const float splitterThickness = std::max(Style::DesignTokens::spacing(Style::SpacingToken::Xs), 2.0f);
-    const float minDetailHeight =
+    const float splitterThickness = 2.0f;
+    const float splitterHoverExtend = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+    float minDetailHeight =
         std::max(ImGui::GetTextLineHeightWithSpacing() * 12.0f, Style::DesignTokens::spacing(Style::SpacingToken::Xl));
-    const float minTreeHeight = ImGui::GetTextLineHeightWithSpacing() * 6.0f;
-    const float minCombined = minDetailHeight + minTreeHeight;
-
-    const float usableHeight = std::max(contentAvail.y - splitterThickness, 0.0f);
-    float detailHeight = 0.0f;
+    float minTreeHeight = ImGui::GetTextLineHeightWithSpacing() * 6.0f;
+    float detailHeight =
+        ctx.state.browser_detail_height > 0.0f ? ctx.state.browser_detail_height
+                                               : std::max(minDetailHeight, contentHeight * 0.40f);
     float treeHeight = 0.0f;
+    bool splitterHovered = false;
+    bool splitterActive = false;
 
-    if (usableHeight < minCombined)
+    if (contentHeight <= 0.0f)
     {
-        const float ratio = (minCombined > 0.0f) ? (usableHeight / minCombined) : 0.0f;
-        detailHeight = std::max(minDetailHeight * ratio, 0.0f);
-        treeHeight = std::max(usableHeight - detailHeight, 0.0f);
+        detailHeight = 0.0f;
+        treeHeight = 0.0f;
+        ctx.state.browser_detail_height = detailHeight;
     }
     else
     {
-        const float defaultDetail = std::max(minDetailHeight, usableHeight * 0.35f);
-        detailHeight = ctx.state.browser_detail_height > 0.0f ? ctx.state.browser_detail_height : defaultDetail;
-        detailHeight = std::clamp(detailHeight, minDetailHeight, usableHeight - minTreeHeight);
-        treeHeight = std::max(usableHeight - detailHeight, minTreeHeight);
-        detailHeight = usableHeight - treeHeight;
+        float minDetailForClamp = minDetailHeight;
+        float minTreeForClamp = minTreeHeight;
+        const float minCombined = minDetailHeight + minTreeHeight;
+
+        if (contentHeight < minCombined)
+        {
+            const float scale = contentHeight / std::max(minCombined, 1.0f);
+            minDetailForClamp *= scale;
+            minTreeForClamp *= scale;
+            detailHeight = minDetailForClamp;
+            treeHeight = minTreeForClamp;
+        }
+        else
+        {
+            detailHeight = std::clamp(detailHeight, minDetailHeight, contentHeight - minTreeHeight);
+            treeHeight = contentHeight - detailHeight;
+        }
+
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        const ImVec2 cursorBackup = window->DC.CursorPos;
+        const ImVec2 cursorMaxBackup = window->DC.CursorMaxPos;
+        const float splitterYLocal = windowContentMin.y + treeHeight;
+
+        window->DC.CursorPos = ImVec2(windowContentMin.x, splitterYLocal - splitterThickness * 0.5f);
+        const ImRect splitterBb(ImVec2(windowPos.x + windowContentMin.x,
+                                       windowPos.y + splitterYLocal - splitterThickness * 0.5f),
+                                ImVec2(windowPos.x + windowContentMax.x,
+                                       windowPos.y + splitterYLocal + splitterThickness * 0.5f));
+        const ImGuiID splitterId = window->GetID("BrowserDetailSplitter");
+        ImGui::KeepAliveID(splitterId);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+        ImGui::SplitterBehavior(splitterBb,
+                                splitterId,
+                                ImGuiAxis_Y,
+                                &treeHeight,
+                                &detailHeight,
+                                minTreeForClamp,
+                                minDetailForClamp,
+                                splitterHoverExtend,
+                                0.0f,
+                                splitterThickness);
+        ImGui::PopStyleVar();
+        splitterHovered = ImGui::IsItemHovered();
+        splitterActive = ImGui::IsItemActive();
+
+        window->DC.CursorPos = cursorBackup;
+        window->DC.CursorMaxPos = ImMax(window->DC.CursorMaxPos, cursorMaxBackup);
+
+        treeHeight = std::clamp(treeHeight, 0.0f, contentHeight);
+        detailHeight = std::clamp(detailHeight, 0.0f, contentHeight);
+        if (treeHeight + detailHeight > 0.0f)
+        {
+            // 保持和可用高度一致，避免累计误差
+            const float sum = treeHeight + detailHeight;
+            treeHeight = treeHeight * contentHeight / sum;
+            detailHeight = contentHeight - treeHeight;
+        }
+        ctx.state.browser_detail_height = detailHeight;
+
+        const float splitterY = windowPos.y + windowContentMin.y + treeHeight;
+        const ImVec2 splitterLineMin(windowPos.x + windowContentMin.x, splitterY - splitterThickness * 0.5f);
+        const ImVec2 splitterLineMax(windowPos.x + windowContentMax.x, splitterY + splitterThickness * 0.5f);
+        const ImU32 splitterColor =
+            ImGui::GetColorU32(splitterActive ? accentActiveColor : (splitterHovered ? accentColor : borderColor));
+        ImGui::GetForegroundDrawList()->AddRectFilled(splitterLineMin, splitterLineMax, splitterColor);
     }
 
-    bool splitterActive = drawVerticalSplitter("BrowserDetailSplitter",
-                                               splitterThickness,
-                                               contentAvail.x,
-                                               &treeHeight,
-                                               &detailHeight,
-                                               minTreeHeight,
-                                               minDetailHeight);
-    treeHeight = std::max(treeHeight, 0.0f);
-    detailHeight = std::max(detailHeight, 0.0f);
-    ctx.state.browser_detail_height = detailHeight;
+    ImGui::SetCursorPos(initialCursor);
 
     const float treeItemSpacingY = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
@@ -650,9 +660,12 @@ void BrowserView::render(UiContext& ctx)
     ImGui::EndChild();
     ImGui::PopStyleVar(4);
 
-    ImGui::Dummy(ImVec2(0.0f, splitterThickness));
-
-    drawDetailCard(ctx, dataRoot, warnings, detailHeight, splitterActive);
+    if (detailHeight > 0.0f)
+    {
+        const float detailCursorY = windowContentMin.y + treeHeight;
+        ImGui::SetCursorPos(ImVec2(windowContentMin.x, detailCursorY));
+        drawDetailCard(ctx, dataRoot, warnings, detailHeight);
+    }
 
     ImGui::End();
 }

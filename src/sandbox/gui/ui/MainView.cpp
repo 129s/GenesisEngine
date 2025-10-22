@@ -1908,8 +1908,10 @@ namespace Genesis::Sandbox::Gui
         const ImVec2 canvasMax = ImGui::GetItemRectMax();
 
         ImDrawList *drawList = ImGui::GetWindowDrawList();
-        drawList->AddRectFilled(canvasMin, canvasMax, ImGui::GetColorU32(ImGuiCol_WindowBg));
-        drawList->AddRect(canvasMin, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
+        const ImU32 bgColor = ImGui::GetColorU32(ImVec4(0.08f, 0.10f, 0.14f, 0.92f));
+        const ImU32 borderColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+        drawList->AddRectFilled(canvasMin, canvasMax, bgColor, 6.0f);
+        drawList->AddRect(canvasMin, canvasMax, borderColor, 6.0f, 0, 1.2f);
 
         const float margin = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
         const ImVec2 innerMin(canvasMin.x + margin, canvasMin.y + margin);
@@ -1948,9 +1950,9 @@ namespace Genesis::Sandbox::Gui
 
         const ImVec2 regionTopLeft = toScreen(regionMinX, regionMinY);
         const ImVec2 regionBottomRight = toScreen(regionMaxX, regionMaxY);
-        const ImU32 regionColor = ImGui::GetColorU32(ImVec4(0.16f, 0.20f, 0.26f, 0.65f));
+        const ImU32 regionColor = ImGui::GetColorU32(ImVec4(0.24f, 0.32f, 0.54f, 0.22f));
         drawList->AddRectFilled(regionTopLeft, regionBottomRight, regionColor, 5.0f);
-        drawList->AddRect(regionTopLeft, regionBottomRight, ImGui::GetColorU32(ImGuiCol_Border), 5.0f, 2.0f);
+        drawList->AddRect(regionTopLeft, regionBottomRight, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent)), 5.0f, 0, 1.4f);
 
         const float viewMinX = state.viewOriginX;
         const float viewMinY = state.viewOriginY;
@@ -1958,8 +1960,14 @@ namespace Genesis::Sandbox::Gui
         const float viewMaxY = viewMinY + state.viewHeightTiles;
         const ImVec2 cameraMin = toScreen(viewMinX, viewMinY);
         const ImVec2 cameraMax = toScreen(viewMaxX, viewMaxY);
-        const ImU32 cameraColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-        drawList->AddRect(cameraMin, cameraMax, cameraColor, 3.0f, 0, 2.0f);
+        const ImU32 cameraColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight));
+        drawList->AddRectFilled(cameraMin, cameraMax, ImGui::GetColorU32(ImVec4(0.30f, 0.46f, 0.86f, 0.20f)), 4.0f);
+        drawList->AddRect(cameraMin, cameraMax, cameraColor, 4.0f, 0, 2.0f);
+
+        const ImVec2 center = toScreen(viewCenterX, viewCenterY);
+        const float cross = 6.0f;
+        drawList->AddLine(ImVec2(center.x - cross, center.y), ImVec2(center.x + cross, center.y), cameraColor, 1.2f);
+        drawList->AddLine(ImVec2(center.x, center.y - cross), ImVec2(center.x, center.y + cross), cameraColor, 1.2f);
 
         ImGui::EndChild();
     }

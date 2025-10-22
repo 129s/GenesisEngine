@@ -18,6 +18,7 @@
 #include <ctime>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 namespace Genesis::Sandbox::Gui
 {
@@ -100,6 +101,47 @@ namespace
         std::ostringstream oss;
         oss << std::put_time(&localTm, "%Y-%m-%d %H:%M:%S");
         return oss.str();
+    }
+
+    struct LeafColorSet
+    {
+        ImVec4 normal;
+        ImVec4 hover;
+        ImVec4 active;
+    };
+
+    LeafColorSet colorForLeaf(const std::filesystem::path& path)
+    {
+        const ImVec4 surface = Style::DesignTokens::color(Style::ColorToken::Surface);
+        Style::ColorToken accentToken = Style::ColorToken::Muted;
+
+        std::string extensionLower = toLowerCopy(path.extension().generic_string());
+        if (extensionLower == ".png" || extensionLower == ".jpg" || extensionLower == ".jpeg" ||
+            extensionLower == ".bmp" || extensionLower == ".tga" || extensionLower == ".dds")
+        {
+            accentToken = Style::ColorToken::Highlight;
+        }
+        else if (extensionLower == ".wav" || extensionLower == ".mp3" || extensionLower == ".ogg" ||
+                 extensionLower == ".flac")
+        {
+            accentToken = Style::ColorToken::Accent;
+        }
+        else if (extensionLower == ".json" || extensionLower == ".cfg" || extensionLower == ".ini" ||
+                 extensionLower == ".txt" || extensionLower == ".yaml" || extensionLower == ".yml")
+        {
+            accentToken = Style::ColorToken::Info;
+        }
+        else if (extensionLower == ".lua" || extensionLower == ".py" || extensionLower == ".js")
+        {
+            accentToken = Style::ColorToken::Primary;
+        }
+
+        const ImVec4 accent = Style::DesignTokens::color(accentToken);
+        return {
+            lerpColor(surface, accent, 0.18f),
+            lerpColor(surface, accent, 0.30f),
+            lerpColor(surface, accent, 0.45f),
+        };
     }
 
     struct BrowserNode
@@ -201,10 +243,7 @@ namespace
                   UiContext& ctx,
                   const std::filesystem::path& root,
                   bool hasFilter,
-                  const ImVec4& highlightColor,
-                  const ImVec4& leafBg,
-                  const ImVec4& leafHoverBg,
-                  const ImVec4& leafActiveBg)
+                  const ImVec4& highlightColor)
     {
         const std::string key = relativeKey(node.path, root);
         const bool hasChildren = !node.children.empty();
@@ -213,7 +252,7 @@ namespace
             (!ctx.state.browser_selected_path.empty() && ctx.state.browser_selected_path == key);
 
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_FramePadding |
-                                   ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+                                   ImGuiTreeNodeFlags_OpenOnArrow;
         if (isLeaf)
         {
             flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
@@ -225,7 +264,7 @@ namespace
 
         if (ctx.state.browser_expanded_paths.contains(key))
         {
-            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+            ImGui::SetNextItemOpen(true, ImGuiCond_Always);
         }
         else if (hasFilter && node.selfMatches)
         {
@@ -244,19 +283,22 @@ namespace
 
         const bool highlightText = hasFilter && node.selfMatches;
         std::string nodeId = key + "##browser_tree";
+        LeafColorSet leafColors{};
+        if (isLeaf)
+        {
+            leafColors = colorForLeaf(node.path);
+            ImGui::PushStyleColor(ImGuiCol_Header, leafColors.normal);
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, leafColors.hover);
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, leafColors.active);
+        }
         if (highlightText)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, highlightColor);
         }
 
-        if (isLeaf)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Header, leafBg);
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, leafHoverBg);
-            ImGui::PushStyleColor(ImGuiCol_HeaderActive, leafActiveBg);
-        }
-
         const bool open = ImGui::TreeNodeEx(nodeId.c_str(), flags, "%s", label.c_str());
+        bool renderChildren = open && !isLeaf;
+        const ImGuiID itemId = ImGui::GetItemID();
 
         if (isLeaf)
         {
@@ -268,16 +310,25 @@ namespace
             ImGui::PopStyleColor();
         }
 
-        if (ImGui::IsItemClicked())
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
         {
             ctx.state.browser_selected_path = key;
-        }
-
-        if (!isLeaf)
-        {
-            if (ImGui::IsItemToggledOpen())
+            if (!isLeaf)
             {
-                if (open)
+                const bool targetOpen = !open;
+                ImGui::TreeNodeSetOpen(itemId, targetOpen);
+                if (targetOpen && !open)
+                {
+                    ImGui::TreePush(nodeId.c_str());
+                    renderChildren = true;
+                }
+                else if (!targetOpen && open)
+                {
+                    ImGui::TreePop();
+                    renderChildren = false;
+                }
+
+                if (targetOpen)
                 {
                     ctx.state.browser_expanded_paths.insert(key);
                 }
@@ -286,15 +337,26 @@ namespace
                     ctx.state.browser_expanded_paths.erase(key);
                 }
             }
-
+        }
+        else if (!isLeaf && ImGui::IsItemToggledOpen())
+        {
             if (open)
             {
-                for (const auto& child : node.children)
-                {
-                    drawNode(child, ctx, root, hasFilter, highlightColor, leafBg, leafHoverBg, leafActiveBg);
-                }
-                ImGui::TreePop();
+                ctx.state.browser_expanded_paths.insert(key);
             }
+            else
+            {
+                ctx.state.browser_expanded_paths.erase(key);
+            }
+        }
+
+        if (!isLeaf && renderChildren)
+        {
+            for (const auto& child : node.children)
+            {
+                drawNode(child, ctx, root, hasFilter, highlightColor);
+            }
+            ImGui::TreePop();
         }
     }
 
@@ -303,15 +365,16 @@ namespace
                         const std::vector<std::string>& warnings)
     {
         const float cardPadding = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
-        const ImVec4 cardBg = Style::DesignTokens::color(Style::ColorToken::SurfaceAlt);
+        const ImVec4 cardBg = Style::DesignTokens::color(Style::ColorToken::Surface);
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(cardPadding, cardPadding));
-        ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 6.0f);
         ImGui::PushStyleColor(ImGuiCol_ChildBg, cardBg);
         if (ImGui::BeginChild("BrowserDetailCard", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_NoScrollbar))
         {
             ImGui::TextUnformatted("详情");
+            ImGui::Spacing();
             ImGui::Separator();
+            ImGui::Spacing();
 
             if (!warnings.empty())
             {
@@ -320,10 +383,13 @@ namespace
                 ImGui::PopStyleColor();
                 for (const auto& warning : warnings)
                 {
-                    ImGui::BulletText("%s", warning.c_str());
+                    ImGui::Bullet();
+                    ImGui::SameLine();
+                    ImGui::TextWrapped("%s", warning.c_str());
                 }
                 ImGui::Spacing();
                 ImGui::Separator();
+                ImGui::Spacing();
             }
 
             const std::string selectionKey =
@@ -342,7 +408,7 @@ namespace
                 const bool isDir = std::filesystem::is_directory(selectedPath, existsEc);
 
                 ImGui::Text("相对路径：%s", selectionKey.c_str());
-                ImGui::Text("绝对路径：%s", selectedPath.generic_string().c_str());
+                ImGui::TextWrapped("绝对路径：%s", selectedPath.generic_string().c_str());
                 ImGui::Text("类型：%s", isDir ? "文件夹" : "文件");
 
                 if (!isDir)
@@ -365,7 +431,7 @@ namespace
         }
         ImGui::EndChild();
         ImGui::PopStyleColor();
-        ImGui::PopStyleVar(2);
+        ImGui::PopStyleVar();
     }
 } // namespace
 
@@ -401,8 +467,6 @@ void BrowserView::render(UiContext& ctx)
     {
         ctx.state.browser_expanded_paths.insert(".");
     }
-
-    ImGui::TextDisabled("根目录：%s", dataRoot.generic_string().c_str());
 
     float available = ImGui::GetContentRegionAvail().x;
     bool hasFilter = ctx.state.browser_filter_buffer[0] != '\0';
@@ -446,9 +510,6 @@ void BrowserView::render(UiContext& ctx)
 
     const float detailFooterHeight = ImGui::GetTextLineHeightWithSpacing() * 8.0f;
     const ImVec4 highlightColor = Style::DesignTokens::color(Style::ColorToken::Accent);
-    const ImVec4 leafBg = Style::DesignTokens::color(Style::ColorToken::SurfaceAlt);
-    const ImVec4 leafHoverBg = lerpColor(leafBg, Style::DesignTokens::color(Style::ColorToken::AccentHover), 0.15f);
-    const ImVec4 leafActiveBg = lerpColor(leafBg, Style::DesignTokens::color(Style::ColorToken::AccentActive), 0.35f);
 
     const ImGuiStyle& treeStyle = ImGui::GetStyle();
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
@@ -469,7 +530,7 @@ void BrowserView::render(UiContext& ctx)
         {
             for (const auto& child : rootNode->children)
             {
-                drawNode(child, ctx, dataRoot, hasFilter, highlightColor, leafBg, leafHoverBg, leafActiveBg);
+                drawNode(child, ctx, dataRoot, hasFilter, highlightColor);
             }
         }
     }

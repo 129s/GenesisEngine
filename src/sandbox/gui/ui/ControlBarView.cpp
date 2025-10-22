@@ -69,6 +69,22 @@ void ControlBarView::render(UiContext& ctx)
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
         ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
 
+        bool layoutMode = ctx.state.layout_mode_enabled;
+        PushActiveButtonStyle(layoutMode);
+        if (ImGui::Button("Layout"))
+        {
+            ctx.state.layout_mode_enabled = !ctx.state.layout_mode_enabled;
+            layoutMode = ctx.state.layout_mode_enabled;
+            ctx.pushToast(layoutMode ? "布局模式：开启" : "布局模式：关闭",
+                          Style::DesignTokens::color(layoutMode ? Style::ColorToken::Accent
+                                                                 : Style::ColorToken::Muted));
+        }
+        PopActiveButtonStyle(layoutMode);
+
+        ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+
         if (ctx.runtime_bridge)
         {
             bool paused = ctx.runtime_bridge->paused();

@@ -9,12 +9,19 @@ namespace Genesis::Sandbox::Gui
 void AppHost::drawDockspace()
 {
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(0, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+    bool layout_locked = (!ui_state_.layout_mode_enabled) && dock_layout_initialized_;
+    ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_AutoHideTabBar;
+    if (layout_locked)
+    {
+        dockspace_flags |= ImGuiDockNodeFlags_NoSplit | ImGuiDockNodeFlags_NoUndocking | ImGuiDockNodeFlags_NoResize;
+    }
+    ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(0, viewport, dockspace_flags);
 
     ImGuiDockNode* rootNode = ImGui::DockBuilderGetNode(dockspace_id);
     if (!dock_layout_initialized_ && (rootNode == nullptr || (!rootNode->IsSplitNode() && rootNode->Windows.Size == 0)))
     {
         dock_layout_initialized_ = true;
+        layout_locked = !ui_state_.layout_mode_enabled;
 
         ImGui::DockBuilderRemoveNode(dockspace_id);
         ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_PassthruCentralNode);
@@ -29,6 +36,40 @@ void AppHost::drawDockspace()
         ImGui::DockBuilderDockWindow("Inspector", dock_right);
 
         ImGui::DockBuilderFinish(dockspace_id);
+    }
+
+    if (rootNode != nullptr)
+    {
+        constexpr ImGuiDockNodeFlags lockFlags =
+            ImGuiDockNodeFlags_NoSplit | ImGuiDockNodeFlags_NoUndocking | ImGuiDockNodeFlags_NoResize;
+
+        auto applyFlags = [&](ImGuiDockNode* node, const auto& self) -> void {
+            if (node == nullptr)
+            {
+                return;
+            }
+
+            node->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;
+            if (layout_locked)
+            {
+                node->LocalFlags |= lockFlags;
+            }
+            else
+            {
+                node->LocalFlags &= ~lockFlags;
+            }
+
+            if (node->ChildNodes[0] != nullptr)
+            {
+                self(node->ChildNodes[0], self);
+            }
+            if (node->ChildNodes[1] != nullptr)
+            {
+                self(node->ChildNodes[1], self);
+            }
+        };
+
+        applyFlags(rootNode, applyFlags);
     }
 }
 

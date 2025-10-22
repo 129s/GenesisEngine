@@ -3,6 +3,7 @@
 #include "../ImGuiLogSink.hpp"
 #include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
+#include "sandbox/gui/ui/LayoutHelpers.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -71,6 +72,7 @@ namespace Genesis::Sandbox::Gui
             ImGui::End();
             return;
         }
+        Ui::drawDockAnchorOverlay("MainViewDockAnchor", ctx.state.layout_mode_enabled);
 
         if (ImGui::BeginChild("MainViewContent", ImVec2(0.0f, 0.0f), false))
         {
@@ -396,6 +398,7 @@ namespace Genesis::Sandbox::Gui
             ImGui::End();
             return;
         }
+        Ui::drawDockAnchorOverlay("InspectorDockAnchor", ctx.state.layout_mode_enabled);
 
         if (!ctx.latest_snapshot)
         {

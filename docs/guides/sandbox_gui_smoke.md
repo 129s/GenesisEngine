@@ -27,7 +27,7 @@ cmake --build build --target genesis_sandbox_gui
 ```
 
 启动后可看到：
-- Docking 主视口（可自由拆分窗口）
+- Docking 主视口（默认锁定布局，可在 Control Bar 上开启 `Layout` 模式并使用面板左上角的锚点重新分配窗口）
 - 顶部菜单（File / View），View 菜单可切换 Demo、Map View、Telemetry
 - Welcome 面板：帧率、背景色、VSync、播放控制（Pause/Resume/Step/倍速）、最新快照摘要
 - Map View 面板：静态世界拓扑图（节点/边/资源）与 Agent 名称标签（可选插值/轨迹/图例）。
@@ -81,7 +81,7 @@ cmake --build build --target genesis_sandbox_gui
 > ⚠️ 远程或无图形环境运行时，窗口可能无法创建；请在本地含 GPU/桌面会话的环境中执行。
 
 ## Runtime 控制与快照
-- Control Toolbar（顶栏）集中 Pause/Resume、Step、Step ×10、Speed 与 VSync 控件，并响应 F5/F6/F7/F8/F9 快捷键。
+- Control Toolbar（顶栏）提供 Layout 开关：关闭时锁定 Docking 并隐藏标签页，开启后在各面板左上角显示可拖拽锚点以调整布局；同时集中 Pause/Resume、Step、Step ×10、Speed 与 VSync 控件，并响应 F5/F6/F7/F8/F9 快捷键。
 - Welcome 面板保留状态信息与背景色调整。
 - RuntimeBridge 在后台线程持续推进 `genesis::runtime::Runtime`，写入双缓冲 `SimulationSnapshot`（version/capturedAt/`TickTelemetry`，默认保留 96 帧）。
 - GUI 线程每帧从快照缓冲读取最新数据，更新世界视图、Telemetry 与状态栏。

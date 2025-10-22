@@ -1,5 +1,6 @@
 #include "sandbox/gui/ui/BrowserView.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
+#include "sandbox/gui/ui/LayoutHelpers.hpp"
 #include "../FilesystemHelpers.hpp"
 
 #include <algorithm>
@@ -291,6 +292,7 @@ void BrowserView::render(UiContext& ctx)
         ImGui::End();
         return;
     }
+    Ui::drawDockAnchorOverlay("BrowserDockAnchor", ctx.state.layout_mode_enabled);
 
     std::filesystem::path dataRoot = locateAsset(std::filesystem::path("data"));
     if (dataRoot.empty())

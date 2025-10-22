@@ -140,6 +140,7 @@ add_executable(genesis_sandbox_gui
     sandbox/gui/ui/ControlBarView.cpp
     sandbox/gui/ui/BrowserView.cpp
     sandbox/gui/ui/MainView.cpp
+    sandbox/gui/ui/LayoutHelpers.cpp
     sandbox/gui/RuntimeBridge.cpp
 )
 

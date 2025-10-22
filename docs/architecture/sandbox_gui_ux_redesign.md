@@ -42,7 +42,7 @@
 - 新增 `DesignTokens` 模块，对颜色、间距、圆角、边框厚度等令牌进行集中管理，并在 AppHost 初始化阶段一次性应用到 ImGui Style。
 - Status Bar、Control Bar、Browser、Main View 等主导航组件统一改用设计令牌提供的按钮与 Toast 配色，移除零散的 `PushStyleColor` 魔法数。
 - 引入 `SpacingToken` 统一常用间距（XS/SM/MD/LG/XL），Status/Control/Main/Nav 等常用 `SameLine`/`WindowPadding` 均改为令牌值，后续叠加层与数据面板只需引用同一接口即可维护一致节奏。
-- 2025-10-22：Sandbox GUI 骨架线框统一为 2px，并通过仅在骨架层绘制边框避免叠加变粗；控制栏/状态栏与主体内容之间取消缝隙，同时为整体界面新增 2px 外框以加强嵌入感。
+- 2025-10-22：Sandbox GUI 骨架线框统一为 2px，并通过仅在骨架层绘制边框避免叠加变粗；像素对齐的描边令线条保持 Dock 分割线同样的锐利度；控制栏/状态栏与主体内容之间取消缝隙，同时为整体界面新增 2px 外框以加强嵌入感。
 
 ### 3.7 实施进展（Phase A · Task 3，2025-10-21）
 - Scene > Map 视图新增叠加层按钮栏，统一控制节点、资源、实体、轨迹、插值与标尺叠加；配套 Ctrl+1~6 快捷键，按键反馈写入 Toast。

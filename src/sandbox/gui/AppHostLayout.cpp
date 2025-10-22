@@ -83,16 +83,22 @@ void AppHost::drawOuterFrame()
     }
 
     const float thickness = Style::DesignTokens::skeletonBorderThickness();
-    const float halfThickness = thickness * 0.5f;
     const ImU32 borderColor =
         ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-    const ImVec2 min = ImVec2(viewport->Pos.x + halfThickness, viewport->Pos.y + halfThickness);
-    const ImVec2 max =
-        ImVec2(viewport->Pos.x + viewport->Size.x - halfThickness,
-               viewport->Pos.y + viewport->Size.y - halfThickness);
+    const float left = ImFloor(viewport->Pos.x);
+    const float top = ImFloor(viewport->Pos.y);
+    const float right = ImFloor(viewport->Pos.x + viewport->Size.x);
+    const float bottom = ImFloor(viewport->Pos.y + viewport->Size.y);
 
     ImDrawList* drawList = ImGui::GetForegroundDrawList(viewport);
-    drawList->AddRect(min, max, borderColor, 0.0f, ImDrawFlags_None, thickness);
+    // top
+    drawList->AddRectFilled(ImVec2(left, top), ImVec2(right, top + thickness), borderColor);
+    // bottom
+    drawList->AddRectFilled(ImVec2(left, bottom - thickness), ImVec2(right, bottom), borderColor);
+    // left
+    drawList->AddRectFilled(ImVec2(left, top), ImVec2(left + thickness, bottom), borderColor);
+    // right
+    drawList->AddRectFilled(ImVec2(right - thickness, top), ImVec2(right, bottom), borderColor);
 }
 
 } // namespace Genesis::Sandbox::Gui

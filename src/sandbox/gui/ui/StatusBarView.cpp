@@ -32,13 +32,17 @@ void StatusBarView::render(UiContext& ctx)
                                        : std::string_view(ctx.config.version);
         ImGui::Text("版本 %.*s", static_cast<int>(version.size()), version.data());
 
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
         const ImU32 borderColor =
             ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
         const float thickness = Style::DesignTokens::skeletonBorderThickness();
         const ImVec2 min = ImGui::GetWindowPos();
         const ImVec2 size = ImGui::GetWindowSize();
-        const ImVec2 max(min.x + size.x, min.y + size.y);
-        ImGui::GetWindowDrawList()->AddLine(ImVec2(min.x, min.y), ImVec2(max.x, min.y), borderColor, thickness);
+        const float x0 = ImFloor(min.x);
+        const float x1 = ImFloor(min.x + size.x);
+        const float y0 = ImFloor(min.y);
+        const float y1 = y0 + thickness;
+        drawList->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), borderColor);
     }
     ImGui::End();
     ImGui::PopStyleVar(2);

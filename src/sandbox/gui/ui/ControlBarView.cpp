@@ -141,13 +141,17 @@ void ControlBarView::render(UiContext& ctx)
             ImGui::TextUnformatted("RuntimeBridge unavailable.");
         }
 
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
         const ImU32 borderColor =
             ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
         const float thickness = Style::DesignTokens::skeletonBorderThickness();
         const ImVec2 min = ImGui::GetWindowPos();
         const ImVec2 size = ImGui::GetWindowSize();
-        const ImVec2 max(min.x + size.x, min.y + size.y);
-        ImGui::GetWindowDrawList()->AddLine(ImVec2(min.x, max.y), ImVec2(max.x, max.y), borderColor, thickness);
+        const float x0 = ImFloor(min.x);
+        const float x1 = ImFloor(min.x + size.x);
+        const float y1 = ImFloor(min.y + size.y);
+        const float y0 = y1 - thickness;
+        drawList->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), borderColor);
     }
     ImGui::End();
     ImGui::PopStyleVar(2);

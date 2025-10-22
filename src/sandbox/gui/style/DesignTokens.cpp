@@ -45,12 +45,12 @@ namespace
 
 void DesignTokens::applyTo(ImGuiStyle &style)
 {
-    style.WindowPadding = ImVec2(spacing(SpacingToken::Lg), spacing(SpacingToken::Md));
-    style.FramePadding = ImVec2(spacing(SpacingToken::Sm), spacing(SpacingToken::Xs));
-    style.CellPadding = ImVec2(spacing(SpacingToken::Sm), spacing(SpacingToken::Sm));
-    style.ItemSpacing = ImVec2(spacing(SpacingToken::Sm), spacing(SpacingToken::Sm));
-    style.ItemInnerSpacing = ImVec2(spacing(SpacingToken::Xs), spacing(SpacingToken::Xs));
-    style.IndentSpacing = spacing(SpacingToken::Lg);
+    style.WindowPadding = ImVec2(0.0f, 0.0f);
+    style.FramePadding = ImVec2(0.0f, 0.0f);
+    style.CellPadding = ImVec2(0.0f, 0.0f);
+    style.ItemSpacing = ImVec2(0.0f, 0.0f);
+    style.ItemInnerSpacing = ImVec2(0.0f, 0.0f);
+    style.IndentSpacing = 0.0f;
     style.ScrollbarSize = scrollbarSize();
 
     style.WindowRounding = roundingNone();
@@ -61,14 +61,14 @@ void DesignTokens::applyTo(ImGuiStyle &style)
     style.GrabRounding = roundingNone();
     style.TabRounding = roundingNone();
 
-    style.WindowBorderSize = windowBorderThickness();
-    style.ChildBorderSize = childBorderThickness();
-    style.FrameBorderSize = frameBorderThickness();
-    style.PopupBorderSize = frameBorderThickness();
-    style.TabBorderSize = frameBorderThickness();
-    style.SeparatorTextBorderSize = separatorThickness();
-    style.DockingSeparatorSize = dockingSeparatorThickness();
-    style.TouchExtraPadding = ImVec2(6.0f, 6.0f); // 扩大命中范围，提升分割线交互体验
+    style.WindowBorderSize = 0.0f;
+    style.ChildBorderSize = 0.0f;
+    style.FrameBorderSize = 0.0f;
+    style.PopupBorderSize = 0.0f;
+    style.TabBorderSize = 0.0f;
+    style.SeparatorTextBorderSize = 0.0f;
+    style.DockingSeparatorSize = 0.0f;
+    style.TouchExtraPadding = ImVec2(0.0f, 0.0f);
 
     style.Colors[ImGuiCol_Text] = color(ColorToken::TextPrimary);
     style.Colors[ImGuiCol_TextDisabled] = color(ColorToken::TextDisabled);

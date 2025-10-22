@@ -27,10 +27,6 @@ void AppHost::resetSceneForNewWorld()
 
 void AppHost::resetMapViewCamera()
 {
-    ui_state_.map_zoom = 1.0f;
-    ui_state_.map_pan_x = 0.0f;
-    ui_state_.map_pan_y = 0.0f;
-    ui_state_.map_auto_centered = false;
 }
 
 void AppHost::refreshDefaultWorldgenConfig()

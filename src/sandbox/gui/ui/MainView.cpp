@@ -1306,333 +1306,64 @@ namespace Genesis::Sandbox::Gui
         }
     }
 
-    
+    const SceneNodeDetails *detailsPtr = nodeVm.active ? &*nodeVm.active : nullptr;
 
-    SceneMapViewModel mapVm = scene_presenter_.buildMapViewModel(presenterInput);
+    ImGui::BeginChild("SceneTabRoot", ImVec2(0.0f, 0.0f), false);
+    const bool resetRequested = drawSceneToolbar(ctx, detailsPtr);
 
-    auto drawViewport = [&]() -> bool {
-        return drawSceneViewport(ctx, presenterInput, nodeVm);
-    };
+    const bool showSidebar = (detailsPtr != nullptr) || ctx.state.show_inspector;
+    const float spacing = Style::DesignTokens::spacing(Style::SpacingToken::Md);
 
-    auto drawMiniMapPanel = [&](bool viewportReady) {
-        const Style::Layout::CardLayoutConfig cardLayout = Style::Layout::detailCard();
-        Style::Layout::CardScope card("SceneMiniMapCard", cardLayout, ImGuiWindowFlags_NoScrollbar);
-        if (!card.isOpen())
+    ImGui::BeginChild("SceneContentArea", ImVec2(0.0f, 0.0f), false);
+
+    const ImVec2 totalAvail = ImGui::GetContentRegionAvail();
+    float sidebarWidth = 0.0f;
+    if (showSidebar)
+    {
+        sidebarWidth = std::clamp(totalAvail.x * 0.32f, 220.0f, 360.0f);
+        if (sidebarWidth > totalAvail.x - 240.0f)
         {
-            return;
+            sidebarWidth = std::max(totalAvail.x - 240.0f, 200.0f);
         }
+    }
 
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
-        ImGui::TextUnformatted("小地图");
-        ImGui::SameLine();
-        if (ImGui::SmallButton("重置视角##MiniMapReset"))
+    float viewportWidth = showSidebar ? std::max(totalAvail.x - sidebarWidth - spacing, 240.0f) : totalAvail.x;
+
+    ImGui::BeginChild("SceneViewportPane", ImVec2(viewportWidth, 0.0f), false);
+    auto viewportState = drawSceneViewport(ctx, presenterInput, nodeVm, resetRequested);
+    ImGui::EndChild();
+
+    if (showSidebar)
+    {
+        ImGui::SameLine(0.0f, spacing);
+        ImGui::BeginChild("SceneSidebarPane", ImVec2(0.0f, 0.0f), false);
+        if (viewportState)
         {
-            ctx.state.map_zoom = 1.0f;
-            ctx.state.map_pan_x = 0.0f;
-            ctx.state.map_pan_y = 0.0f;
-            ctx.state.map_auto_centered = false;
+            drawSceneMiniMap(ctx, *viewportState);
         }
-        ImGui::SameLine();
-        ImGui::TextDisabled("滚轮缩放｜右键拖拽");
-
-        ImDrawList *drawList = ImGui::GetWindowDrawList();
-        const float mapHeight = std::max(180.0f, ImGui::GetTextLineHeightWithSpacing() * 9.0f);
-        ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, mapHeight);
-        ImGui::InvisibleButton("MiniMapCanvas", canvasSize, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
-        const ImVec2 canvasMin = ImGui::GetItemRectMin();
-        const ImVec2 canvasMax = ImGui::GetItemRectMax();
-        const float margin = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-
-        drawList->AddRectFilled(canvasMin, canvasMax, ImGui::GetColorU32(ImGuiCol_WindowBg));
-        drawList->AddRect(canvasMin, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
-
-        if (!mapVm.runtimeReady || mapVm.atlas == nullptr || mapVm.atlas->nodes.empty())
+        if (ctx.state.show_inspector)
         {
-            const char *message = !mapVm.runtimeReady ? "等待世界拓扑…" : "暂无节点数据。";
-            drawList->AddText(ImVec2(canvasMin.x + margin, canvasMin.y + margin),
-                              ImGui::GetColorU32(ImGuiCol_TextDisabled),
-                              message);
-            ImGui::PopTextWrapPos();
-            return;
+            inspector.render(ctx);
         }
-
-        const auto &atlas = *mapVm.atlas;
-        RuntimeBridge::Vector2 minPos{std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
-        RuntimeBridge::Vector2 maxPos{std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
-        for (const auto &node : atlas.nodes)
+        else
         {
-            minPos.x = std::min(minPos.x, node.position.x);
-            minPos.y = std::min(minPos.y, node.position.y);
-            maxPos.x = std::max(maxPos.x, node.position.x);
-            maxPos.y = std::max(maxPos.y, node.position.y);
-        }
-        if (minPos.x == std::numeric_limits<float>::max())
-        {
-            minPos = RuntimeBridge::Vector2{0.0f, 0.0f};
-            maxPos = RuntimeBridge::Vector2{1.0f, 1.0f};
-        }
-
-        const float innerWidth = std::max(1.0f, (canvasMax.x - canvasMin.x) - margin * 2.0f);
-        const float innerHeight = std::max(1.0f, (canvasMax.y - canvasMin.y) - margin * 2.0f);
-        const float worldWidth = std::max(1e-3f, maxPos.x - minPos.x);
-        const float worldHeight = std::max(1e-3f, maxPos.y - minPos.y);
-        const float baseScale = std::min(innerWidth / worldWidth, innerHeight / worldHeight);
-
-        auto resetPan = [&](float scale) {
-            const float contentWidth = worldWidth * scale;
-            const float contentHeight = worldHeight * scale;
-            ctx.state.map_pan_x = (innerWidth - contentWidth) * 0.5f;
-            ctx.state.map_pan_y = (innerHeight - contentHeight) * 0.5f;
-        };
-
-        if (!ctx.state.map_auto_centered)
-        {
-            ctx.state.map_zoom = 1.0f;
-            resetPan(baseScale * ctx.state.map_zoom);
-            ctx.state.map_auto_centered = true;
-        }
-
-        ImGuiIO &io = ImGui::GetIO();
-        const bool hovered = ImGui::IsItemHovered();
-        if (hovered)
-        {
-            if (io.MouseWheel != 0.0f)
+            if (ImGui::Button("显示检查器"))
             {
-                const float prevZoom = ctx.state.map_zoom;
-                const float zoomFactor = io.MouseWheel > 0.0f ? 1.1f : 0.9f;
-                float newZoom = std::clamp(prevZoom * zoomFactor, 0.3f, 6.0f);
-                if (std::abs(newZoom - prevZoom) > 1e-3f)
-                {
-                    const ImVec2 focus = io.MousePos;
-                    const ImVec2 local{
-                        focus.x - (canvasMin.x + margin) - ctx.state.map_pan_x,
-                        focus.y - (canvasMin.y + margin) - ctx.state.map_pan_y};
-                    const float normX = local.x / (baseScale * prevZoom);
-                    const float normY = local.y / (baseScale * prevZoom);
-                    ctx.state.map_zoom = newZoom;
-                    ctx.state.map_pan_x = local.x - normX * baseScale * newZoom;
-                    ctx.state.map_pan_y = local.y - normY * baseScale * newZoom;
-                }
-            }
-
-            if (ImGui::IsMouseDragging(ImGuiMouseButton_Right))
-            {
-                const ImVec2 delta = io.MouseDelta;
-                ctx.state.map_pan_x += delta.x;
-                ctx.state.map_pan_y += delta.y;
-            }
-
-            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-            {
-                ctx.state.map_auto_centered = false;
-            }
-        }
-
-        const float scale = baseScale * ctx.state.map_zoom;
-        const float contentWidth = worldWidth * scale;
-        const float contentHeight = worldHeight * scale;
-
-        auto clampOffset = [&](float viewSize, float contentSize, float &offset) {
-            if (contentSize <= viewSize)
-            {
-                offset = (viewSize - contentSize) * 0.5f;
-            }
-            else
-            {
-                offset = std::clamp(offset, viewSize - contentSize, 0.0f);
-            }
-        };
-        clampOffset(innerWidth, contentWidth, ctx.state.map_pan_x);
-        clampOffset(innerHeight, contentHeight, ctx.state.map_pan_y);
-
-        auto toScreen = [&](const RuntimeBridge::Vector2 &pos) -> ImVec2 {
-            const float localX = (pos.x - minPos.x) * scale + ctx.state.map_pan_x;
-            const float localY = (pos.y - minPos.y) * scale + ctx.state.map_pan_y;
-            return ImVec2(canvasMin.x + margin + localX,
-                          canvasMin.y + margin + localY);
-        };
-
-        struct NodePoint
-        {
-            const RuntimeBridge::WorldAtlas::Node *node;
-            ImVec2 pos;
-        };
-        std::vector<NodePoint> nodePoints;
-        nodePoints.reserve(atlas.nodes.size());
-        for (const auto &node : atlas.nodes)
-        {
-            nodePoints.push_back(NodePoint{&node, toScreen(node.position)});
-        }
-
-        const ImU32 edgeColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-        for (const auto &edge : atlas.edges)
-        {
-            const auto from = atlas.nodePosition(edge.from);
-            const auto to = atlas.nodePosition(edge.to);
-            if (!from || !to)
-            {
-                continue;
-            }
-            drawList->AddLine(toScreen(*from), toScreen(*to), edgeColor, 1.1f);
-        }
-
-        std::unordered_map<std::uint32_t, std::size_t> agentCountByNode;
-        agentCountByNode.reserve(mapVm.agents.size());
-        for (const auto &[id, agent] : mapVm.agents)
-        {
-            (void)id;
-            ++agentCountByNode[agent.locationId];
-        }
-
-        const float nodeRadius = std::max(4.0f, scale * 0.06f);
-        const float hoverRadius = nodeRadius + 4.0f;
-        int hoveredNodeIndex = -1;
-        for (std::size_t i = 0; i < nodePoints.size(); ++i)
-        {
-            const auto &entry = nodePoints[i];
-            const bool isSelected = ctx.state.map_selected_node && *ctx.state.map_selected_node == entry.node->id.value;
-            const bool isHighlighted = ctx.state.inspector_highlight_node && *ctx.state.inspector_highlight_node == entry.node->id.value;
-            const ImU32 fillColor = isSelected
-                                        ? ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight))
-                                        : ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-            const float baseRadius = isSelected ? nodeRadius + 2.0f : nodeRadius;
-            drawList->AddCircleFilled(entry.pos, baseRadius, fillColor, 20);
-            drawList->AddCircle(entry.pos, baseRadius, ImGui::GetColorU32(ImGuiCol_Border), 20, 1.2f);
-            if (isHighlighted)
-            {
-                drawList->AddCircle(entry.pos,
-                                    baseRadius + 4.0f,
-                                    ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive)),
-                                    20,
-                                    1.4f);
-            }
-
-            if (hovered)
-            {
-                const float dx = io.MousePos.x - entry.pos.x;
-                const float dy = io.MousePos.y - entry.pos.y;
-                if ((dx * dx + dy * dy) <= (hoverRadius * hoverRadius))
-                {
-                    hoveredNodeIndex = static_cast<int>(i);
-                }
-            }
-        }
-
-        if (hoveredNodeIndex >= 0)
-        {
-            const auto &entry = nodePoints[hoveredNodeIndex];
-            ImGui::BeginTooltip();
-            ImGui::Text("#%u %s", entry.node->id.value, entry.node->name.c_str());
-            if (auto it = agentCountByNode.find(entry.node->id.value); it != agentCountByNode.end())
-            {
-                ImGui::Text("代理：%zu", it->second);
-            }
-            for (const auto &bucket : mapVm.resourceBuckets)
-            {
-                if (bucket.locationId == entry.node->id.value && !bucket.resources.empty())
-                {
-                    ImGui::Separator();
-                    for (const auto &res : bucket.resources)
-                    {
-                        ImGui::BulletText("%s %u / %u", res.name.c_str(), res.current, res.capacity);
-                    }
-                    break;
-                }
-            }
-            ImGui::EndTooltip();
-
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-            {
-                ctx.state.map_selected_node = entry.node->id.value;
-                ctx.state.scene_selected_node = entry.node->id.value;
-                ctx.state.scene_tile_selection.reset();
-                ctx.state.scene_selection_tool = SceneSelectionTool::Node;
-                ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Node;
-                ctx.state.inspector_selected_primary = entry.node->id.value;
-                ctx.state.inspector_selected_secondary = 0;
-                ctx.state.inspector_highlight_node = entry.node->id.value;
-                ctx.state.scene_focus_node_request = entry.node->id.value;
                 ctx.state.show_inspector = true;
             }
         }
-
-        if (ctx.state.map_selected_node)
-        {
-            const auto nodeIt = std::find_if(atlas.nodes.begin(), atlas.nodes.end(), [&](const RuntimeBridge::WorldAtlas::Node &node) {
-                return node.id.value == *ctx.state.map_selected_node;
-            });
-            if (nodeIt != atlas.nodes.end())
-            {
-                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap * 0.5f));
-                ImGui::Text("当前节点：#%u %s", nodeIt->id.value, nodeIt->name.c_str());
-            }
-        }
-        else if (!viewportReady)
-        {
-            ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap * 0.5f));
-            ImGui::TextDisabled("场景视图载入中…");
-        }
-
-        ImGui::PopTextWrapPos();
-    };
-
-    const bool showSidebar = mapVm.runtimeReady || ctx.state.show_inspector;
-    const float spacing = Style::DesignTokens::spacing(Style::SpacingToken::Md);
-
-    if (!showSidebar)
-    {
-        drawViewport();
-        return;
+        ImGui::EndChild();
     }
 
-    const ImVec2 totalAvail = ImGui::GetContentRegionAvail();
-    float sidebarWidth = std::clamp(totalAvail.x * 0.34f, 260.0f, 400.0f);
-    if (sidebarWidth > totalAvail.x - 280.0f)
-    {
-        sidebarWidth = std::max(totalAvail.x - 280.0f, 220.0f);
-    }
-    float viewportWidth = totalAvail.x - sidebarWidth - spacing;
-    if (viewportWidth < 280.0f)
-    {
-        viewportWidth = std::max(totalAvail.x * 0.55f, 280.0f);
-        sidebarWidth = std::max(totalAvail.x - viewportWidth - spacing, 220.0f);
-    }
-
-    ImGui::BeginChild("SceneViewportPane", ImVec2(viewportWidth, 0.0f), false);
-    bool viewportReady = drawViewport();
     ImGui::EndChild();
-
-    ImGui::SameLine(0.0f, spacing);
-
-    ImGui::BeginChild("SceneSidebarPane", ImVec2(0.0f, 0.0f), false);
-    drawMiniMapPanel(viewportReady);
-    if (ctx.state.show_inspector)
-    {
-        inspector.render(ctx);
-    }
-    else
-    {
-        if (ImGui::Button("显示检查器"))
-        {
-            ctx.state.show_inspector = true;
-        }
-    }
     ImGui::EndChild();
-
     }
 
 
-    bool MainView::drawSceneViewport(UiContext &ctx,
-                                     const ScenePresenterInput &presenterInput,
-                                     const SceneNodeViewModel &nodeVm)
+    bool MainView::drawSceneToolbar(UiContext &ctx, const SceneNodeDetails *details)
     {
-        const RuntimeBridge::WorldAtlas *atlasPtr = presenterInput.atlas;
-        const SceneNodeDetails *detailsPtr = nodeVm.active ? &*nodeVm.active : nullptr;
-        const SceneNodeGridInfo *gridPtr = detailsPtr ? &detailsPtr->grid : nullptr;
-
         const float toggleSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        auto drawToolButton = [&](const char *label, SceneSelectionTool tool)
-        {
+        auto drawToolButton = [&](const char *label, SceneSelectionTool tool) {
             const bool active = (ctx.state.scene_selection_tool == tool);
             PushActiveButtonStyle(active);
             if (ImGui::Button(label))
@@ -1663,7 +1394,7 @@ namespace Genesis::Sandbox::Gui
 
         bool resetRequested = false;
         ImGui::SameLine(0.0f, toggleSpacing);
-        if (detailsPtr)
+        if (details)
         {
             if (ImGui::Button("重置视图"))
             {
@@ -1679,55 +1410,63 @@ namespace Genesis::Sandbox::Gui
         ImGui::SameLine(0.0f, toggleSpacing);
         ImGui::TextDisabled("滚轮缩放｜右键拖拽");
 
-        ImGui::Spacing();
+        ImGui::Dummy(ImVec2(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
+        return resetRequested;
+    }
+
+
+    std::optional<MainView::SceneViewportRenderState> MainView::drawSceneViewport(UiContext &ctx,
+                                                                                  const ScenePresenterInput &presenterInput,
+                                                                                  const SceneNodeViewModel &nodeVm,
+                                                                                  bool resetRequested)
+    {
+        const RuntimeBridge::WorldAtlas *atlasPtr = presenterInput.atlas;
+        const SceneNodeDetails *detailsPtr = nodeVm.active ? &*nodeVm.active : nullptr;
+        const SceneNodeGridInfo *gridPtr = detailsPtr ? &detailsPtr->grid : nullptr;
 
         const ImVec2 canvasAvail = ImGui::GetContentRegionAvail();
         const ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-        const ImVec2 canvasExtent{std::max(160.0f, canvasAvail.x), std::max(160.0f, canvasAvail.y)};
+        const ImVec2 canvasExtent{std::max(160.0f, canvasAvail.x), std::max(220.0f, canvasAvail.y)};
         const ImVec2 canvasMax{canvasPos.x + canvasExtent.x, canvasPos.y + canvasExtent.y};
         constexpr float canvasMargin = 24.0f;
 
+        ImGui::SetCursorScreenPos(canvasPos);
+        ImGui::InvisibleButton("SceneCanvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+
         ImDrawList *drawList = ImGui::GetWindowDrawList();
-        auto drawCanvasBackground = [&]()
-        {
+        auto drawCanvasBackground = [&]() {
             drawList->AddRectFilled(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_WindowBg));
             drawList->AddRect(canvasPos, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
         };
-        auto drawCanvasMessage = [&](const char *text)
-        {
+        auto drawCanvasMessage = [&](const char *text) -> std::optional<SceneViewportRenderState> {
             drawCanvasBackground();
             const ImVec2 textSize = ImGui::CalcTextSize(text);
             const ImVec2 textPos{
                 canvasPos.x + (canvasExtent.x - textSize.x) * 0.5f,
                 canvasPos.y + (canvasExtent.y - textSize.y) * 0.5f};
             drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_Text), text);
+            return std::nullopt;
         };
 
         if (!atlasPtr)
         {
-            drawCanvasMessage("RuntimeBridge 未就绪。");
-            return false;
+            return drawCanvasMessage("RuntimeBridge 未就绪。");
         }
 
         if (nodeVm.nodes.empty())
         {
-            drawCanvasMessage("暂无地图节点。");
-            return false;
+            return drawCanvasMessage("暂无地图节点。");
         }
 
         if (!detailsPtr || !gridPtr)
         {
-            drawCanvasMessage("请选择包含瓦片数据的节点。");
-            return false;
+            return drawCanvasMessage("请选择包含瓦片数据的节点。");
         }
 
         const SceneNodeDetails &details = *detailsPtr;
         const SceneNodeGridInfo &grid = *gridPtr;
 
         drawCanvasBackground();
-
-        ImGui::SetCursorScreenPos(canvasPos);
-        ImGui::InvisibleButton("SceneCanvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
         const bool canvasHovered = ImGui::IsItemHovered();
         const bool canvasActive = ImGui::IsItemActive();
         ImGuiIO &io = ImGui::GetIO();
@@ -1833,7 +1572,7 @@ namespace Genesis::Sandbox::Gui
             drawList->AddText(canvasPos, ImGui::GetColorU32(ImGuiCol_Text), "瓦片尺寸异常。");
             drawList->PopClipRect();
             ImGui::Dummy(canvasExtent);
-            return false;
+            return std::nullopt;
         }
 
         auto toScreenRaw = [&](float gx, float gy) -> ImVec2
@@ -2135,10 +1874,97 @@ namespace Genesis::Sandbox::Gui
         }
 
         drawList->PopClipRect();
-        return true;
+
+        SceneViewportRenderState state{};
+        state.details = &details;
+        state.grid = grid;
+        state.canvasPos = canvasPos;
+        state.canvasExtent = canvasExtent;
+        state.canvasMargin = canvasMargin;
+        state.cellPx = cellPx;
+        const float visibleWidth = canvasExtent.x - canvasMargin * 2.0f;
+        const float visibleHeight = canvasExtent.y - canvasMargin * 2.0f;
+        state.viewWidthTiles = std::max(1e-3f, visibleWidth / cellPx);
+        state.viewHeightTiles = std::max(1e-3f, visibleHeight / cellPx);
+        state.viewOriginX = static_cast<float>(grid.minX) - ctx.state.scene_cam_offset_x / cellPx;
+        state.viewOriginY = static_cast<float>(grid.minY) - ctx.state.scene_cam_offset_y / cellPx;
+
+        return state;
     }
 
-void MainView::drawMonitorTab(UiContext &ctx)
+    void MainView::drawSceneMiniMap(UiContext &ctx, const SceneViewportRenderState &state)
+    {
+        if (!state.details)
+        {
+            return;
+        }
+
+        const float miniHeight = 160.0f;
+        ImGui::BeginChild("SceneMiniMap", ImVec2(0.0f, miniHeight), false, ImGuiWindowFlags_NoScrollbar);
+
+        const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
+        const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, miniHeight);
+        ImGui::InvisibleButton("SceneMiniMap.Canvas", canvasSize, ImGuiButtonFlags_None);
+        const ImVec2 canvasMax = ImGui::GetItemRectMax();
+
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(canvasMin, canvasMax, ImGui::GetColorU32(ImGuiCol_WindowBg));
+        drawList->AddRect(canvasMin, canvasMax, ImGui::GetColorU32(ImGuiCol_Border));
+
+        const float margin = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+        const ImVec2 innerMin(canvasMin.x + margin, canvasMin.y + margin);
+        const ImVec2 innerMax(canvasMax.x - margin, canvasMax.y - margin);
+        const float innerWidth = std::max(1.0f, innerMax.x - innerMin.x);
+        const float innerHeight = std::max(1.0f, innerMax.y - innerMin.y);
+
+        const SceneNodeGridInfo &grid = state.grid;
+        const float viewCenterX = state.viewOriginX + state.viewWidthTiles * 0.5f;
+        const float viewCenterY = state.viewOriginY + state.viewHeightTiles * 0.5f;
+        float halfWidth = state.viewWidthTiles * 2.0f;
+        float halfHeight = state.viewHeightTiles * 2.0f;
+
+        float regionMinX = std::max(static_cast<float>(grid.minX), viewCenterX - halfWidth);
+        float regionMinY = std::max(static_cast<float>(grid.minY), viewCenterY - halfHeight);
+        float regionMaxX = std::min(static_cast<float>(grid.maxX + 1), viewCenterX + halfWidth);
+        float regionMaxY = std::min(static_cast<float>(grid.maxY + 1), viewCenterY + halfHeight);
+        if (regionMaxX <= regionMinX || regionMaxY <= regionMinY)
+        {
+            regionMinX = static_cast<float>(grid.minX);
+            regionMinY = static_cast<float>(grid.minY);
+            regionMaxX = static_cast<float>(grid.maxX + 1);
+            regionMaxY = static_cast<float>(grid.maxY + 1);
+        }
+
+        const float regionWidth = regionMaxX - regionMinX;
+        const float regionHeight = regionMaxY - regionMinY;
+        const float scale = std::min(innerWidth / regionWidth, innerHeight / regionHeight);
+        const float offsetX = (innerWidth - regionWidth * scale) * 0.5f;
+        const float offsetY = (innerHeight - regionHeight * scale) * 0.5f;
+
+        auto toScreen = [&](float gx, float gy) -> ImVec2 {
+            return ImVec2(innerMin.x + offsetX + (gx - regionMinX) * scale,
+                          innerMin.y + offsetY + (gy - regionMinY) * scale);
+        };
+
+        const ImVec2 regionTopLeft = toScreen(regionMinX, regionMinY);
+        const ImVec2 regionBottomRight = toScreen(regionMaxX, regionMaxY);
+        const ImU32 regionColor = ImGui::GetColorU32(ImVec4(0.16f, 0.20f, 0.26f, 0.65f));
+        drawList->AddRectFilled(regionTopLeft, regionBottomRight, regionColor, 5.0f);
+        drawList->AddRect(regionTopLeft, regionBottomRight, ImGui::GetColorU32(ImGuiCol_Border), 5.0f, 2.0f);
+
+        const float viewMinX = state.viewOriginX;
+        const float viewMinY = state.viewOriginY;
+        const float viewMaxX = viewMinX + state.viewWidthTiles;
+        const float viewMaxY = viewMinY + state.viewHeightTiles;
+        const ImVec2 cameraMin = toScreen(viewMinX, viewMinY);
+        const ImVec2 cameraMax = toScreen(viewMaxX, viewMaxY);
+        const ImU32 cameraColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+        drawList->AddRect(cameraMin, cameraMax, cameraColor, 3.0f, 0, 2.0f);
+
+        ImGui::EndChild();
+    }
+
+    void MainView::drawMonitorTab(UiContext &ctx)
     {
         const auto cardLayout = Style::Layout::detailCard();
         const float cardSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Lg);

@@ -60,10 +60,6 @@ struct UiState
     std::size_t agent_trail_samples{24};
     std::unordered_map<std::uint32_t, std::deque<RuntimeBridge::Vector2>> agent_trails;
     std::optional<std::uint32_t> map_selected_node;
-    float map_zoom{1.0f};
-    float map_pan_x{0.0f};
-    float map_pan_y{0.0f};
-    bool map_auto_centered{false};
     bool scene_show_graph{true};
     bool scene_show_ruler{false};
     std::optional<RuntimeBridge::Vector2> scene_ruler_anchor;

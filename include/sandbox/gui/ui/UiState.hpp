@@ -19,15 +19,6 @@ namespace Genesis::Sandbox::Gui
 
 class ImGuiLogSink;
 
-enum class BrowserSection
-{
-    All,
-    Scene,
-    World,
-    Monitor,
-    LayoutsThemes
-};
-
 enum class MainViewTab
 {
     Scene,
@@ -53,7 +44,6 @@ struct SceneTileSelection
 struct UiState
 {
     bool show_inspector{true};
-    BrowserSection browser_active_section{BrowserSection::All};
     MainViewTab main_view_active_tab{MainViewTab::Scene};
     SceneSelectionTool scene_selection_tool{SceneSelectionTool::Any};
 
@@ -76,8 +66,9 @@ struct UiState
     bool scene_show_ruler{false};
     std::optional<RuntimeBridge::Vector2> scene_ruler_anchor;
     std::optional<std::uint32_t> scene_focus_node_request;
-    std::array<char, 128> browser_search_buffer{};
-    std::unordered_set<std::uint32_t> browser_scene_expanded_nodes;
+    std::array<char, 128> browser_filter_buffer{};
+    std::unordered_set<std::string> browser_expanded_paths;
+    std::string browser_selected_path;
 
     struct Toast
     {

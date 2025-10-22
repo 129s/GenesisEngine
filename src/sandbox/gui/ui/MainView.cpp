@@ -475,7 +475,6 @@ namespace Genesis::Sandbox::Gui
             if (ImGui::Button("定位地图##agentFocus"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
-                ctx.state.browser_active_section = BrowserSection::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                 ctx.state.scene_tile_selection.reset();
                 ctx.state.inspector_highlight_node = agent->location.value;
@@ -486,7 +485,6 @@ namespace Genesis::Sandbox::Gui
             if (ImGui::Button("打开节点视图##agentScene"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
-                ctx.state.browser_active_section = BrowserSection::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Tile;
                 ctx.state.scene_selected_node = agent->location.value;
                 ctx.state.map_selected_node = agent->location.value;
@@ -786,7 +784,6 @@ namespace Genesis::Sandbox::Gui
             if (ImGui::Button("定位地图##resourceFocus"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
-                ctx.state.browser_active_section = BrowserSection::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                 ctx.state.scene_tile_selection.reset();
                 ctx.state.inspector_highlight_node = resource.location.value;
@@ -797,7 +794,6 @@ namespace Genesis::Sandbox::Gui
             if (ImGui::Button("打开节点视图##resourceScene"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
-                ctx.state.browser_active_section = BrowserSection::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Tile;
                 ctx.state.scene_selected_node = resource.location.value;
                 ctx.state.map_selected_node = resource.location.value;
@@ -908,7 +904,6 @@ namespace Genesis::Sandbox::Gui
             if (ImGui::Button("定位地图##nodeFocus"))
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
-                ctx.state.browser_active_section = BrowserSection::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                 ctx.state.scene_tile_selection.reset();
                 ctx.state.inspector_highlight_node = selectedNode->id.value;

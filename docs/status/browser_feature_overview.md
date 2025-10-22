@@ -1,8 +1,7 @@
-# Sandbox GUI Browser 功能快照（2025-10-23）
+# Sandbox GUI Browser 功能快照（2025-10-24）
 
-- 顶栏现包含 All / Scene / World / Monitor / Layouts & Themes 五个按钮，仅更新 `UiState::browser_active_section`，默认选中 All，从而彻底解耦 Browser 与主视图标签（`src/sandbox/gui/ui/BrowserView.cpp:60`、`src/sandbox/gui/ui/BrowserView.cpp:79`、`include/sandbox/gui/ui/UiState.hpp:56`）。
-- 搜索框在任何分区都常驻，支持按名称或 ID 过滤 Scene 节点，可快速清除；同一查询会同步作用于 Scene 分区及 All 分区内的 Scene 区块（`src/sandbox/gui/ui/BrowserView.cpp:112`-`src/sandbox/gui/ui/BrowserView.cpp:141`）。
-- Scene 区块继续构建可折叠树，保持排序与展开记忆；命中项高亮，点击只同步 Scene / Map / Inspector 状态，不再强制切换主视图标签（`src/sandbox/gui/ui/BrowserView.cpp:162`-`src/sandbox/gui/ui/BrowserView.cpp:325`）。
-- 节点下方仍展示 Agents / Resources 子列表，依赖最新快照同步 Inspector 选中与跟随定位体验（`src/sandbox/gui/ui/BrowserView.cpp:362`-`src/sandbox/gui/ui/BrowserView.cpp:412`）。
-- All 分区串联 Scene 树、世界状态、运行监控及主题提示，复用同一渲染函数让用户在单页浏览所有内容（`src/sandbox/gui/ui/BrowserView.cpp:521`-`src/sandbox/gui/ui/BrowserView.cpp:547`）。
-- World / Monitor / Layouts & Themes 板块的快捷按钮仅修改主视图标签，不再改写 Browser 状态，同时保留最新状态与错误提示（`src/sandbox/gui/ui/BrowserView.cpp:465`、`src/sandbox/gui/ui/BrowserView.cpp:502`、`src/sandbox/gui/ui/BrowserView.cpp:513`）。
+- Browser 已转为“资源管理器”模式，直接映射 `data/` 目录结构：目录按字母排序置顶，文件紧随其后（`src/sandbox/gui/ui/BrowserView.cpp:167`-`src/sandbox/gui/ui/BrowserView.cpp:210`）。
+- 顶部保留单一搜索框，支持对目录/文件名与相对路径的模糊匹配；命中项自动高亮并展开父目录，清除按钮即时复位（`src/sandbox/gui/ui/BrowserView.cpp:305`-`src/sandbox/gui/ui/BrowserView.cpp:347`）。
+- 展开状态现在以相对路径持久化（`UiState::browser_expanded_paths`），默认保持根目录 `.` 打开；所选条目同样记录为相对路径，刷新后仍能聚焦（`include/sandbox/gui/ui/UiState.hpp:69`-`include/sandbox/gui/ui/UiState.hpp:71`）。
+- 面板下半部新增详情区，展示所选条目的相对/绝对路径、类型、大小与最后修改时间，便于快速核对生成资产（`src/sandbox/gui/ui/BrowserView.cpp:369`-`src/sandbox/gui/ui/BrowserView.cpp:409`）。
+- 数据目录定位统一通过 `locateAsset("data")`，兼容可写构建目录与发布包结构；若目录缺失会给出高亮提示（`src/sandbox/gui/ui/BrowserView.cpp:255`-`src/sandbox/gui/ui/BrowserView.cpp:284`）。

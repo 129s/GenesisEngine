@@ -1,18 +1,20 @@
 #include "sandbox/gui/ui/BrowserView.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
+#include "../FilesystemHelpers.hpp"
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
-#include <functional>
+#include <chrono>
 #include <cstdint>
-#include <numeric>
+#include <filesystem>
+#include <iomanip>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
+
+#include <ctime>
 
 #include <imgui.h>
 
@@ -20,25 +22,267 @@ namespace Genesis::Sandbox::Gui
 {
 namespace
 {
-    void PushActiveButtonStyle(bool active)
+    std::string toLowerCopy(std::string_view text)
     {
-        if (active)
+        std::string lowered;
+        lowered.reserve(text.size());
+        for (char ch : text)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, Style::DesignTokens::color(Style::ColorToken::Primary));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Style::DesignTokens::color(Style::ColorToken::PrimaryHover));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Style::DesignTokens::color(Style::ColorToken::PrimaryActive));
+            lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
         }
+        return lowered;
     }
 
-    void PopActiveButtonStyle(bool active)
+    std::string relativeKey(const std::filesystem::path& absolute, const std::filesystem::path& root)
     {
-        if (active)
+        std::error_code ec;
+        auto rel = std::filesystem::relative(absolute, root, ec);
+        if (ec || rel.empty())
         {
-            ImGui::PopStyleColor(3);
+            return ".";
+        }
+        auto canonical = rel.lexically_normal().generic_string();
+        if (canonical.empty() || canonical == ".")
+        {
+            return ".";
+        }
+        return canonical;
+    }
+
+    std::string humanReadableSize(std::uintmax_t bytes)
+    {
+        static const char* suffixes[] = {"B", "KB", "MB", "GB", "TB"};
+        double value = static_cast<double>(bytes);
+        std::size_t index = 0;
+        const std::size_t maxIndex = sizeof(suffixes) / sizeof(suffixes[0]);
+        while (value >= 1024.0 && (index + 1) < maxIndex)
+        {
+            value /= 1024.0;
+            ++index;
+        }
+
+        std::ostringstream oss;
+        if (index == 0)
+        {
+            oss << static_cast<std::uintmax_t>(value) << ' ' << suffixes[index];
+        }
+        else
+        {
+            oss << std::fixed << std::setprecision(value >= 10.0 ? 1 : 2) << value << ' ' << suffixes[index];
+        }
+        return oss.str();
+    }
+
+    std::string formatTimestamp(const std::filesystem::file_time_type& tp)
+    {
+        const auto fileNow = std::filesystem::file_time_type::clock::now();
+        const auto systemNow = std::chrono::system_clock::now();
+        const auto systemTime =
+            std::chrono::time_point_cast<std::chrono::system_clock::duration>(tp - fileNow + systemNow);
+
+        const std::time_t cTime = std::chrono::system_clock::to_time_t(systemTime);
+        std::tm localTm{};
+#if defined(_WIN32)
+        localtime_s(&localTm, &cTime);
+#else
+        localtime_r(&cTime, &localTm);
+#endif
+        std::ostringstream oss;
+        oss << std::put_time(&localTm, "%Y-%m-%d %H:%M:%S");
+        return oss.str();
+    }
+
+    struct BrowserNode
+    {
+        std::filesystem::path path;
+        bool isDirectory{false};
+        bool selfMatches{false};
+        std::vector<BrowserNode> children;
+    };
+
+    std::optional<BrowserNode> buildNode(const std::filesystem::path& current,
+                                         const std::filesystem::path& root,
+                                         const std::string& filterLower,
+                                         bool hasFilter,
+                                         std::vector<std::string>& warnings)
+    {
+        std::error_code ec;
+        const bool isDir = std::filesystem::is_directory(current, ec);
+        if (ec)
+        {
+            warnings.emplace_back("无法访问：" + current.generic_string());
+            return std::nullopt;
+        }
+
+        BrowserNode node;
+        node.path = current;
+        node.isDirectory = isDir;
+
+        const std::string keyLower = toLowerCopy(relativeKey(current, root));
+        const std::string nameLower = toLowerCopy(current.filename().generic_string());
+        node.selfMatches = hasFilter && (!filterLower.empty()) &&
+                           ((keyLower.find(filterLower) != std::string::npos) ||
+                            (nameLower.find(filterLower) != std::string::npos));
+
+        if (node.isDirectory)
+        {
+            std::vector<std::filesystem::directory_entry> entries;
+            std::filesystem::directory_iterator dirIt{current, ec};
+            if (ec)
+            {
+                warnings.emplace_back("无法列出目录：" + current.generic_string());
+            }
+            else
+            {
+                const std::filesystem::directory_iterator end;
+                for (auto it = dirIt; it != end; ++it)
+                {
+                    entries.push_back(*it);
+                }
+            }
+
+            std::sort(entries.begin(), entries.end(),
+                      [](const std::filesystem::directory_entry& lhs, const std::filesystem::directory_entry& rhs) {
+                          const bool lhsDir = lhs.is_directory();
+                          const bool rhsDir = rhs.is_directory();
+                          if (lhsDir != rhsDir)
+                          {
+                              return lhsDir > rhsDir;
+                          }
+                          return lhs.path().filename() < rhs.path().filename();
+                      });
+
+            for (const auto& entry : entries)
+            {
+                std::error_code childEc;
+                const bool childDir = entry.is_directory(childEc);
+                if (childEc)
+                {
+                    warnings.emplace_back("无法访问：" + entry.path().generic_string());
+                    continue;
+                }
+                const bool childFile = entry.is_regular_file(childEc);
+                if (childEc)
+                {
+                    warnings.emplace_back("无法访问：" + entry.path().generic_string());
+                    continue;
+                }
+                if (!childDir && !childFile)
+                {
+                    continue;
+                }
+
+                if (auto child = buildNode(entry.path(), root, filterLower, hasFilter, warnings))
+                {
+                    node.children.push_back(std::move(*child));
+                }
+            }
+        }
+
+        if (hasFilter && !node.selfMatches && node.children.empty())
+        {
+            return std::nullopt;
+        }
+
+        return node;
+    }
+
+    void drawNode(const BrowserNode& node,
+                  UiContext& ctx,
+                  const std::filesystem::path& root,
+                  bool hasFilter,
+                  const ImVec4& highlightColor)
+    {
+        const std::string key = relativeKey(node.path, root);
+        const bool isRoot = (key == ".");
+        const bool hasChildren = !node.children.empty();
+        const bool isSelected =
+            (!ctx.state.browser_selected_path.empty() && ctx.state.browser_selected_path == key) ||
+            (ctx.state.browser_selected_path.empty() && isRoot);
+
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+        if (!hasChildren)
+        {
+            flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+        }
+        if (!node.isDirectory)
+        {
+            flags |= ImGuiTreeNodeFlags_Bullet;
+        }
+        if (isSelected)
+        {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+
+        if (ctx.state.browser_expanded_paths.contains(key))
+        {
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        }
+        else if (hasFilter && node.selfMatches)
+        {
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        }
+
+        std::string label;
+        if (isRoot)
+        {
+            label = root.filename().generic_string();
+            if (label.empty())
+            {
+                label = root.generic_string();
+            }
+        }
+        else
+        {
+            label = node.path.filename().generic_string();
+            if (label.empty())
+            {
+                label = node.path.generic_string();
+            }
+        }
+
+        const bool highlightText = hasFilter && node.selfMatches;
+        std::string nodeId = key + "##browser_tree";
+        if (highlightText)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, highlightColor);
+        }
+        const bool open = ImGui::TreeNodeEx(nodeId.c_str(), flags, "%s", label.c_str());
+        if (highlightText)
+        {
+            ImGui::PopStyleColor();
+        }
+
+        if (ImGui::IsItemClicked())
+        {
+            ctx.state.browser_selected_path = key;
+        }
+
+        if (hasChildren)
+        {
+            if (ImGui::IsItemToggledOpen())
+            {
+                if (open)
+                {
+                    ctx.state.browser_expanded_paths.insert(key);
+                }
+                else
+                {
+                    ctx.state.browser_expanded_paths.erase(key);
+                }
+            }
+
+            if (open)
+            {
+                for (const auto& child : node.children)
+                {
+                    drawNode(child, ctx, root, hasFilter, highlightColor);
+                }
+                ImGui::TreePop();
+            }
         }
     }
 } // namespace
-
 
 void BrowserView::render(UiContext& ctx)
 {
@@ -48,507 +292,130 @@ void BrowserView::render(UiContext& ctx)
         return;
     }
 
-    const RuntimeBridge::WorldAtlas* atlas = ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr;
-    const RuntimeBridge::Snapshot* snapshot = ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr;
-
-    struct SectionButton
+    std::filesystem::path dataRoot = locateAsset(std::filesystem::path("data"));
+    if (dataRoot.empty())
     {
-        BrowserSection section;
-        const char* label;
-    };
-    const SectionButton sections[] = {
-        {BrowserSection::All, "All"},
-        {BrowserSection::Scene, "Scene"},
-        {BrowserSection::World, "World"},
-        {BrowserSection::Monitor, "Monitor"},
-        {BrowserSection::LayoutsThemes, "Layouts & Themes"},
-    };
-
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm),
-                               Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
-    for (int i = 0; i < static_cast<int>(std::size(sections)); ++i)
-    {
-        if (i > 0)
-        {
-            ImGui::SameLine();
-        }
-
-        const bool active = ctx.state.browser_active_section == sections[i].section;
-        PushActiveButtonStyle(active);
-        if (ImGui::Button(sections[i].label))
-        {
-            ctx.state.browser_active_section = sections[i].section;
-        }
-        PopActiveButtonStyle(active);
+        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "未找到 data 目录。");
+        ImGui::End();
+        return;
     }
-    ImGui::PopStyleVar();
-    ImGui::Separator();
 
-    auto trimCopy = [](std::string_view text) -> std::string {
-        const auto begin = text.find_first_not_of(" 	\r\n");
-        if (begin == std::string_view::npos)
-        {
-            return std::string{};
-        }
-        const auto end = text.find_last_not_of(" 	\r\n");
-        return std::string{text.substr(begin, end - begin + 1)};
-    };
+    std::error_code canonicalEc;
+    auto canonicalRoot = std::filesystem::weakly_canonical(dataRoot, canonicalEc);
+    if (!canonicalEc)
+    {
+        dataRoot = canonicalRoot;
+    }
 
-    auto toLowerCopy = [](std::string_view text) -> std::string {
-        std::string lowered;
-        lowered.reserve(text.size());
-        for (char ch : text)
-        {
-            lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-        }
-        return lowered;
-    };
+    if (ctx.state.browser_selected_path.empty())
+    {
+        ctx.state.browser_selected_path = ".";
+    }
+    if (!ctx.state.browser_expanded_paths.contains("."))
+    {
+        ctx.state.browser_expanded_paths.insert(".");
+    }
 
-    const char* searchHint = "搜索节点或 ID...";
-    const bool hasQuery = ctx.state.browser_search_buffer[0] != '\0';
+    ImGui::TextDisabled("根目录：%s", dataRoot.generic_string().c_str());
+
     const ImGuiStyle& style = ImGui::GetStyle();
     float available = ImGui::GetContentRegionAvail().x;
-    if (hasQuery)
+    bool hasFilter = ctx.state.browser_filter_buffer[0] != '\0';
+    if (hasFilter)
     {
         const float buttonWidth = ImGui::CalcTextSize("清除").x + style.FramePadding.x * 2.0f;
         available = std::max(available - buttonWidth - style.ItemSpacing.x, 120.0f);
     }
     ImGui::SetNextItemWidth(available);
-    if (ImGui::InputTextWithHint("##BrowserSceneSearch",
-                                 searchHint,
-                                 ctx.state.browser_search_buffer.data(),
-                                 ctx.state.browser_search_buffer.size()))
+    if (ImGui::InputTextWithHint("##BrowserFilter",
+                                 "搜索文件或文件夹...",
+                                 ctx.state.browser_filter_buffer.data(),
+                                 ctx.state.browser_filter_buffer.size()))
     {
-        // 输入框已直接更新搜索缓冲
+        // 输入框直接更新缓冲区
     }
-    if (hasQuery)
+
+    hasFilter = ctx.state.browser_filter_buffer[0] != '\0';
+    if (hasFilter)
     {
         ImGui::SameLine();
         if (ImGui::SmallButton("清除"))
         {
-            ctx.state.browser_search_buffer.fill('\0');
+            ctx.state.browser_filter_buffer.fill('\0');
+            hasFilter = false;
         }
     }
+
     ImGui::Separator();
 
-    const std::string searchText = trimCopy(std::string_view(ctx.state.browser_search_buffer.data()));
-    const std::string searchLower = toLowerCopy(searchText);
-    const bool hasSearch = !searchLower.empty();
-
-    enum class SceneRenderMode
+    const std::string filterLower = toLowerCopy(ctx.state.browser_filter_buffer.data());
+    std::vector<std::string> warnings;
+    auto rootNode = buildNode(dataRoot, dataRoot, filterLower, hasFilter, warnings);
+    if (!rootNode)
     {
-        Standalone,
-        Inline
-    };
+        ImGui::TextUnformatted("data 目录为空。");
+        ImGui::End();
+        return;
+    }
 
-    auto renderSceneSection = [&](SceneRenderMode mode, bool showHeader) {
-        if (showHeader)
-        {
-            ImGui::TextUnformatted("Scene");
-        }
-        ImGui::Separator();
-
-        if (!atlas || atlas->nodes.empty())
-        {
-            ImGui::TextUnformatted("暂无导航数据。");
-            return;
-        }
-
-        struct SceneTreeEntry
-        {
-            const RuntimeBridge::WorldAtlas::Node* node{nullptr};
-            std::vector<SceneTreeEntry> children;
-            bool selfMatch{false};
-        };
-
-        std::unordered_map<std::uint32_t, std::vector<const RuntimeBridge::WorldAtlas::Node*>> childrenMap;
-        std::unordered_set<std::uint32_t> nodeIds;
-        childrenMap.reserve(atlas->nodes.size());
-        nodeIds.reserve(atlas->nodes.size());
-        for (const auto& node : atlas->nodes)
-        {
-            childrenMap[node.parent.value].push_back(&node);
-            nodeIds.insert(node.id.value);
-        }
-
-        auto comparator = [](const RuntimeBridge::WorldAtlas::Node* lhs, const RuntimeBridge::WorldAtlas::Node* rhs) {
-            if (lhs->name == rhs->name)
-            {
-                return lhs->id.value < rhs->id.value;
-            }
-            return lhs->name < rhs->name;
-        };
-        for (auto& [_, vec] : childrenMap)
-        {
-            std::sort(vec.begin(), vec.end(), comparator);
-        }
-
-        auto matchesNode = [&](const RuntimeBridge::WorldAtlas::Node& node) -> bool {
-            if (!hasSearch)
-            {
-                return false;
-            }
-            if (!node.name.empty() && toLowerCopy(node.name).find(searchLower) != std::string::npos)
-            {
-                return true;
-            }
-            const std::string idStr = std::to_string(node.id.value);
-            return idStr.find(searchLower) != std::string::npos;
-        };
-
-        std::function<std::optional<SceneTreeEntry>(const RuntimeBridge::WorldAtlas::Node*)> buildEntry;
-        buildEntry = [&](const RuntimeBridge::WorldAtlas::Node* nodePtr) -> std::optional<SceneTreeEntry> {
-            SceneTreeEntry entry;
-            entry.node = nodePtr;
-            entry.selfMatch = matchesNode(*nodePtr);
-
-            auto childIt = childrenMap.find(nodePtr->id.value);
-            if (childIt != childrenMap.end())
-            {
-                for (const auto* child : childIt->second)
-                {
-                    if (auto childEntry = buildEntry(child))
-                    {
-                        entry.children.push_back(std::move(*childEntry));
-                    }
-                }
-            }
-
-            if (hasSearch && !entry.selfMatch && entry.children.empty())
-            {
-                return std::nullopt;
-            }
-
-            return entry;
-        };
-
-        std::vector<const RuntimeBridge::WorldAtlas::Node*> roots;
-        roots.reserve(atlas->nodes.size());
-        for (const auto& node : atlas->nodes)
-        {
-            if (node.parent.value == 0 || !nodeIds.contains(node.parent.value))
-            {
-                roots.push_back(&node);
-            }
-        }
-        std::sort(roots.begin(), roots.end(), comparator);
-
-        std::vector<SceneTreeEntry> tree;
-        tree.reserve(roots.size());
-        for (const auto* root : roots)
-        {
-            if (auto rootEntry = buildEntry(root))
-            {
-                tree.push_back(std::move(*rootEntry));
-            }
-        }
-
-        std::unordered_map<std::uint32_t, std::vector<std::size_t>> agentsByNode;
-        std::unordered_map<std::uint32_t, std::vector<std::size_t>> resourcesByNode;
-        if (snapshot)
-        {
-            const auto& tick = snapshot->telemetry;
-            for (std::size_t i = 0; i < tick.agents.size(); ++i)
-            {
-                agentsByNode[tick.agents[i].location.value].push_back(i);
-            }
-            for (std::size_t i = 0; i < tick.resources.size(); ++i)
-            {
-                resourcesByNode[tick.resources[i].location.value].push_back(i);
-            }
-        }
-
-        if (tree.empty())
-        {
-            ImGui::TextUnformatted(hasSearch ? "未找到匹配的节点。" : "暂无导航数据。");
-            return;
-        }
-
-        const char* childId = (mode == SceneRenderMode::Standalone) ? "BrowserSceneTree" : "BrowserSceneTree_All";
-        const ImVec2 childSize = (mode == SceneRenderMode::Standalone)
-                                     ? ImVec2(0.0f, 0.0f)
-                                     : ImVec2(0.0f, ImGui::GetTextLineHeightWithSpacing() * 12.0f);
-
-        if (ImGui::BeginChild(childId, childSize, true))
-        {
-            const ImVec4 highlightColor = Style::DesignTokens::color(Style::ColorToken::Accent);
-            std::function<void(const SceneTreeEntry&)> drawEntry;
-            drawEntry = [&](const SceneTreeEntry& entry) {
-                const auto& node = *entry.node;
-                const bool hasChildren = !entry.children.empty();
-                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
-                                           ImGuiTreeNodeFlags_SpanAvailWidth;
-                if (!hasChildren)
-                {
-                    flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-                }
-                if (ctx.state.scene_selected_node == node.id.value)
-                {
-                    flags |= ImGuiTreeNodeFlags_Selected;
-                }
-
-                if ((hasChildren && ctx.state.browser_scene_expanded_nodes.contains(node.id.value)) ||
-                    (hasSearch && (entry.selfMatch || hasChildren)))
-                {
-                    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
-                }
-
-                std::string displayName = node.name.empty() ? ("节点 " + std::to_string(node.id.value))
-                                                            : node.name;
-                if (hasChildren)
-                {
-                    displayName += " (" + std::to_string(entry.children.size()) + ")";
-                }
-
-                const bool highlightText = hasSearch && entry.selfMatch;
-                if (highlightText)
-                {
-                    ImGui::PushStyleColor(ImGuiCol_Text, highlightColor);
-                }
-
-                const bool open = ImGui::TreeNodeEx(reinterpret_cast<void*>(static_cast<intptr_t>(node.id.value)),
-                                                    flags,
-                                                    "%s", displayName.c_str());
-
-                if (highlightText)
-                {
-                    ImGui::PopStyleColor();
-                }
-
-                if (ImGui::IsItemClicked())
-                {
-                    ctx.state.scene_selected_node = node.id.value;
-                    ctx.state.map_selected_node = node.id.value;
-                    ctx.state.scene_tile_selection.reset();
-                    ctx.state.scene_selection_tool = SceneSelectionTool::Node;
-                    ctx.state.scene_focus_node_request = node.id.value;
-                    ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Node;
-                    ctx.state.inspector_selected_primary = node.id.value;
-                    ctx.state.inspector_selected_secondary = 0;
-                    ctx.state.inspector_highlight_node = node.id.value;
-                }
-                if (ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("节点 #%u", node.id.value);
-                }
-
-                if (hasChildren)
-                {
-                    if (ImGui::IsItemToggledOpen())
-                    {
-                        if (open)
-                        {
-                            ctx.state.browser_scene_expanded_nodes.insert(node.id.value);
-                        }
-                        else
-                        {
-                            ctx.state.browser_scene_expanded_nodes.erase(node.id.value);
-                        }
-                    }
-                    else if (hasSearch && open)
-                    {
-                        ctx.state.browser_scene_expanded_nodes.insert(node.id.value);
-                    }
-                }
-
-                const float indentAmount = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-                if (open)
-                {
-                    const bool hasAgents = agentsByNode.contains(node.id.value);
-                    const bool hasResources = resourcesByNode.contains(node.id.value);
-                    if (hasAgents || hasResources)
-                    {
-                        ImGui::Indent(indentAmount);
-                        if (hasAgents && snapshot)
-                        {
-                            ImGui::TextDisabled("Agents");
-                            const auto& indices = agentsByNode[node.id.value];
-                            const auto& tick = snapshot->telemetry;
-                            for (std::size_t idx : indices)
-                            {
-                                const auto& agent = tick.agents[idx];
-                                std::string label = agent.name.empty()
-                                                        ? ("Agent #" + std::to_string(agent.entityId))
-                                                        : (agent.name + " [#" + std::to_string(agent.entityId) + "]");
-                                const bool selectedAgent =
-                                    ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Agent &&
-                                    ctx.state.inspector_selected_primary == agent.entityId;
-                                ImGui::PushID(static_cast<int>(agent.entityId));
-                                if (ImGui::Selectable(label.c_str(), selectedAgent))
-                                {
-                                    ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Agent;
-                                    ctx.state.inspector_selected_primary = agent.entityId;
-                                    ctx.state.inspector_selected_secondary = static_cast<std::uint32_t>(idx);
-                                    ctx.state.inspector_highlight_node = node.id.value;
-                                    ctx.state.map_selected_node = node.id.value;
-                                    if (ctx.state.inspector_follow_selection)
-                                    {
-                                        ctx.state.scene_selected_node = node.id.value;
-                                        ctx.state.scene_tile_selection.reset();
-                                        ctx.state.scene_focus_node_request = node.id.value;
-                                    }
-                                }
-                                ImGui::PopID();
-                            }
-                        }
-                        if (hasResources && snapshot)
-                        {
-                            if (hasAgents)
-                            {
-                                ImGui::Spacing();
-                            }
-                            ImGui::TextDisabled("Resources");
-                            const auto& indices = resourcesByNode[node.id.value];
-                            const auto& tick = snapshot->telemetry;
-                            for (std::size_t idx : indices)
-                            {
-                                const auto& resource = tick.resources[idx];
-                                std::string label = resource.name.empty()
-                                                        ? ("Resource #" + std::to_string(idx))
-                                                        : (resource.name + " (" + std::to_string(resource.current) + "/" +
-                                                           std::to_string(resource.capacity) + ")");
-                                const bool selectedResource =
-                                    ctx.state.inspector_selection_type == UiState::InspectorSelectionType::Resource &&
-                                    ctx.state.inspector_selected_primary == static_cast<std::uint32_t>(idx);
-                                ImGui::PushID(static_cast<int>(resource.location.value * 4096 + static_cast<std::uint32_t>(idx)));
-                                if (ImGui::Selectable(label.c_str(), selectedResource))
-                                {
-                                    ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Resource;
-                                    ctx.state.inspector_selected_primary = static_cast<std::uint32_t>(idx);
-                                    ctx.state.inspector_selected_secondary = resource.location.value;
-                                    ctx.state.inspector_highlight_node = node.id.value;
-                                    ctx.state.map_selected_node = node.id.value;
-                                }
-                                ImGui::PopID();
-                            }
-                        }
-                        ImGui::Unindent(indentAmount);
-                    }
-                }
-
-                if (open && hasChildren)
-                {
-                    for (const auto& child : entry.children)
-                    {
-                        drawEntry(child);
-                    }
-                    ImGui::TreePop();
-                }
-            };
-
-            for (const auto& entry : tree)
-            {
-                drawEntry(entry);
-            }
-        }
-        ImGui::EndChild();
-    };
-
-    auto renderWorldSection = [&]() {
-        ImGui::TextUnformatted("世界生成与配置");
-        ImGui::Separator();
-        ImGui::Text("最近状态：%s", ctx.state.world_command_status.empty() ? "—" : ctx.state.world_command_status.c_str());
-        if (!ctx.state.world_load_status.empty())
-        {
-            ImGui::Text("加载：%s", ctx.state.world_load_status.c_str());
-        }
-        if (!ctx.state.world_save_status.empty())
-        {
-            ImGui::Text("保存：%s", ctx.state.world_save_status.c_str());
-        }
-
-        if (ImGui::Button("打开世界面板"))
-        {
-            ctx.state.main_view_active_tab = MainViewTab::World;
-        }
-
-        if (ctx.runtime_bridge)
-        {
-            if (auto lastGen = ctx.runtime_bridge->lastGeneration(); lastGen)
-            {
-                ImGui::Separator();
-                ImGui::Text("最近生成：%s", lastGen->success ? "Success" : "Failed");
-                ImGui::Text("Seed：%llu", static_cast<unsigned long long>(lastGen->seed.value));
-                if (!lastGen->error.empty())
-                {
-                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "%s", lastGen->error.c_str());
-                }
-            }
-        }
-    };
-
-    auto renderMonitorSection = [&]() {
-        ImGui::TextUnformatted("运行状态与告警总览");
-        ImGui::Separator();
-        const int fpsRounded = static_cast<int>(std::lround(ctx.state.ui_fps_display));
-        ImGui::Text("UI FPS %d", fpsRounded);
-
-        if (snapshot)
-        {
-            const auto& tick = snapshot->telemetry;
-            ImGui::Text("命令队列：%zu", tick.actions.size());
-            ImGui::Text("事件：%zu", snapshot->events.size());
-        }
-        else
-        {
-            ImGui::TextUnformatted("等待 Runtime 数据…");
-        }
-
-        if (ImGui::Button("跳转 Monitor 面板"))
-        {
-            ctx.state.main_view_active_tab = MainViewTab::Monitor;
-        }
-    };
-
-    auto renderLayoutsSection = [&]() {
-        ImGui::TextUnformatted("布局与主题");
-        ImGui::Separator();
-        ImGui::TextWrapped(
-            "后续任务将提供布局/主题的导入导出与预设管理。当前可通过 Main View > Settings 预览设计令牌。");
-        if (ImGui::Button("打开 Settings 面板"))
-        {
-            ctx.state.main_view_active_tab = MainViewTab::Settings;
-        }
-    };
-
-    switch (ctx.state.browser_active_section)
+    const float availableHeight = ImGui::GetContentRegionAvail().y;
+    const float detailReserve = ImGui::GetTextLineHeightWithSpacing() * 7.0f;
+    const float treeHeight = std::max(availableHeight - detailReserve, ImGui::GetTextLineHeightWithSpacing() * 8.0f);
+    if (ImGui::BeginChild("BrowserTree", ImVec2(0.0f, treeHeight), true))
     {
-    case BrowserSection::All:
+        drawNode(*rootNode, ctx, dataRoot, hasFilter, Style::DesignTokens::color(Style::ColorToken::Accent));
+    }
+    ImGui::EndChild();
+
+    if (!warnings.empty())
     {
-        renderSceneSection(SceneRenderMode::Inline, true);
         ImGui::Spacing();
-        renderWorldSection();
-        ImGui::Spacing();
-        renderMonitorSection();
-        ImGui::Spacing();
-        renderLayoutsSection();
-        break;
+        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "访问警告：");
+        for (const auto& warning : warnings)
+        {
+            ImGui::BulletText("%s", warning.c_str());
+        }
     }
-    case BrowserSection::Scene:
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextUnformatted("详情");
+    ImGui::Separator();
+
+    const std::string selectionKey = ctx.state.browser_selected_path.empty() ? "." : ctx.state.browser_selected_path;
+    const std::filesystem::path selectedPath =
+        (selectionKey == ".") ? dataRoot : (dataRoot / std::filesystem::path(selectionKey));
+
+    std::error_code existsEc;
+    if (!std::filesystem::exists(selectedPath, existsEc) || existsEc)
     {
-        renderSceneSection(SceneRenderMode::Standalone, false);
-        break;
+        ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "所选条目不存在或无法访问。");
     }
-    case BrowserSection::World:
+    else
     {
-        renderWorldSection();
-        break;
-    }
-    case BrowserSection::Monitor:
-    {
-        renderMonitorSection();
-        break;
-    }
-    case BrowserSection::LayoutsThemes:
-    {
-        renderLayoutsSection();
-        break;
-    }
+        const bool isDir = std::filesystem::is_directory(selectedPath, existsEc);
+        ImGui::Text("相对路径：%s", selectionKey.c_str());
+        ImGui::Text("绝对路径：%s", selectedPath.generic_string().c_str());
+        ImGui::Text("类型：%s", isDir ? "文件夹" : "文件");
+
+        if (!isDir)
+        {
+            std::error_code sizeEc;
+            const auto fileSize = std::filesystem::file_size(selectedPath, sizeEc);
+            if (!sizeEc)
+            {
+                ImGui::Text("大小：%s", humanReadableSize(fileSize).c_str());
+            }
+        }
+
+        std::error_code timeEc;
+        const auto lastWrite = std::filesystem::last_write_time(selectedPath, timeEc);
+        if (!timeEc)
+        {
+            ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
+        }
     }
 
     ImGui::End();
 }
-
-
 } // namespace Genesis::Sandbox::Gui

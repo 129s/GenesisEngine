@@ -20,6 +20,7 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -123,247 +124,337 @@ namespace Genesis::Sandbox::Gui
             ctx.runtime_bridge,
             runtimeReady ? &commandStatuses : nullptr};
         const WorldViewModel worldVm = world_presenter_.buildWorldViewModel(presenterInput);
+        const Style::Layout::CardLayoutConfig cardLayout = Style::Layout::detailCard();
+        const float cardSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
 
-        ImGui::TextUnformatted("世界生成 / 加载 / 保存");
-        ImGui::Separator();
+        auto drawCardHeader = [&](const char *title) {
+            ImGui::TextUnformatted(title);
+            ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+            ImGui::Separator();
+            ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+        };
 
-        ImGui::InputText("配置路径", ctx.state.worldgen_config_buffer.data(), ctx.state.worldgen_config_buffer.size());
-        ImGui::InputText("输出路径", ctx.state.worldgen_output_buffer.data(), ctx.state.worldgen_output_buffer.size());
-
-        if (ImGui::Checkbox("随机种子", &ctx.state.worldgen_use_random_seed))
-        {
-            if (ctx.state.worldgen_use_random_seed)
+        auto drawFullWidthInput = [&](const char *label, const char *id, std::string_view hint, char *buffer, std::size_t size) {
+            ImGui::TextUnformatted(label);
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (!hint.empty())
             {
-                ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
+                ImGui::InputTextWithHint(id, hint.data(), buffer, size);
             }
-        }
-
-        if (ctx.state.worldgen_use_random_seed)
-        {
-            ImGui::SameLine();
-            if (ImGui::Button("刷新种子"))
+            else
             {
-                ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
+                ImGui::InputText(id, buffer, size);
             }
-            ImGui::SameLine();
-            ImGui::Text("Seed %llu", static_cast<unsigned long long>(ctx.state.worldgen_seed));
-        }
-        else
-        {
-            ImGui::InputScalar("固定种子", ImGuiDataType_U64, &ctx.state.worldgen_seed);
-        }
+        };
 
         const std::string configInput(ctx.state.worldgen_config_buffer.data());
         const std::string outputInput(ctx.state.worldgen_output_buffer.data());
+        const std::string loadInput(ctx.state.world_load_buffer.data());
+        const std::string saveInput(ctx.state.world_save_buffer.data());
+        const std::string scriptPath(ctx.state.command_script_buffer.data());
         const bool hasConfig = worldVm.hasConfigPath;
-        if (!hasConfig)
-        {
-            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写配置文件路径");
-        }
 
-        if (!runtimeReady || !hasConfig)
         {
-            ImGui::BeginDisabled();
-        }
-        if (ImGui::Button("生成世界"))
-        {
-            if (runtimeReady)
+            Style::Layout::CardScope card("WorldGenerationCard",
+                                          cardLayout,
+                                          ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
             {
-                json command = {
-                    {"action", "world.generate"},
-                    {"configPath", configInput},
-                };
-                if (!ctx.state.worldgen_use_random_seed)
-                {
-                    command["seed"] = ctx.state.worldgen_seed;
-                }
-                if (!outputInput.empty())
-                {
-                    command["outputPath"] = outputInput;
-                }
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("世界生成");
 
-                std::string error;
-                if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                drawFullWidthInput("配置路径", "##WorldGenConfigPath", "data/worldgen/default.toml", ctx.state.worldgen_config_buffer.data(), ctx.state.worldgen_config_buffer.size());
+                drawFullWidthInput("输出路径", "##WorldGenOutputPath", "生成文件输出目录（可选）", ctx.state.worldgen_output_buffer.data(), ctx.state.worldgen_output_buffer.size());
+
+                ImGui::Checkbox("使用随机种子", &ctx.state.worldgen_use_random_seed);
+                if (ctx.state.worldgen_use_random_seed)
                 {
-                    ctx.state.worldgen_command_id = id;
-                    ctx.state.world_command_status = "命令已提交 #" + std::to_string(*id);
+                    ImGui::SameLine();
+                    if (ImGui::Button("刷新种子"))
+                    {
+                        ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
+                    }
+                    ImGui::SameLine();
+                    ImGui::Text("Seed %llu", static_cast<unsigned long long>(ctx.state.worldgen_seed));
                 }
                 else
                 {
-                    ctx.state.world_command_status = "提交失败：" + error;
-                }
-            }
-        }
-        if (!runtimeReady || !hasConfig)
-        {
-            ImGui::EndDisabled();
-        }
-        if (!ctx.state.world_command_status.empty())
-        {
-            ImGui::TextWrapped("%s", ctx.state.world_command_status.c_str());
-        }
-
-        if (runtimeReady)
-        {
-            if (auto resultOpt = ctx.runtime_bridge->lastGeneration(); resultOpt)
-            {
-                const auto &result = *resultOpt;
-                ImGui::Separator();
-                if (result.success)
-                {
-                    ImGui::TextUnformatted("最近一次生成成功");
-                    ImGui::BulletText("Config: %s", result.configPath.string().c_str());
-                    ImGui::BulletText("Seed: %llu", static_cast<unsigned long long>(result.seed.value));
-                    ImGui::BulletText("Locations: %zu · Edges: %zu", result.locationCount, result.edgeCount);
-                    ImGui::BulletText("Duration: %.2f ms", result.durationMs);
-                    if (result.outputPath)
-                    {
-                        ImGui::BulletText("Output: %s", result.outputPath->string().c_str());
-                    }
-                    else
-                    {
-                        ImGui::BulletText("Output: in-memory");
-                    }
-                }
-                else
-                {
-                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "生成失败：%s", result.error.c_str());
+                    ImGui::Dummy(ImVec2(0.0f, cardLayout.lineGap));
+                    ImGui::TextUnformatted("固定种子");
+                    ImGui::SetNextItemWidth(-FLT_MIN);
+                    ImGui::InputScalar("##WorldGenFixedSeed", ImGuiDataType_U64, &ctx.state.worldgen_seed);
                 }
 
-                if (!result.logs.empty())
+                if (!runtimeReady)
                 {
-                    if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 160.0f), true))
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "运行时未连接，无法执行生成命令。");
+                }
+                if (!hasConfig)
+                {
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写配置文件路径");
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
+
+                const bool disableGenerate = !runtimeReady || !hasConfig;
+                if (disableGenerate)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if (ImGui::Button("生成世界"))
+                {
+                    if (runtimeReady)
                     {
-                        for (const auto &entry : result.logs)
+                        json command = {
+                            {"action", "world.generate"},
+                            {"configPath", configInput},
+                        };
+                        if (!ctx.state.worldgen_use_random_seed)
                         {
-                            ImGui::TextUnformatted(entry.message.c_str());
+                            command["seed"] = ctx.state.worldgen_seed;
+                        }
+                        if (!outputInput.empty())
+                        {
+                            command["outputPath"] = outputInput;
+                        }
+
+                        std::string error;
+                        if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                        {
+                            ctx.state.worldgen_command_id = id;
+                            ctx.state.world_command_status = "命令已提交 #" + std::to_string(*id);
+                        }
+                        else
+                        {
+                            ctx.state.world_command_status = "提交失败：" + error;
                         }
                     }
-                    ImGui::EndChild();
                 }
+                if (disableGenerate)
+                {
+                    ImGui::EndDisabled();
+                }
+
+                if (!ctx.state.world_command_status.empty())
+                {
+                    ImGui::Dummy(ImVec2(0.0f, cardLayout.lineGap));
+                    ImGui::TextWrapped("%s", ctx.state.world_command_status.c_str());
+                }
+
+                if (runtimeReady)
+                {
+                    if (auto resultOpt = ctx.runtime_bridge->lastGeneration(); resultOpt)
+                    {
+                        const auto &result = *resultOpt;
+                        ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
+                        ImGui::Separator();
+                        ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+
+                        if (result.success)
+                        {
+                            ImGui::TextUnformatted("最近一次生成成功");
+                            ImGui::BulletText("配置：%s", result.configPath.string().c_str());
+                            ImGui::BulletText("种子：%llu", static_cast<unsigned long long>(result.seed.value));
+                            ImGui::BulletText("节点：%zu · 边：%zu", result.locationCount, result.edgeCount);
+                            ImGui::BulletText("耗时：%.2f ms", result.durationMs);
+                            if (result.outputPath)
+                            {
+                                ImGui::BulletText("输出：%s", result.outputPath->string().c_str());
+                            }
+                            else
+                            {
+                                ImGui::BulletText("输出：内存");
+                            }
+                        }
+                        else
+                        {
+                            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Danger), "生成失败：%s", result.error.c_str());
+                        }
+
+                        if (!result.logs.empty())
+                        {
+                            ImGui::Dummy(ImVec2(0.0f, cardLayout.lineGap));
+                            if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 160.0f), true))
+                            {
+                                for (const auto &entry : result.logs)
+                                {
+                                    ImGui::TextUnformatted(entry.message.c_str());
+                                }
+                            }
+                            ImGui::EndChild();
+                        }
+                    }
+                }
+
+                ImGui::PopTextWrapPos();
             }
         }
 
-        ImGui::Separator();
-        ImGui::InputText("加载路径", ctx.state.world_load_buffer.data(), ctx.state.world_load_buffer.size());
-        const std::string loadInput(ctx.state.world_load_buffer.data());
-        if (loadInput.empty())
-        {
-            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写加载路径");
-        }
+        ImGui::Dummy(ImVec2(0.0f, cardSpacing));
 
-        if (!runtimeReady || loadInput.empty())
         {
-            ImGui::BeginDisabled();
-        }
-        if (ImGui::Button("加载世界"))
-        {
-            if (runtimeReady)
+            Style::Layout::CardScope card("WorldIoCard",
+                                          cardLayout,
+                                          ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
             {
-                json command = {
-                    {"action", "world.load"},
-                    {"path", loadInput},
-                };
-                std::string error;
-                if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("世界加载 / 保存");
+
+                // Load section
+                ImGui::TextUnformatted("加载路径");
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputText("##WorldLoadPath", ctx.state.world_load_buffer.data(), ctx.state.world_load_buffer.size());
+
+                if (loadInput.empty())
                 {
-                    ctx.state.world_load_command_id = id;
-                    ctx.state.world_load_status = "加载任务已提交 #" + std::to_string(*id);
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写加载路径");
                 }
-                else
+
+                const bool disableLoad = !runtimeReady || loadInput.empty();
+                if (disableLoad)
                 {
-                    ctx.state.world_load_status = "加载失败：" + error;
+                    ImGui::BeginDisabled();
                 }
+                if (ImGui::Button("加载世界"))
+                {
+                    if (runtimeReady)
+                    {
+                        json command = {
+                            {"action", "world.load"},
+                            {"path", loadInput},
+                        };
+                        std::string error;
+                        if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                        {
+                            ctx.state.world_load_command_id = id;
+                            ctx.state.world_load_status = "加载任务已提交 #" + std::to_string(*id);
+                        }
+                        else
+                        {
+                            ctx.state.world_load_status = "加载失败：" + error;
+                        }
+                    }
+                }
+                if (disableLoad)
+                {
+                    ImGui::EndDisabled();
+                }
+                if (!ctx.state.world_load_status.empty())
+                {
+                    ImGui::TextWrapped("%s", ctx.state.world_load_status.c_str());
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
+                ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+
+                // Save section
+                ImGui::TextUnformatted("保存路径");
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputText("##WorldSavePath", ctx.state.world_save_buffer.data(), ctx.state.world_save_buffer.size());
+
+                if (saveInput.empty())
+                {
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写保存路径");
+                }
+
+                const bool disableSave = !runtimeReady || saveInput.empty();
+                if (disableSave)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if (ImGui::Button("保存世界"))
+                {
+                    if (runtimeReady)
+                    {
+                        json command = {
+                            {"action", "world.save"},
+                            {"path", saveInput},
+                        };
+                        std::string error;
+                        if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                        {
+                            ctx.state.world_save_command_id = id;
+                            ctx.state.world_save_status = "保存任务已提交 #" + std::to_string(*id);
+                        }
+                        else
+                        {
+                            ctx.state.world_save_status = "保存失败：" + error;
+                        }
+                    }
+                }
+                if (disableSave)
+                {
+                    ImGui::EndDisabled();
+                }
+                if (!ctx.state.world_save_status.empty())
+                {
+                    ImGui::TextWrapped("%s", ctx.state.world_save_status.c_str());
+                }
+
+                ImGui::PopTextWrapPos();
             }
         }
-        if (!runtimeReady || loadInput.empty())
-        {
-            ImGui::EndDisabled();
-        }
-        if (!ctx.state.world_load_status.empty())
-        {
-            ImGui::TextWrapped("%s", ctx.state.world_load_status.c_str());
-        }
 
-        ImGui::InputText("保存路径", ctx.state.world_save_buffer.data(), ctx.state.world_save_buffer.size());
-        const std::string saveInput(ctx.state.world_save_buffer.data());
-        if (saveInput.empty())
-        {
-            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写保存路径");
-        }
+        ImGui::Dummy(ImVec2(0.0f, cardSpacing));
 
-        if (!runtimeReady || saveInput.empty())
         {
-            ImGui::BeginDisabled();
-        }
-        if (ImGui::Button("保存世界"))
-        {
-            if (runtimeReady)
+            Style::Layout::CardScope card("WorldScriptCard",
+                                          cardLayout,
+                                          ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
             {
-                json command = {
-                    {"action", "world.save"},
-                    {"path", saveInput},
-                };
-                std::string error;
-                if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("命令脚本");
+
+                ImGui::TextUnformatted("脚本路径");
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputText("##CommandScriptPath", ctx.state.command_script_buffer.data(), ctx.state.command_script_buffer.size());
+
+                if (scriptPath.empty())
                 {
-                    ctx.state.world_save_command_id = id;
-                    ctx.state.world_save_status = "保存任务已提交 #" + std::to_string(*id);
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写脚本路径");
                 }
-                else
+
+                const bool disableScript = !runtimeReady;
+                if (disableScript)
                 {
-                    ctx.state.world_save_status = "保存失败：" + error;
+                    ImGui::BeginDisabled();
                 }
+                if (ImGui::Button("运行脚本"))
+                {
+                    if (scriptPath.empty())
+                    {
+                        ctx.state.command_script_status = "请先填写脚本路径";
+                    }
+                    else if (runtimeReady)
+                    {
+                        std::string error;
+                        if (ctx.runtime_bridge->enqueueCommandScript(std::filesystem::path(scriptPath), "script", error))
+                        {
+                            ctx.state.command_script_status = "脚本已入队";
+                        }
+                        else
+                        {
+                            ctx.state.command_script_status = "脚本执行失败：" + error;
+                        }
+                    }
+                }
+                if (disableScript)
+                {
+                    ImGui::EndDisabled();
+                }
+                if (!ctx.state.command_script_status.empty())
+                {
+                    ImGui::TextWrapped("%s", ctx.state.command_script_status.c_str());
+                }
+
+                ImGui::PopTextWrapPos();
             }
-        }
-        if (!runtimeReady || saveInput.empty())
-        {
-            ImGui::EndDisabled();
-        }
-        if (!ctx.state.world_save_status.empty())
-        {
-            ImGui::TextWrapped("%s", ctx.state.world_save_status.c_str());
         }
 
-        ImGui::Separator();
-        ImGui::InputText("脚本路径", ctx.state.command_script_buffer.data(), ctx.state.command_script_buffer.size());
-        const std::string scriptPath(ctx.state.command_script_buffer.data());
-        if (scriptPath.empty())
-        {
-            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写脚本路径");
-        }
-
-        if (!runtimeReady)
-        {
-            ImGui::BeginDisabled();
-        }
-        if (ImGui::Button("运行脚本"))
-        {
-            if (scriptPath.empty())
-            {
-                ctx.state.command_script_status = "请先填写脚本路径";
-            }
-            else if (runtimeReady)
-            {
-                std::string error;
-                if (ctx.runtime_bridge->enqueueCommandScript(std::filesystem::path(scriptPath), "script", error))
-                {
-                    ctx.state.command_script_status = "脚本已入队";
-                }
-                else
-                {
-                    ctx.state.command_script_status = "脚本执行失败：" + error;
-                }
-            }
-        }
-        if (!runtimeReady)
-        {
-            ImGui::EndDisabled();
-        }
-        if (!ctx.state.command_script_status.empty())
-        {
-            ImGui::TextWrapped("%s", ctx.state.command_script_status.c_str());
-        }
+        ImGui::Dummy(ImVec2(0.0f, cardSpacing));
 
         if (!worldVm.commands.empty())
         {

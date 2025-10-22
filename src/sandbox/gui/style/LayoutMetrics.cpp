@@ -19,9 +19,10 @@ CardScope::CardScope(const char* id,
                      ImVec2 size)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, config.padding);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0.0f, 0.0f));
-    styleCount_ = 3;
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(config.lineGap, config.lineGap));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(config.lineGap * 0.5f, config.lineGap * 0.5f));
+    ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, config.indent);
+    styleCount_ = 4;
     ImGui::PushStyleColor(ImGuiCol_ChildBg, config.background);
     colorPushed_ = true;
     open_ = ImGui::BeginChild(id, size, false, extraFlags | ImGuiWindowFlags_AlwaysUseWindowPadding);

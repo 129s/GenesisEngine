@@ -132,6 +132,7 @@ add_executable(genesis_sandbox_gui
     sandbox/gui/AppHostLayout.cpp
     sandbox/gui/AppHostPanelWorld.cpp
     sandbox/gui/style/DesignTokens.cpp
+    sandbox/gui/style/LayoutMetrics.cpp
     sandbox/gui/controller/WorldCommandController.cpp
     sandbox/gui/presenter/MainViewPresenters.cpp
     sandbox/gui/ui/UiState.cpp

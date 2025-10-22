@@ -3,6 +3,7 @@
 #include "../ImGuiLogSink.hpp"
 #include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
+#include "sandbox/gui/style/LayoutMetrics.hpp"
 #include "sandbox/gui/ui/LayoutHelpers.hpp"
 
 #include <imgui.h>
@@ -67,13 +68,17 @@ namespace Genesis::Sandbox::Gui
 
     void MainView::render(UiContext &ctx)
     {
+        const Style::Layout::WindowLayoutConfig windowLayout = Style::Layout::mainViewWindow();
+        Style::Layout::WindowStyleScope windowScope(windowLayout);
         if (!ImGui::Begin("Main View", nullptr, ImGuiWindowFlags_NoCollapse))
         {
             ImGui::End();
             return;
         }
         Ui::drawDockAnchorOverlay("MainViewDockAnchor", ctx.state.layout_mode_enabled);
-
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                            ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm),
+                                   Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
         if (ImGui::BeginChild("MainViewContent", ImVec2(0.0f, 0.0f), false))
         {
             switch (ctx.state.main_view_active_tab)
@@ -93,6 +98,7 @@ namespace Genesis::Sandbox::Gui
             }
         }
         ImGui::EndChild();
+        ImGui::PopStyleVar();
 
         ImGui::End();
     }

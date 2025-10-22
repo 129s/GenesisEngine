@@ -1,6 +1,7 @@
 #include "sandbox/gui/ui/ControlBarView.hpp"
 #include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
+#include "sandbox/gui/style/LayoutMetrics.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -34,23 +35,13 @@ namespace
 void ControlBarView::render(UiContext& ctx)
 {
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    const ImGuiStyle& style = ImGui::GetStyle();
-    const float rawHeight = ImGui::GetFrameHeight() + style.FramePadding.y * 2.0f;
-    const float axisSize = std::round(rawHeight);
-    const float heightDiff = axisSize - rawHeight;
-    const float verticalPadding = std::max(0.0f, style.FramePadding.y + heightDiff * 0.5f);
-
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
-                                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                                   ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
-
-    ImGui::PushStyleVar(
-        ImGuiStyleVar_WindowPadding,
-        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Lg),
-               verticalPadding));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, Style::DesignTokens::windowBorderThickness());
-    const bool open = ImGui::BeginViewportSideBar("Control Bar", viewport, ImGuiDir_Up, axisSize, flags);
-    if (open)
+    const auto layout = Style::Layout::controlBar();
+    Style::Layout::BarScope bar("Control Bar",
+                                viewport,
+                                ImGuiDir_Up,
+                                layout,
+                                Style::Layout::kDefaultBarWindowFlags);
+    if (bar.isOpen())
     {
         const float navSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Md);
         auto drawNavButton = [&](const char* label, MainViewTab tab, bool first) {
@@ -159,8 +150,6 @@ void ControlBarView::render(UiContext& ctx)
         const float y0 = y1 - thickness;
         drawList->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), borderColor);
     }
-    ImGui::End();
-    ImGui::PopStyleVar(2);
 }
 
 } // namespace Genesis::Sandbox::Gui

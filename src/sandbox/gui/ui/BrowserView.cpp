@@ -1,5 +1,6 @@
 #include "sandbox/gui/ui/BrowserView.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
+#include "sandbox/gui/style/LayoutMetrics.hpp"
 #include "sandbox/gui/ui/LayoutHelpers.hpp"
 #include "../FilesystemHelpers.hpp"
 
@@ -364,89 +365,89 @@ namespace
                         const std::filesystem::path& dataRoot,
                         const std::vector<std::string>& warnings)
     {
-        const float horizontalPadding = Style::DesignTokens::spacing(Style::SpacingToken::Md);
-        const float verticalPadding = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        const float sectionSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        const float headerGap = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
-        const float warningIndent = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        const ImVec4 cardBg = Style::DesignTokens::color(Style::ColorToken::Surface);
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(horizontalPadding, verticalPadding));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                            ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), sectionSpacing));
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, cardBg);
-        if (ImGui::BeginChild("BrowserDetailCard",
-                              ImVec2(0.0f, 0.0f),
-                              false,
-                              ImGuiWindowFlags_AlwaysUseWindowPadding | ImGuiWindowFlags_NoScrollbar))
+        const Style::Layout::CardLayoutConfig layout = Style::Layout::detailCard();
+        Style::Layout::CardScope card("BrowserDetailCard",
+                                      layout,
+                                      ImGuiWindowFlags_NoScrollbar);
+        if (!card.isOpen())
         {
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
-
-            ImGui::TextUnformatted("详情");
-            ImGui::Dummy(ImVec2(0.0f, headerGap));
-            ImGui::Separator();
-            ImGui::Dummy(ImVec2(0.0f, headerGap));
-
-            if (!warnings.empty())
-            {
-                ImGui::PushStyleColor(ImGuiCol_Text, Style::DesignTokens::color(Style::ColorToken::Warning));
-                ImGui::TextUnformatted("访问警告");
-                ImGui::PopStyleColor();
-
-                ImGui::Indent(warningIndent);
-                for (const auto& warning : warnings)
-                {
-                    ImGui::BulletText("%s", warning.c_str());
-                }
-                ImGui::Unindent(warningIndent);
-
-                ImGui::Dummy(ImVec2(0.0f, headerGap));
-                ImGui::Separator();
-                ImGui::Dummy(ImVec2(0.0f, headerGap));
-            }
-
-            const std::string selectionKey =
-                ctx.state.browser_selected_path.empty() ? "." : ctx.state.browser_selected_path;
-            const std::filesystem::path selectedPath =
-                (selectionKey == ".") ? dataRoot : (dataRoot / std::filesystem::path(selectionKey));
-
-            std::error_code existsEc;
-            if (!std::filesystem::exists(selectedPath, existsEc) || existsEc)
-            {
-                ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning),
-                                   "所选条目不存在或无法访问。");
-            }
-            else
-            {
-                const bool isDir = std::filesystem::is_directory(selectedPath, existsEc);
-
-                ImGui::Text("相对路径：%s", selectionKey.c_str());
-                ImGui::TextWrapped("绝对路径：%s", selectedPath.generic_string().c_str());
-                ImGui::Text("类型：%s", isDir ? "文件夹" : "文件");
-
-                if (!isDir)
-                {
-                    std::error_code sizeEc;
-                    const auto fileSize = std::filesystem::file_size(selectedPath, sizeEc);
-                    if (!sizeEc)
-                    {
-                        ImGui::Text("大小：%s", humanReadableSize(fileSize).c_str());
-                    }
-                }
-
-                std::error_code timeEc;
-                const auto lastWrite = std::filesystem::last_write_time(selectedPath, timeEc);
-                if (!timeEc)
-                {
-                    ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
-                }
-            }
-
-            ImGui::PopTextWrapPos();
+            return;
         }
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar(2);
+
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+
+        ImGui::TextUnformatted("详情");
+        ImGui::Dummy(ImVec2(0.0f, layout.headerGap));
+        ImGui::Separator();
+        ImGui::Dummy(ImVec2(0.0f, layout.headerGap));
+
+        if (!warnings.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, Style::DesignTokens::color(Style::ColorToken::Warning));
+            ImGui::TextUnformatted("访问警告");
+            ImGui::PopStyleColor();
+
+            ImGui::Dummy(ImVec2(0.0f, layout.lineGap));
+            ImGui::Indent(layout.indent);
+            for (std::size_t i = 0; i < warnings.size(); ++i)
+            {
+                ImGui::TextWrapped("%s", warnings[i].c_str());
+                if (i + 1 < warnings.size())
+                {
+                    ImGui::Dummy(ImVec2(0.0f, layout.lineGap));
+                }
+            }
+            ImGui::Unindent(layout.indent);
+
+            ImGui::Dummy(ImVec2(0.0f, layout.headerGap));
+            ImGui::Separator();
+            ImGui::Dummy(ImVec2(0.0f, layout.headerGap));
+        }
+
+        const std::string selectionKey =
+            ctx.state.browser_selected_path.empty() ? "." : ctx.state.browser_selected_path;
+        const std::filesystem::path selectedPath =
+            (selectionKey == ".") ? dataRoot : (dataRoot / std::filesystem::path(selectionKey));
+
+        std::error_code existsEc;
+        if (!std::filesystem::exists(selectedPath, existsEc) || existsEc)
+        {
+            ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning),
+                               "所选条目不存在或无法访问。");
+        }
+        else
+        {
+            const bool isDir = std::filesystem::is_directory(selectedPath, existsEc);
+
+            ImGui::Text("相对路径：%s", selectionKey.c_str());
+            ImGui::Dummy(ImVec2(0.0f, layout.lineGap));
+
+            ImGui::TextWrapped("绝对路径：%s", selectedPath.generic_string().c_str());
+            ImGui::Dummy(ImVec2(0.0f, layout.lineGap));
+
+            ImGui::Text("类型：%s", isDir ? "文件夹" : "文件");
+
+            if (!isDir)
+            {
+                std::error_code sizeEc;
+                const auto fileSize = std::filesystem::file_size(selectedPath, sizeEc);
+                if (!sizeEc)
+                {
+                    ImGui::Dummy(ImVec2(0.0f, layout.lineGap));
+                    ImGui::Text("大小：%s", humanReadableSize(fileSize).c_str());
+                }
+            }
+
+            std::error_code timeEc;
+            const auto lastWrite = std::filesystem::last_write_time(selectedPath, timeEc);
+            if (!timeEc)
+            {
+                ImGui::Dummy(ImVec2(0.0f, layout.lineGap));
+                ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
+            }
+        }
+
+        ImGui::PopTextWrapPos();
     }
 } // namespace
 

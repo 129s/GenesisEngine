@@ -32,7 +32,7 @@ void StatusBarView::render(UiContext& ctx)
                                        : std::string_view(ctx.config.version);
         ImGui::Text("版本 %.*s", static_cast<int>(version.size()), version.data());
 
-        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImDrawList* drawList = ImGui::GetForegroundDrawList(viewport);
         const ImU32 borderColor =
             ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
         const float thickness = Style::DesignTokens::skeletonBorderThickness();

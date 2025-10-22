@@ -54,10 +54,10 @@ struct DesignTokens
     static constexpr float frameBorderThickness() { return 1.0f; }
     static constexpr float windowBorderThickness() { return 1.0f; }
     static constexpr float separatorThickness() { return 1.0f; }
+    static constexpr float dockingSeparatorThickness() { return 4.0f; }
 
     static constexpr float roundingNone() { return 0.0f; }
     static constexpr float scrollbarSize() { return 16.0f; }
 };
 
 } // namespace Genesis::Sandbox::Gui::Style
-

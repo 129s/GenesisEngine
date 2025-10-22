@@ -67,6 +67,8 @@ void DesignTokens::applyTo(ImGuiStyle &style)
     style.PopupBorderSize = windowBorderThickness();
     style.TabBorderSize = frameBorderThickness();
     style.SeparatorTextBorderSize = separatorThickness();
+    style.DockingSeparatorSize = dockingSeparatorThickness();
+    style.TouchExtraPadding = ImVec2(6.0f, 6.0f); // 扩大命中范围，提升分割线交互体验
 
     style.Colors[ImGuiCol_Text] = color(ColorToken::TextPrimary);
     style.Colors[ImGuiCol_TextDisabled] = color(ColorToken::TextDisabled);

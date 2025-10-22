@@ -2,6 +2,8 @@
 # 项目进度概览
 
 ## 最新进展（本次）
+- Docking 操作体验：
+  - 提升 ImGui docking 分割线厚度至 6px，并增加 TouchExtraPadding，扩大鼠标命中范围，布局调整更顺手。
 - Sandbox GUI 结构重构：
   - 将 `AppHost` 单体实现拆分成 `AppHostCore/AppHostLayout/AppHostPanelWorld/AppHostPanelViews` 多个编译单元，并抽出 `CommandUiHelpers`、`FilesystemHelpers`、`ImGuiLogSink` 等私有头以复用逻辑。
   - CMake 目标 `genesis_sandbox_gui` 已更新引用新的模块化结构，后续可按面板粒度维护与扩展。

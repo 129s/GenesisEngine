@@ -14,6 +14,8 @@
 - production.md — 垂直切片范围、里程碑、引擎依赖与风险
 - top-level-design.md — 顶层社会模拟设计与优先级（P0/P1/P2）
 - mvp.md — MVP 目标/范围/验收与风险（首版切片）
+ - mvp-boundaries.md — MVP 边界划定（Runtime/Sandbox/Game）
+ - mvp-tasks.md — MVP 任务拆解（按层与里程碑映射）
 
 关联文档：
 - ../roadmap/GAME_LONDON_DETECTIVE.md — 路线图与里程碑

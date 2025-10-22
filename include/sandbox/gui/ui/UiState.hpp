@@ -70,6 +70,7 @@ struct UiState
     std::array<char, 128> browser_filter_buffer{};
     std::unordered_set<std::string> browser_expanded_paths;
     std::string browser_selected_path;
+    float browser_detail_height{0.0f};
 
     struct Toast
     {

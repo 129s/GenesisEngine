@@ -145,6 +145,40 @@ namespace
         };
     }
 
+    bool drawVerticalSplitter(const char* id_suffix,
+                              float thickness,
+                              float width,
+                              float* size_above,
+                              float* size_below,
+                              float min_size_above,
+                              float min_size_below)
+    {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window == nullptr)
+        {
+            return false;
+        }
+
+        const ImVec2 cursor_pos = window->DC.CursorPos;
+        ImRect splitter_bb(ImVec2(cursor_pos.x, cursor_pos.y + *size_above),
+                           ImVec2(cursor_pos.x + width, cursor_pos.y + *size_above + thickness));
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+        const ImGuiID splitter_id = window->GetID(id_suffix);
+        const bool active =
+            ImGui::SplitterBehavior(splitter_bb,
+                                    splitter_id,
+                                    ImGuiAxis_Y,
+                                    size_above,
+                                    size_below,
+                                    min_size_above,
+                                    min_size_below,
+                                    2.0f);
+        ImGui::PopStyleVar(2);
+        return active;
+    }
+
     struct BrowserNode
     {
         std::filesystem::path path;
@@ -363,15 +397,31 @@ namespace
 
     void drawDetailCard(UiContext& ctx,
                         const std::filesystem::path& dataRoot,
-                        const std::vector<std::string>& warnings)
+                        const std::vector<std::string>& warnings,
+                        float detailHeight,
+                        bool splitterActive)
     {
         const Style::Layout::CardLayoutConfig layout = Style::Layout::detailCard();
         Style::Layout::CardScope card("BrowserDetailCard",
                                       layout,
-                                      ImGuiWindowFlags_NoScrollbar);
+                                      ImGuiWindowFlags_NoScrollbar,
+                                      ImVec2(0.0f, detailHeight));
         if (!card.isOpen())
         {
             return;
+        }
+
+        {
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            const ImVec2 cardPos = ImGui::GetWindowPos();
+            const ImVec2 cardSize = ImGui::GetWindowSize();
+            const ImU32 borderColor = ImGui::GetColorU32(splitterActive
+                                                             ? Style::DesignTokens::color(Style::ColorToken::Accent)
+                                                             : Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+            drawList->AddLine(cardPos,
+                              ImVec2(cardPos.x + cardSize.x, cardPos.y),
+                              borderColor,
+                              1.0f);
         }
 
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
@@ -453,6 +503,8 @@ namespace
 
 void BrowserView::render(UiContext& ctx)
 {
+    const Style::Layout::WindowLayoutConfig windowLayout = Style::Layout::mainViewWindow();
+    Style::Layout::WindowStyleScope windowScope(windowLayout);
     if (!ImGui::Begin("Browser"))
     {
         ImGui::End();
@@ -522,19 +574,66 @@ void BrowserView::render(UiContext& ctx)
         return;
     }
 
-    const float detailFooterHeight = ImGui::GetTextLineHeightWithSpacing() * 8.0f;
     const ImVec4 highlightColor = Style::DesignTokens::color(Style::ColorToken::Accent);
 
-    const ImGuiStyle& treeStyle = ImGui::GetStyle();
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                        ImVec2(treeStyle.ItemSpacing.x, Style::DesignTokens::spacing(Style::SpacingToken::None)));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(treeStyle.FramePadding.x, Style::DesignTokens::spacing(Style::SpacingToken::Sm)));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing,
-                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), treeStyle.ItemInnerSpacing.y));
-    ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, treeStyle.IndentSpacing * 0.75f);
+    ImVec2 contentAvail = ImGui::GetContentRegionAvail();
+    if (contentAvail.x < 0.0f)
+    {
+        contentAvail.x = 0.0f;
+    }
+    if (contentAvail.y < 0.0f)
+    {
+        contentAvail.y = 0.0f;
+    }
 
-    if (ImGui::BeginChild("BrowserTreePane", ImVec2(0.0f, -detailFooterHeight - treeStyle.ItemSpacing.y), true))
+    const float splitterThickness = std::max(Style::DesignTokens::spacing(Style::SpacingToken::Xs), 2.0f);
+    const float minDetailHeight =
+        std::max(ImGui::GetTextLineHeightWithSpacing() * 12.0f, Style::DesignTokens::spacing(Style::SpacingToken::Xl));
+    const float minTreeHeight = ImGui::GetTextLineHeightWithSpacing() * 6.0f;
+    const float minCombined = minDetailHeight + minTreeHeight;
+
+    const float usableHeight = std::max(contentAvail.y - splitterThickness, 0.0f);
+    float detailHeight = 0.0f;
+    float treeHeight = 0.0f;
+
+    if (usableHeight < minCombined)
+    {
+        const float ratio = (minCombined > 0.0f) ? (usableHeight / minCombined) : 0.0f;
+        detailHeight = std::max(minDetailHeight * ratio, 0.0f);
+        treeHeight = std::max(usableHeight - detailHeight, 0.0f);
+    }
+    else
+    {
+        const float defaultDetail = std::max(minDetailHeight, usableHeight * 0.35f);
+        detailHeight = ctx.state.browser_detail_height > 0.0f ? ctx.state.browser_detail_height : defaultDetail;
+        detailHeight = std::clamp(detailHeight, minDetailHeight, usableHeight - minTreeHeight);
+        treeHeight = std::max(usableHeight - detailHeight, minTreeHeight);
+        detailHeight = usableHeight - treeHeight;
+    }
+
+    bool splitterActive = drawVerticalSplitter("BrowserDetailSplitter",
+                                               splitterThickness,
+                                               contentAvail.x,
+                                               &treeHeight,
+                                               &detailHeight,
+                                               minTreeHeight,
+                                               minDetailHeight);
+    treeHeight = std::max(treeHeight, 0.0f);
+    detailHeight = std::max(detailHeight, 0.0f);
+    ctx.state.browser_detail_height = detailHeight;
+
+    const float treeItemSpacingY = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm), treeItemSpacingY));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs),
+                               Style::DesignTokens::spacing(Style::SpacingToken::Xs)));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing,
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs),
+                               Style::DesignTokens::spacing(Style::SpacingToken::Xs)));
+    ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
+
+    if (ImGui::BeginChild("BrowserTreePane", ImVec2(0.0f, treeHeight), true))
     {
         if (rootNode->children.empty())
         {
@@ -551,9 +650,9 @@ void BrowserView::render(UiContext& ctx)
     ImGui::EndChild();
     ImGui::PopStyleVar(4);
 
-    ImGui::Spacing();
+    ImGui::Dummy(ImVec2(0.0f, splitterThickness));
 
-    drawDetailCard(ctx, dataRoot, warnings);
+    drawDetailCard(ctx, dataRoot, warnings, detailHeight, splitterActive);
 
     ImGui::End();
 }

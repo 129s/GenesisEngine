@@ -2,6 +2,8 @@
 # 项目进度概览
 
 ## 最新进展（本次）
+- Sandbox GUI 浏览器：
+  - 补齐面板内边距、统一树节点缩进，并为详情栏引入可拖拽分割线；拖动时沿用 ImGui docking 高亮，顶部新增分隔边框，默认高度提升保证信息密度。
 - Docking 操作体验：
   - 提升 ImGui docking 分割线厚度至 6px，并增加 TouchExtraPadding，扩大鼠标命中范围，布局调整更顺手。
 - Sandbox GUI 结构重构：

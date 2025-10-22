@@ -431,7 +431,7 @@ namespace Genesis::Sandbox::Gui
         switch (ctx.state.inspector_selection_type)
         {
         case UiState::InspectorSelectionType::None:
-            ImGui::TextUnformatted("请使用 Browser 选择实体以查看详情。");
+            ImGui::TextUnformatted("没有选择实体");
             break;
         case UiState::InspectorSelectionType::Agent:
         {

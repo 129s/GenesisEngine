@@ -364,48 +364,22 @@ namespace
                         const std::filesystem::path& dataRoot,
                         const std::vector<std::string>& warnings)
     {
-        const float outerPadding = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
-        const float blockSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        const float guardPadding = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
-        const float warningIndent = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        const ImVec4 cardBg = Style::DesignTokens::color(Style::ColorToken::Surface);
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(outerPadding, outerPadding));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(blockSpacing, blockSpacing));
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, cardBg);
-        if (ImGui::BeginChild("BrowserDetailCard",
-                              ImVec2(0.0f, 0.0f),
-                              false,
-                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+        // 自然布局：不再覆盖 WindowPadding / ItemSpacing，不再手工插入 Dummy、Indent 或 wrap 计算
+        if (ImGui::BeginChild("BrowserDetailCard", ImVec2(0.0f, 0.0f), false))
         {
-            ImGui::Dummy(ImVec2(0.0f, guardPadding));
-            // 文本换行宽度对齐到子窗口可用区域，避免额外右侧缩进导致左右不对称
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
-
-            // 标题与分隔线采用对称的上下留白
             ImGui::TextUnformatted("详情");
-            ImGui::Dummy(ImVec2(0.0f, blockSpacing));
             ImGui::Separator();
-            ImGui::Dummy(ImVec2(0.0f, blockSpacing));
 
             if (!warnings.empty())
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, Style::DesignTokens::color(Style::ColorToken::Warning));
-                ImGui::TextUnformatted("访问警告");
-                ImGui::PopStyleColor();
-
-                ImGui::Indent(warningIndent);
+                ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "访问警告");
                 for (const auto& warning : warnings)
                 {
                     ImGui::Bullet();
                     ImGui::SameLine();
                     ImGui::TextWrapped("%s", warning.c_str());
                 }
-                ImGui::Unindent(warningIndent);
-
-                ImGui::Dummy(ImVec2(0.0f, blockSpacing));
                 ImGui::Separator();
-                ImGui::Dummy(ImVec2(0.0f, blockSpacing));
             }
 
             const std::string selectionKey =
@@ -444,13 +418,8 @@ namespace
                     ImGui::Text("最后修改：%s", formatTimestamp(lastWrite).c_str());
                 }
             }
-
-            ImGui::PopTextWrapPos();
-            ImGui::Dummy(ImVec2(0.0f, guardPadding));
         }
         ImGui::EndChild();
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar(2);
     }
 } // namespace
 
@@ -514,8 +483,6 @@ void BrowserView::render(UiContext& ctx)
             hasFilter = false;
         }
     }
-
-    ImGui::Separator();
 
     const std::string filterLower = toLowerCopy(ctx.state.browser_filter_buffer.data());
     std::vector<std::string> warnings;

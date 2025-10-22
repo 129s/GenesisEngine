@@ -4,6 +4,7 @@
 #include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
 #include "sandbox/gui/style/LayoutMetrics.hpp"
+#include "sandbox/gui/style/LayoutMetrics.hpp"
 #include "sandbox/gui/ui/LayoutHelpers.hpp"
 
 #include <imgui.h>
@@ -64,6 +65,24 @@ namespace Genesis::Sandbox::Gui
                 ImGui::SetTooltip("%s", tooltip);
             }
             PopActiveButtonStyle(initiallyActive);
+        }
+
+        void CardSectionHeader(const Style::Layout::CardLayoutConfig &layout,
+                               const char *title,
+                               bool &firstSection)
+        {
+            if (!firstSection)
+            {
+                ImGui::Dummy(ImVec2(0.0f, layout.sectionGap));
+                ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, layout.headerGap));
+            }
+            else
+            {
+                firstSection = false;
+            }
+            ImGui::TextUnformatted(title);
+            ImGui::Dummy(ImVec2(0.0f, layout.lineGap));
         }
     } // namespace
 
@@ -490,6 +509,9 @@ namespace Genesis::Sandbox::Gui
             return;
         }
 
+        const auto inspectorWindowLayout = Style::Layout::mainViewWindow();
+        Style::Layout::WindowStyleScope inspectorWindowScope(inspectorWindowLayout);
+
         if (!ImGui::Begin("Inspector", &ctx.state.show_inspector))
         {
             ImGui::End();
@@ -507,6 +529,17 @@ namespace Genesis::Sandbox::Gui
         const auto &snapshot = *ctx.latest_snapshot;
         const auto &tick = snapshot.telemetry;
         const RuntimeBridge::WorldAtlas *atlasPtr = ctx.runtime_bridge ? &ctx.runtime_bridge->atlas() : nullptr;
+
+        const auto inspectorCardLayout = Style::Layout::detailCard();
+        Style::Layout::CardScope inspectorCard("InspectorContent",
+                                               inspectorCardLayout,
+                                               ImGuiWindowFlags_NoScrollbar);
+        if (!inspectorCard.isOpen())
+        {
+            ImGui::End();
+            return;
+        }
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
         const auto resourceTypeName = [](genesis::world::ResourceType type) -> const char *
         {
@@ -727,12 +760,12 @@ namespace Genesis::Sandbox::Gui
                 ImGui::SetClipboardText(serialized.c_str());
                 ctx.pushToast("Agent snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
-            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
-            ImGui::Text("ID: %u", agent->entityId);
-            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
-            ImGui::Text("Location: #%u %s", agent->location.value, nodeName.c_str());
+            ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
+            ImGui::Text("ID：%u", agent->entityId);
+            ImGui::Text("位置：#%u %s", agent->location.value, nodeName.c_str());
 
-            ImGui::Separator();
+            bool firstSection = true;
+            CardSectionHeader(inspectorCardLayout, "需求概览", firstSection);
 
             std::vector<const genesis::telemetry::NeedSnapshot *> needs;
             for (const auto &need : tick.needs)
@@ -782,12 +815,12 @@ namespace Genesis::Sandbox::Gui
 
             if (action)
             {
-                ImGui::Separator();
-                ImGui::Text("Current Action: %s", action->currentAction.c_str());
-                ImGui::Text("Target Node: #%u", action->target.value);
-                ImGui::Text("Queue Length: %u", action->queueLength);
-                ImGui::Text("Speed: %.2f", action->speed);
-                ImGui::Text("Resource: %s · Amount %u", resourceTypeName(action->resource), action->amount);
+                CardSectionHeader(inspectorCardLayout, "当前行动", firstSection);
+                ImGui::Text("行动：%s", action->currentAction.c_str());
+                ImGui::Text("目标节点：#%u", action->target.value);
+                ImGui::Text("队列长度：%u", action->queueLength);
+                ImGui::Text("速度：%.2f", action->speed);
+                ImGui::Text("资源：%s · 数量 %u", resourceTypeName(action->resource), action->amount);
             }
 
             const genesis::telemetry::PlannerSnapshot *planner = nullptr;
@@ -801,10 +834,10 @@ namespace Genesis::Sandbox::Gui
             }
             if (planner)
             {
-                ImGui::Separator();
-                ImGui::Text("Planner Target: #%u", planner->target.value);
-                ImGui::Text("Travel Cost: %.2f", planner->travelCost);
-                ImGui::Text("Score: %.2f", planner->score);
+                CardSectionHeader(inspectorCardLayout, "Planner 决策", firstSection);
+                ImGui::Text("目标：#%u", planner->target.value);
+                ImGui::Text("旅行成本：%.2f", planner->travelCost);
+                ImGui::Text("评分：%.2f", planner->score);
             }
 
             const genesis::telemetry::MovementProgressSnapshot *movement = nullptr;
@@ -818,8 +851,9 @@ namespace Genesis::Sandbox::Gui
             }
             if (movement)
             {
-                ImGui::Separator();
-                ImGui::Text("Movement Progress: %u → %u (%.2f)", movement->from.value, movement->to.value, movement->t01);
+                CardSectionHeader(inspectorCardLayout, "移动进度", firstSection);
+                ImGui::Text("路径：%u → %u", movement->from.value, movement->to.value);
+                ImGui::Text("进度：%.2f", movement->t01);
             }
 
             if (snapshot.diff)
@@ -833,8 +867,7 @@ namespace Genesis::Sandbox::Gui
                     {
                         if (!printedHeader)
                         {
-                            ImGui::Separator();
-                            ImGui::TextUnformatted("Need changes this frame");
+                            CardSectionHeader(inspectorCardLayout, "本帧需求变更", firstSection);
                             printedHeader = true;
                         }
                         char delta[160];
@@ -877,6 +910,27 @@ namespace Genesis::Sandbox::Gui
                         nodeInfo = &node;
                         break;
                     }
+                }
+            }
+
+            std::vector<const RuntimeBridge::WorldAtlas::Spawn *> resourceSpawns;
+            if (atlasPtr)
+            {
+                for (const auto &spawn : atlasPtr->spawns)
+                {
+                    if (spawn.resource.location.value == resource.location.value && spawn.resource.name == resource.name)
+                    {
+                        resourceSpawns.push_back(&spawn);
+                    }
+                }
+            }
+
+            std::vector<const genesis::telemetry::ActionSnapshot *> activeConsumers;
+            for (const auto &action : tick.actions)
+            {
+                if (action.target.value == resource.location.value)
+                {
+                    activeConsumers.push_back(&action);
                 }
             }
             ImGui::Text("%s", resource.name.c_str());
@@ -925,54 +979,81 @@ namespace Genesis::Sandbox::Gui
                 }
 
                 json spawnsJson = json::array();
-                if (atlasPtr)
+                for (const auto *spawn : resourceSpawns)
                 {
-                    for (const auto &spawn : atlasPtr->spawns)
+                    json spawnJson{
+                        {"position", {{"x", spawn->position.x}, {"y", spawn->position.y}}},
+                        {"capacity", spawn->resource.capacity},
+                        {"ratePerStep", spawn->resource.ratePerStep}};
+                    if (spawn->resource.local_coord.has_value())
                     {
-                        if (spawn.resource.location.value == resource.location.value && spawn.resource.name == resource.name)
-                        {
-                            json spawnJson{
-                                {"position", {{"x", spawn.position.x}, {"y", spawn.position.y}}},
-                                {"capacity", spawn.resource.capacity},
-                                {"ratePerStep", spawn.resource.ratePerStep}};
-                            if (spawn.resource.local_coord.has_value())
-                            {
-                                spawnJson["localCoord"] = {
-                                    {"x", spawn.resource.local_coord->first},
-                                    {"y", spawn.resource.local_coord->second}};
-                            }
-                            spawnsJson.push_back(std::move(spawnJson));
-                        }
+                        spawnJson["localCoord"] = {
+                            {"x", spawn->resource.local_coord->first},
+                            {"y", spawn->resource.local_coord->second}};
                     }
+                    spawnsJson.push_back(std::move(spawnJson));
                 }
                 if (!spawnsJson.empty())
                 {
                     resourceJson["spawns"] = std::move(spawnsJson);
                 }
 
-                json consumers = json::array();
-                for (const auto &action : tick.actions)
+                json consumersJson = json::array();
+                for (const auto *consumer : activeConsumers)
                 {
-                    if (action.target.value == resource.location.value)
-                    {
-                        consumers.push_back({{"entityId", action.entityId},
-                                             {"action", action.currentAction}});
-                    }
+                    consumersJson.push_back({{"entityId", consumer->entityId},
+                                             {"action", consumer->currentAction}});
                 }
-                if (!consumers.empty())
+                if (!consumersJson.empty())
                 {
-                    resourceJson["activeAgents"] = std::move(consumers);
+                    resourceJson["activeAgents"] = std::move(consumersJson);
                 }
 
                 std::string serialized = resourceJson.dump(2);
                 ImGui::SetClipboardText(serialized.c_str());
                 ctx.pushToast("Resource snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
-            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
-            ImGui::Text("Node: #%u %s", resource.location.value, nodeName.c_str());
+            ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
+            bool firstSection = true;
+            CardSectionHeader(inspectorCardLayout, "资源概览", firstSection);
+            ImGui::Text("节点：#%u %s", resource.location.value, nodeName.c_str());
+            ImGui::Text("类型：%s", resourceTypeName(resource.type));
+            ImGui::Text("库存：%u / %u", resource.current, resource.capacity);
 
-            ImGui::Text("Type: %s", resourceTypeName(resource.type));
-            ImGui::Text("Inventory: %u / %u", resource.current, resource.capacity);
+            if (!resourceSpawns.empty())
+            {
+                CardSectionHeader(inspectorCardLayout, "关联生成点", firstSection);
+                for (const auto *spawn : resourceSpawns)
+                {
+                    if (spawn->resource.local_coord.has_value())
+                    {
+                        ImGui::BulletText("坐标：(%g, %g) · 本地(%d, %d) · 速率 %.2f / 容量 %u",
+                                          spawn->position.x,
+                                          spawn->position.y,
+                                          spawn->resource.local_coord->first,
+                                          spawn->resource.local_coord->second,
+                                          spawn->resource.ratePerStep,
+                                          spawn->resource.capacity);
+                    }
+                    else
+                    {
+                        ImGui::BulletText("坐标：(%g, %g) · 速率 %.2f / 容量 %u",
+                                          spawn->position.x,
+                                          spawn->position.y,
+                                          spawn->resource.ratePerStep,
+                                          spawn->resource.capacity);
+                    }
+                }
+            }
+
+            if (!activeConsumers.empty())
+            {
+                CardSectionHeader(inspectorCardLayout, "活跃消耗者", firstSection);
+                for (const auto *consumer : activeConsumers)
+                {
+                    ImGui::BulletText("Agent #%u · %s", consumer->entityId, consumer->currentAction.c_str());
+                }
+            }
             break;
         }
         case UiState::InspectorSelectionType::Node:
@@ -997,6 +1078,48 @@ namespace Genesis::Sandbox::Gui
             {
                 ImGui::Text("节点 #%u 不存在。", ctx.state.inspector_selected_primary);
                 break;
+            }
+
+            std::vector<const RuntimeBridge::WorldAtlas::Node *> childNodes;
+            if (atlasPtr)
+            {
+                for (const auto &node : atlasPtr->nodes)
+                {
+                    if (node.parent.value == selectedNode->id.value && node.id.value != selectedNode->id.value)
+                    {
+                        childNodes.push_back(&node);
+                    }
+                }
+            }
+
+            std::vector<const RuntimeBridge::WorldAtlas::Edge *> connectedEdges;
+            if (atlasPtr)
+            {
+                for (const auto &edge : atlasPtr->edges)
+                {
+                    if (edge.from.value == selectedNode->id.value || edge.to.value == selectedNode->id.value)
+                    {
+                        connectedEdges.push_back(&edge);
+                    }
+                }
+            }
+
+            std::vector<const genesis::telemetry::ResourceSnapshot *> resourcesAtNode;
+            for (const auto &res : tick.resources)
+            {
+                if (res.location.value == selectedNode->id.value)
+                {
+                    resourcesAtNode.push_back(&res);
+                }
+            }
+
+            std::vector<const genesis::telemetry::AgentSnapshot *> agentsAtNode;
+            for (const auto &agentSnapshot : tick.agents)
+            {
+                if (agentSnapshot.location.value == selectedNode->id.value)
+                {
+                    agentsAtNode.push_back(&agentSnapshot);
+                }
             }
 
             ImGui::Text("%s", selectedNode->name.c_str());
@@ -1026,12 +1149,9 @@ namespace Genesis::Sandbox::Gui
                 nodeObj["position"] = {{"x", selectedNode->position.x}, {"y", selectedNode->position.y}};
 
                 json children = json::array();
-                for (const auto &n : atlasPtr->nodes)
+                for (const auto *child : childNodes)
                 {
-                    if (n.parent.value == selectedNode->id.value && n.id.value != selectedNode->id.value)
-                    {
-                        children.push_back({{"id", n.id.value}, {"name", n.name}});
-                    }
+                    children.push_back({{"id", child->id.value}, {"name", child->name}});
                 }
                 if (!children.empty())
                 {
@@ -1039,14 +1159,11 @@ namespace Genesis::Sandbox::Gui
                 }
 
                 json edges = json::array();
-                for (const auto &edge : atlasPtr->edges)
+                for (const auto *edge : connectedEdges)
                 {
-                    if (edge.from.value == selectedNode->id.value || edge.to.value == selectedNode->id.value)
-                    {
-                        edges.push_back({{"from", edge.from.value},
-                                         {"to", edge.to.value},
-                                         {"bidirectional", edge.bidirectional}});
-                    }
+                    edges.push_back({{"from", edge->from.value},
+                                     {"to", edge->to.value},
+                                     {"bidirectional", edge->bidirectional}});
                 }
                 if (!edges.empty())
                 {
@@ -1054,15 +1171,12 @@ namespace Genesis::Sandbox::Gui
                 }
 
                 json resourcesJson = json::array();
-                for (const auto &res : tick.resources)
+                for (const auto *res : resourcesAtNode)
                 {
-                    if (res.location.value == selectedNode->id.value)
-                    {
-                        resourcesJson.push_back({{"name", res.name},
-                                                 {"type", resourceTypeName(res.type)},
-                                                 {"current", res.current},
-                                                 {"capacity", res.capacity}});
-                    }
+                    resourcesJson.push_back({{"name", res->name},
+                                             {"type", resourceTypeName(res->type)},
+                                             {"current", res->current},
+                                             {"capacity", res->capacity}});
                 }
                 if (!resourcesJson.empty())
                 {
@@ -1070,13 +1184,10 @@ namespace Genesis::Sandbox::Gui
                 }
 
                 json agentsJson = json::array();
-                for (const auto &agent : tick.agents)
+                for (const auto *agentSnap : agentsAtNode)
                 {
-                    if (agent.location.value == selectedNode->id.value)
-                    {
-                        agentsJson.push_back({{"entityId", agent.entityId},
-                                              {"name", agent.name}});
-                    }
+                    agentsJson.push_back({{"entityId", agentSnap->entityId},
+                                          {"name", agentSnap->name}});
                 }
                 if (!agentsJson.empty())
                 {
@@ -1087,25 +1198,79 @@ namespace Genesis::Sandbox::Gui
                 ImGui::SetClipboardText(serialized.c_str());
                 ctx.pushToast("Node snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
-            ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
-            ImGui::Text("ID: %u", selectedNode->id.value);
+            ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
+            bool firstSection = true;
+            CardSectionHeader(inspectorCardLayout, "节点信息", firstSection);
+            ImGui::Text("ID：%u", selectedNode->id.value);
+            ImGui::Text("父节点：%u", selectedNode->parent.value);
+            ImGui::Text("类型：%u", static_cast<unsigned int>(selectedNode->kind));
 
-            ImGui::Text("Parent: %u", selectedNode->parent.value);
-            ImGui::Text("Kind: %u", static_cast<unsigned int>(selectedNode->kind));
+            if (!childNodes.empty())
+            {
+                CardSectionHeader(inspectorCardLayout, "子节点", firstSection);
+                for (const auto *child : childNodes)
+                {
+                    ImGui::BulletText("#%u %s", child->id.value, child->name.c_str());
+                }
+            }
+
+            if (!connectedEdges.empty())
+            {
+                CardSectionHeader(inspectorCardLayout, "关联边", firstSection);
+                for (const auto *edge : connectedEdges)
+                {
+                    ImGui::BulletText("%u %s %u",
+                                      edge->from.value,
+                                      edge->bidirectional ? "↔" : "→",
+                                      edge->to.value);
+                }
+            }
+
+            if (!resourcesAtNode.empty())
+            {
+                CardSectionHeader(inspectorCardLayout, "资源", firstSection);
+                for (const auto *res : resourcesAtNode)
+                {
+                    ImGui::BulletText("%s · %s · %u/%u",
+                                      res->name.c_str(),
+                                      resourceTypeName(res->type),
+                                      res->current,
+                                      res->capacity);
+                }
+            }
+
+            if (!agentsAtNode.empty())
+            {
+                CardSectionHeader(inspectorCardLayout, "在此节点的 Agent", firstSection);
+                for (const auto *agentSnap : agentsAtNode)
+                {
+                    if (!agentSnap->name.empty())
+                    {
+                        ImGui::BulletText("#%u %s", agentSnap->entityId, agentSnap->name.c_str());
+                    }
+                    else
+                    {
+                        ImGui::BulletText("#%u", agentSnap->entityId);
+                    }
+                }
+            }
             break;
         }
         }
 
-        ImGui::Separator();
         if (!snapshot.events.empty())
         {
-            ImGui::TextUnformatted("Runtime events this frame");
+            bool eventsSectionFirst = false;
+            CardSectionHeader(inspectorCardLayout, "本帧运行事件", eventsSectionFirst);
             if (ImGui::BeginChild("InspectorEventsLog", ImVec2(0, 140.0f), true))
             {
                 for (const auto &evt : snapshot.events)
                 {
-                    ImGui::TextColored(evt.success ? Style::DesignTokens::color(Style::ColorToken::Success) : Style::DesignTokens::color(Style::ColorToken::Danger),
-                                       "[#%llu] %s", static_cast<unsigned long long>(evt.id), evt.label.c_str());
+                    ImGui::TextColored(evt.success ? Style::DesignTokens::color(Style::ColorToken::Success)
+                                                   : Style::DesignTokens::color(Style::ColorToken::Danger),
+                                       "[#%llu] %s",
+                                       static_cast<unsigned long long>(evt.id),
+                                       evt.label.c_str());
                     if (!evt.message.empty())
                     {
                         ImGui::BulletText("%s", evt.message.c_str());
@@ -1114,6 +1279,7 @@ namespace Genesis::Sandbox::Gui
             }
             ImGui::EndChild();
         }
+        ImGui::PopTextWrapPos();
         ImGui::End();
     }
 

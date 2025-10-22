@@ -12,6 +12,7 @@
 - 新增 `Style::LayoutMetrics`（`include/sandbox/gui/style/LayoutMetrics.hpp`）：提供 `WindowStyleScope`、`CardScope`、`BarScope` 等 RAII 封装，集中管理常见的窗口/详情卡/顶部工具栏间距。
 - Browser 详情卡、Status Bar、Control Bar、Main View 已接入上述助手，恢复对齐与可读性。
 - Inspector 面板改造为卡片式布局（Agent/Resource/Node/运行事件分节），使用表格/列表统一展示节奏。
+- Monitor 标签采用双卡片（运行概览 / 日志）结构，指标表与日志滚动区域实现统一间距。
 
 ## 代码位置
 - `src/sandbox/gui/style/DesignTokens.cpp`

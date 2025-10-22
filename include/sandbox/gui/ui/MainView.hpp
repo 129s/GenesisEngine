@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sandbox/gui/presenter/MainViewPresenters.hpp"
+#include "sandbox/gui/style/LayoutMetrics.hpp"
 #include "sandbox/gui/ui/UiContext.hpp"
 
 namespace Genesis::Sandbox::Gui
@@ -21,8 +22,8 @@ private:
     void drawWorldTab(UiContext& ctx);
     void drawMonitorTab(UiContext& ctx);
     void drawSettingsTab(UiContext& ctx);
-    void drawMonitorTelemetry(UiContext& ctx);
-    void drawMonitorLog(UiContext& ctx);
+    void drawMonitorTelemetry(UiContext& ctx, const Style::Layout::CardLayoutConfig& layout);
+    void drawMonitorLog(UiContext& ctx, const Style::Layout::CardLayoutConfig& layout);
 };
 
 class InspectorView

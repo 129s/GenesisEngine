@@ -1828,39 +1828,43 @@ namespace Genesis::Sandbox::Gui
 }
 void MainView::drawMonitorTab(UiContext &ctx)
     {
-        ImGui::TextUnformatted("运行概览");
-        ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Md));
-        if (ctx.latest_snapshot)
+        const auto cardLayout = Style::Layout::detailCard();
+        const float cardSpacing = Style::DesignTokens::spacing(Style::SpacingToken::Lg);
+
+        auto drawCardHeader = [&](const char *title) {
+            ImGui::TextUnformatted(title);
+            ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+            ImGui::Separator();
+            ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+        };
+
         {
-            const auto &tick = ctx.latest_snapshot->telemetry;
-            ImGui::Text("Step %llu | Agents %zu | Actions %zu",
-                        static_cast<unsigned long long>(tick.step),
-                        tick.agents.size(),
-                        tick.actions.size());
+            Style::Layout::CardScope card("MonitorTelemetryCard",
+                                          cardLayout,
+                                          ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
+            {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("运行概览");
+                drawMonitorTelemetry(ctx, cardLayout);
+                ImGui::PopTextWrapPos();
+            }
         }
-        else
+
+        ImGui::Dummy(ImVec2(0.0f, cardSpacing));
+
         {
-            ImGui::TextUnformatted("(等待快照)");
+            Style::Layout::CardScope card("MonitorLogCard",
+                                          cardLayout,
+                                          ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
+            {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("运行日志");
+                drawMonitorLog(ctx, cardLayout);
+                ImGui::PopTextWrapPos();
+            }
         }
-
-        ImGui::Separator();
-
-        const float totalHeight = std::max(240.0f, ImGui::GetContentRegionAvail().y);
-        const float telemetryHeight = totalHeight * 0.45f;
-
-        if (ImGui::BeginChild("MonitorTelemetry", ImVec2(0.0f, telemetryHeight), true))
-        {
-            drawMonitorTelemetry(ctx);
-        }
-        ImGui::EndChild();
-
-        ImGui::Spacing();
-
-        if (ImGui::BeginChild("MonitorLogs", ImVec2(0.0f, 0.0f), true))
-        {
-            drawMonitorLog(ctx);
-        }
-        ImGui::EndChild();
     }
 
     void MainView::drawSettingsTab(UiContext &ctx)
@@ -1909,7 +1913,7 @@ void MainView::drawMonitorTab(UiContext &ctx)
             "后续任务将补充：主题切换、布局预设管理、快捷键自定义等功能。当前阶段仅提供设计指标预览，方便在开发过程中校准 UI 令牌。");
     }
 
-    void MainView::drawMonitorTelemetry(UiContext &ctx)
+    void MainView::drawMonitorTelemetry(UiContext &ctx, const Style::Layout::CardLayoutConfig &layout)
     {
         MonitorPresenterInput presenterInput{
             ctx.latest_snapshot ? &*ctx.latest_snapshot : nullptr};
@@ -1921,6 +1925,8 @@ void MainView::drawMonitorTab(UiContext &ctx)
             return;
         }
 
+        bool firstSection = true;
+        CardSectionHeader(layout, "基础数据", firstSection);
         ImGui::Text("步数：%llu", static_cast<unsigned long long>(telemetryVm.step));
         ImGui::Text("实体：%zu", telemetryVm.agentCount);
         ImGui::Text("执行命令：%zu", telemetryVm.actionCount);
@@ -1928,26 +1934,38 @@ void MainView::drawMonitorTab(UiContext &ctx)
 
         if (telemetryVm.needCount > 0)
         {
-            ImGui::Separator();
+            CardSectionHeader(layout, "需求统计", firstSection);
             ImGui::Text("平均需求值：%.2f", telemetryVm.averageNeed);
             ImGui::Text("危急需求：%u", telemetryVm.criticalNeedCount);
         }
 
         if (!telemetryVm.resources.empty())
         {
-            ImGui::Separator();
-            for (const auto &resource : telemetryVm.resources)
+            CardSectionHeader(layout, "资源监控", firstSection);
+            if (ImGui::BeginTable("MonitorResourceTable", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchProp))
             {
-                ImGui::Text("#%u %s (%u / %u)",
-                            resource.locationId,
-                            resource.name.c_str(),
-                            resource.current,
-                            resource.capacity);
+                ImGui::TableSetupColumn("节点");
+                ImGui::TableSetupColumn("名称");
+                ImGui::TableSetupColumn("库存");
+                ImGui::TableHeadersRow();
+
+                for (const auto &resource : telemetryVm.resources)
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("#%u", resource.locationId);
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(resource.name.c_str());
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::Text("%u / %u", resource.current, resource.capacity);
+                }
+
+                ImGui::EndTable();
             }
         }
     }
 
-    void MainView::drawMonitorLog(UiContext &ctx)
+    void MainView::drawMonitorLog(UiContext &ctx, const Style::Layout::CardLayoutConfig &layout)
     {
         if (!ctx.state.log_sink)
         {
@@ -1955,27 +1973,32 @@ void MainView::drawMonitorTab(UiContext &ctx)
             return;
         }
 
+        bool firstSection = true;
+        CardSectionHeader(layout, "控制", firstSection);
         ImGui::Checkbox("自动滚动", &ctx.state.log_auto_scroll);
-        ImGui::Separator();
+
+        CardSectionHeader(layout, "日志流", firstSection);
 
         const auto lines = ctx.state.log_sink->snapshot();
 
-        ImGui::BeginChild("LogConsole.ScrollRegion", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_HorizontalScrollbar);
-        const bool stickToBottom = ctx.state.log_auto_scroll &&
-                                   (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f || ctx.state.log_last_line_count == 0);
-
-        for (const auto &line : lines)
+        const float logHeight = std::max(180.0f, ImGui::GetTextLineHeightWithSpacing() * 12.0f);
+        if (ImGui::BeginChild("LogConsole.ScrollRegion", ImVec2(0.0f, logHeight), false, ImGuiWindowFlags_HorizontalScrollbar))
         {
-            ImGui::TextUnformatted(line.c_str());
-        }
+            const bool stickToBottom = ctx.state.log_auto_scroll &&
+                                       (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f || ctx.state.log_last_line_count == 0);
 
-        if (stickToBottom && !lines.empty())
-        {
-            ImGui::SetScrollHereY(1.0f);
+            for (const auto &line : lines)
+            {
+                ImGui::TextUnformatted(line.c_str());
+            }
+
+            if (stickToBottom && !lines.empty())
+            {
+                ImGui::SetScrollHereY(1.0f);
+            }
         }
+        ImGui::EndChild();
 
         ctx.state.log_last_line_count = lines.size();
-
-        ImGui::EndChild();
     }
 }

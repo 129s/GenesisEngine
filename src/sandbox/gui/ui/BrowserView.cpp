@@ -113,35 +113,16 @@ namespace
 
     LeafColorSet colorForLeaf(const std::filesystem::path& path)
     {
+        (void)path;
         const ImVec4 surface = Style::DesignTokens::color(Style::ColorToken::Surface);
-        Style::ColorToken accentToken = Style::ColorToken::Muted;
+        const ImVec4 success = Style::DesignTokens::color(Style::ColorToken::Success);
+        const ImVec4 successBright = lerpColor(success, ImVec4(1.0f, 1.0f, 1.0f, success.w), 0.35f);
+        const ImVec4 successGlow = lerpColor(success, ImVec4(1.0f, 1.0f, 1.0f, success.w), 0.55f);
 
-        std::string extensionLower = toLowerCopy(path.extension().generic_string());
-        if (extensionLower == ".png" || extensionLower == ".jpg" || extensionLower == ".jpeg" ||
-            extensionLower == ".bmp" || extensionLower == ".tga" || extensionLower == ".dds")
-        {
-            accentToken = Style::ColorToken::Highlight;
-        }
-        else if (extensionLower == ".wav" || extensionLower == ".mp3" || extensionLower == ".ogg" ||
-                 extensionLower == ".flac")
-        {
-            accentToken = Style::ColorToken::Accent;
-        }
-        else if (extensionLower == ".json" || extensionLower == ".cfg" || extensionLower == ".ini" ||
-                 extensionLower == ".txt" || extensionLower == ".yaml" || extensionLower == ".yml")
-        {
-            accentToken = Style::ColorToken::Info;
-        }
-        else if (extensionLower == ".lua" || extensionLower == ".py" || extensionLower == ".js")
-        {
-            accentToken = Style::ColorToken::Primary;
-        }
-
-        const ImVec4 accent = Style::DesignTokens::color(accentToken);
         return {
-            lerpColor(surface, accent, 0.20f),
-            lerpColor(surface, accent, 0.38f),
-            lerpColor(surface, accent, 0.55f),
+            lerpColor(surface, success, 0.28f),
+            lerpColor(surface, successBright, 0.48f),
+            lerpColor(surface, successGlow, 0.68f),
         };
     }
 

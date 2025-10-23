@@ -98,7 +98,12 @@ std::string agentKey(const telemetry::AgentSnapshot& snapshot) {
 }
 
 bool agentEqual(const telemetry::AgentSnapshot& lhs, const telemetry::AgentSnapshot& rhs) {
-    return lhs.entityId == rhs.entityId && lhs.name == rhs.name && lhs.location.value == rhs.location.value;
+    if (lhs.entityId != rhs.entityId) return false;
+    if (lhs.name != rhs.name) return false;
+    if (lhs.location.value != rhs.location.value) return false;
+    if (lhs.mapId != rhs.mapId) return false;
+    if (lhs.position.x != rhs.position.x || lhs.position.y != rhs.position.y) return false;
+    return true;
 }
 
 std::string movementKey(const telemetry::MovementProgressSnapshot& snapshot) {
@@ -136,4 +141,3 @@ SimulationSnapshotDiff diffSnapshots(const SimulationSnapshot* base, const Simul
 }
 
 } // namespace genesis::runtime
-

@@ -30,7 +30,7 @@
 
 ## 架构定位与集成
 
-- 渲染库核心职责是把 `WorldAtlas` + `SimulationSnapshot` 投影成像素帧，遵循 `docs/architecture/rendering-modes.md` 中定义的 Renderer Core / Policy / Overlay 分层，向 Sandbox 与 Game 统一输出 `RenderFrame`。
-- 运行层通过 Runtime API 提供只读数据，详见 `docs/architecture/overview.md`；渲染库不得回写逻辑状态，只消费坐标、标签、主题等标记。
-- 零素材策略与像素风约束记录在 `docs/architecture/zero-asset-rendering.md`，渲染库需要内建这些规则并对外提供材质/图案/调色板等参数化接口。
-- Sandbox GUI 依赖同一库的相机/命中测试/批次管理（参考 `docs/architecture/sandbox_gui_tilemap_rendering.md` 与 `sandbox_gui_scene_unification.md`），Game 客户端复用核心并替换策略与叠加层。
+- 渲染库核心职责是把 `WorldAtlas` + `SimulationSnapshot` 投影成像素帧，遵循 `docs/architecture/interface/rendering/rendering-modes.md` 中定义的 Renderer Core / Policy / Overlay 分层，向 Sandbox 与 Game 统一输出 `RenderFrame`。
+- 运行层通过 Runtime API 提供只读数据，详见 `docs/architecture/foundation/architecture-overview.md`；渲染库不得回写逻辑状态，只消费坐标、标签、主题等标记。
+- 零素材策略与像素风约束记录在 `docs/architecture/interface/rendering/zero-asset-rendering.md`，渲染库需要内建这些规则并对外提供材质/图案/调色板等参数化接口。
+- Sandbox GUI 依赖同一库的相机/命中测试/批次管理（参考 `docs/architecture/interface/sandbox/sandbox-gui-tilemap-rendering.md` 与 `docs/architecture/interface/sandbox/sandbox-gui-scene-unification.md`），Game 客户端复用核心并替换策略与叠加层。

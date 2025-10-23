@@ -312,6 +312,13 @@ void Engine::captureTelemetry(std::uint64_t stepIndex) {
             snapshot.name = name->name;
         }
         snapshot.location = location.location;
+        snapshot.mapId = 1; // v1 语义：单一 Map，未来从 world 数据填充
+        if (const auto* node = m_world.findLocation(location.location)) {
+            if (node->coord_global.has_value()) {
+                snapshot.position.x = static_cast<float>(node->coord_global->first);
+                snapshot.position.y = static_cast<float>(node->coord_global->second);
+            }
+        }
         tick.agents.push_back(std::move(snapshot));
     });
 

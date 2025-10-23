@@ -19,9 +19,11 @@
 
 #include "genesis/runtime/Runtime.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
-#include "genesis/core/Engine.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/WorldRegistry.hpp"
+
+// 前置声明以避免 GUI 层头文件依赖模拟内核实现
+namespace genesis::core { class Engine; }
 
 namespace Genesis::Sandbox::Gui
 {

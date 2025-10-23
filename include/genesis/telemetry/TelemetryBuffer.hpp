@@ -9,6 +9,11 @@
 
 namespace genesis::telemetry {
 
+struct Float2 {
+    float x{0.0f};
+    float y{0.0f};
+};
+
 struct ResourceSnapshot {
     std::string name;
     genesis::world::ResourceType type{genesis::world::ResourceType::Food};
@@ -46,6 +51,8 @@ struct AgentSnapshot {
     std::uint32_t entityId{0};
     std::string name;
     genesis::world::LocationId location{genesis::world::InvalidLocation};
+    std::uint32_t mapId{1};
+    Float2 position{}; // 地图内世界坐标（直线移动语义）
 };
 
 struct MovementProgressSnapshot {

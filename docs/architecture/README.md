@@ -11,9 +11,9 @@
   - [foundation/architecture-overview.md](foundation/architecture-overview.md)：分层结构、运行循环、并发/数据流边界。
   - [foundation/runtime-api.md](foundation/runtime-api.md)：运行时控制/查询协议、Telemetry/WorldAtlas 契约。
 - **World Layer**
-  - [world/world-model.md](world/world-model.md)：Scene/Interactive 节点树、坐标体系与运行层契约。
-  - [world/world-generation.md](world/world-generation.md)：世界生成流程、校验策略与资产产出。
-  - [world/world-representation.md](world/world-representation.md)：Graph ↔ Tilemap 对齐、分层寻路与迁移策略。
+  - [world/world-model.md](world/world-model.md)：Map 图（有向）+ Scene 分组 + Interaction/Portal 与坐标契约。
+  - [world/world-generation.md](world/world-generation.md)：生成流程（maps/map_edges 与每图 scenes/interactions/portals）、校验与产出。
+  - [world/world-representation.md](world/world-representation.md)：渲染表示（Atlas/Tilemap 仅表现）、与运行时解耦的消费准则。
   - [world/chunked-tile-graph.md](world/chunked-tile-graph.md)：大地图/分块加载探索笔记。
 - **Agents / Behavior Layer**
   - [agents/agent-personality-big5.md](agents/agent-personality-big5.md)：属性→需求→动机→行动链路与人格/Traits 调制。

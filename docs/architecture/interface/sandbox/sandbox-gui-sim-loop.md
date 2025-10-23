@@ -7,15 +7,15 @@
   - RuntimeBridge：后台线程推进 Runtime，支持 Pause/Step/Speed，维护环形 Telemetry 缓冲（默认 96 帧）。
   - GUI 线程：消费最新快照，驱动 Map/Scene/Telemetry/Inspector 面板。
 - 世界/可视化
-  - WorldAtlas：提供 Scene/Interactive 节点、`coord_global/coord_local`、Portal 锚点与 Tilemap 元数据；MapView 绘制节点拓扑，SceneView 渲染 `insideView` 并高亮资源/Portal。
-  - 代理覆盖层：按 Telemetry 中的 `mapId + localPosition` 绘制，支持名称标签、状态着色。
+  - WorldAtlas：提供 `maps/mapEdges` 与每图的 `scenes/interactions/portals[/tilemap]`；MapView 绘制 Map 图，SceneView 渲染 Tile 层并高亮交互点/Portal。
+  - 代理覆盖层：按 Telemetry 中的 `mapId + position(x,y)` 绘制，支持名称标签、状态着色。
 - 世界数据
   - Demo 世界基于 MapConfig 生成：主街区 + Tavern 内景 + 住宅区 + 森林边缘，包含至少两个食物点验证人格差异。
 
 ## 主要缺口
 - 仅加载单个 Demo Agent，尚未验证人格/Traits 差异。
 - Hunger Planner 使用统一权重，无法体现属性→需求→决策链的差异化。
-- 运动仅在节点级插值，缺少 Tile 层路径同步；Inspector 功能待完善。
+- 运动采用直线语义（Map 内），不做 Tile 层路径；Inspector 功能待完善。
 
 ## 目标拆解
 1. **模拟循环可视化**
@@ -28,9 +28,8 @@
    - Engine 启动生成至少 3 名代理（Explorer/Planner/Socializer），命名暴露给 Telemetry。
    - Planner/Selectors 使用人格/Traits 权重选择资源/社交/探索目标。
    - GUI 展示人格差异：Map/Scene 标签、Inspector 人格与当前目标、Telemetry 需求曲线。
-3. **局部路径同步（可见范围）**
-   - GUI 可视范围内的代理执行 Tile 层 A*，并将位置插值映射到 SceneView。
-   - 逻辑寻路保持权威；若可视化滞后，允许 snap 回逻辑锚点。
+3. **可视化细节（位置插值）**
+   - 仅进行直线位置插值；跨图时利用 `movement{from,to,t01}` 做过渡提示。
 
 ## 人格链路回顾
 - 属性：`health/sanity/hunger/energy` 等按系统更新。
@@ -44,17 +43,17 @@
 - **DecisionSystem**：读取人格/Traits，挑选目标（资源、社交、探索、休息）。
 - **Planner**：对目标节点执行评分 → 生成行动队列。觅食示例公式见人格文档。
 - **Movement**：
-  - 逻辑层：计算 Portal 链并更新 `movementProgress`。
-  - 可视化层：在可见 map 上运行 Tile 层 A*，更新 `localPosition`。
+  - 逻辑层：Map 内直线移动；跨图按 MapEdge 拼接；可选暴露 `movement{from,to,t01}`。
+  - 可视化层：根据 `position(x,y)` 绘制；不做 Tile 层寻路。
 - **Engine 初始化**：`spawnDemoAgents()` 生成 Demo NPC 并设置初始属性差异。
 
 ## Telemetry / GUI 增量
-- `TickTelemetry.agents[]` 新增：`mapId`、`localPosition`、`currentGoal`、`traits`。
+- `TickTelemetry.agents[]`：`mapId`、`position(x,y)`、`currentGoal`、`traits`。
 - `needs[]` / `attributes[]` 输出用于 Telemetry 曲线；Inspector 读取人格/Traits。
 - HUD 展示模拟时间（step → HH:MM:SS）、世界版本、schema 版本。
 - Map/Scene 视图：
   - MapView 显示人格分类颜色/名称标签。
-  - SceneView 利用 `localPosition` 绘制代理，Portal/锚点可高亮。
+- SceneView 利用 `position` 绘制代理，Portal/交互点可高亮。
 
 ## 验收标准
 1. 启动 GUI 后，三名 Demo 代理在城镇中自主运行≥30 分钟无异常。

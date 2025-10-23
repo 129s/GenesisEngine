@@ -1,118 +1,119 @@
 # 世界模型（World Model）
 
-GenesisEngine 的世界模型以 **Scene/Interactive 节点树** 为核心，辅以统一的整格坐标体系。运行层依靠该树驱动寻路、交互与资源调度；渲染层和工具仅消费这些数据，不回写逻辑状态。本章定义节点字段、坐标契约、布局描述以及运行时查询能力。
+本文定义“地图/场景/交互点/传送”四要素的概念与数据契约，明确运行时与渲染层的边界。目标：在保证表达力的前提下，以极低运行开销支持上千 NPC 并发。
 
-## 1. 节点树概览
+## 决策摘要（v1）
+- Map 图（有向）：世界由若干 Map 组成，Map 之间通过有向边（MapEdge）表征可达性与代价。
+- Scene 树（分组/布局）：每张 Map 内部是 Scene 树，仅用于组织与坐标继承，不参与寻路。
+- Interaction（交互点）：挂在 Scene 下的可交互锚点，包含 Portal/Resource/Workbench/Trigger 等，导航目标均指向交互点坐标。
+- 导航语义：
+  - Map 内部：NPC 以“直线”在交互点（锚点）之间移动，不做网格寻路/碰撞判定。
+  - 跨 Map：通过 MapEdge（由允许的 Portal 组合形成）在 Map 图上最短路；进入/离开 Map 的入口/出口均为 Portal 对应的交互点。
+- 渲染解耦：Tilemap 仅用于渲染表现；运行时不读取 Tilemap/碰撞。若需要阻断，请把区域拆分为不同 Map，并用 Portal/MapEdge 连接。
 
-```
-Scene (root)
- ├─ Scene（子区域/子场景）
- │   └─ Interactive（resource / portal / ...）
- └─ Interactive
-```
+## 分层结构
+1) 世界层（World / Map Graph）
+   - `Map{id,name,meta?}`：可自由移动的最小连通区域。
+   - `MapEdge{from,to,cost,rules?}`：Map 之间的有向连通（可按内容/脚本显式配置，非默认全连）。
 
-- **Scene**：容器节点，可嵌套；负责确定子节点布局、派生全局坐标。
-- **Interactive**：叶节点，只承担交互。当前内置 `resource` 与 `portal` 两种类型，后续可扩展。
+2) 地图层（Per Map / Scene + Interaction）
+   - `Scene{id,parent?,name,origin?,transform?,meta?}`：容器/坐标系承载，不产生导航节点。
+   - `Interaction{id,sceneId,kind,coord_local,[coord_global]?}`：交互锚点。kind 包括 `Portal|Resource|...`。
+   - `Portal{interactionId, channelId?, oneWay?, teleportCost?}`：Portal 是 Interaction 的一种，承载传送元。
 
-所有节点都由 `WorldRegistry` 按 `id` 管理，并通过 `childrenOf(id)` 暴露父子关系。
+3) 表现层（Rendering）
+   - `Tilemap{width,height,tileW,tileH, ...}`：仅用于渲染的贴图/图层；可带引用将交互点投影到画面，但不影响运行时。
 
-### 1.1 公共字段
-| 字段 | 说明 |
-| --- | --- |
-| `id:uint32` | 全局唯一 ID。0 预留为 `InvalidLocation`。 |
-| `parent:uint32` | 父 Scene 的 ID。根 Scene 取 0。 |
-| `name:string` | 可读名称，供调试/渲染使用。 |
-| `kind:LocationKind` | 语义标签（Region/Area/Room/Point）。运行时主要依赖 `navigable` 判定可走性。 |
-| `navigable:bool` | 是否可作为寻路节点；大部分 Scene/Interactive 为 true，Portal 若仅作占位可设为 false。 |
-| `coord_global:optional<[int,int]>` | 绝对整格坐标（世界空间）。Scene 在布局完成后应为子节点填写。 |
+## 导航与移动
+- Map 内：源交互点 → 目标交互点，按直线移动。
+  - 代价：几何距离/速度（可叠加拥挤/人格偏好惩罚）。
+  - 不存在“先去 Scene 再去 Portal”的中转，因为 Scene 不参与导航。
 
-### 1.2 Scene 扩展字段
-- `layout`（可选）：子节点布局描述（见第 3 章）。
-- `metadata`：与生成或渲染相关的附加信息（主题、地形、种子等）。
+- 跨 Map（分层拼接）：
+  1) 当前 Map：当前位置锚点 → 某出口 Portal 锚点（直线）。
+  2) Map 图：在 `MapEdge` 上做最短路（Dijkstra/A*）；边权可包含传送基础费/冷却/权限等规则代价。
+  3) 目标 Map：入口 Portal 锚点 → 目标交互点锚点（直线）。
 
-### 1.3 Interactive 扩展字段
-- `interactive.type`：`resource` / `portal` / …
-- `coord_local:optional<[int,int]>`：相对于父 Scene 的整格坐标。
-- 资源点：容量、产率等配置写入 `ResourceSpawn`，由 `ResourceSystem` 消费。
-- Portal：目标 Scene、入口/出口锚点等写入 `PathEdge` 或 Portal 元信息（见 2.3）。
+- Portal 连边策略：
+  - “任意两个 Portal 可以构成一条 Map 图上的 edge”意为“允许在规则满足时建立连边”，非默认全连。
+  - 推荐显式列出 `MapEdge` 或按频道/白名单/邻近生成，避免 O(P^2) 边爆炸。
 
-> **兼容性**：`WorldLoader` 对 `coord_global`、`coord_local`、`anchors` 等字段均为可选解析；旧数据缺失这些字段不会导致加载失败。
+## 数据契约（最小集）
+为便于实现，可以采用“世界总表 + 每图分表”的产物组织。以下为字段建议：
 
-## 2. 坐标与连通性
-
-### 2.1 坐标体系
-- **全局坐标 (`coord_global`)**：以 Tile 为单位的整数坐标，供渲染层与调试工具直接使用。
-- **局部坐标 (`coord_local`)**：Scene 内的相对整格坐标。Scene 在布局阶段根据自身原点与尺度换算成全局坐标。
-- Scene 自身可以没有局部坐标（作为原点），但必须确保所有子节点能推导出 `coord_global`。
-
-### 2.2 边（PathEdge）
-`PathEdge` 表示 Scene/Interactive 之间的连通性，用于逻辑寻路。
-
-| 字段 | 说明 |
-| --- | --- |
-| `from / to : LocationId` | 起点与终点节点。 |
-| `cost:float` | 移动成本。 |
-| `bidirectional:bool` | 是否自动生成反向边。 |
-| `anchors.at_from / at_to : optional<[int,int]>` | 在起点/终点 Scene 局部坐标系中的锚点（Portal/入口）。 |
-| `polyline` | （可选）供渲染/调试使用的路径折线。 |
-
-Portal 会生成至少一条边：从入口 Scene 到出口 Scene。若 `bidirectional=true`，加载器会自动补齐反向边并交换锚点。
-
-### 2.3 Portal 元信息
-- Portal 本身是 Interactive 节点，携带局部坐标。
-- 对应的 `PathEdge` 通过 `anchors` 提供进入/离开场景时的站位。
-- 渲染层可读取 Portal 节点与 `anchors` 来绘制传送门、场景切换提示。
-
-## 3. Scene 布局描述（Layout Descriptor）
-
-Scene 负责为子节点分配局部坐标。布局描述存放在 Scene 的 `layout` 字段，推荐使用数据驱动配置，便于生成器与工具复用。
-
-示例：
+1) 世界总表 world.json（示例）
 ```json
 {
-  "id": 100,
-  "name": "Riverside",
-  "layout": {
-    "type": "grid",
-    "origin": [0, 0],
-    "spacing": [4, 2],
-    "children": {
-      "scene:fishing_spot": { "offset": [2, 0] },
-      "scene:pier": { "offset": [6, 0] },
-      "interactive:portal:ferry": { "offset": [8, 1] }
-    }
-  }
+  "maps": [
+    { "id": 1, "name": "Town" },
+    { "id": 2, "name": "Dungeon" }
+  ],
+  "map_edges": [
+    { "from": 1, "to": 2, "cost": 5.0 },
+    { "from": 2, "to": 1, "cost": 6.0 }
+  ]
 }
 ```
 
-常见模式：
-- `grid`：规则网格，适合城镇/室内布局。
-- `ring`：环形摆放，适合广场/篝火营地。
-- `noise` / `script`：自定义算法或脚本生成，写入 deterministic seed。
+2) 每张图 map_{id}.json（示例）
+```json
+{
+  "map": { "id": 1, "name": "Town" },
+  "scenes": [
+    { "id": 100, "name": "Town Center" },
+    { "id": 200, "parent": 100, "name": "Tavern" }
+  ],
+  "interactions": [
+    { "id": 10001, "sceneId": 100, "kind": "Resource", "coord_local": [10, 5], "meta": { "resource": "Food", "capacity": 24, "rate": 3 } },
+    { "id": 10002, "sceneId": 200, "kind": "Portal",   "coord_local": [3,  7] }
+  ],
+  "portals": [
+    { "interactionId": 10002, "channelId": "tavern-door", "oneWay": false, "teleportCost": 0.5 }
+  ],
+  "tilemap": { "width": 64, "height": 64, "tileW": 32, "tileH": 32 }
+}
+```
 
-Scene 在生成/加载阶段解析 `layout`，为每个子节点写回 `coord_local`，继而计算 `coord_global = scene.origin + transform(coord_local)`。
+3) Agent 位置与移动（运行时快照建议）
+```json
+{
+  "entityId": 123,
+  "mapId": 1,
+  "position": { "x": 12.5, "y": 7.0 },
+  "movement": { "target": { "mapId": 2, "interactionId": 20001 } }
+}
+```
 
-## 4. 运行时查询能力
+说明：
+- 生产管线可将 `coord_local` 结合 Scene 原点转为 `coord_global`（可选缓存）；运行时最少只需统一整格/世界坐标即可直线移动。
+- Portal 的跨图连接关系体现在 `map_edges`，而非“Portal 对默认全连”。
 
-`WorldRegistry` 提供以下只读接口：
-- `findLocation(id)`：返回节点详情。
-- `childrenOf(id)`：查询子节点列表。
-- `edgesFrom(id)`：获取以节点为起点的边集。
-- `spawnsAt(id)` / `resourceSpawns()`：资源点枚举。
-- `tilemaps()`：返回与节点关联的 Tilemap 元数据（若有）。
+## 内容制作规范
+- Map 语义：Map 内应“无阻挡、可直达”。若存在门/墙/楼层等阻断，请拆分为多个 Map，用 Portal/MapEdge 相连。
+- Scene 作用：仅负责分组/布局与坐标继承；不要以 Scene 节点作为导航中转或碰撞代理。
+- Portal 策略：
+  - 仅在剧情/规则允许时为 Portal 组合建立 MapEdge。
+  - 大规模 Portal 时使用频道/白名单/空间邻近阈值生成边，避免完全图。
+- 坐标：统一整格/世界坐标；交互点的坐标是导航与渲染共同的锚点。
+- 渲染：Tilemap 只管画面，变更不应影响运行时；若变更导致阻断，需相应调整 Map 划分与 Portal。
 
-该集合支撑 MovementSystem、Planner、渲染层等模块。所有写操作仅在加载/生成阶段或受控 API 中进行。
+## 与现实现状的差异与迁移
+- 差异：现实现将导航建立在“Location 节点/边”之上；本设计将导航语义转移到“Map 图 + 交互点直线移动”。
+- 迁移建议：
+  1) 在数据层补充 `mapId` 与 `Interaction` 概念（兼容旧格式，默认单 Map）。
+  2) 在运行时继续支持旧的节点/边读取，但逐步将移动逻辑切换为“直线 + MapEdge 拼接”。
+  3) GUI/工具优先改为以 Map/Interaction 为导航与高亮单位；Tilemap 仅作渲染。
 
-## 5. 渲染与工具消费
-- 渲染层通过 `coord_global` 与 `Interactive.type` 生成可视标记，只绘制视口内数据，实现逻辑与渲染的近似同步。
-- GUI 若需要 Tilemap 细节，可结合 `TilemapMeta`（尺寸、tileSize）与 Scene 布局进行投影。
-- 调试工具可以读取 `layout` 描述，复现生成时的摆放决策，或为编辑器提供可视化。
+## 术语表
+- Map：可自由移动的最小连通区域。
+- MapEdge：Map 层的有向连接与代价。
+- Scene：分组/布局用的容器节点，不参与导航。
+- Interaction：交互锚点（Portal/Resource/...），导航目标均指向此类实体。
+- Portal：Interaction 的子类，承载传送元数据；跨图连通经由 MapEdge 表达。
+- Tilemap：渲染用瓦片图，与运行时解耦。
 
-## 6. 与世界生成的关系
-- 世界生成器负责产出满足上述契约的 `world.json`。
-- Scene 的 `layout`、Portal `anchors`、资源配置等应由生成器或手工数据在产出阶段写入。
-- 运行时加载器不再强制这些字段存在，但若缺失，渲染层无法获得位置参考，应在调试日志中提示。
+——
+相关文档：
+- `world-representation.md`：渲染层契约（Tilemap 与可视化）。
+- `world-generation.md`：数据生产流程与校验。
 
----
-
-相关文档：[world/world-generation.md](./world-generation.md)（数据生产流程）、[world/world-representation.md](./world-representation.md)（运行层与渲染层对齐）、[interface/sandbox/sandbox-gui-tilemap-rendering.md](../interface/sandbox/sandbox-gui-tilemap-rendering.md)（GUI 渲染契约）。

@@ -144,80 +144,34 @@ void MovementSystem::update(entt::registry& registry, float deltaSeconds) {
 }
 
 std::vector<MovementSystem::LocationId> MovementSystem::buildPath(LocationId start, LocationId target) const {
+    // 直线语义：同一 Map 内直接从起点到终点，仅返回两点路径。
     if (start == genesis::world::InvalidLocation || target == genesis::world::InvalidLocation) {
         return {};
     }
-
     if (!m_world.findLocation(start) || !m_world.findLocation(target)) {
         return {};
     }
 
-    using Node = std::pair<float, LocationId>;
-    auto cmp = [](const Node& lhs, const Node& rhs) { return lhs.first > rhs.first; };
-    std::priority_queue<Node, std::vector<Node>, decltype(cmp)> frontier(cmp);
-
-    std::unordered_map<LocationId, float, genesis::world::LocationIdHasher> distance;
-    std::unordered_map<LocationId, LocationId, genesis::world::LocationIdHasher> previous;
-
-    distance[start] = 0.0f;
-    frontier.emplace(0.0f, start);
-
-    while (!frontier.empty()) {
-        const auto [cost, current] = frontier.top();
-        frontier.pop();
-
-        if (cost > distance[current] + kEpsilon) {
-            continue;
-        }
-
-        if (current == target) {
-            break;
-        }
-
-        for (const auto& edge : m_world.edgesFrom(current)) {
-            const float stepCost = std::max(edge.cost, 0.0f);
-            const float nextCost = cost + stepCost;
-
-            auto [it, inserted] = distance.emplace(edge.to, nextCost);
-            if (!inserted && nextCost + kEpsilon >= it->second) {
-                continue;
-            }
-
-            it->second = nextCost;
-            previous[edge.to] = current;
-            frontier.emplace(nextCost, edge.to);
-        }
+    if (start == target) {
+        return {start};
     }
-
-    if (!distance.contains(target)) {
-        return {};
-    }
-
-    std::vector<LocationId> path;
-    LocationId current = target;
-    path.push_back(current);
-
-    while (current != start) {
-        auto it = previous.find(current);
-        if (it == previous.end()) {
-            return {};
-        }
-        current = it->second;
-        path.push_back(current);
-    }
-
-    std::reverse(path.begin(), path.end());
-    return path;
+    return {start, target};
 }
 
 float MovementSystem::edgeCost(LocationId from, LocationId to) const {
-    const auto& edges = m_world.edgesFrom(from);
-    for (const auto& edge : edges) {
-        if (edge.to == to) {
-            return std::max(edge.cost, 0.0f);
-        }
+    // 距离采用节点全局整格坐标的欧氏距离；若缺失则回退为 1.0。
+    const auto* nfrom = m_world.findLocation(from);
+    const auto* nto = m_world.findLocation(to);
+    if (!nfrom || !nto) {
+        return 1.0f;
     }
-    return 0.0f;
+    if (nfrom->coord_global && nto->coord_global) {
+        const float dx = static_cast<float>(nto->coord_global->first - nfrom->coord_global->first);
+        const float dy = static_cast<float>(nto->coord_global->second - nfrom->coord_global->second);
+        const float d = std::sqrt(dx * dx + dy * dy);
+        return d > kEpsilon ? d : 1.0f;
+    }
+    return 1.0f;
 }
 
 } // namespace genesis::agents

@@ -1,4 +1,5 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
+#include "genesis/core/Engine.hpp"
 
 #include <algorithm>
 #include <cmath>

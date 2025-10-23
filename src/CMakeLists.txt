@@ -209,6 +209,47 @@ set_target_properties(genesis_engine_app PROPERTIES
     OUTPUT_NAME "genesis-engine"
 )
 
+# --- Phase 0: 基础/诊断模块骨架（占位，便于后续迁移） ---
+add_library(genesis_base INTERFACE)
+add_library(Genesis::Base ALIAS genesis_base)
+target_include_directories(genesis_base
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+add_library(genesis_diagnostics INTERFACE)
+add_library(Genesis::Diagnostics ALIAS genesis_diagnostics)
+target_include_directories(genesis_diagnostics
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+target_link_libraries(genesis_diagnostics
+    INTERFACE
+        spdlog::spdlog_header_only
+)
+
+# --- Phase 1（占位别名）：逐步拆分仿真内核 ---
+add_library(genesis_world INTERFACE)
+add_library(Genesis::World ALIAS genesis_world)
+target_link_libraries(genesis_world INTERFACE Genesis::Engine)
+
+add_library(genesis_agents INTERFACE)
+add_library(Genesis::Agents ALIAS genesis_agents)
+target_link_libraries(genesis_agents INTERFACE Genesis::Engine)
+
+add_library(genesis_simulation INTERFACE)
+add_library(Genesis::Simulation ALIAS genesis_simulation)
+target_link_libraries(genesis_simulation INTERFACE Genesis::Engine)
+
+# --- Phase 2（占位别名）：拆分 Runtime 子域 ---
+add_library(genesis_runtime_core INTERFACE)
+add_library(Genesis::RuntimeCore ALIAS genesis_runtime_core)
+target_link_libraries(genesis_runtime_core INTERFACE Genesis::Runtime)
+
+add_library(genesis_runtime_snapshot INTERFACE)
+add_library(Genesis::RuntimeSnapshot ALIAS genesis_runtime_snapshot)
+target_link_libraries(genesis_runtime_snapshot INTERFACE Genesis::Runtime)
+
 add_executable(genesis_sandbox_gui
     apps/sandbox_gui/Main.cpp
     sandbox/gui/AppHostCore.cpp

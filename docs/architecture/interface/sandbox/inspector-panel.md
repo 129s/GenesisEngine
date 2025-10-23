@@ -26,7 +26,7 @@
   - MapView 高亮对应节点/代理，显示 Portal 方向箭头。
   - SceneView 若存在 insideView，则自动切换并聚焦代理；Follow 开关可在两视图中同步追踪（默认仅平移）。
 - **Agent 详情**
-  - 基本信息：`entityId`、`name`、`mapId`、`localPosition`、当前区域/Portal。
+  - 基本信息：`entityId`、`name`、`mapId`、`position(x,y)`、当前交互点/Portal（若有）。
   - 属性：health/sanity/hunger/energy 等当前值、衰减率。
   - 需求：强度、阈值、准备裕度、人格/Traits 权重贡献、最近一次满足时间。
   - 人格与 Traits：OCEAN 五维、Trait 列表及描述。

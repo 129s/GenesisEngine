@@ -269,7 +269,13 @@ namespace
         if (isLeaf)
         {
             leafColors = colorForLeaf(node.path);
-            ImGui::PushStyleColor(ImGuiCol_Header, leafColors.normal);
+            ImGuiWindow* window = ImGui::GetCurrentWindow();
+            const ImVec2 cursorScreen = ImGui::GetCursorScreenPos();
+            const float rowHeight = ImGui::GetFrameHeight();
+            const ImVec2 rowMin(window->WorkRect.Min.x, cursorScreen.y);
+            const ImVec2 rowMax(window->WorkRect.Max.x, cursorScreen.y + rowHeight);
+            ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, ImGui::GetColorU32(leafColors.normal));
+            ImGui::PushStyleColor(ImGuiCol_Header, leafColors.active);
             ImGui::PushStyleColor(ImGuiCol_HeaderHovered, leafColors.hover);
             ImGui::PushStyleColor(ImGuiCol_HeaderActive, leafColors.active);
         }

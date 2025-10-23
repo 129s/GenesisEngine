@@ -96,8 +96,13 @@ namespace Genesis::Sandbox::Gui
 
             const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
             const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, miniHeight);
-            ImGui::InvisibleButton("SceneMiniMap.Canvas", canvasSize, ImGuiButtonFlags_None);
-            Ui::applyClickableCursorToLastItem();
+            ImGui::InvisibleButton("SceneMiniMap.Canvas",
+                                   canvasSize,
+                                   ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 0.0f))
+            {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+            }
             const ImVec2 canvasMax = ImGui::GetItemRectMax();
 
             ImDrawList *drawList = ImGui::GetWindowDrawList();
@@ -1638,7 +1643,10 @@ namespace Genesis::Sandbox::Gui
 
         ImGui::SetCursorScreenPos(canvasPos);
         ImGui::InvisibleButton("SceneCanvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
-        Ui::applyClickableCursorToLastItem();
+        if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 0.0f))
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+        }
 
         ImDrawList *drawList = ImGui::GetWindowDrawList();
         auto drawCanvasBackground = [&]() {

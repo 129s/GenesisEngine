@@ -11,7 +11,7 @@
   - Node：显示 ID、父节点、类型并可跳转。
 - 事件与差异：展示本帧 Runtime 事件日志，并基于 `SimulationSnapshotDiff` 列出所选 Agent 的需求变化。
 - 地图联动：MapView 以描边高亮所选节点/Agent，Inspector 面板中跟随开关会驱动 SceneView 聚焦节点。
-- 小地图：Inspector 顶部嵌入 Scene MiniMap，复用 Scene 视口状态，默认展现当前聚焦节点，并遵循 Inspector 开关一起显示/隐藏。
+- 小地图：Inspector 顶部嵌入 Scene MiniMap，复用 Scene 视口状态，默认展现当前聚焦节点，并遵循 Inspector 开关一起显示/隐藏；卡片左上内边距已移除以便与小地图完全对齐。
 - 快照导出：Agent / Resource / Node 详情提供 “Copy JSON” 按钮，复制结构化快照（含 Telemetry / Atlas 上下文），便于日志分析与回归测试。
 
 ## 待完善清单

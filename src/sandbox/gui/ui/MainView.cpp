@@ -719,6 +719,7 @@ namespace Genesis::Sandbox::Gui
         {
             return;
         }
+        ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
         DrawSceneMiniMap(ctx, viewportState);
         ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.headerGap));
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);

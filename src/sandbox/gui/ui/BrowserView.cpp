@@ -139,9 +139,9 @@ namespace
 
         const ImVec4 accent = Style::DesignTokens::color(accentToken);
         return {
-            lerpColor(surface, accent, 0.18f),
-            lerpColor(surface, accent, 0.30f),
-            lerpColor(surface, accent, 0.45f),
+            lerpColor(surface, accent, 0.20f),
+            lerpColor(surface, accent, 0.38f),
+            lerpColor(surface, accent, 0.55f),
         };
     }
 
@@ -632,15 +632,13 @@ void BrowserView::render(UiContext& ctx)
 
     ImGui::SetCursorPos(initialCursor);
 
-    const float treeItemSpacingY = Style::DesignTokens::spacing(Style::SpacingToken::Xs);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm), treeItemSpacingY));
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm), 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
                         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs),
                                Style::DesignTokens::spacing(Style::SpacingToken::Xs)));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing,
-                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs),
-                               Style::DesignTokens::spacing(Style::SpacingToken::Xs)));
+                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
 
     if (ImGui::BeginChild("BrowserTreePane", ImVec2(0.0f, treeHeight), true))

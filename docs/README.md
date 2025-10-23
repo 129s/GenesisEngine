@@ -5,7 +5,7 @@
 ## 目录结构
 - 架构（设计、原则、系统划分）：`docs/architecture/`（总览：`docs/architecture/README.md`）
 - 路线图（权威版、里程碑与历史）：`docs/roadmap/`（总览：`docs/roadmap/README.md`）
-- 指南（构建、运行、工具）：`docs/guides/`（例如 `docs/guides/sandbox_gui_smoke.md`）
+- 指南（构建、运行、工具）：`docs/guides/`（构建流程：`docs/guides/build_pipeline.md`，沙盒 GUI 烟雾测试：`docs/guides/sandbox_gui_smoke.md`）
 - 状态（进度、待办）：`docs/status/`（进度：`docs/status/progress-summary.md`，待办：`docs/status/todo.md`）
 - 评审（UI/UX/技术评审）：`docs/status/reviews/`
 

@@ -1,6 +1,7 @@
 # Build artifacts
 /build/
-/build-debug/
+
+/ref/
 
 /out/
 /dist/

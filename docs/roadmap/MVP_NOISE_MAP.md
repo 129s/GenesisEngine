@@ -1,5 +1,7 @@
 # MVP 规划：两种地形的随机地图 + 固定刷新资源点 + NPC 基本生命周期
 
+> 2025-10 更新：噪声网格生成器与 `genesis-noise-generator` CLI 已退役，相关脚本不再维护。本文档保留历史上下文，当前世界生成统一由 Worldgen 管线承担。
+
 ## 目标（Scope）
 - 世界生成：基于噪声生成的地图，包含 2 种地形（例如 `Stone` 与 `Soil`）。
 - 资源点：按固定时间步刷新（已由 `ratePerStep` 支持），分布受地形约束。
@@ -57,7 +59,7 @@
 
 ## 执行计划（Action Plan）
 - **Phase 1 · 生成器基础**（已完成）：实现 `NoiseGridGenerator`，构建 `LocationGraph`、资源采样与 JSON 导出，并补齐单元测试。
-- **Phase 2 · 命令与自动化**（已交付 CLI `genesis-noise-generator` 与脚本 `scripts/generate_noise_world.ps1`）：提供脚本/命令行一键生成噪声地图，接入构建流程并更新操作指南。
+- **Phase 2 · 命令与自动化**（历史交付：CLI `genesis-noise-generator` 与脚本 `scripts/generate_noise_world.ps1`，已于 2025-10 退役）：提供脚本/命令行一键生成噪声地图，接入构建流程并更新操作指南。
 - **Phase 3 · 运行时接入**：引擎可通过配置参数显式加载噪声地图，维持资源刷新，并自动挑选可通行节点投放初始代理。
 - **Phase 4 · NPC 生命周期验证**（已完成：脚本化步骤 + Telemetry 校验）：在 Sandbox GUI 中执行固定脚本复现 `MoveTo → ConsumeResource` 闭环，并通过自动化测试记录 Hunger 波动。
 - **Phase 5 · 可视化支持**：完善 GUI Map View 展示与验证指引。详见 `docs/status/backlog/noise-map-mvp.md`。

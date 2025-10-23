@@ -104,26 +104,6 @@ endif()
 
 add_subdirectory(src)
 
-set(GENESIS_NOISE_GENERATOR_EXECUTABLE
-    "${CMAKE_BINARY_DIR}/src/genesis-noise-generator${CMAKE_EXECUTABLE_SUFFIX}")
-
-add_custom_target(generate_noise_world
-    COMMAND ${GENESIS_NOISE_GENERATOR_EXECUTABLE}
-        --seed=1337
-        --width=64
-        --height=64
-        --threshold=0.5
-        --soil-density=0.05
-        --capacity=24
-        --rate=3
-        --world=data/world/generated/noise_mvp.json
-        --layout=data/world/generated/noise_mvp_layout.json
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Generating deterministic noise world data (seed=1337)"
-)
-
-add_dependencies(generate_noise_world genesis_noise_generator)
-
 if(GENESISENGINE_ENABLE_TESTS)
     enable_testing()
     add_subdirectory(tests)

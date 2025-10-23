@@ -120,7 +120,6 @@ set(GENESIS_ENGINE_SOURCES
     world/WorldRegistry.cpp
     world/WorldBootstrap.cpp
     world/WorldLoader.cpp
-    world/generation/NoiseGridGenerator.cpp
     world/system/ResourceSystem.cpp
     planner/HungerPlanner.cpp
     telemetry/TelemetryBuffer.cpp
@@ -229,24 +228,3 @@ endif()
 set_target_properties(genesis_sandbox_gui PROPERTIES
     OUTPUT_NAME "genesis-sandbox-gui"
 )
-
-add_executable(genesis_noise_generator
-    tools/NoiseGenMain.cpp
-)
-
-target_include_directories(genesis_noise_generator
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
-
-target_link_libraries(genesis_noise_generator
-    PRIVATE
-        Genesis::Engine
-        nlohmann_json::nlohmann_json
-)
-
-set_target_properties(genesis_noise_generator PROPERTIES
-    OUTPUT_NAME "genesis-noise-generator"
-)
-
-

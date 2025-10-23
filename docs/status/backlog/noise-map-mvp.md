@@ -1,5 +1,7 @@
 # Backlog · 噪声地图 MVP
 
+> 2025-10 更新：噪声生成 CLI / 脚本已退役，条目仅保留历史记录；现行世界生成请改用 Worldgen 管线。
+
 > 与 `docs/roadmap/MVP_NOISE_MAP.md` 对应的工作拆分，按依赖顺序列出后续动作。
 
 ## Phase 1 · 生成器基础
@@ -9,14 +11,14 @@
 - [x] 导出 JSON：写入 `data/world/generated/noise_mvp.json` 与匹配的布局数据。
 - [x] 单元测试：覆盖 seed 决定性、地形占比统计、图连通性与资源生成约束。
 
-> 结果：新增 `NoiseGridGenerator`（`include/src/world/generation`），产出带 `terrain` 标签的 `LocationGraph` 与布局元数据；`tests/test_noise_grid_generator.cpp` 覆盖 Determinism/Distribution/Edges/Spawns/Layouts。
+> 结果（历史记录）：新增 `NoiseGridGenerator`（`include/src/world/generation`），产出带 `terrain` 标签的 `LocationGraph` 与布局元数据；原单元测试文件 `tests/test_noise_grid_generator.cpp` 覆盖 Determinism/Distribution/Edges/Spawns/Layouts（已在 2025-10 移除，由 Worldgen 测试接手保障）。
 
 ## Phase 2 · 命令与自动化
 - [x] 在 `scripts/` 增加命令（PowerShell/Python）触发生成流程，支持参数 `--seed/--width/--height/--threshold`。
 - [x] 将生成产物加入构建/打包（CMake 或后处理）流程，保证默认 Demo 可直接使用。
 - [x] 更新文档与示例命令，说明如何生成/刷新噪声地图数据。
 
-> 结果：新增 `src/tools/NoiseGenMain.cpp` → `genesis-noise-generator` CLI，同步提供 `scripts/generate_noise_world.ps1` 包装脚本；CMake 自定义目标 `generate_noise_world` 默认写入 `data/world/generated/noise_mvp.json` 与 `noise_mvp_layout.json`。
+> 结果（历史记录）：新增 `src/tools/NoiseGenMain.cpp` → `genesis-noise-generator` CLI，同步提供 `scripts/generate_noise_world.ps1` 包装脚本；CMake 自定义目标 `generate_noise_world` 默认写入 `data/world/generated/noise_mvp.json` 与 `noise_mvp_layout.json`（上述资产在 2025-10 后停止维护）。
 
 ## Phase 3 · 运行时接入
 - [x] 引擎提供显式 `loadWorldFromFile` 接口加载噪声世界，可通过脚本/配置传入路径。

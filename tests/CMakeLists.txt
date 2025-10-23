@@ -49,7 +49,6 @@ add_executable(genesis_engine_tests
     test_telemetry.cpp
     test_movement_system.cpp
     test_action_executor.cpp
-    test_noise_grid_generator.cpp
 )
 
 target_link_libraries(genesis_engine_tests

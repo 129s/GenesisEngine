@@ -38,7 +38,6 @@ cmake --build build --target genesis_engine_app
 主要产物位于 `build/src`：
 - `genesis-sandbox-gui`：ImGui 驱动的沙盒 GUI，可交互查看世界状态
 - `genesis-engine`：命令行运行时烟雾测试入口
-- `genesis-noise-generator`：世界噪声生成工具
 - `genesis_runtime`（动态库）、`genesis_engine` / `genesis_worldgen` / `genesis_rendering`（静态库）
 
 ## 4. 测试与验证
@@ -59,15 +58,10 @@ ctest --test-dir build --output-on-failure
 - `GenesisRuntime_Smoke`：保证运行时可加载自身依赖
 - `GenesisEngine_E2E`：运行 `genesis-engine --steps=60` 并生成 `build/telemetry_e2e.json`
 
-## 5. 自定义生成与资产产出
-项目提供一个 CMake 自定义目标与 PowerShell 脚本快速产出噪声世界：
-
-```bash
-cmake --build build --target generate_noise_world
-pwsh ./scripts/generate_noise_world.ps1 -Seed 1337
-```
-
-两者都会调用 `genesis-noise-generator`，向 `data/world/generated/` 写入世界 JSON 和布局 JSON；脚本支持 `--Reconfigure` / `--Rebuild` 控制是否重新配置或强制编译。
+## 5. 世界生成（Worldgen）
+- Worldgen 模块（`Genesis::Worldgen`）读取 TOML 配置并生成 `LocationGraph`、布局与 Tilemap 资产，详情参考 `docs/architecture/WORLD_GENERATION.md`。
+- 运行时通过 `Runtime::generateWorldFromConfig` 与命令队列的 `world.generate` 操作触发生成；沙盒 GUI 的 World Generation 面板即使用这一流程。
+- 若需要离线生成或批处理，可在自定义工具中直接调用 `genesis::worldgen::generate_world`，并使用 `genesis::world::saveWorldToFile` 将结果写入 JSON。
 
 ## 6. 增量构建与常见目录
 - 源码：`src/`（核心库、工具、GUI）、`include/`（公共头文件）
@@ -79,8 +73,7 @@ pwsh ./scripts/generate_noise_world.ps1 -Seed 1337
 1. 首次配置：`cmake -S . -B build -G Ninja`
 2. 编译关键目标：`cmake --build build --target genesis_sandbox_gui`
 3. 运行测试：`ctest --test-dir build --output-on-failure`
-4. （可选）生成示例世界：`cmake --build build --target generate_noise_world`
+4. （可选）通过沙盒 GUI 的 World Generation 面板或运行时命令脚本验证世界生成流程
 5. 在 `build/src/genesis-sandbox-gui` 目录下启动 GUI 进行回归验证
 
 若引入新依赖或修改工具链，请记得更新本文件并在 PR 描述中说明。
-

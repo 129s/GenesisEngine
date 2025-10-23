@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "default_theme": "genesis/core-dark",
+  "themes": [
+    {
+      "id": "genesis/core-dark",
+      "label": "Genesis Core Dark",
+      "description": "Genesis Engine 工具链与游戏运行时的默认暗色主题调色板。",
+      "tokens": {
+        "surface.canvas": {
+          "category": "surface",
+          "description": "三维视图和 dockspace 的最底层画布背景。",
+          "srgb": "#191D21",
+          "aliases": ["Canvas", "ui.canvas"]
+        },
+        "surface.layer": {
+          "category": "surface",
+          "description": "常规面板与窗口的基础背景。",
+          "srgb": "#20262B",
+          "aliases": ["Surface", "ui.surface"]
+        },
+        "surface.layer.alt": {
+          "category": "surface",
+          "description": "交替背景或内层面板背景（如折叠面板）。",
+          "srgb": "#23292E",
+          "aliases": ["SurfaceAlt", "ui.surface.alt"]
+        },
+        "surface.layer.active": {
+          "category": "surface",
+          "description": "鼠标悬浮或选中时的背景高亮色。",
+          "srgb": "#272C32",
+          "aliases": ["SurfaceActive", "ui.surface.active"]
+        },
+        "surface.muted": {
+          "category": "surface",
+          "description": "不重要的分隔区域或面板前景遮罩。",
+          "srgb": "#293234",
+          "aliases": ["Muted", "ui.surface.muted"]
+        },
+        "accent.primary.base": {
+          "category": "accent",
+          "description": "主要交互按钮的基础强调色。",
+          "srgb": "#32C3FF",
+          "aliases": ["Primary", "ui.primary"]
+        },
+        "accent.primary.hover": {
+          "category": "accent",
+          "description": "主要交互按钮悬停状态的颜色。",
+          "srgb": "#51CCFF",
+          "aliases": ["PrimaryHover", "ui.primary.hover"]
+        },
+        "accent.primary.active": {
+          "category": "accent",
+          "description": "主要交互按钮按下后的颜色。",
+          "srgb": "#00B4FF",
+          "aliases": ["PrimaryActive", "ui.primary.active"]
+        },
+        "accent.secondary.base": {
+          "category": "accent",
+          "description": "辅助操作、强调信息的绿色调。",
+          "srgb": "#40B5A0",
+          "aliases": ["Accent", "ui.accent"]
+        },
+        "accent.secondary.hover": {
+          "category": "accent",
+          "description": "辅助操作悬停时的颜色。",
+          "srgb": "#4DC0AC",
+          "aliases": ["AccentHover", "ui.accent.hover"]
+        },
+        "accent.secondary.active": {
+          "category": "accent",
+          "description": "辅助操作按下后的颜色。",
+          "srgb": "#369A88",
+          "aliases": ["AccentActive", "ui.accent.active"]
+        },
+        "text.primary": {
+          "category": "text",
+          "description": "常规正文文本。",
+          "srgb": "#B1C5CC",
+          "aliases": ["TextPrimary", "ui.text.primary"]
+        },
+        "text.secondary": {
+          "category": "text",
+          "description": "次要文本和辅助信息。",
+          "srgb": "#8193A1",
+          "aliases": ["TextSecondary", "ui.text.secondary"]
+        },
+        "text.disabled": {
+          "category": "text",
+          "description": "禁用态或不可点击内容。",
+          "srgb": "#627079",
+          "aliases": ["TextDisabled", "ui.text.disabled"]
+        },
+        "border.soft": {
+          "category": "border",
+          "description": "分隔线与普通控件轮廓。",
+          "srgb": "#2F393D",
+          "aliases": ["BorderSoft", "ui.border.soft"]
+        },
+        "border.strong": {
+          "category": "border",
+          "description": "窗口、弹窗等关键区域的强对比边框。",
+          "srgb": "#08090A",
+          "aliases": ["BorderStrong", "ui.border.strong"]
+        },
+        "status.success": {
+          "category": "status",
+          "description": "成功反馈状态或正向指示的重点色。",
+          "srgb": "#6CFF00",
+          "aliases": ["Success", "ui.status.success"]
+        },
+        "status.warning": {
+          "category": "status",
+          "description": "警告或风险提示颜色。",
+          "srgb": "#FFC857",
+          "aliases": ["Warning", "ui.status.warning"]
+        },
+        "status.danger": {
+          "category": "status",
+          "description": "致命错误或危险状态颜色。",
+          "srgb": "#FF6B6B",
+          "aliases": ["Danger", "ui.status.danger"]
+        },
+        "status.info": {
+          "category": "status",
+          "description": "信息提示、过渡状态色。",
+          "srgb": "#32C3FF",
+          "aliases": ["Info", "ui.status.info"]
+        },
+        "state.highlight": {
+          "category": "state",
+          "description": "文本选中或 hover 高亮背景。",
+          "srgb": "#DAEFFF",
+          "aliases": ["Highlight", "ui.state.highlight"]
+        },
+        "ppa.sky.zenith": {
+          "category": "ppa.sky",
+          "description": "程序化天空贴图的天顶参考色。",
+          "srgb": "#1B2E59"
+        },
+        "ppa.sky.horizon": {
+          "category": "ppa.sky",
+          "description": "程序化天空贴图的地平线暖色调。",
+          "srgb": "#BBD5FF"
+        },
+        "ppa.biome.forest.primary": {
+          "category": "ppa.biome",
+          "description": "森林生态主要植被基准色。",
+          "srgb": "#3B9E5A"
+        },
+        "ppa.biome.forest.secondary": {
+          "category": "ppa.biome",
+          "description": "森林生态补充植被或阴影色。",
+          "srgb": "#62C370"
+        },
+        "ppa.biome.soil.rich": {
+          "category": "ppa.biome",
+          "description": "肥沃土壤或潮湿地面的配色参考。",
+          "srgb": "#4C3623"
+        },
+        "render.atmosphere.scattering": {
+          "category": "render",
+          "description": "大气散射模型的基础蓝色分量。",
+          "srgb": "#1976D2"
+        },
+        "render.lighting.key": {
+          "category": "render",
+          "description": "主光源（Key Light）的默认线性颜色。",
+          "srgb": "#F0E2D0"
+        },
+        "render.lighting.fill": {
+          "category": "render",
+          "description": "辅光（Fill Light）默认冷色。",
+          "srgb": "#8EB7FF"
+        },
+        "ui.shadow.soft": {
+          "category": "surface",
+          "description": "界面软阴影的基准颜色。",
+          "srgb": [0.0, 0.0, 0.0, 0.35]
+        }
+      }
+    }
+  ]
+}
+

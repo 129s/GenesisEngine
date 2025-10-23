@@ -1,6 +1,14 @@
 #include "sandbox/gui/style/DesignTokens.hpp"
 
+#include "genesis/style/ColorRegistry.hpp"
+
+#include <spdlog/spdlog.h>
+
 #include <array>
+#include <filesystem>
+#include <mutex>
+#include <optional>
+#include <string_view>
 
 namespace Genesis::Sandbox::Gui::Style
 {
@@ -9,7 +17,7 @@ namespace
     using ColorArray = std::array<ImVec4, static_cast<std::size_t>(ColorToken::Count)>;
     using SpacingArray = std::array<float, static_cast<std::size_t>(SpacingToken::Count)>;
 
-    const ColorArray kColors = {
+    const ColorArray kFallbackColors = {
         /* Canvas */ ImVec4(0.098f, 0.114f, 0.129f, 1.0f),        // #191D21
         /* Surface */ ImVec4(0.125f, 0.149f, 0.169f, 1.0f),       // #20262B
         /* SurfaceAlt */ ImVec4(0.137f, 0.161f, 0.180f, 1.0f),    // #23292E
@@ -41,10 +49,107 @@ namespace
         16.0f, // Lg
         24.0f, // Xl
     };
+
+    using TokenNameArray = std::array<std::string_view, static_cast<std::size_t>(ColorToken::Count)>;
+
+    const TokenNameArray kPaletteTokenNames = {
+        "surface.canvas",
+        "surface.layer",
+        "surface.layer.alt",
+        "surface.layer.active",
+        "accent.primary.base",
+        "accent.primary.hover",
+        "accent.primary.active",
+        "text.primary",
+        "text.secondary",
+        "text.disabled",
+        "border.soft",
+        "border.strong",
+        "accent.secondary.base",
+        "accent.secondary.hover",
+        "accent.secondary.active",
+        "status.success",
+        "status.warning",
+        "status.danger",
+        "status.info",
+        "surface.muted",
+        "state.highlight",
+    };
+
+    ImVec4 ToImVec(const Genesis::Style::RgbaColor& color)
+    {
+        return ImVec4(color.r, color.g, color.b, color.a);
+    }
+
+    void EnsurePaletteLoaded()
+    {
+        static std::once_flag flag;
+        std::call_once(flag, []() {
+            auto& registry = Genesis::Style::ColorRegistry::instance();
+            if (registry.isLoaded())
+            {
+                return;
+            }
+
+            std::filesystem::path base = std::filesystem::current_path();
+            bool loaded = false;
+            for (int asc = 0; asc < 5 && !loaded; ++asc)
+            {
+                const auto candidate = base / "data" / "palette" / "core.json";
+                if (std::filesystem::exists(candidate))
+                {
+                    loaded = registry.tryLoadFrom(candidate);
+                    if (loaded)
+                    {
+                        spdlog::info("DesignTokens: 已从 {} 加载调色板", candidate.string());
+                        break;
+                    }
+                }
+                base = base.parent_path();
+            }
+
+            if (!loaded)
+            {
+                spdlog::warn("DesignTokens: 未能加载外部调色板配置，将使用内置颜色表");
+            }
+        });
+    }
+
+    std::optional<ImVec4> ResolvePaletteColor(ColorToken token)
+    {
+        EnsurePaletteLoaded();
+        auto& registry = Genesis::Style::ColorRegistry::instance();
+        if (!registry.isLoaded())
+        {
+            return std::nullopt;
+        }
+
+        const auto index = static_cast<std::size_t>(token);
+        if (index >= kPaletteTokenNames.size())
+        {
+            return std::nullopt;
+        }
+
+        const auto& tokenName = kPaletteTokenNames[index];
+        if (tokenName.empty())
+        {
+            return std::nullopt;
+        }
+
+        const auto color = registry.color(tokenName, Genesis::Style::ColorSpace::SRGB);
+        if (!color)
+        {
+            spdlog::warn("DesignTokens: 调色板缺少 token '{}'", tokenName);
+            return std::nullopt;
+        }
+        return ToImVec(*color);
+    }
 } // namespace
 
 void DesignTokens::applyTo(ImGuiStyle &style)
 {
+    EnsurePaletteLoaded();
+
     style.WindowPadding = ImVec2(0.0f, 0.0f);
     style.FramePadding = ImVec2(0.0f, 0.0f);
     style.CellPadding = ImVec2(0.0f, 0.0f);
@@ -145,7 +250,11 @@ void DesignTokens::applyTo(ImGuiStyle &style)
 
 ImVec4 DesignTokens::color(ColorToken token)
 {
-    return kColors[static_cast<std::size_t>(token)];
+    if (const auto fromPalette = ResolvePaletteColor(token))
+    {
+        return *fromPalette;
+    }
+    return kFallbackColors[static_cast<std::size_t>(token)];
 }
 
 float DesignTokens::spacing(SpacingToken token)

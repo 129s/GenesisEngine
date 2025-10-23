@@ -1,3 +1,27 @@
+set(GENESIS_STYLE_SOURCES
+    style/ColorRegistry.cpp
+)
+
+add_library(genesis_style STATIC ${GENESIS_STYLE_SOURCES})
+add_library(Genesis::Style ALIAS genesis_style)
+
+target_include_directories(genesis_style
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_style
+    PUBLIC
+        nlohmann_json::nlohmann_json
+        spdlog::spdlog_header_only
+)
+
+set_target_properties(genesis_style PROPERTIES
+    OUTPUT_NAME "genesis_style"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
 set(GENESIS_RENDERING_SOURCES
     rendering/ProceduralAsset.cpp
     rendering/AssetPack.cpp
@@ -149,6 +173,7 @@ target_include_directories(genesis_sandbox_gui
 
 target_link_libraries(genesis_sandbox_gui
     PRIVATE
+        Genesis::Style
         Genesis::Runtime
         Genesis::Rendering
         spdlog::spdlog_header_only

@@ -201,5 +201,13 @@ struct LayerRecord {
   - 可在世界生成阶段只烘焙 `LOD1`，将 `LOD2` 延迟到首次近景需求时生成并写回缓存。
   - 对动态破坏/磨损场景，可保留 `LOD0/LOD1` 缓存，`LOD2` 运行期即时生成，以平衡质量与响应。
 
+## 实施规划（Next Steps）
+
+1. **接口落地**：在代码中声明 `ProceduralAsset`、`PixelLayer`、`LayerType`、`BlendMode`、`PixelFormat` 等公共类型，让生成库与渲染库共享同一 IR。
+2. **缓存原型**：完成 `.ppab` 文件的读写器（可从无压缩版本起步），并在启动时建立 `keyHash + lod` 索引。
+3. **生成库拆分**：把现有程序化材质/磨损逻辑迁移至素材生成库，按 LOD0/1/2 裁剪流水线步骤和参数。
+4. **渲染整合**：在渲染库中实现“缓存优先 + 即时回退”流程，依据屏幕尺寸/性能预算动态选择 LOD，并在 Sandbox 模式提供覆盖开关。
+5. **验证工具**：制作像素级回归脚本与 `.ppab` 检查工具（校验 `schemaHash`、metadata、LOD 输出），确保跨版本一致。
+
 参考
 - 材质库详见 `materials.md`；图案与抖动见 `patterns-and-dither.md`；道具 Schema 见 `props-schema.md`；灯光与磨损见 `lighting-style.md`、`wear-and-decals.md`；确定性策略见 `seed-determinism.md`。

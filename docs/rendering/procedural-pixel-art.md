@@ -42,6 +42,48 @@
   - 支持懒加载：渲染库按需请求素材，生成库依据参数返回缓存引用或现算结果。
   - 保持确定性：生成库必须满足 `f(params, seed) -> deterministic output`，渲染库负责在帧内复用相同引用，避免重复生成。
 
+### ProceduralAsset IR 细节
+```cpp
+struct ProceduralAsset {
+  Rect bounds;                       // 对象局部坐标系下的包围盒（像素单位）
+  std::vector<PixelLayer> layers;    // 逐层绘制顺序；layer[0] 最靠近底部
+  std::vector<MetadataKV> metadata;  // 附加信息（seed、材质、LOD 等）
+};
+
+struct Rect {
+  int32_t x;
+  int32_t y;
+  int32_t width;
+  int32_t height;
+};
+
+struct PixelLayer {
+  LayerType type;        // Base/Seam/Lighting/Fitting/Wear/Decal/Signage...
+  BlendMode blend;       // Opaque/AlphaStep/DitherMask/Add/Multiply 等
+  PixelFormat format;    // Index4/Index8/RGBA8888/Mask1bit
+  Int2 origin;           // layer 左上角相对于 bounds 的偏移
+  std::span<uint8_t const> payload; // 像素数据按 format 解读
+};
+
+struct MetadataKV {
+  std::string key;       // e.g. "seed", "material", "toneRampId", "lodLevel"
+  std::string value;
+};
+```
+
+- `PixelFormat`
+  - `Index4`：配合 16 色调色板（参考 `PaletteBlock`），单像素 4bit。
+  - `Index8`：256 色调色板，适合渐变或多材质情况。
+  - `RGBA8888`：直接存储 8bit RGBA，便于特殊高光/贴花。
+  - `Mask1bit`：仅两值遮罩，用于 Dither/Decal/磨损权重。
+- `BlendMode`
+  - `Opaque`：覆盖底层像素。
+  - `AlphaStep`：限制透明度为离散档（0/128/255），贴合像素风呈现。
+  - `DitherMask`：配合 `Mask1bit` 做有序抖动透明。
+  - `Add/Multiply`：用于光晕或 AO 调制。
+- `LayerType` 描述语义，便于渲染库按类型插入 Overlay、统计或做调试可视化。
+- 生成库/缓存都应返回相同 IR 结构，渲染库只需理解上述字段即可，不关心素材来源。
+
 ## 世界生成期预烘焙 vs 渲染期即时生成
 
 - **生成期预烘焙（WorldGen Bake）**

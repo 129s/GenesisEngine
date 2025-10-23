@@ -17,3 +17,12 @@
 - wear-and-decals.md — 磨损/污渍/裂纹与贴花生成
 - signage-and-text.md — 标识与文本（招牌/海报/报纸/封印）
 - seed-determinism.md — 种子与确定性（锚定/相位/哈希策略）
+
+## 渲染脉络提示
+
+1. 坐标与虚拟分辨率：`coordinate-mapping.md` 定义从世界单位到像素的映射、缩放与场景面板尺寸，是一切像素对齐的基础。
+2. 基础绘制能力：`core-primitives.md` 与 `patterns-and-dither.md` 规定了像素级图元、调色与抖动手册，支撑“零素材”策略的可读性。
+3. 语义化组合视图：`composite-visuals.md`、`world-alignment.md`、`knowledge-fog.md` 说明如何把世界语义映成 Scene/Portal/互动节点，并在 Game 模式下处理知识雾。
+4. 模式与叠加层：`overlays-and-modes.md` 约束 Sandbox/Game 差异，保证调试层不会泄漏到正式玩法中。
+5. 程序化像素美术流水线：从 `procedural-pixel-art.md` 的七步流程出发，细分为材质（`materials.md`）、图案（`patterns-and-dither.md`）、道具 Schema（`props-schema.md`）、灯光（`lighting-style.md`）、磨损贴花（`wear-and-decals.md`）、标识文本（`signage-and-text.md`）。
+6. 性能与确定性：`performance-and-testing.md` 设定批次、图层和预算；`seed-determinism.md` 确保所有程序化元素在任意平台和重放下保持一致。

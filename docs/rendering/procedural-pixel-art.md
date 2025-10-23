@@ -139,6 +139,9 @@ struct AssetEntry {
   uint32_t height;        // bounds 高度
   uint16_t layerCount;
   uint16_t metadataCount;
+  uint8_t lodLevel;       // 0/1/2
+  uint8_t reserved0;
+  uint16_t reserved1;
   uint64_t layerTableOffset;
   uint64_t metadataOffset;
 };

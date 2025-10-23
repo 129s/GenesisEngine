@@ -1,3 +1,23 @@
+set(GENESIS_RENDERING_SOURCES
+    rendering/ProceduralAsset.cpp
+    rendering/AssetPack.cpp
+    rendering/AssetCache.cpp
+)
+
+add_library(genesis_rendering STATIC ${GENESIS_RENDERING_SOURCES})
+add_library(Genesis::Rendering ALIAS genesis_rendering)
+
+target_include_directories(genesis_rendering
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+set_target_properties(genesis_rendering PROPERTIES
+    OUTPUT_NAME "genesis_rendering"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
 set(GENESIS_WORLDGEN_SOURCES
     worldgen/ConfigLoader.cpp
     worldgen/Context.cpp
@@ -118,6 +138,7 @@ target_link_libraries(genesis_sandbox_cli
     PRIVATE
         Genesis::Runtime
         Genesis::Engine
+        Genesis::Rendering
         spdlog::spdlog
         nlohmann_json::nlohmann_json
 )
@@ -153,6 +174,7 @@ target_include_directories(genesis_sandbox_gui
 target_link_libraries(genesis_sandbox_gui
     PRIVATE
         Genesis::Runtime
+        Genesis::Rendering
         spdlog::spdlog_header_only
         imgui::imgui
         glfw

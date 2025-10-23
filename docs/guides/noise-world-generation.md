@@ -35,17 +35,16 @@ build/src/genesis-noise-generator.exe --seed=1337 --width=64 --height=64 \
 - 命令行参数与脚本一致，均支持 `key=value` 形式。
 - 运行目录建议置于仓库根目录，方便直接写入 `data/`。
 
-## Sandbox CLI 快速运行
+## Sandbox GUI 快速检查
 
 ```bash
-cmake --build build --target genesis_sandbox_cli
-build/src/genesis-sandbox-cli --generate-noise --auto-run --no-clear --fps 0
+cmake --build build --target genesis_sandbox_gui
+./build/src/genesis-sandbox-gui.exe
 ```
 
-- `--generate-noise` 使用默认参数即时生成噪声世界（可通过 `--noise-*` 系列参数调整种子、尺寸与资源配置）。
-- `--auto-run` 连续推进模拟，适合观察完整 NPC 生命周期；需要停止时使用 `Ctrl+C` 或在 `--commands` 中追加 `quit`。
-- `--no-clear`/`--fps 0` 便于录像或快速回放，可按需移除以降低刷新频率。
-- CLI 会自动读取生成的布局并在 Legend 行标注 `A/M/C/F` 符号。
+- 启动后在 World Generation 面板提交 `world.generate` / `world.load` 命令即可加载新增数据（详见 `docs/guides/sandbox_gui_smoke.md`）。
+- Map View/Inspector 会实时展示资源刷新、代理行为与 Telemetry 指标，可替代历史 CLI 的 ASCII 观察。
+
 ## CMake 集成目标
 
 ```bash
@@ -58,25 +57,15 @@ cmake --build build --target generate_noise_world
 ## 输出内容
 
 - `data/world/generated/noise_mvp.json`：`LocationGraph` JSON（节点含 `terrain` 标签，边为可通行关系，资源点为 `Food`）。
-- `data/world/generated/noise_mvp_layout.json`：配套 ASCII 布局，`sandbox_cli` 可通过 `--layout` 参数加载可视化。
-
-生成后可使用 `scripts/run_sandbox_cli.ps1` 并指定新布局观察资源刷新与 NPC 行为。
+- `data/world/generated/noise_mvp_layout.json`：配套布局数据（历史 ASCII 渲染使用）；可留作离线调试或自定义可视化之用。
 
 ## 运行时加载
 
 - 运行时不再自带演示世界，需要显式调用 `Runtime::loadWorldFromFile(path)`（或在 `RuntimeConfig::initialWorldPath` 中配置）加载生成结果。
-- `scripts/run_sandbox_cli.ps1` 与 `--generate-noise` 参数会将生成的世界路径写入运行时配置，也可在 CLI/GUI 的“World Generation”面板手动选择并加载。
+- 可通过 GUI 的 World Generation 面板选择生成好的世界并加载，或在 `RuntimeConfig::initialWorldPath` 里设置路径实现自动加载。
 - 加载成功后 Demo 代理会在图中选取可通行节点作为出生点，资源刷新逻辑保持不变。
 
 ## 验证 NPC 闭环
 
-```powershell
-pwsh ./scripts/run_sandbox_cli.ps1 -UseGeneratedWorld `
-    -Commands "step 5;pause;resume;step 40;quit" -NoClear
-```
-
-- 该脚本会临时设置 `GENESIS_WORLD_PATH` 指向 `data/world/generated/noise_mvp.json` 并使用匹配的布局。
-- CLI 输出的 `Actions:` 区域可观察到 `MoveTo` → `ConsumeResource` 的循环，同时 `Needs:` 显示 Hunger 数值在消费后回落。
-- 建议加上 `-NoClear` 便于截屏或录屏，终端顶部的 Legend 行会标注 `A/M/C/F` 等符号含义，可直接用于文档截图。
-- 自动化回归可参考 `tests/test_runtime.cpp` 中的 `AgentCompletesConsumeCycleOnNoiseWorld`，通过 Telemetry 验证移动与消费步骤及饥饿下降。
+在 GUI 中可通过命令队列加载生成的世界并观察 Map View/Telemetry 中的 `MoveTo → ConsumeResource` 循环；若需程序化验证，可参考 `tests/test_runtime.cpp` 中的 `AgentCompletesConsumeCycleOnNoiseWorld`（Telemetry 断言移动、消费与饥饿下降）。
 

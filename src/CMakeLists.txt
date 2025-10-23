@@ -123,30 +123,6 @@ set_target_properties(genesis_engine_app PROPERTIES
     OUTPUT_NAME "genesis-engine"
 )
 
-add_executable(genesis_sandbox_cli
-    apps/sandbox_cli/Main.cpp
-    sandbox/CliApp.cpp
-    sandbox/CliRenderer.cpp
-)
-
-target_include_directories(genesis_sandbox_cli
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
-
-target_link_libraries(genesis_sandbox_cli
-    PRIVATE
-        Genesis::Runtime
-        Genesis::Engine
-        Genesis::Rendering
-        spdlog::spdlog
-        nlohmann_json::nlohmann_json
-)
-
-set_target_properties(genesis_sandbox_cli PROPERTIES
-    OUTPUT_NAME "genesis-sandbox-cli"
-)
-
 add_executable(genesis_sandbox_gui
     apps/sandbox_gui/Main.cpp
     sandbox/gui/AppHostCore.cpp

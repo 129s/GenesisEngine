@@ -8,7 +8,7 @@
 ## 架构取舍
 - 图作为元结构：先不引入 Tile 层寻路，使用 `LocationGraph` 抽象“区域/单元格”。
 - 简化建模：将噪声阈值后的连通分量或网格单元映射为 `LocationNode`；用 4 邻接/8 邻接生成 `PathEdge`。
-- CLI 展示：用现有 Layout（id→x,y）渲染。对规则网格可自动生成布局 JSON（行列→x,y）。
+- GUI 展示：借助 Sandbox GUI 的 Map View/Inspector 观察行为；仍可根据 Layout（id→x,y）生成布局 JSON 供离线可视化使用。
 
 ## 交付物（Deliverables）
 1. 世界生成（P0）
@@ -18,20 +18,20 @@
    - 资源：在 `Soil` 上按密度采样 `ResourceSpawn{ Food, capacity, ratePerStep }`。
    - 输出：写入 `data/world/generated/noise_mvp.json` 与匹配的 `data/ascii_layout.json`（自动生成）。
 2. 运行时接入
-   - Engine 通过显式 `loadWorldFromFile` 接口加载噪声世界（脚本/CLI 会传入生成结果路径），不再依赖 demo 回退。
+   - Engine 通过显式 `loadWorldFromFile` 接口加载噪声世界（脚本/GUI 命令队列会传入生成结果路径），不再依赖 demo 回退。
    - 资源系统：沿用当前 `ratePerStep` 增产逻辑（固定刷新）。
 3. NPC 基本循环
    - 维持现有 Need/Hunger/Planner/Action 流程；将代理初始落点设置在可通行节点上。
    - 验证代理可在图上移动到 Food 资源点并消费，需求回落后再次进入循环。
-4. CLI 支持
-   - 使用生成的布局 JSON（按网格行列生成 x,y），在 ASCII 网格观察 `A/M/C/F` 分布与变化。
+4. 可视化支持
+   - 使用 Sandbox GUI Map View 或自定义工具加载布局数据，观察 `A/M/C/F` 分布与变化。
 
 ## 验收标准（Acceptance Criteria）
 - 生成：相同 seed → 相同 `noise_mvp.json`；不同 seed → 不同拓扑。
 - 地形：统计占比近似阈值预期（例如阈值 0.5 时两类大致接近 1:1）。
 - 资源：Food 刷新稳定，`current` 单调趋近 `capacity`，消费时下降。
 - NPC：在若干步内从初始点移动到最近 Food 点，执行 `ConsumeResource`，Hunger 值降低；随后继续循环。
-- CLI：`render` 能显示 `F`（资源）、`M/C`（移动/消费）、`A`（代理），步进时可见状态变化。
+- 可视化：Map View 或其他可视化能显示 `F`（资源）、`M/C`（移动/消费）、`A`（代理），步进时可见状态变化。
 
 ## 实施步骤（Milestones）
 1) 生成器与布局脚本（或内置）
@@ -41,10 +41,10 @@
 
 2) 数据接入
 - 在 `scripts/` 增加生成命令（PowerShell/Python）产出 world+layout。
-- Engine 加载该 world；或 CLI 接受 `--layout` 指向生成布局。
+- Engine 加载该 world；GUI 可通过命令队列读取生成结果。
 
 3) 行为验证
-- 启动 CLI，固定脚本命令：`step 5; pause; resume; step 30; quit`。
+- 启动 Sandbox GUI，使用命令队列/播放控制执行固定步数。
 - 观察 Telemetry：`actions` 出现 `MoveTo/ConsumeResource`，`needs` 中 Hunger 波动符合预期。
 
 ## 非目标（本轮不做）
@@ -59,7 +59,7 @@
 - **Phase 1 · 生成器基础**（已完成）：实现 `NoiseGridGenerator`，构建 `LocationGraph`、资源采样与 JSON 导出，并补齐单元测试。
 - **Phase 2 · 命令与自动化**（已交付 CLI `genesis-noise-generator` 与脚本 `scripts/generate_noise_world.ps1`）：提供脚本/命令行一键生成噪声地图，接入构建流程并更新操作指南。
 - **Phase 3 · 运行时接入**：引擎可通过配置参数显式加载噪声地图，维持资源刷新，并自动挑选可通行节点投放初始代理。
-- **Phase 4 · NPC 生命周期验证**（已完成：脚本化步骤 + Telemetry 校验）：在 `sandbox_cli` 中使用固定脚本复现 `MoveTo → ConsumeResource` 闭环，并通过自动化测试记录 Hunger 波动。
-- **Phase 5 · CLI 可视化支持**：渲染 ASCII 布局、补充验证指引。详见 `docs/status/backlog/noise-map-mvp.md`。
+- **Phase 4 · NPC 生命周期验证**（已完成：脚本化步骤 + Telemetry 校验）：在 Sandbox GUI 中执行固定脚本复现 `MoveTo → ConsumeResource` 闭环，并通过自动化测试记录 Hunger 波动。
+- **Phase 5 · 可视化支持**：完善 GUI Map View 展示与验证指引。详见 `docs/status/backlog/noise-map-mvp.md`。
 
 

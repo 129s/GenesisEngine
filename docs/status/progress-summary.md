@@ -31,7 +31,7 @@
   - Map View 增加选中高亮、Agent 圆环强调及“一键定位/Scene 打开”按钮；支持跟随模式自动切换 Scene View。
   - 将 Runtime 事件日志与需求 diff 整合进 Inspector，便于定位命令执行结果与本帧变化。
 - 构建与测试稳定性改进：
-  - 为 `genesis_sandbox_cli` 增加 `Genesis::Engine` 链接，修复噪声世界生成符号缺失导致的链接错误。
+  - 移除遗留的 `genesis_sandbox_cli` 目标及其测试脚本，避免重复维护 ASCII 工具链。
   - 为 `genesis_runtime_tests` 增加 `Genesis::Engine` 链接，避免 Windows 下跨模块静态库初始化差异带来的崩溃。
   - 在 `Runtime` 中初始化 SPDLOG 缺省 logger（最佳努力，不干扰外部设置）。
   - 全部测试通过（33/33）。
@@ -50,8 +50,8 @@
 - 移动系统：新增 MovementSystem，通过 MovementIntent/MovementState 驱动 Agent 沿图搜索路径移动，同时调整 NeedSatisfier 仅在抵达目标后执行资源消耗，并补充对应单元测试。
 - 任务执行：落地 ActionExecutor 及 ActionQueue，将 Planner 决策映射到移动/消耗任务，联动 MovementSystem、ResourceSystem 与 NeedSystem，补充对应单元测试验证任务调度与饥饿恢复。
 - 遥测与日志：引入 TelemetryBuffer 捕获资源快照、需求状态、规划决策，并新增行动队列与代理位置快照；周期性输出资源/饥饿/平均旅行成本等核心指标。
-- 实时沙盒：抽象出 genesis_runtime 动态库，并基于其实现 sandbox_cli，提供实时步进/暂停与 ASCII 观测；新增 scripts/run_sandbox_cli.ps1 脚本快速启动调试会话。
-- 测试覆盖：补充 SimulationClock、WorldRegistry/Loader、ResourceSystem、NeedSatisfier、HungerPlanner 以及 TelemetryBuffer 的单元测试，维持自动化构建通过；扩展 ctest 增加 runtime/CLI 烟雾测试。
+- 实时沙盒：抽象出 genesis_runtime 动态库，并基于其实现 sandbox_gui，提供实时步进/暂停与可视化调试；参考 `docs/guides/sandbox_gui_smoke.md` 获取操作指引。
+- 测试覆盖：补充 SimulationClock、WorldRegistry/Loader、ResourceSystem、NeedSatisfier、HungerPlanner 以及 TelemetryBuffer 的单元测试，维持自动化构建通过；扩展 ctest 增加 runtime 烟雾测试。
 - 规划路线：整理 Utility Planner 迭代路线图，明确各阶段目标、风险与依赖。
 - 工具链验证：在 MinGW 环境下确认 `gcc`/`g++` 15.2.0 与 `mingw32-make` 4.4.1 可用，为后续本地构建提供保障。
 
@@ -69,7 +69,7 @@
 > 目标：在未来 10～14 天内补齐 GUI 运行时桥接、可回归验证与协议文档，为 Scene/Interactive 重构与 Inspector 深化提供稳定基线。
 
 - 运行时桥接增强：完善命令队列在 `RuntimeBridge` 中的接入，提供示例脚本验证事件注入/回放，并确保线程模型与 GUI 消费逻辑一致。
-- GUI 自动化覆盖：固化端到端闭环测试场景（饥饿→规划→行动→补给）并替换原 CLI 烟雾脚本；补充 24 小时 soak 流程采集饥饿/库存/旅行成本指标。
+- GUI 自动化覆盖：固化端到端闭环测试场景（饥饿→规划→行动→补给），原 CLI 烟雾脚本已移除；补充 24 小时 soak 流程采集饥饿/库存/旅行成本指标。
 - Telemetry 与协议文档：统一快照 diff / Telemetry schema，扩写 `docs/architecture/runtime_api.md` 与 Inspector 数据字典，约束前端消费契约并做好版本标记。
 
 ### 关键里程碑与交付

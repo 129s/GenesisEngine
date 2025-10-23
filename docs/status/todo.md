@@ -14,17 +14,12 @@
 - [x] Runtime 命令队列接入 GUI `RuntimeBridge`，提供回放/标记示例脚本（↑ Sprint-2 核心）。
 
 ## Noise Map MVP
-- [x] Phase 5 完成：参照 `docs/status/backlog/noise-map-mvp.md`（可视化指引与 CLI 增强已落地）。
+- [x] Phase 5 完成：参照 `docs/status/backlog/noise-map-mvp.md`（可视化指引与 GUI 增强已落地）。
 
 ## Scene/Interactive 重构（MVP）
 - [ ] Scene 子节点布局描述解析，填充 `coord_local`/`coord_global`（兼容旧数据）。
 - [ ] Portal 锚点 `anchors{ at_from, at_to }` 读写契约与运行时查询。
 - [ ] GUI 渲染读取锚点/交互坐标并绘制调试标记。
-
-## Sandbox CLI
-- [x] 重构现有 ASCII 播放器为 `sandbox_cli`，实时调用运行时 API。
-- [ ] 支持基本控制命令：`pause`、`resume`、`step`, `inspect agent <id>`。
-- [x] 保留 ASCII 视图，基于实时快照刷新，而非读取离线 JSON。
 
 ## Sandbox GUI（新）
 - [ ] GUI 框架引导（GLFW + OpenGL + ImGui），新目标 `genesis_sandbox_gui`。
@@ -36,13 +31,12 @@
 - [ ] Telemetry 面板指标卡片与阈值配置。
 
 ## Tooling & Docs
-- [x] 更新测试，验证共享库加载及 CLI 运行。
-- [x] 扩写 `architecture.md`/`sandbox-cli.md` 中的运行时使用说明。
+- [x] 更新测试，验证共享库加载及 GUI 运行。
+- [x] 扩写 `architecture.md` 与运行时使用说明。
 - [ ] 预留后续 `sandbox_gui`/`game` 接入指引。
 
 ### 已拆分的 Backlog（便于迁移为 Issue）
 - 运行时重构：`docs/status/backlog/runtime-refactor.md`
-- Sandbox CLI：`docs/status/backlog/sandbox-cli.md`
 - Sandbox GUI：`docs/status/backlog/sandbox-gui.md`
 - Tooling & Docs：`docs/status/backlog/tooling-docs.md`
 

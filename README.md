@@ -1,16 +1,16 @@
 # GenesisEngine
 
-GenesisEngine 是一个以“涌现式叙事模拟”为目标的 C++ 引擎核心，强调可扩展、可观测与可复用。核心模拟逻辑以 `genesis_runtime` 动态库对外提供统一 API，前端（CLI/GUI/Game）共享同一运行时。
+GenesisEngine 是一个以“涌现式叙事模拟”为目标的 C++ 引擎核心，强调可扩展、可观测与可复用。核心模拟逻辑以 `genesis_runtime` 动态库对外提供统一 API，前端（GUI/Game）共享同一运行时。
 
 ## 快速开始
-- 构建与运行沙盒 CLI：见 `docs/guides/sandbox-cli.md`
+- 构建与运行沙盒 GUI：见 `docs/guides/sandbox_gui_smoke.md`
 - 架构与设计原则：见 `docs/architecture/README.md`、`docs/architecture/VISION.md`
 - 统一路线图与里程碑：见 `docs/roadmap/README.md`
 - 进度总览与待办：见 `docs/status/progress-summary.md`、`docs/status/todo.md`
 
 ## 目录导航
 - `docs/` 文档总览与导航见 `docs/README.md`
-- `scripts/` 包含开发与演示脚本（例如 `run_sandbox_cli.ps1`）
+- `scripts/` 包含开发与演示脚本
 - `build/` 为构建输出目录（建议使用 `cmake -S . -B build` 创建）
 
 ## 贡献

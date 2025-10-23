@@ -82,18 +82,8 @@ add_test(
 )
 
 set(GENESIS_ENGINE_APP_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-engine${CMAKE_EXECUTABLE_SUFFIX})
-set(GENESIS_SANDBOX_CLI_EXECUTABLE ${CMAKE_BINARY_DIR}/src/genesis-sandbox-cli${CMAKE_EXECUTABLE_SUFFIX})
-
 add_test(
     NAME GenesisEngine_E2E
     COMMAND ${GENESIS_ENGINE_APP_EXECUTABLE} --steps=60 --telemetry-file ${CMAKE_BINARY_DIR}/telemetry_e2e.json
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
-
-add_test(
-    NAME GenesisSandboxCLI_Script
-    COMMAND ${CMAKE_COMMAND} -E env "PATH=${CMAKE_BINARY_DIR}/src;$ENV{PATH}" ${GENESIS_SANDBOX_CLI_EXECUTABLE} --layout ${CMAKE_SOURCE_DIR}/data/ascii_layout.json --commands "step 5;pause;resume;step 3;quit" --no-clear
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
-set_tests_properties(GenesisSandboxCLI_Script PROPERTIES DEPENDS GenesisEngine_E2E)

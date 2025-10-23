@@ -27,5 +27,20 @@
 - 场景主题：Scene/Interactive 的 `metadata.theme/material` 指示材质与参数范围；
 - 生成结果不回写世界模型，仅渲染层消费。
 
+## 库拆分建议：生成 vs 渲染
+
+- **素材生成库（Procedural Asset Library）职责**
+  - 提供材质、图案、磨损、贴花等生成函数，输出中立的 `PixelLayer/Mask` 或参数化描述（例如 `MaterialDescriptor`、`DecalDescriptor`）。
+  - 负责 seed 管理、相位锚定、ToneRamp/Palette 查表以及缓存策略（同一 seed + 参数组合只生成一次，供多个对象复用）。
+  - 对外暴露纯函数式接口，便于离线预烘焙或测试；不依赖渲染上下文。
+- **渲染库职责**
+  - 读取 `WorldAtlas`/`SimulationSnapshot`，结合素材生成库产出的素材描述，完成 draw list 组装与像素输出。
+  - 管理图层顺序、批次、相机、Overlay 与策略；对素材只关心“怎么摆放”和“在哪个批次绘制”。
+  - 允许通过依赖注入选择具体素材生成实现（默认零素材版本，可扩展为自定义材质包）。
+- **接口建议**
+  - 定义中间表示（IR）：`struct ProceduralAsset { PixelLayer layers[]; Rect bounds; Metadata tags; }`，渲染库按场景需求把 IR 投射到最终像素。
+  - 支持懒加载：渲染库按需请求素材，生成库依据参数返回缓存引用或现算结果。
+  - 保持确定性：生成库必须满足 `f(params, seed) -> deterministic output`，渲染库负责在帧内复用相同引用，避免重复生成。
+
 参考
 - 材质库详见 `materials.md`；图案与抖动见 `patterns-and-dither.md`；道具 Schema 见 `props-schema.md`；灯光与磨损见 `lighting-style.md`、`wear-and-decals.md`；确定性策略见 `seed-determinism.md`。

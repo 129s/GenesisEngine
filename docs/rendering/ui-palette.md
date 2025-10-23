@@ -1,32 +1,32 @@
 # Sandbox GUI 配色方案（Serum 2 取样）
 
-> 参考 Xfer Serum 2 界面，统一 Sandbox GUI 的冷色系基调与交互状态。色值以 sRGB 十六进制记录，并在 `DesignTokens` 中以 0–1 浮点配置。
+> 参考 Xfer Serum 2 界面（`build/src/serum.png`），统一 Sandbox GUI 的冷色系基调与交互状态。色值由脚本对目标区域取样（均值 + 亮度调整）得到，以 sRGB 十六进制记录，并在 `DesignTokens` 中换算为 0–1 浮点。
 
 ## 色板总览
 
 | Token | Hex | 用途 | 备注 |
 | --- | --- | --- | --- |
-| `Canvas` | `#0D141D` | 全局背景、Dock 空白 | 最暗背景，保持 UI 层浮起感 |
-| `Surface` | `#152030` | 一级面板、Child 窗口 | 与 Canvas 形成 1 级对比 |
-| `SurfaceAlt` | `#1C2B3A` | 次级容器、分组背景 | 在列表/树节点默认态使用 |
-| `SurfaceActive` | `#23364B` | Hover 时的底层提升 | 适用于分组/按钮 hover 底色 |
-| `Primary` | `#32AEEF` | 主要操作按钮默认态 | 大按钮、主要滑块、active 图标 |
-| `PrimaryHover` | `#41BDFB` | 主要操作 hover | 相比默认态增亮 8% |
-| `PrimaryActive` | `#1E86D0` | 主要操作按下/选中 | 亦作为“聚焦”高亮色 |
-| `Accent` | `#4CC5E7` | 二级强调、描边 | 用于链接、装饰线条 |
-| `AccentHover` | `#5ED2F1` | 二级强调 hover | 用于细控件 hover |
-| `AccentActive` | `#2A9AD4` | 二级强调 active | Secondary 操作按下态 |
-| `TextPrimary` | `#EBF3FD` | 主体文字 | 高对比白蓝 |
-| `TextSecondary` | `#AFC4DD` | 次级文字/说明 | 比主文本低 30% 对比 |
-| `TextDisabled` | `#5D748C` | 禁用文字 | 低对比但仍可辨认 |
-| `BorderSoft` | `#213142` | 默认描边/分隔线 | Dock/Panel 细描边 |
-| `BorderStrong` | `#111A27` | 强分割线/焦点描边 | 选中状态外围描边 |
-| `Success` | `#6FF484` | 成功状态、指标高亮 | Neon 绿，少量使用 |
+| `Canvas` | `#191D21` | 全局背景、Dock 空白 | 取自顶部仪表板暗区 |
+| `Surface` | `#20262B` | 一级面板、Child 窗口 | 主内容区大面积底色 |
+| `SurfaceAlt` | `#23292E` | 次级容器、分组背景 | 表格/列表常态底色 |
+| `SurfaceActive` | `#272C32` | Hover 时的底层提升 | 按钮/树节点 hover 背景 |
+| `Primary` | `#32C3FF` | 主要操作按钮默认态 | 取自路径编辑按钮 |
+| `PrimaryHover` | `#51CCFF` | 主要操作 hover | 亮度 +10% 的 Primary |
+| `PrimaryActive` | `#00B4FF` | 主要操作按下/选中 | 波形面板明亮蓝线 |
+| `Accent` | `#40B5A0` | 二级强调、描边 | 旋钮内圈青绿色 |
+| `AccentHover` | `#4DC0AC` | 二级强调 hover | Accent 提升 12% |
+| `AccentActive` | `#369A88` | 二级强调 active | Accent 压低亮度后的色值 |
+| `TextPrimary` | `#B1C5CC` | 主体文字 | 顶部标签与信息文本 |
+| `TextSecondary` | `#8193A1` | 次级文字/说明 | 滑块数值说明 |
+| `TextDisabled` | `#627079` | 禁用文字 | 次级按钮/禁用指标 |
+| `BorderSoft` | `#2F393D` | 默认描边/分隔线 | 分割线及卡片描边 |
+| `BorderStrong` | `#08090A` | 强分割线/焦点描边 | 取自顶栏黑色线条 |
+| `Success` | `#6CFF00` | 成功状态、指标高亮 | OSC 绿灯，与叶子条目渐变共用 |
 | `Warning` | `#FFC857` | 警告提示 | 与冷背景仍保持可读 |
 | `Danger` | `#FF6B6B` | 错误/危险 | 禁止与 Toast 错误态 |
-| `Info` | `#57C9FF` | 信息提示/路径强调 | Toast、路径提示 |
-| `Muted` | `#34455C` | 次级表面/禁用背景 | 表格交替底色、禁用控件 |
-| `Highlight` | `#9BE0FF` | 特殊高亮/指示线 | 轨迹、动态指示 |
+| `Info` | `#32C3FF` | 信息提示/路径强调 | 与 Primary 同调，避免费色漂移 |
+| `Muted` | `#293234` | 次级表面/禁用背景 | 表格交替底色、禁用控件 |
+| `Highlight` | `#DAEFFF` | 特殊高亮/指示线 | 取自下方钢琴键高光 |
 
 ## 列表/树节点状态矩阵（初版）
 

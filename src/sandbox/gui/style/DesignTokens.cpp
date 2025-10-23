@@ -10,27 +10,27 @@ namespace
     using SpacingArray = std::array<float, static_cast<std::size_t>(SpacingToken::Count)>;
 
     const ColorArray kColors = {
-        /* Canvas */ ImVec4(0.051f, 0.078f, 0.114f, 1.0f),        // #0D141D
-        /* Surface */ ImVec4(0.082f, 0.125f, 0.188f, 1.0f),       // #152030
-        /* SurfaceAlt */ ImVec4(0.110f, 0.169f, 0.227f, 1.0f),    // #1C2B3A
-        /* SurfaceActive */ ImVec4(0.137f, 0.212f, 0.294f, 1.0f), // #23364B
-        /* Primary */ ImVec4(0.196f, 0.682f, 0.937f, 1.0f),       // #32AEEF
-        /* PrimaryHover */ ImVec4(0.255f, 0.741f, 0.984f, 1.0f),  // #41BDFB
-        /* PrimaryActive */ ImVec4(0.118f, 0.525f, 0.816f, 1.0f), // #1E86D0
-        /* TextPrimary */ ImVec4(0.922f, 0.953f, 0.992f, 1.0f),   // #EBF3FD
-        /* TextSecondary */ ImVec4(0.686f, 0.769f, 0.867f, 1.0f), // #AFC4DD
-        /* TextDisabled */ ImVec4(0.365f, 0.455f, 0.549f, 1.0f),  // #5D748C
-        /* BorderSoft */ ImVec4(0.129f, 0.192f, 0.259f, 1.0f),    // #213142
-        /* BorderStrong */ ImVec4(0.067f, 0.102f, 0.153f, 1.0f),  // #111A27
-        /* Accent */ ImVec4(0.298f, 0.773f, 0.906f, 1.0f),        // #4CC5E7
-        /* AccentHover */ ImVec4(0.369f, 0.824f, 0.945f, 1.0f),   // #5ED2F1
-        /* AccentActive */ ImVec4(0.165f, 0.604f, 0.831f, 1.0f),  // #2A9AD4
-        /* Success */ ImVec4(0.435f, 0.957f, 0.518f, 1.0f),       // #6FF484
+        /* Canvas */ ImVec4(0.098f, 0.114f, 0.129f, 1.0f),        // #191D21
+        /* Surface */ ImVec4(0.125f, 0.149f, 0.169f, 1.0f),       // #20262B
+        /* SurfaceAlt */ ImVec4(0.137f, 0.161f, 0.180f, 1.0f),    // #23292E
+        /* SurfaceActive */ ImVec4(0.153f, 0.173f, 0.196f, 1.0f), // #272C32
+        /* Primary */ ImVec4(0.196f, 0.765f, 1.000f, 1.0f),       // #32C3FF
+        /* PrimaryHover */ ImVec4(0.318f, 0.800f, 1.000f, 1.0f),  // #51CCFF
+        /* PrimaryActive */ ImVec4(0.000f, 0.706f, 1.000f, 1.0f), // #00B4FF
+        /* TextPrimary */ ImVec4(0.694f, 0.773f, 0.800f, 1.0f),   // #B1C5CC
+        /* TextSecondary */ ImVec4(0.506f, 0.576f, 0.631f, 1.0f), // #8193A1
+        /* TextDisabled */ ImVec4(0.384f, 0.439f, 0.475f, 1.0f),  // #627079
+        /* BorderSoft */ ImVec4(0.184f, 0.224f, 0.239f, 1.0f),    // #2F393D
+        /* BorderStrong */ ImVec4(0.031f, 0.035f, 0.039f, 1.0f),  // #08090A
+        /* Accent */ ImVec4(0.251f, 0.710f, 0.627f, 1.0f),        // #40B5A0
+        /* AccentHover */ ImVec4(0.302f, 0.753f, 0.675f, 1.0f),   // #4DC0AC
+        /* AccentActive */ ImVec4(0.212f, 0.604f, 0.533f, 1.0f),  // #369A88
+        /* Success */ ImVec4(0.424f, 1.000f, 0.000f, 1.0f),       // #6CFF00
         /* Warning */ ImVec4(1.000f, 0.784f, 0.341f, 1.0f),       // #FFC857
         /* Danger */ ImVec4(1.000f, 0.420f, 0.420f, 1.0f),        // #FF6B6B
-        /* Info */ ImVec4(0.341f, 0.788f, 1.000f, 1.0f),          // #57C9FF
-        /* Muted */ ImVec4(0.204f, 0.271f, 0.361f, 1.0f),         // #34455C
-        /* Highlight */ ImVec4(0.608f, 0.878f, 1.000f, 1.0f),     // #9BE0FF
+        /* Info */ ImVec4(0.196f, 0.765f, 1.000f, 1.0f),          // #32C3FF
+        /* Muted */ ImVec4(0.161f, 0.196f, 0.204f, 1.0f),         // #293234
+        /* Highlight */ ImVec4(0.855f, 0.937f, 1.000f, 1.0f),     // #DAEFFF
     };
 
     constexpr SpacingArray kSpacing = {

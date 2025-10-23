@@ -265,19 +265,31 @@ namespace
 
         const bool highlightText = hasFilter && node.selfMatches;
         std::string nodeId = key + "##browser_tree";
+        const ImVec4 focusColor = Style::DesignTokens::color(Style::ColorToken::AccentActive);
+        const ImVec4 hoverColor = Style::DesignTokens::color(Style::ColorToken::AccentHover);
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hoverColor);
+        ImGui::PushStyleColor(ImGuiCol_HeaderActive, focusColor);
+        int selectionHeaderPushes = 0;
+
         LeafColorSet leafColors{};
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        const ImVec2 cursorScreen = ImGui::GetCursorScreenPos();
+        const float rowHeight = ImGui::GetFrameHeight();
+        const ImVec2 rowMin(window->WorkRect.Min.x, cursorScreen.y);
+        const ImVec2 rowMax(window->WorkRect.Max.x, cursorScreen.y + rowHeight);
         if (isLeaf)
         {
             leafColors = colorForLeaf(node.path);
-            ImGuiWindow* window = ImGui::GetCurrentWindow();
-            const ImVec2 cursorScreen = ImGui::GetCursorScreenPos();
-            const float rowHeight = ImGui::GetFrameHeight();
-            const ImVec2 rowMin(window->WorkRect.Min.x, cursorScreen.y);
-            const ImVec2 rowMax(window->WorkRect.Max.x, cursorScreen.y + rowHeight);
             ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, ImGui::GetColorU32(leafColors.normal));
             ImGui::PushStyleColor(ImGuiCol_Header, leafColors.active);
             ImGui::PushStyleColor(ImGuiCol_HeaderHovered, leafColors.hover);
             ImGui::PushStyleColor(ImGuiCol_HeaderActive, leafColors.active);
+            selectionHeaderPushes = 3;
+        }
+        else if (isSelected)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Header, focusColor);
+            selectionHeaderPushes = 1;
         }
         if (highlightText)
         {
@@ -289,15 +301,17 @@ namespace
         bool renderChildren = open && !isLeaf;
         const ImGuiID itemId = ImGui::GetItemID();
 
-        if (isLeaf)
-        {
-            ImGui::PopStyleColor(3);
-        }
-
         if (highlightText)
         {
             ImGui::PopStyleColor();
         }
+
+        if (selectionHeaderPushes > 0)
+        {
+            ImGui::PopStyleColor(selectionHeaderPushes);
+        }
+
+        ImGui::PopStyleColor(2);
 
         if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
         {

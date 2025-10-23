@@ -9,6 +9,20 @@
 namespace Genesis::Sandbox::Gui
 {
 
+struct SceneViewportRenderState
+{
+    const SceneNodeDetails* details{nullptr};
+    SceneNodeGridInfo grid{};
+    float viewOriginX{0.0f};
+    float viewOriginY{0.0f};
+    float viewWidthTiles{0.0f};
+    float viewHeightTiles{0.0f};
+    float cellPx{1.0f};
+    ImVec2 canvasPos{0.0f, 0.0f};
+    ImVec2 canvasExtent{0.0f, 0.0f};
+    float canvasMargin{24.0f};
+};
+
 class InspectorView;
 
 class MainView
@@ -17,20 +31,6 @@ public:
     void render(UiContext& ctx, InspectorView& inspector);
 
 private:
-    struct SceneViewportRenderState
-    {
-        const SceneNodeDetails* details{nullptr};
-        SceneNodeGridInfo grid{};
-        float viewOriginX{0.0f};
-        float viewOriginY{0.0f};
-        float viewWidthTiles{0.0f};
-        float viewHeightTiles{0.0f};
-        float cellPx{1.0f};
-        ImVec2 canvasPos{0.0f, 0.0f};
-        ImVec2 canvasExtent{0.0f, 0.0f};
-        float canvasMargin{24.0f};
-    };
-
     ScenePresenter scene_presenter_;
     WorldPresenter world_presenter_;
     MonitorPresenter monitor_presenter_;
@@ -42,7 +42,6 @@ private:
                                                               const ScenePresenterInput& presenterInput,
                                                               const SceneNodeViewModel& nodeVm,
                                                               bool resetRequested);
-    void drawSceneMiniMap(UiContext& ctx, const std::optional<SceneViewportRenderState>& state);
     void drawWorldTab(UiContext& ctx);
     void drawMonitorTab(UiContext& ctx);
     void drawSettingsTab(UiContext& ctx);
@@ -53,7 +52,7 @@ private:
 class InspectorView
 {
 public:
-    void render(UiContext& ctx);
+    void render(UiContext& ctx, const std::optional<SceneViewportRenderState>& viewportState);
 };
 
 } // namespace Genesis::Sandbox::Gui

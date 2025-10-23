@@ -86,6 +86,198 @@ namespace Genesis::Sandbox::Gui
         }
     } // namespace
 
+    namespace
+    {
+        void DrawSceneMiniMap(UiContext &ctx, const std::optional<SceneViewportRenderState> &stateOpt)
+        {
+            const float miniHeight = 160.0f;
+            ImGui::BeginChild("SceneMiniMap", ImVec2(0.0f, miniHeight), false, ImGuiWindowFlags_NoScrollbar);
+
+            const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
+            const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, miniHeight);
+            ImGui::InvisibleButton("SceneMiniMap.Canvas", canvasSize, ImGuiButtonFlags_None);
+            const ImVec2 canvasMax = ImGui::GetItemRectMax();
+
+            ImDrawList *drawList = ImGui::GetWindowDrawList();
+            const ImU32 bgColor = ImGui::GetColorU32(ImVec4(0.08f, 0.10f, 0.14f, 0.92f));
+            const ImU32 borderColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
+            drawList->AddRectFilled(canvasMin, canvasMax, bgColor, 0.0f);
+            drawList->AddRect(canvasMin, canvasMax, borderColor, 0.0f, 0, 1.2f);
+
+            if (!stateOpt || !stateOpt->details)
+            {
+                const char *message = "无世界数据";
+                const ImVec2 textSize = ImGui::CalcTextSize(message);
+                const ImVec2 textPos{canvasMin.x + (canvasSize.x - textSize.x) * 0.5f,
+                                     canvasMin.y + (canvasSize.y - textSize.y) * 0.5f};
+                drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_TextDisabled), message);
+                ImGui::EndChild();
+                return;
+            }
+
+            const SceneViewportRenderState &state = *stateOpt;
+
+            const float margin = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
+            const ImVec2 innerMin(canvasMin.x + margin, canvasMin.y + margin);
+            const ImVec2 innerMax(canvasMax.x - margin, canvasMax.y - margin);
+            const float innerWidth = std::max(1.0f, innerMax.x - innerMin.x);
+            const float innerHeight = std::max(1.0f, innerMax.y - innerMin.y);
+
+            const SceneNodeGridInfo &grid = state.grid;
+            const float viewCenterX = state.viewOriginX + state.viewWidthTiles * 0.5f;
+            const float viewCenterY = state.viewOriginY + state.viewHeightTiles * 0.5f;
+            const float halfWidth = state.viewWidthTiles * 2.0f;
+            const float halfHeight = state.viewHeightTiles * 2.0f;
+
+            float regionMinX = std::max(static_cast<float>(grid.minX), viewCenterX - halfWidth);
+            float regionMinY = std::max(static_cast<float>(grid.minY), viewCenterY - halfHeight);
+            float regionMaxX = std::min(static_cast<float>(grid.maxX + 1), viewCenterX + halfWidth);
+            float regionMaxY = std::min(static_cast<float>(grid.maxY + 1), viewCenterY + halfHeight);
+            if (regionMaxX <= regionMinX || regionMaxY <= regionMinY)
+            {
+                regionMinX = static_cast<float>(grid.minX);
+                regionMinY = static_cast<float>(grid.minY);
+                regionMaxX = static_cast<float>(grid.maxX + 1);
+                regionMaxY = static_cast<float>(grid.maxY + 1);
+            }
+
+            const float regionWidth = regionMaxX - regionMinX;
+            const float regionHeight = regionMaxY - regionMinY;
+            const float scale = std::min(innerWidth / regionWidth, innerHeight / regionHeight);
+            const float offsetX = (innerWidth - regionWidth * scale) * 0.5f;
+            const float offsetY = (innerHeight - regionHeight * scale) * 0.5f;
+
+            auto toScreen = [&](float gx, float gy) -> ImVec2 {
+                return ImVec2(innerMin.x + offsetX + (gx - regionMinX) * scale,
+                              innerMin.y + offsetY + (gy - regionMinY) * scale);
+            };
+
+            const ImVec2 regionTopLeft = toScreen(regionMinX, regionMinY);
+            const ImVec2 regionBottomRight = toScreen(regionMaxX, regionMaxY);
+            const ImU32 regionColor = ImGui::GetColorU32(ImVec4(0.24f, 0.32f, 0.54f, 0.22f));
+            drawList->AddRectFilled(regionTopLeft, regionBottomRight, regionColor, 0.0f);
+            drawList->AddRect(regionTopLeft, regionBottomRight, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent)), 0.0f, 0, 1.4f);
+
+            const int tileMinX = std::max(static_cast<int>(std::floor(regionMinX)), grid.minX);
+            const int tileMaxX = std::min(static_cast<int>(std::ceil(regionMaxX)), grid.maxX + 1);
+            const int tileMinY = std::max(static_cast<int>(std::floor(regionMinY)), grid.minY);
+            const int tileMaxY = std::min(static_cast<int>(std::ceil(regionMaxY)), grid.maxY + 1);
+
+            const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.24f, 0.32f, 0.65f));
+            const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.20f, 0.28f, 0.65f));
+            for (int y = tileMinY; y < tileMaxY; ++y)
+            {
+                for (int x = tileMinX; x < tileMaxX; ++x)
+                {
+                    if (x < grid.minX || x >= grid.maxX + 1 || y < grid.minY || y >= grid.maxY + 1)
+                    {
+                        continue;
+                    }
+                    const ImVec2 cellMin = toScreen(static_cast<float>(x), static_cast<float>(y));
+                    const ImVec2 cellMax = toScreen(static_cast<float>(x + 1), static_cast<float>(y + 1));
+                    const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
+                    drawList->AddRectFilled(cellMin, cellMax, fill, 0.0f);
+                }
+            }
+
+            const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.36f, 0.44f, 0.56f, 0.35f));
+            for (int x = tileMinX; x <= tileMaxX; ++x)
+            {
+                const ImVec2 a = toScreen(static_cast<float>(x), static_cast<float>(tileMinY));
+                const ImVec2 b = toScreen(static_cast<float>(x), static_cast<float>(tileMaxY));
+                drawList->AddLine(a, b, gridColor, 0.8f);
+            }
+            for (int y = tileMinY; y <= tileMaxY; ++y)
+            {
+                const ImVec2 a = toScreen(static_cast<float>(tileMinX), static_cast<float>(y));
+                const ImVec2 b = toScreen(static_cast<float>(tileMaxX), static_cast<float>(y));
+                drawList->AddLine(a, b, gridColor, 0.8f);
+            }
+
+            const float viewMinX = state.viewOriginX;
+            const float viewMinY = state.viewOriginY;
+            const float viewMaxX = viewMinX + state.viewWidthTiles;
+            const float viewMaxY = viewMinY + state.viewHeightTiles;
+            const ImVec2 cameraMin = toScreen(viewMinX, viewMinY);
+            const ImVec2 cameraMax = toScreen(viewMaxX, viewMaxY);
+            const ImU32 cameraColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight));
+            drawList->AddRectFilled(cameraMin, cameraMax, ImGui::GetColorU32(ImVec4(0.30f, 0.46f, 0.86f, 0.16f)), 0.0f);
+            drawList->AddRect(cameraMin, cameraMax, cameraColor, 0.0f, 0, 2.0f);
+
+            const ImVec2 viewCenter = toScreen(viewCenterX, viewCenterY);
+            const float cross = 6.0f;
+            drawList->AddLine(ImVec2(viewCenter.x - cross, viewCenter.y), ImVec2(viewCenter.x + cross, viewCenter.y), cameraColor, 1.2f);
+            drawList->AddLine(ImVec2(viewCenter.x, viewCenter.y - cross), ImVec2(viewCenter.x, viewCenter.y + cross), cameraColor, 1.2f);
+
+            if (ctx.state.scene_tile_selection && ctx.state.scene_tile_selection->nodeId == state.details->nodeId)
+            {
+                const auto &sel = *ctx.state.scene_tile_selection;
+                const ImVec2 selMin = toScreen(static_cast<float>(sel.tileX), static_cast<float>(sel.tileY));
+                const ImVec2 selMax = toScreen(static_cast<float>(sel.tileX + 1), static_cast<float>(sel.tileY + 1));
+                drawList->AddRect(selMin, selMax, cameraColor, 0.0f, 0, 1.8f);
+            }
+
+            if (ctx.state.scene_show_resources)
+            {
+                const ImU32 foodColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
+                const ImU32 drinkColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+                const ImU32 socialColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));
+                for (const auto &resource : state.details->resources)
+                {
+                    if (resource.x < regionMinX || resource.x > regionMaxX || resource.y < regionMinY || resource.y > regionMaxY)
+                    {
+                        continue;
+                    }
+                    const ImVec2 point = toScreen(resource.x + 0.5f, resource.y + 0.5f);
+                    const ImU32 color = (resource.type == genesis::world::ResourceType::Food)
+                                            ? foodColor
+                                            : (resource.type == genesis::world::ResourceType::Drink)
+                                                  ? drinkColor
+                                                  : socialColor;
+                    drawList->AddCircleFilled(point, 3.2f, color, 10);
+                    drawList->AddCircle(point, 3.2f, ImGui::GetColorU32(ImGuiCol_Border), 10, 1.0f);
+                }
+            }
+
+        if (ctx.state.scene_show_anchors)
+        {
+            const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive));
+            for (const auto &anchor : state.details->anchors)
+            {
+                    if (anchor.x < regionMinX || anchor.x > regionMaxX || anchor.y < regionMinY || anchor.y > regionMaxY)
+                    {
+                        continue;
+                    }
+                    const ImVec2 center = toScreen(anchor.x + 0.5f, anchor.y + 0.5f);
+                    const float size = 4.0f;
+                    const ImVec2 a{center.x, center.y - size};
+                    const ImVec2 b{center.x + size, center.y};
+                    const ImVec2 c{center.x, center.y + size};
+                    const ImVec2 d{center.x - size, center.y};
+                drawList->AddQuadFilled(a, b, c, d, anchorColor);
+                drawList->AddQuad(a, b, c, d, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
+            }
+        }
+
+        if (ctx.state.scene_show_graph)
+        {
+            const ImU32 portalColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+            for (const auto &portal : state.details->portals)
+            {
+                if (portal.x < regionMinX || portal.x > regionMaxX || portal.y < regionMinY || portal.y > regionMaxY)
+                {
+                    continue;
+                }
+                const ImVec2 point = toScreen(portal.x + 0.5f, portal.y + 0.5f);
+                drawList->AddCircleFilled(point, 3.5f, portalColor, 12);
+                drawList->AddCircle(point, 3.5f, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.0f);
+            }
+        }
+
+        ImGui::EndChild();
+    }
+    } // namespace
+
     void MainView::render(UiContext &ctx, InspectorView &inspector)
     {
         const Style::Layout::WindowLayoutConfig windowLayout = Style::Layout::mainViewWindow();
@@ -502,7 +694,7 @@ namespace Genesis::Sandbox::Gui
         }
     }
 
-    void InspectorView::render(UiContext &ctx)
+    void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRenderState> &viewportState)
     {
         if (!ctx.state.show_inspector)
         {
@@ -527,9 +719,9 @@ namespace Genesis::Sandbox::Gui
         {
             return;
         }
+        DrawSceneMiniMap(ctx, viewportState);
+        ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.headerGap));
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
-        ImGui::TextUnformatted("检查器");
-        ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
 
         const auto resourceTypeName = [](genesis::world::ResourceType type) -> const char *
         {
@@ -545,9 +737,6 @@ namespace Genesis::Sandbox::Gui
                 return "Unknown";
             }
         };
-
-        ImGui::Separator();
-
         switch (ctx.state.inspector_selection_type)
         {
         case UiState::InspectorSelectionType::None:
@@ -1337,10 +1526,9 @@ namespace Genesis::Sandbox::Gui
     {
         ImGui::SameLine(0.0f, spacing);
         ImGui::BeginChild("SceneSidebarPane", ImVec2(0.0f, 0.0f), false);
-        drawSceneMiniMap(ctx, viewportState);
         if (ctx.state.show_inspector)
         {
-            inspector.render(ctx);
+            inspector.render(ctx, viewportState);
         }
         else
         {
@@ -1412,7 +1600,7 @@ namespace Genesis::Sandbox::Gui
     }
 
 
-    std::optional<MainView::SceneViewportRenderState> MainView::drawSceneViewport(UiContext &ctx,
+    std::optional<SceneViewportRenderState> MainView::drawSceneViewport(UiContext &ctx,
                                                                                   const ScenePresenterInput &presenterInput,
                                                                                   const SceneNodeViewModel &nodeVm,
                                                                                   bool resetRequested)
@@ -1887,195 +2075,6 @@ namespace Genesis::Sandbox::Gui
         state.viewOriginY = static_cast<float>(grid.minY) - ctx.state.scene_cam_offset_y / cellPx;
 
         return state;
-    }
-
-    void MainView::drawSceneMiniMap(UiContext &ctx, const std::optional<SceneViewportRenderState> &stateOpt)
-    {
-        const float miniHeight = 160.0f;
-        ImGui::BeginChild("SceneMiniMap", ImVec2(0.0f, miniHeight), false, ImGuiWindowFlags_NoScrollbar);
-
-        const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
-        const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, miniHeight);
-        ImGui::InvisibleButton("SceneMiniMap.Canvas", canvasSize, ImGuiButtonFlags_None);
-        const ImVec2 canvasMax = ImGui::GetItemRectMax();
-
-        ImDrawList *drawList = ImGui::GetWindowDrawList();
-        const ImU32 bgColor = ImGui::GetColorU32(ImVec4(0.08f, 0.10f, 0.14f, 0.92f));
-        const ImU32 borderColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::BorderSoft));
-        drawList->AddRectFilled(canvasMin, canvasMax, bgColor, 6.0f);
-        drawList->AddRect(canvasMin, canvasMax, borderColor, 6.0f, 0, 1.2f);
-
-        if (!stateOpt || !stateOpt->details)
-        {
-            const char *message = "无世界数据";
-            const ImVec2 textSize = ImGui::CalcTextSize(message);
-            const ImVec2 textPos{canvasMin.x + (canvasSize.x - textSize.x) * 0.5f,
-                                 canvasMin.y + (canvasSize.y - textSize.y) * 0.5f};
-            drawList->AddText(textPos, ImGui::GetColorU32(ImGuiCol_TextDisabled), message);
-            ImGui::EndChild();
-            return;
-        }
-
-        const SceneViewportRenderState &state = *stateOpt;
-
-        const float margin = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
-        const ImVec2 innerMin(canvasMin.x + margin, canvasMin.y + margin);
-        const ImVec2 innerMax(canvasMax.x - margin, canvasMax.y - margin);
-        const float innerWidth = std::max(1.0f, innerMax.x - innerMin.x);
-        const float innerHeight = std::max(1.0f, innerMax.y - innerMin.y);
-
-        const SceneNodeGridInfo &grid = state.grid;
-        const float viewCenterX = state.viewOriginX + state.viewWidthTiles * 0.5f;
-        const float viewCenterY = state.viewOriginY + state.viewHeightTiles * 0.5f;
-        const float halfWidth = state.viewWidthTiles * 2.0f;
-        const float halfHeight = state.viewHeightTiles * 2.0f;
-
-        float regionMinX = std::max(static_cast<float>(grid.minX), viewCenterX - halfWidth);
-        float regionMinY = std::max(static_cast<float>(grid.minY), viewCenterY - halfHeight);
-        float regionMaxX = std::min(static_cast<float>(grid.maxX + 1), viewCenterX + halfWidth);
-        float regionMaxY = std::min(static_cast<float>(grid.maxY + 1), viewCenterY + halfHeight);
-        if (regionMaxX <= regionMinX || regionMaxY <= regionMinY)
-        {
-            regionMinX = static_cast<float>(grid.minX);
-            regionMinY = static_cast<float>(grid.minY);
-            regionMaxX = static_cast<float>(grid.maxX + 1);
-            regionMaxY = static_cast<float>(grid.maxY + 1);
-        }
-
-        const float regionWidth = regionMaxX - regionMinX;
-        const float regionHeight = regionMaxY - regionMinY;
-        const float scale = std::min(innerWidth / regionWidth, innerHeight / regionHeight);
-        const float offsetX = (innerWidth - regionWidth * scale) * 0.5f;
-        const float offsetY = (innerHeight - regionHeight * scale) * 0.5f;
-
-        auto toScreen = [&](float gx, float gy) -> ImVec2 {
-            return ImVec2(innerMin.x + offsetX + (gx - regionMinX) * scale,
-                          innerMin.y + offsetY + (gy - regionMinY) * scale);
-        };
-
-        const ImVec2 regionTopLeft = toScreen(regionMinX, regionMinY);
-        const ImVec2 regionBottomRight = toScreen(regionMaxX, regionMaxY);
-        const ImU32 regionColor = ImGui::GetColorU32(ImVec4(0.24f, 0.32f, 0.54f, 0.22f));
-        drawList->AddRectFilled(regionTopLeft, regionBottomRight, regionColor, 5.0f);
-        drawList->AddRect(regionTopLeft, regionBottomRight, ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent)), 5.0f, 0, 1.4f);
-
-        const int tileMinX = std::max(static_cast<int>(std::floor(regionMinX)), grid.minX);
-        const int tileMaxX = std::min(static_cast<int>(std::ceil(regionMaxX)), grid.maxX + 1);
-        const int tileMinY = std::max(static_cast<int>(std::floor(regionMinY)), grid.minY);
-        const int tileMaxY = std::min(static_cast<int>(std::ceil(regionMaxY)), grid.maxY + 1);
-
-        const ImU32 tileColorA = ImGui::GetColorU32(ImVec4(0.18f, 0.24f, 0.32f, 0.65f));
-        const ImU32 tileColorB = ImGui::GetColorU32(ImVec4(0.15f, 0.20f, 0.28f, 0.65f));
-        for (int y = tileMinY; y < tileMaxY; ++y)
-        {
-            for (int x = tileMinX; x < tileMaxX; ++x)
-            {
-                if (x < grid.minX || x >= grid.maxX + 1 || y < grid.minY || y >= grid.maxY + 1)
-                {
-                    continue;
-                }
-                const ImVec2 cellMin = toScreen(static_cast<float>(x), static_cast<float>(y));
-                const ImVec2 cellMax = toScreen(static_cast<float>(x + 1), static_cast<float>(y + 1));
-                const ImU32 fill = ((x + y) % 2 == 0) ? tileColorA : tileColorB;
-                drawList->AddRectFilled(cellMin, cellMax, fill, 3.0f);
-            }
-        }
-
-        const ImU32 gridColor = ImGui::GetColorU32(ImVec4(0.36f, 0.44f, 0.56f, 0.35f));
-        for (int x = tileMinX; x <= tileMaxX; ++x)
-        {
-            const ImVec2 a = toScreen(static_cast<float>(x), static_cast<float>(tileMinY));
-            const ImVec2 b = toScreen(static_cast<float>(x), static_cast<float>(tileMaxY));
-            drawList->AddLine(a, b, gridColor, 0.8f);
-        }
-        for (int y = tileMinY; y <= tileMaxY; ++y)
-        {
-            const ImVec2 a = toScreen(static_cast<float>(tileMinX), static_cast<float>(y));
-            const ImVec2 b = toScreen(static_cast<float>(tileMaxX), static_cast<float>(y));
-            drawList->AddLine(a, b, gridColor, 0.8f);
-        }
-
-        const float viewMinX = state.viewOriginX;
-        const float viewMinY = state.viewOriginY;
-        const float viewMaxX = viewMinX + state.viewWidthTiles;
-        const float viewMaxY = viewMinY + state.viewHeightTiles;
-        const ImVec2 cameraMin = toScreen(viewMinX, viewMinY);
-        const ImVec2 cameraMax = toScreen(viewMaxX, viewMaxY);
-        const ImU32 cameraColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Highlight));
-        drawList->AddRectFilled(cameraMin, cameraMax, ImGui::GetColorU32(ImVec4(0.30f, 0.46f, 0.86f, 0.16f)), 4.0f);
-        drawList->AddRect(cameraMin, cameraMax, cameraColor, 4.0f, 0, 2.0f);
-
-        const ImVec2 viewCenter = toScreen(viewCenterX, viewCenterY);
-        const float cross = 6.0f;
-        drawList->AddLine(ImVec2(viewCenter.x - cross, viewCenter.y), ImVec2(viewCenter.x + cross, viewCenter.y), cameraColor, 1.2f);
-        drawList->AddLine(ImVec2(viewCenter.x, viewCenter.y - cross), ImVec2(viewCenter.x, viewCenter.y + cross), cameraColor, 1.2f);
-
-        if (ctx.state.scene_tile_selection && ctx.state.scene_tile_selection->nodeId == state.details->nodeId)
-        {
-            const auto &sel = *ctx.state.scene_tile_selection;
-            const ImVec2 selMin = toScreen(static_cast<float>(sel.tileX), static_cast<float>(sel.tileY));
-            const ImVec2 selMax = toScreen(static_cast<float>(sel.tileX + 1), static_cast<float>(sel.tileY + 1));
-            drawList->AddRect(selMin, selMax, cameraColor, 3.5f, 0, 1.8f);
-        }
-
-        if (ctx.state.scene_show_resources)
-        {
-            const ImU32 foodColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-            const ImU32 drinkColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-            const ImU32 socialColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));
-            for (const auto &resource : state.details->resources)
-            {
-                if (resource.x < regionMinX || resource.x > regionMaxX || resource.y < regionMinY || resource.y > regionMaxY)
-                {
-                    continue;
-                }
-                const ImVec2 point = toScreen(resource.x + 0.5f, resource.y + 0.5f);
-                const ImU32 color = (resource.type == genesis::world::ResourceType::Food)
-                                        ? foodColor
-                                        : (resource.type == genesis::world::ResourceType::Drink)
-                                              ? drinkColor
-                                              : socialColor;
-                drawList->AddCircleFilled(point, 3.2f, color, 10);
-                drawList->AddCircle(point, 3.2f, ImGui::GetColorU32(ImGuiCol_Border), 10, 1.0f);
-            }
-        }
-
-        if (ctx.state.scene_show_anchors)
-        {
-            const ImU32 anchorColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::AccentActive));
-            for (const auto &anchor : state.details->anchors)
-            {
-                if (anchor.x < regionMinX || anchor.x > regionMaxX || anchor.y < regionMinY || anchor.y > regionMaxY)
-                {
-                    continue;
-                }
-                const ImVec2 center = toScreen(anchor.x + 0.5f, anchor.y + 0.5f);
-                const float size = 4.0f;
-                const ImVec2 a{center.x, center.y - size};
-                const ImVec2 b{center.x + size, center.y};
-                const ImVec2 c{center.x, center.y + size};
-                const ImVec2 d{center.x - size, center.y};
-                drawList->AddQuadFilled(a, b, c, d, anchorColor);
-                drawList->AddQuad(a, b, c, d, ImGui::GetColorU32(ImGuiCol_Border), 1.0f);
-            }
-        }
-
-        if (ctx.state.scene_show_graph)
-        {
-            const ImU32 portalColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-            for (const auto &portal : state.details->portals)
-            {
-                if (portal.x < regionMinX || portal.x > regionMaxX || portal.y < regionMinY || portal.y > regionMaxY)
-                {
-                    continue;
-                }
-                const ImVec2 point = toScreen(portal.x + 0.5f, portal.y + 0.5f);
-                drawList->AddCircleFilled(point, 3.5f, portalColor, 12);
-                drawList->AddCircle(point, 3.5f, ImGui::GetColorU32(ImGuiCol_Border), 12, 1.0f);
-            }
-        }
-
-        ImGui::EndChild();
     }
 
     void MainView::drawMonitorTab(UiContext &ctx)

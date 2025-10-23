@@ -1,5 +1,7 @@
 #pragma once
 
+#include "genesis/style/PaletteTypes.hpp"
+
 #include <filesystem>
 #include <mutex>
 #include <optional>
@@ -10,47 +12,6 @@
 
 namespace Genesis::Style
 {
-
-enum class ColorSpace
-{
-    SRGB,
-    Linear
-};
-
-struct RgbaColor
-{
-    float r{0.0f};
-    float g{0.0f};
-    float b{0.0f};
-    float a{1.0f};
-};
-
-struct ColorSample
-{
-    RgbaColor srgb{};
-    RgbaColor linear{};
-
-    [[nodiscard]] RgbaColor value(ColorSpace space) const noexcept
-    {
-        return space == ColorSpace::Linear ? linear : srgb;
-    }
-};
-
-struct PaletteEntry
-{
-    ColorSample sample{};
-    std::string name;
-    std::string category;
-    std::string description;
-};
-
-struct PaletteTheme
-{
-    std::string id;
-    std::string label;
-    std::string description;
-    std::unordered_map<std::string, PaletteEntry> entries;
-};
 
 class ColorRegistry
 {
@@ -83,10 +44,10 @@ private:
     bool loadInternal(const std::filesystem::path& filePath, std::optional<std::string> forcedTheme);
     const PaletteTheme* findTheme(std::string_view themeId) const;
     std::optional<RgbaColor> fetchFromTheme(const PaletteTheme& theme, std::string_view token, ColorSpace space) const;
+    const PaletteEntry* resolveEntry(const PaletteTheme& theme, std::string_view token) const;
 
     mutable std::mutex mutex_;
-    std::unordered_map<std::string, PaletteTheme> themes_;
-    std::string default_theme_;
+    PaletteDocument document_;
     std::string active_theme_;
     std::filesystem::path source_path_;
     int version_{0};
@@ -94,4 +55,3 @@ private:
 };
 
 } // namespace Genesis::Style
-

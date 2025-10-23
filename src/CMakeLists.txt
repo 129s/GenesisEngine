@@ -1,5 +1,6 @@
 set(GENESIS_STYLE_SOURCES
     style/ColorRegistry.cpp
+    style/PaletteLoader.cpp
 )
 
 add_library(genesis_style STATIC ${GENESIS_STYLE_SOURCES})
@@ -8,6 +9,7 @@ add_library(Genesis::Style ALIAS genesis_style)
 target_include_directories(genesis_style
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        ${CMAKE_BINARY_DIR}/generated
 )
 
 target_link_libraries(genesis_style
@@ -20,6 +22,42 @@ set_target_properties(genesis_style PROPERTIES
     OUTPUT_NAME "genesis_style"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
+)
+
+add_executable(genesis_palette_compiler
+    tools/palette_compiler/Main.cpp
+)
+
+target_include_directories(genesis_palette_compiler
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_palette_compiler
+    PRIVATE
+        Genesis::Style
+        nlohmann_json::nlohmann_json
+        spdlog::spdlog_header_only
+)
+
+set(PALETTE_OUTPUT_DIR ${CMAKE_BINARY_DIR}/generated/palette)
+
+add_custom_command(
+    OUTPUT
+        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.hpp
+        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.glsl
+        ${PALETTE_OUTPUT_DIR}/PaletteIndex.json
+    COMMAND genesis_palette_compiler --input ${CMAKE_SOURCE_DIR}/data/palette/core.json --output ${PALETTE_OUTPUT_DIR}
+    DEPENDS genesis_palette_compiler ${CMAKE_SOURCE_DIR}/data/palette/core.json
+    COMMENT "Generating palette artifacts"
+    VERBATIM
+)
+
+add_custom_target(genesis_palette_assets ALL
+    DEPENDS
+        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.hpp
+        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.glsl
+        ${PALETTE_OUTPUT_DIR}/PaletteIndex.json
 )
 
 set(GENESIS_RENDERING_SOURCES
@@ -98,7 +136,7 @@ target_include_directories(genesis_engine
 
 target_link_libraries(genesis_engine
     PUBLIC
-        spdlog::spdlog
+        spdlog::spdlog_header_only
         EnTT::EnTT
         nlohmann_json::nlohmann_json
 )
@@ -140,7 +178,7 @@ add_executable(genesis_engine_app
 target_link_libraries(genesis_engine_app
     PRIVATE
         Genesis::Engine
-        spdlog::spdlog
+        spdlog::spdlog_header_only
 )
 
 set_target_properties(genesis_engine_app PROPERTIES

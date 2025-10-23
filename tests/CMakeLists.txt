@@ -10,7 +10,16 @@ target_link_libraries(genesis_style_tests
         GTest::gtest_main
 )
 
+add_dependencies(genesis_style_tests genesis_palette_compiler)
+
 gtest_discover_tests(genesis_style_tests)
+
+set(PALETTE_GENERATED_TEST_DIR ${CMAKE_BINARY_DIR}/tests/palette_artifacts)
+
+add_test(
+    NAME PaletteCompiler.GenerateArtifacts
+    COMMAND genesis_palette_compiler --input ${CMAKE_SOURCE_DIR}/data/palette/core.json --output ${PALETTE_GENERATED_TEST_DIR} --quiet
+)
 
 add_executable(genesis_worldgen_tests
     test_worldgen_config.cpp

@@ -5,6 +5,7 @@
 
 /out/
 /dist/
+/generated/
 
 # IDE
 .vscode/

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "genesis/style/ColorRegistry.hpp"
+#include "genesis/style/PaletteLoader.hpp"
 
 #include <cmath>
 #include <filesystem>
@@ -68,3 +69,22 @@ TEST(ColorRegistry, ProducesLinearSpace)
     EXPECT_NEAR(linear->a, srgb->a, 1e-6f);
 }
 
+TEST(PaletteLoader, ProvidesAliasMappings)
+{
+    Genesis::Style::PaletteDocument document;
+    auto result = Genesis::Style::LoadPaletteDocument(palettePath(), document);
+    ASSERT_TRUE(result.ok) << result.error;
+
+    const auto themeIt = document.themes.find("genesis/core-dark");
+    ASSERT_NE(themeIt, document.themes.end());
+    const auto& theme = themeIt->second;
+
+    const auto aliasIt = theme.alias_map.find("Primary");
+    ASSERT_NE(aliasIt, theme.alias_map.end());
+    EXPECT_EQ(aliasIt->second, "accent.primary.base");
+
+    const auto entryIt = theme.entries.find(aliasIt->second);
+    ASSERT_NE(entryIt, theme.entries.end());
+    EXPECT_FALSE(entryIt->second.aliases.empty());
+    EXPECT_EQ(entryIt->second.aliases.front(), "Primary");
+}

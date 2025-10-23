@@ -1,6 +1,7 @@
 # 渲染文档索引（像素风 × 零素材）
 
 - coordinate-mapping.md — 坐标与单位映射（WU→RU、虚拟分辨率、缩放）
+- ui-palette.md — Sandbox GUI 冷色系主题与状态矩阵（Serum 2 取样）
 - core-primitives.md — 基础像素图元与抖动/渐变/字库规范
 - composite-visuals.md — 组合图元（Scene/Portal/柜台/队列/对话泡）
 - knowledge-fog.md — 知识雾的视觉与规则（Game 专用）

@@ -265,8 +265,8 @@ namespace
 
         const bool highlightText = hasFilter && node.selfMatches;
         std::string nodeId = key + "##browser_tree";
-        const ImVec4 focusColor = Style::DesignTokens::color(Style::ColorToken::AccentActive);
-        const ImVec4 hoverColor = Style::DesignTokens::color(Style::ColorToken::AccentHover);
+        const ImVec4 focusColor = Style::DesignTokens::color(Style::ColorToken::PrimaryActive);
+        const ImVec4 hoverColor = Style::DesignTokens::color(Style::ColorToken::PrimaryHover);
         const ImVec4 headerHoverColor = (isSelected && !isLeaf) ? focusColor : hoverColor;
         ImGui::PushStyleColor(ImGuiCol_HeaderHovered, headerHoverColor);
         ImGui::PushStyleColor(ImGuiCol_HeaderActive, focusColor);

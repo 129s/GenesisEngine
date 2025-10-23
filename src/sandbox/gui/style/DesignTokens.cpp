@@ -10,27 +10,27 @@ namespace
     using SpacingArray = std::array<float, static_cast<std::size_t>(SpacingToken::Count)>;
 
     const ColorArray kColors = {
-        /* Canvas */ ImVec4(0.07f, 0.08f, 0.10f, 1.0f),
-        /* Surface */ ImVec4(0.11f, 0.12f, 0.15f, 1.0f),
-        /* SurfaceAlt */ ImVec4(0.14f, 0.16f, 0.19f, 1.0f),
-        /* SurfaceActive */ ImVec4(0.18f, 0.20f, 0.24f, 1.0f),
-        /* Primary */ ImVec4(0.18f, 0.42f, 0.82f, 0.95f),
-        /* PrimaryHover */ ImVec4(0.22f, 0.48f, 0.90f, 1.0f),
-        /* PrimaryActive */ ImVec4(0.17f, 0.37f, 0.70f, 1.0f),
-        /* TextPrimary */ ImVec4(0.90f, 0.93f, 0.98f, 1.0f),
-        /* TextSecondary */ ImVec4(0.72f, 0.78f, 0.86f, 1.0f),
-        /* TextDisabled */ ImVec4(0.47f, 0.52f, 0.60f, 1.0f),
-        /* BorderSoft */ ImVec4(0.19f, 0.22f, 0.26f, 1.0f),
-        /* BorderStrong */ ImVec4(0.11f, 0.13f, 0.17f, 1.0f),
-        /* Accent */ ImVec4(0.35f, 0.65f, 0.95f, 1.0f),
-        /* AccentHover */ ImVec4(0.40f, 0.70f, 1.00f, 1.0f),
-        /* AccentActive */ ImVec4(0.26f, 0.56f, 0.92f, 1.0f),
-        /* Success */ ImVec4(0.38f, 0.70f, 0.35f, 1.0f),
-        /* Warning */ ImVec4(0.95f, 0.67f, 0.33f, 1.0f),
-        /* Danger */ ImVec4(0.95f, 0.38f, 0.34f, 1.0f),
-        /* Info */ ImVec4(0.42f, 0.65f, 0.88f, 1.0f),
-        /* Muted */ ImVec4(0.31f, 0.36f, 0.44f, 1.0f),
-        /* Highlight */ ImVec4(0.98f, 0.82f, 0.35f, 1.0f),
+        /* Canvas */ ImVec4(0.051f, 0.078f, 0.114f, 1.0f),        // #0D141D
+        /* Surface */ ImVec4(0.082f, 0.125f, 0.188f, 1.0f),       // #152030
+        /* SurfaceAlt */ ImVec4(0.110f, 0.169f, 0.227f, 1.0f),    // #1C2B3A
+        /* SurfaceActive */ ImVec4(0.137f, 0.212f, 0.294f, 1.0f), // #23364B
+        /* Primary */ ImVec4(0.196f, 0.682f, 0.937f, 1.0f),       // #32AEEF
+        /* PrimaryHover */ ImVec4(0.255f, 0.741f, 0.984f, 1.0f),  // #41BDFB
+        /* PrimaryActive */ ImVec4(0.118f, 0.525f, 0.816f, 1.0f), // #1E86D0
+        /* TextPrimary */ ImVec4(0.922f, 0.953f, 0.992f, 1.0f),   // #EBF3FD
+        /* TextSecondary */ ImVec4(0.686f, 0.769f, 0.867f, 1.0f), // #AFC4DD
+        /* TextDisabled */ ImVec4(0.365f, 0.455f, 0.549f, 1.0f),  // #5D748C
+        /* BorderSoft */ ImVec4(0.129f, 0.192f, 0.259f, 1.0f),    // #213142
+        /* BorderStrong */ ImVec4(0.067f, 0.102f, 0.153f, 1.0f),  // #111A27
+        /* Accent */ ImVec4(0.298f, 0.773f, 0.906f, 1.0f),        // #4CC5E7
+        /* AccentHover */ ImVec4(0.369f, 0.824f, 0.945f, 1.0f),   // #5ED2F1
+        /* AccentActive */ ImVec4(0.165f, 0.604f, 0.831f, 1.0f),  // #2A9AD4
+        /* Success */ ImVec4(0.435f, 0.957f, 0.518f, 1.0f),       // #6FF484
+        /* Warning */ ImVec4(1.000f, 0.784f, 0.341f, 1.0f),       // #FFC857
+        /* Danger */ ImVec4(1.000f, 0.420f, 0.420f, 1.0f),        // #FF6B6B
+        /* Info */ ImVec4(0.341f, 0.788f, 1.000f, 1.0f),          // #57C9FF
+        /* Muted */ ImVec4(0.204f, 0.271f, 0.361f, 1.0f),         // #34455C
+        /* Highlight */ ImVec4(0.608f, 0.878f, 1.000f, 1.0f),     // #9BE0FF
     };
 
     constexpr SpacingArray kSpacing = {

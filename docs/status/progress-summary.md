@@ -4,6 +4,9 @@
 ## 最新进展（本次）
 - Sandbox GUI 窗口体验：
   - 启动时自动根据主显示器工作区居中放置窗口，便于多显示器快速定位。
+- Sandbox GUI 主题：
+  - 参考 Serum 2 冷色系重写 `DesignTokens` 背景/主色/语义色，统一交互亮度与描边对比。
+  - 新增 `docs/rendering/ui-palette.md` 说明色板与状态矩阵，为后续控件迁移提供基线。
 - Sandbox GUI 浏览器：
   - 调整列表项 FramePadding，统一抬高行高，提升条目可读性和指针命中空间。
   - 统一目录条目点击/聚焦配色，选中后 Hover 保持同色以消除交互瞬时闪烁。

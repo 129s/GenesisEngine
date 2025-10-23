@@ -18,7 +18,7 @@
 - [x] 将生成产物加入构建/打包（CMake 或后处理）流程，保证默认 Demo 可直接使用。
 - [x] 更新文档与示例命令，说明如何生成/刷新噪声地图数据。
 
-> 结果（历史记录）：新增 `src/tools/NoiseGenMain.cpp` → `genesis-noise-generator` CLI，同步提供 `scripts/generate_noise_world.ps1` 包装脚本；CMake 自定义目标 `generate_noise_world` 默认写入 `data/world/generated/noise_mvp.json` 与 `noise_mvp_layout.json`（上述资产在 2025-10 后停止维护）。
+> 结果（历史记录）：新增 `src/tools/NoiseGenMain.cpp` → `genesis-noise-generator` CLI，同步提供 `scripts/generate_noise_world.ps1` 包装脚本；CMake 自定义目标 `generate_noise_world` 默认写入 `data/world/generated/noise_mvp.json` 与 `noise_mvp_layout.json`（上述资产在 2025-10 后停止维护，现已从仓库移除）。
 
 ## Phase 3 · 运行时接入
 - [x] 引擎提供显式 `loadWorldFromFile` 接口加载噪声世界，可通过脚本/配置传入路径。

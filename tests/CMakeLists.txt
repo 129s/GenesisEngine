@@ -10,7 +10,7 @@ target_link_libraries(genesis_style_tests
         GTest::gtest_main
 )
 
-add_dependencies(genesis_style_tests genesis_palette_compiler)
+add_dependencies(genesis_style_tests genesis_palette_assets)
 
 gtest_discover_tests(genesis_style_tests)
 
@@ -54,6 +54,7 @@ add_executable(genesis_engine_tests
 target_link_libraries(genesis_engine_tests
     PRIVATE
         Genesis::Engine
+        Genesis::Worldgen
         GTest::gtest_main
 )
 

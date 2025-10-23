@@ -18,7 +18,7 @@
    - 节点：每个可通行单元格（或小块）→ `LocationNode{ id,parent=Region, name, kind=Point }`；附 `terrain` 标签（字符串或枚举，先存在 name/tag）。
    - 连通：相邻可通行格创建 `PathEdge{cost=1.0,bidirectional=true}`。
    - 资源：在 `Soil` 上按密度采样 `ResourceSpawn{ Food, capacity, ratePerStep }`。
-   - 输出：写入 `data/world/generated/noise_mvp.json` 与匹配的 `data/ascii_layout.json`（自动生成）。
+   - 输出：写入 `data/world/generated/noise_mvp.json` 与匹配的 `data/ascii_layout.json`（自动生成，2025-10 后改由 Worldgen 接管并移除旧 JSON 资产）。
 2. 运行时接入
    - Engine 通过显式 `loadWorldFromFile` 接口加载噪声世界（脚本/GUI 命令队列会传入生成结果路径），不再依赖 demo 回退。
    - 资源系统：沿用当前 `ratePerStep` 增产逻辑（固定刷新）。

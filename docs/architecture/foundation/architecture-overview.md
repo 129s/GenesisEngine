@@ -43,7 +43,7 @@ GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现
 - 版本机制：世界数据变化会更新 `world_version`，前端可按版本刷新缓存；Telemetry 携带 `schema_version` 以便协议演进。
 
 ## 相关文档
-- 运行时接口：`runtime_api.md`
-- 世界模型与生成：`world_model.md`、`world_generation.md`
-- 行为与人格建模：`agent_personality_big5.md`
-- 渲染/调试：GUI 系列文档
+- 运行时接口：[foundation/runtime-api.md](runtime-api.md)
+- 世界模型与生成：[world/world-model.md](../world/world-model.md)、[world/world-generation.md](../world/world-generation.md)
+- 行为与人格建模：[agents/agent-personality-big5.md](../agents/agent-personality-big5.md)
+- 渲染/调试：见 [interface/sandbox/sandbox-gui.md](../interface/sandbox/sandbox-gui.md) 及相关子文档

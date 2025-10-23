@@ -51,6 +51,6 @@ Sandbox GUI 是主要的可视化与调试前端，消费 Runtime 的 Telemetry/
 4. **P3**：Chunk 级流式加载、性能分析工具、UI 自动化测试挂钩。
 
 更多细节见：
-- `sandbox_gui_sim_loop.md`：模拟循环、人格 Demo、验收标准。
-- `sandbox_gui_tilemap_rendering.md`：Tilemap 资源、渲染管线、二进制协议。
-- `inspector_panel.md`：Inspector 交互设计与数据要求。
+- [`sandbox-gui-sim-loop.md`](./sandbox-gui-sim-loop.md)：模拟循环、人格 Demo、验收标准。
+- [`sandbox-gui-tilemap-rendering.md`](./sandbox-gui-tilemap-rendering.md)：Tilemap 资源、渲染管线、二进制协议。
+- [`inspector-panel.md`](./inspector-panel.md)：Inspector 交互设计与数据要求。

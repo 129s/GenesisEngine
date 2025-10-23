@@ -132,3 +132,15 @@
 
 ---
 后续步骤：基于本蓝图制定具体子任务（每个 Phase 细化为 Issues/PR），并在实施过程中持续回填文档与经验。***
+
+## 迁移进展（2025-10-23）
+
+- Phase 0：基础设施（已落地最小骨架）
+  - 新增 `Genesis::Base` 与 `Genesis::Diagnostics`（头文件级封装），作为公共类型与日志门面占位，后续逐步替换直接使用 spdlog 的调用。
+- Phase 1：仿真内核解耦（第一步）
+  - 降低 GUI 对内核的头文件耦合：`include/sandbox/gui/RuntimeBridge.hpp` 移除对 `genesis/core/Engine.hpp` 的直接包含，改为前置声明；`RuntimeBridge.cpp` 内部包含实现依赖。
+  - CMake 引入占位别名目标：`Genesis::World`、`Genesis::Agents`、`Genesis::Simulation`（当前指向 `Genesis::Engine`），为后续实体化拆分准备依赖图。
+- Phase 2：运行时子域（占位）
+  - CMake 引入别名目标：`Genesis::RuntimeCore`、`Genesis::RuntimeSnapshot`（当前指向 `Genesis::Runtime`），为后续 API/实现分离预热。
+
+影响与兼容性：本次变更不影响现有可执行与功能，编译链保持稳定；GUI 侧头文件边界更清晰，为“界面层不依赖仿真实现”打基础。

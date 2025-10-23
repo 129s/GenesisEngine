@@ -1,6 +1,6 @@
 # 世界生成架构（World Generation）
 
-目标：以 **场景拓扑 + 程序化布局 + 交互填充** 为核心构建全自动世界生成器，产出满足 `world_model.md` 契约的 Scene/Interactive Node 树，并同步生成 Tilemap 等静态资产。生成结果必须完全可复现（`seed + 配置`），无需任何预制或编辑器介入。
+目标：以 **场景拓扑 + 程序化布局 + 交互填充** 为核心构建全自动世界生成器，产出满足 [world/world-model.md](./world-model.md) 契约的 Scene/Interactive Node 树，并同步生成 Tilemap 等静态资产。生成结果必须完全可复现（`seed + 配置`），无需任何预制或编辑器介入。
 
 ## 核心原则
 - **纯代码 + 配置化**：所有结构由生成器库计算得出，配置文件仅描述参数与规则启用，严禁手工摆放。
@@ -181,7 +181,7 @@ min_connectivity = 1
 
 ---
 
-相关文档：`world_model.md`（数据契约）、`world_representation.md`（渲染参考）、`MVP_SCENE_INTERACTIVE.md`（路线规划）、`sandbox_gui_tilemap_rendering.md`（Tilemap 消费）。
+相关文档：[world/world-model.md](./world-model.md)（数据契约）、[world/world-representation.md](./world-representation.md)（渲染参考）、[interface/sandbox/sandbox-gui-tilemap-rendering.md](../interface/sandbox/sandbox-gui-tilemap-rendering.md)（Tilemap 消费）。
 ## 12. 运行时整合与 Sandbox GUI
 - genesis::core::Engine 提供显式 loadWorldFromFile/loadWorldFromJsonString 接口并移除演示世界回退，exportWorldGraph 用于导出当前 LocationGraph。
 - genesis::runtime::Runtime 将 generateWorldFromConfig 与 loadWorldFromFile、saveWorldToFile 解耦：生成阶段仅产出图和日志，可选写入 JSON，加载时再手动调用。

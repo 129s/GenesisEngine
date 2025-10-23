@@ -1,25 +1,28 @@
 # GenesisEngine · 架构文档索引
 
-> 面向内部开发者，聚焦运行时契约、世界模型与 Agent 行为设计。愿景与原则见 `VISION.md`，统一路线图见 `../roadmap/README.md`。
+> 面向内部开发者，聚焦运行时契约、世界模型与 Agent 行为设计。愿景与原则见 [meta/vision.md](meta/vision.md)，统一路线图见 `../roadmap/README.md`。
 
 ## 阅读导航
-- **总览**
-  - `overview.md`：分层结构、运行循环、并发/数据流边界。
-  - `runtime_api.md`：运行时控制/查询协议、Telemetry/WorldAtlas 契约。
-- **世界层（World Layer）**
-  - `world_model.md`：Scene/Interactive 节点树、坐标体系、运行层与渲染层的契约。
-  - `world_generation.md`：Scene 布局描述、数据驱动世界生成流程与校验策略。
-  - `world_representation.md`：运行层节点 → 渲染层 Tilemap 的对齐与消费。
-  - `chunked_tile_graph.md`：大地图/分块加载的探索笔记。
-- **Agent 层（Behavior Layer）**
-  - `agent_personality_big5.md`：属性→需求→动机→行动的链路建模，大五人格/Traits 如何调节点驱与阈值。
-- **前端层（Presentation Layer）**
-  - CLI（遗留调试）：`graph_to_grid.md`
-  - GUI：`sandbox_gui.md`、`sandbox_gui_sim_loop.md`、`sandbox_gui_tilemap_rendering.md`、`inspector_panel.md`
-  - 渲染内核与模式：`rendering-modes.md`（Sandbox/Game 共享渲染内核与模式差异）
-  - 渲染细节（像素风/零素材）：`../rendering/README.md`
-- **其他**
-  - `open_questions.md`：仍待决策的议题与挂起假设。
+- **Meta / Blueprint**
+  - [meta/genesis-engine-rearchitecture.md](meta/genesis-engine-rearchitecture.md)：重构蓝图、模块拆分与路线图。
+  - [meta/namespace-strategy.md](meta/namespace-strategy.md)：命名空间统一规范与迁移步骤。
+  - [meta/vision.md](meta/vision.md)：长期愿景、设计原则与成功标准。
+- **Foundation**
+  - [foundation/architecture-overview.md](foundation/architecture-overview.md)：分层结构、运行循环、并发/数据流边界。
+  - [foundation/runtime-api.md](foundation/runtime-api.md)：运行时控制/查询协议、Telemetry/WorldAtlas 契约。
+- **World Layer**
+  - [world/world-model.md](world/world-model.md)：Scene/Interactive 节点树、坐标体系与运行层契约。
+  - [world/world-generation.md](world/world-generation.md)：世界生成流程、校验策略与资产产出。
+  - [world/world-representation.md](world/world-representation.md)：Graph ↔ Tilemap 对齐、分层寻路与迁移策略。
+  - [world/chunked-tile-graph.md](world/chunked-tile-graph.md)：大地图/分块加载探索笔记。
+- **Agents / Behavior Layer**
+  - [agents/agent-personality-big5.md](agents/agent-personality-big5.md)：属性→需求→动机→行动链路与人格/Traits 调制。
+- **Interface & Rendering**
+  - Sandbox GUI：[`interface/sandbox/sandbox-gui.md`](interface/sandbox/sandbox-gui.md)、[`sandbox-gui-sim-loop.md`](interface/sandbox/sandbox-gui-sim-loop.md)、[`sandbox-gui-tilemap-rendering.md`](interface/sandbox/sandbox-gui-tilemap-rendering.md)、[`sandbox-gui-scene-unification.md`](interface/sandbox/sandbox-gui-scene-unification.md)、[`sandbox-gui-ux-redesign.md`](interface/sandbox/sandbox-gui-ux-redesign.md)、[`inspector-panel.md`](interface/sandbox/inspector-panel.md)。
+  - 渲染体系：[`interface/rendering/rendering-modes.md`](interface/rendering/rendering-modes.md)、[`interface/rendering/zero-asset-rendering.md`](interface/rendering/zero-asset-rendering.md)；更多细节见 `../rendering/README.md`。
+  - CLI（历史参考）：[`archive/graph-to-grid.md`](archive/graph-to-grid.md)。
+- **Backlog**
+  - [`backlog/open-questions.md`](backlog/open-questions.md)：仍待决策的议题与假设清单。
 
 ## 维护约定
 - 新协议/数据结构发布时，请同步更新对应文档并在提交信息中引用。

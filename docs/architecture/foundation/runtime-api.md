@@ -111,7 +111,7 @@ Atlas 描述世界静态结构与 Tilemap 元数据。字段建议如下：
 - 可选 `timing` 字段：`{ system:{ move:ms, planner:ms, renderPrep:ms }, ringBufferFill:int }`，供性能分析。
 
 ## 二进制协议（规划）
-- Tilemap 支持 JSON (`.tmj`) 与二进制 (`.tmb`)；二进制格式由 Header + Blocks 组成（详见 `sandbox_gui_tilemap_rendering.md`）。
+- Tilemap 支持 JSON (`.tmj`) 与二进制 (`.tmb`)；二进制格式由 Header + Blocks 组成（详见 [interface/sandbox/sandbox-gui-tilemap-rendering.md](../interface/sandbox/sandbox-gui-tilemap-rendering.md)）。
 - `tilemaps[].insideView.format` 标示当前文件类型，前端按需选择解析器。
 - 优先级：中（在现行流程稳定后排期完成）。
 

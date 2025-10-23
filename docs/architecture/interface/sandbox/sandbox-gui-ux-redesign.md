@@ -169,7 +169,7 @@
    - 完成自动化测试与文档更新（包含交互指南、快捷键列表、最佳实践）。
 
 ## 10. 文档与测试策略
-- 设计变更同步更新 `docs/architecture/sandbox_gui.md`、`docs/guides/sandbox_gui_smoke.md` 等相关文件。
+- 设计变更同步更新 `./sandbox-gui.md`、`docs/guides/sandbox_gui_smoke.md` 等相关文件。
 - 为主要交互（Inspector 撤销、时间轴过滤、世界生成流程）补充验收测试与 QA 指南。
 - 在实现阶段维护截图/录屏库，用于团队沟通与回归检查。
 

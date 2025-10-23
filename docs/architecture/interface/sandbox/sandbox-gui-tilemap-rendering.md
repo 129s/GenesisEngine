@@ -11,7 +11,7 @@
 非目标（暂缓）：Tile 动画、实时编辑器、动态瓦片修改、光照/粒子。
 
 ## 2) 世界与数据表达
-- Graph ↔ Tilemap 协议见 `world_representation.md`：Scene 节点提供 `coord_global`，Interactive 节点（resource/portal 等）提供 `coord_local`；Portal 属于 Interactive，`PathEdge.anchors` 给出进出锚点。
+- Graph ↔ Tilemap 协议见 [world/world-representation.md](../../world/world-representation.md)：Scene 节点提供 `coord_global`，Interactive 节点（resource/portal 等）提供 `coord_local`；Portal 属于 Interactive，`PathEdge.anchors` 给出进出锚点。
 - `TilemapMeta`（Atlas 字段）包含：
   - `mapId`
   - `outsideView { format, path, bounds }`

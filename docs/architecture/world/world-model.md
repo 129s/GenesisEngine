@@ -115,4 +115,4 @@ Scene 在生成/加载阶段解析 `layout`，为每个子节点写回 `coord_lo
 
 ---
 
-相关文档：`world_generation.md`（数据生产流程）、`world_representation.md`（运行层与渲染层对齐）、`sandbox_gui_tilemap_rendering.md`（GUI 渲染契约）。
+相关文档：[world/world-generation.md](./world-generation.md)（数据生产流程）、[world/world-representation.md](./world-representation.md)（运行层与渲染层对齐）、[interface/sandbox/sandbox-gui-tilemap-rendering.md](../interface/sandbox/sandbox-gui-tilemap-rendering.md)（GUI 渲染契约）。

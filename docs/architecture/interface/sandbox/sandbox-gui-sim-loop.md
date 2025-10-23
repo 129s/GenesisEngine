@@ -37,7 +37,7 @@
 - 需求评估：根据 `NeedDefinition`（属性权重 + 人格系数 + Trait 修改）计算强度。
 - 决策：按需求强度与人格偏好选择目标节点（Portal/交互点）。
 - 行动：Planner 生产行动序列（Move、Interact、Wait），Movement 系统执行。
-- 详细映射见 `agent_personality_big5.md`。
+- 详细映射见 [agents/agent-personality-big5.md](../../agents/agent-personality-big5.md)。
 
 ## 系统接入点
 - **Attributes/Needs 系统**：加载配置表，输出需求强度与阈值。
@@ -71,8 +71,8 @@
 6. 长时运行实验与回归脚本。
 
 参考文档：
-- `docs/architecture/SANDBOX_GUI.md`
-- `docs/architecture/agent_personality_big5.md`
+- [`sandbox-gui.md`](./sandbox-gui.md)
+- [`../../agents/agent-personality-big5.md`](../../agents/agent-personality-big5.md)
 - `docs/guides/sandbox_gui_smoke.md`
 
 ## 位置与时间语义（设计建议）

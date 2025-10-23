@@ -621,11 +621,12 @@ void BrowserView::render(UiContext& ctx)
 
     ImGui::SetCursorPos(initialCursor);
 
+    const float treeRowPaddingY = Style::DesignTokens::spacing(Style::SpacingToken::Sm);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm), 0.0f));
+                         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Sm), 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs),
-                               Style::DesignTokens::spacing(Style::SpacingToken::Xs)));
+                         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs),
+                                treeRowPaddingY));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing,
                         ImVec2(Style::DesignTokens::spacing(Style::SpacingToken::Xs), 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, Style::DesignTokens::spacing(Style::SpacingToken::Lg));

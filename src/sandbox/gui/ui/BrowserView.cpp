@@ -285,6 +285,7 @@ namespace
         }
 
         const bool open = ImGui::TreeNodeEx(nodeId.c_str(), flags, "%s", label.c_str());
+        Ui::applyClickableCursorToLastItem();
         bool renderChildren = open && !isLeaf;
         const ImGuiID itemId = ImGui::GetItemID();
 
@@ -505,6 +506,7 @@ void BrowserView::render(UiContext& ctx)
             ctx.state.browser_filter_buffer.fill('\0');
             hasFilter = false;
         }
+        Ui::applyClickableCursorToLastItem();
     }
 
     const std::string filterLower = toLowerCopy(ctx.state.browser_filter_buffer.data());

@@ -8,6 +8,19 @@
 namespace Genesis::Sandbox::Gui::Ui
 {
 
+void applyClickableCursor(bool hovered)
+{
+    if (hovered)
+    {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
+}
+
+void applyClickableCursorToLastItem(ImGuiHoveredFlags flags)
+{
+    applyClickableCursor(ImGui::IsItemHovered(flags));
+}
+
 void drawDockAnchorOverlay(const char* id_suffix, bool layout_mode_enabled)
 {
     if (!layout_mode_enabled)
@@ -33,6 +46,8 @@ void drawDockAnchorOverlay(const char* id_suffix, bool layout_mode_enabled)
     const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup |
                                               ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
     const bool active = ImGui::IsItemActive();
+
+    applyClickableCursor(hovered);
 
     if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0f))
     {

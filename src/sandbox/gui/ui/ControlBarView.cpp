@@ -2,6 +2,7 @@
 #include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
 #include "sandbox/gui/style/LayoutMetrics.hpp"
+#include "sandbox/gui/ui/LayoutHelpers.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -55,6 +56,7 @@ void ControlBarView::render(UiContext& ctx)
             {
                 ctx.state.main_view_active_tab = tab;
             }
+            Ui::applyClickableCursorToLastItem();
             PopActiveButtonStyle(active);
         };
 
@@ -77,6 +79,7 @@ void ControlBarView::render(UiContext& ctx)
                           Style::DesignTokens::color(layoutMode ? Style::ColorToken::Accent
                                                                  : Style::ColorToken::Muted));
         }
+        Ui::applyClickableCursorToLastItem();
         PopActiveButtonStyle(layoutMode);
 
         ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
@@ -91,6 +94,7 @@ void ControlBarView::render(UiContext& ctx)
                 ctx.runtime_bridge->setPaused(!paused);
                 ctx.pushToast(paused ? "Resume" : "Pause", Style::DesignTokens::color(Style::ColorToken::Info));
             }
+            Ui::applyClickableCursorToLastItem();
 
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("单步"))
@@ -98,6 +102,7 @@ void ControlBarView::render(UiContext& ctx)
                 ctx.runtime_bridge->requestStep(1);
                 ctx.pushToast("Step x1", Style::DesignTokens::color(Style::ColorToken::Accent));
             }
+            Ui::applyClickableCursorToLastItem();
 
             ImGui::SameLine();
             if (ImGui::Button("快进×10"))
@@ -105,6 +110,7 @@ void ControlBarView::render(UiContext& ctx)
                 ctx.runtime_bridge->requestStep(10);
                 ctx.pushToast("Step x10", Style::DesignTokens::color(Style::ColorToken::AccentHover));
             }
+            Ui::applyClickableCursorToLastItem();
 
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Lg));
             ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);

@@ -60,6 +60,7 @@ namespace Genesis::Sandbox::Gui
             {
                 value = !value;
             }
+            Ui::applyClickableCursorToLastItem();
             if (tooltip && tooltip[0] != '\0' && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
             {
                 ImGui::SetTooltip("%s", tooltip);
@@ -96,6 +97,7 @@ namespace Genesis::Sandbox::Gui
             const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
             const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, miniHeight);
             ImGui::InvisibleButton("SceneMiniMap.Canvas", canvasSize, ImGuiButtonFlags_None);
+            Ui::applyClickableCursorToLastItem();
             const ImVec2 canvasMax = ImGui::GetItemRectMax();
 
             ImDrawList *drawList = ImGui::GetWindowDrawList();
@@ -378,6 +380,7 @@ namespace Genesis::Sandbox::Gui
                 drawFullWidthInput("输出路径", "##WorldGenOutputPath", "生成文件输出目录（可选）", ctx.state.worldgen_output_buffer.data(), ctx.state.worldgen_output_buffer.size());
 
                 ImGui::Checkbox("使用随机种子", &ctx.state.worldgen_use_random_seed);
+                Ui::applyClickableCursorToLastItem();
                 if (ctx.state.worldgen_use_random_seed)
                 {
                     ImGui::SameLine();
@@ -385,6 +388,7 @@ namespace Genesis::Sandbox::Gui
                     {
                         ctx.state.worldgen_seed = static_cast<std::uint64_t>(std::random_device{}());
                     }
+                    Ui::applyClickableCursorToLastItem();
                     ImGui::SameLine();
                     ImGui::Text("Seed %llu", static_cast<unsigned long long>(ctx.state.worldgen_seed));
                 }
@@ -441,6 +445,7 @@ namespace Genesis::Sandbox::Gui
                         }
                     }
                 }
+                Ui::applyClickableCursorToLastItem();
                 if (disableGenerate)
                 {
                     ImGui::EndDisabled();
@@ -547,6 +552,7 @@ namespace Genesis::Sandbox::Gui
                         }
                     }
                 }
+                Ui::applyClickableCursorToLastItem();
                 if (disableLoad)
                 {
                     ImGui::EndDisabled();
@@ -595,6 +601,7 @@ namespace Genesis::Sandbox::Gui
                         }
                     }
                 }
+                Ui::applyClickableCursorToLastItem();
                 if (disableSave)
                 {
                     ImGui::EndDisabled();
@@ -652,6 +659,7 @@ namespace Genesis::Sandbox::Gui
                         }
                     }
                 }
+                Ui::applyClickableCursorToLastItem();
                 if (disableScript)
                 {
                     ImGui::EndDisabled();
@@ -794,6 +802,7 @@ namespace Genesis::Sandbox::Gui
                 ctx.state.map_selected_node = agent->location.value;
                 ctx.state.scene_focus_node_request = agent->location.value;
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("打开节点视图##agentScene"))
             {
@@ -804,8 +813,10 @@ namespace Genesis::Sandbox::Gui
                 ctx.state.scene_tile_selection.reset();
                 ctx.state.scene_focus_node_request = agent->location.value;
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             bool followChanged = ImGui::Checkbox("Follow##agentFollow", &ctx.state.inspector_follow_selection);
+            Ui::applyClickableCursorToLastItem();
             if (followChanged && ctx.state.inspector_follow_selection)
             {
                 ctx.state.scene_selected_node = agent->location.value;
@@ -834,7 +845,7 @@ namespace Genesis::Sandbox::Gui
                     locationJson["parent"] = nodeInfo->parent.value;
                     locationJson["kind"] = static_cast<unsigned int>(nodeInfo->kind);
                     locationJson["position"] = {{"x", nodeInfo->position.x}, {"y", nodeInfo->position.y}};
-                }
+                        }
 
                 json needsJson = json::array();
                 for (const auto &need : tick.needs)
@@ -940,6 +951,7 @@ namespace Genesis::Sandbox::Gui
                 ImGui::SetClipboardText(serialized.c_str());
                 ctx.pushToast("Agent snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
             ImGui::Text("ID：%u", agent->entityId);
             ImGui::Text("位置：#%u %s", agent->location.value, nodeName.c_str());
@@ -1124,6 +1136,7 @@ namespace Genesis::Sandbox::Gui
                 ctx.state.map_selected_node = resource.location.value;
                 ctx.state.scene_focus_node_request = resource.location.value;
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("打开节点视图##resourceScene"))
             {
@@ -1134,6 +1147,7 @@ namespace Genesis::Sandbox::Gui
                 ctx.state.scene_tile_selection.reset();
                 ctx.state.scene_focus_node_request = resource.location.value;
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##resourceCopy"))
             {
@@ -1193,6 +1207,7 @@ namespace Genesis::Sandbox::Gui
                 ImGui::SetClipboardText(serialized.c_str());
                 ctx.pushToast("Resource snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
             bool firstSection = true;
             CardSectionHeader(inspectorCardLayout, "资源概览", firstSection);
@@ -1313,6 +1328,7 @@ namespace Genesis::Sandbox::Gui
                 ctx.state.map_selected_node = selectedNode->id.value;
                 ctx.state.scene_focus_node_request = selectedNode->id.value;
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
             if (ImGui::Button("Copy JSON##nodeCopy"))
             {
@@ -1378,6 +1394,7 @@ namespace Genesis::Sandbox::Gui
                 ImGui::SetClipboardText(serialized.c_str());
                 ctx.pushToast("Node snapshot copied", Style::DesignTokens::color(Style::ColorToken::Success));
             }
+            Ui::applyClickableCursorToLastItem();
             ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
             bool firstSection = true;
             CardSectionHeader(inspectorCardLayout, "节点信息", firstSection);
@@ -1537,6 +1554,7 @@ namespace Genesis::Sandbox::Gui
             {
                 ctx.state.show_inspector = true;
             }
+            Ui::applyClickableCursorToLastItem();
         }
         ImGui::EndChild();
     }
@@ -1556,6 +1574,7 @@ namespace Genesis::Sandbox::Gui
             {
                 ctx.state.scene_selection_tool = tool;
             }
+            Ui::applyClickableCursorToLastItem();
             PopActiveButtonStyle(active);
         };
 
@@ -1586,6 +1605,7 @@ namespace Genesis::Sandbox::Gui
             {
                 resetRequested = true;
             }
+            Ui::applyClickableCursorToLastItem();
         }
         else
         {
@@ -1618,6 +1638,7 @@ namespace Genesis::Sandbox::Gui
 
         ImGui::SetCursorScreenPos(canvasPos);
         ImGui::InvisibleButton("SceneCanvas", canvasExtent, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+        Ui::applyClickableCursorToLastItem();
 
         ImDrawList *drawList = ImGui::GetWindowDrawList();
         auto drawCanvasBackground = [&]() {
@@ -2142,6 +2163,7 @@ void MainView::drawSettingsTab(UiContext &ctx)
                 {
                     glfwSwapInterval(ctx.config.vsync ? 1 : 0);
                 }
+                Ui::applyClickableCursorToLastItem();
 
                 ImGui::PopTextWrapPos();
             }
@@ -2263,6 +2285,7 @@ void MainView::drawSettingsTab(UiContext &ctx)
         bool firstSection = true;
         CardSectionHeader(layout, "控制", firstSection);
         ImGui::Checkbox("自动滚动", &ctx.state.log_auto_scroll);
+        Ui::applyClickableCursorToLastItem();
 
         CardSectionHeader(layout, "日志流", firstSection);
 

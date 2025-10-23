@@ -144,3 +144,68 @@
   - CMake 引入别名目标：`Genesis::RuntimeCore`、`Genesis::RuntimeSnapshot`（当前指向 `Genesis::Runtime`），为后续 API/实现分离预热。
 
 影响与兼容性：本次变更不影响现有可执行与功能，编译链保持稳定；GUI 侧头文件边界更清晰，为“界面层不依赖仿真实现”打基础。
+
+## 破坏性重构计划 · v2（Map 图 + 直线移动）
+
+> 结论复述：彻底切换到“Map 图（有向）+ Scene 分组 + Interaction/Portal”的世界模型；运行时 Map 内直线移动；渲染层仅在“可见范围内”执行局部寻路用于可视化。此为破坏性重构，不保留旧 `LocationGraph`/`WorldRegistry`/基于节点边的寻路兼容层。
+
+### Phase A · 运行时与世界模型（全面替换）
+1) 数据模型与查询
+- 新类型：`Map/MapEdge`、`Scene`、`Interaction{ id,mapId,sceneId,kind,coord }`、`Portal{ interactionId,... }`。
+- 新总线：`WorldDatabase`（替代 `WorldRegistry`），提供：`maps()`、`mapEdges(from)`、`scenes(mapId)`、`interactions(mapId)`、`portals(mapId)`、`findInteraction(id)` 等只读查询。
+- 移除：`LocationGraph/LocationNode/PathEdge` 与对应查询接口。
+
+2) ECS 组件
+- `AgentLocation { mapId:uint32, position:{x,y}, atInteractionId?:uint32 }`
+- `MovementIntent/State { targetMapId:uint32, targetPos:{x,y}, ... }`（去除“节点路径”）
+- `ActionTask { targetMapId, targetPos }`；资源消费以 `interactionId` 标识目标。
+
+3) 系统
+- `MovementSystem`：Map 内直线运动（欧氏距离/速度），到点即达；跨图跳转后续在 MapEdge 层拼接。
+- `ResourceSystem`：库存绑定到 `Interaction(kind=Resource)`；按 interactionId 消耗/再生。
+- `Planner`（示例：觅食）：在同一 Map 内对 Resource interaction 打分/选择并生成行动（暂不跨图）。
+
+4) Engine/Telemetry
+- Engine 使用 `WorldDatabase` 查询；Demo 代理在某 map 的某交互点或坐标生成。
+- Telemetry 输出统一为 `{ mapId, position(x,y) }` 与可选 `movement{from,to,t01}`；移除对 `LocationId` 的依赖。
+
+5) Loader/存取
+- 替换为：`world.json`（`maps[]`、`map_edges[]`）+ `map_{id}.json`（`scenes[]`、`interactions[]`、`portals[]`、可选 `tilemap`）。
+- 实现完整读取与基本校验；移除旧 JSON（`LocationGraph`）路径与 Loader。
+
+6) Atlas/GUI 基座
+- `RuntimeBridge::buildWorldAtlas` 改为由 `WorldDatabase` 构造：`maps/mapEdges` + 每图 `scenes/interactions/portals[/tilemap]`。
+- GUI：
+  - MapView：绘制 Map 图与交互点；
+  - SceneView：按 Tile 层渲染并高亮交互点/Portal；
+  - Inspector：以 Interaction/Portal 为一等公民。
+
+验收（A）：工程可构建；Demo 代理在单图内直线运动；资源消费闭环正常；GUI 可浏览 Map/Scene/交互点/Portal。
+
+### Phase B · 渲染层“可见内”局部寻路（仅可视化）
+1) 可见性与资产
+- SceneView 按相机窗口判断可见；可见 Map 载入 Tile 纹理/元数据。
+
+2) 局部寻路（GUI 自行计算）
+- LOS 直线优先：对起终可视点做网格/采样直线检测，可通行则用直线渲染。
+- 失败回退 A*：在小范围（视口内）做轻量 A*，生成 polyline；结果按 `agentId+segment` 缓存；越界/离屏失效即丢弃。
+- 渲染沿 polyline 插值；此路径不改变运行状态。
+
+3) 与运行解耦
+- 运行时仍按直线/MapEdge 推进；GUI 仅为“看到的对象”计算/缓存可视路径，避免全局成本。
+
+验收（B）：可见范围内，代理以平滑路径渲染；离开视口后停止计算；切换 Map/世界版本时缓存正确刷新。
+
+### 非兼容声明与迁移
+- 本次为破坏性重构：移除 `LocationGraph`、基于节点/边的 Movement/Planner/Loader/Atlas，API 同步更改。
+- 旧数据需迁移为 `world.json + map_{id}.json`；提供最小示例与校验脚本。
+
+### 风险与里程碑
+- 风险：大规模签名变更影响范围广；GUI 可视寻路的缓存与性能需验收；测试夹具需重写。
+- 里程碑：
+  1) A1 数据模型 + WorldDatabase + Loader 完成；
+  2) A2 Movement/Resource/Planner + Telemetry 对齐；
+  3) A3 Atlas/GUI 适配；
+  4) B1 可视范围局部寻路（LOS + A*）与缓存；
+  5) B2 性能与 UX 打磨；
+  6) 收尾清理旧引用与文档。

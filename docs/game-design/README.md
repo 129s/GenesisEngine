@@ -10,6 +10,7 @@
 - core-loop.md — 核心调查循环与关键交互
 - narrative.md — 世界观、人物、章节结构与分支
 - systems.md — 线索/时间线/心像/理智等系统设计
+- sticky-notes.md — 便签条与场景注记（与证据板联动）
 - art-audio.md — 美术风格、UI 语言、音频与音乐方向
 - production.md — 垂直切片范围、里程碑、引擎依赖与风险
 - top-level-design.md — 顶层社会模拟设计与优先级（P0/P1/P2）

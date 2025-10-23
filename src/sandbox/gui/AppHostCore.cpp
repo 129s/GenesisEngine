@@ -163,6 +163,36 @@ namespace Genesis::Sandbox::Gui
             return false;
         }
 
+        if (GLFWmonitor *monitor = glfwGetPrimaryMonitor())
+        {
+            int windowWidth = config_.width;
+            int windowHeight = config_.height;
+            glfwGetWindowSize(window_, &windowWidth, &windowHeight);
+
+            int monitorX = 0;
+            int monitorY = 0;
+            int monitorWidth = 0;
+            int monitorHeight = 0;
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 3)
+            glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
+#endif
+            if (monitorWidth == 0 || monitorHeight == 0)
+            {
+                if (const GLFWvidmode *videoMode = glfwGetVideoMode(monitor))
+                {
+                    monitorWidth = videoMode->width;
+                    monitorHeight = videoMode->height;
+                }
+            }
+
+            if (monitorWidth > 0 && monitorHeight > 0)
+            {
+                const int targetX = monitorX + (monitorWidth - windowWidth) / 2;
+                const int targetY = monitorY + (monitorHeight - windowHeight) / 2;
+                glfwSetWindowPos(window_, targetX, targetY);
+            }
+        }
+
         glfwMakeContextCurrent(window_);
         glfwSwapInterval(config_.vsync ? 1 : 0);
 

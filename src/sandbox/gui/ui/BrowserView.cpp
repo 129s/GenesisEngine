@@ -267,7 +267,8 @@ namespace
         std::string nodeId = key + "##browser_tree";
         const ImVec4 focusColor = Style::DesignTokens::color(Style::ColorToken::AccentActive);
         const ImVec4 hoverColor = Style::DesignTokens::color(Style::ColorToken::AccentHover);
-        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hoverColor);
+        const ImVec4 headerHoverColor = (isSelected && !isLeaf) ? focusColor : hoverColor;
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, headerHoverColor);
         ImGui::PushStyleColor(ImGuiCol_HeaderActive, focusColor);
         int selectionHeaderPushes = 0;
 
@@ -282,7 +283,7 @@ namespace
             leafColors = colorForLeaf(node.path);
             ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, ImGui::GetColorU32(leafColors.normal));
             ImGui::PushStyleColor(ImGuiCol_Header, leafColors.active);
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, leafColors.hover);
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, isSelected ? leafColors.active : leafColors.hover);
             ImGui::PushStyleColor(ImGuiCol_HeaderActive, leafColors.active);
             selectionHeaderPushes = 3;
         }

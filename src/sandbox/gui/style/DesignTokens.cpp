@@ -91,6 +91,12 @@ namespace
                 return;
             }
 
+            if (registry.loadCompiledDefault())
+            {
+                spdlog::info("DesignTokens: 使用编译期调色板 (theme={})", registry.activeTheme());
+                return;
+            }
+
             std::filesystem::path base = std::filesystem::current_path();
             bool loaded = false;
             for (int asc = 0; asc < 5 && !loaded; ++asc)

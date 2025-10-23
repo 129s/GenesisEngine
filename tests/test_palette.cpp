@@ -50,6 +50,24 @@ TEST(ColorRegistry, LoadsCorePalette)
     EXPECT_NEAR(alias->g, primary->g, 1e-6f);
 }
 
+TEST(ColorRegistry, LoadsCompiledDefaultPalette)
+{
+    auto& registry = Genesis::Style::ColorRegistry::instance();
+    registry.unload();
+
+    ASSERT_TRUE(registry.loadCompiledDefault());
+    EXPECT_TRUE(registry.isLoaded());
+    EXPECT_FALSE(registry.tokens().empty());
+    EXPECT_EQ(registry.activeTheme(), "genesis/core-dark");
+
+    const auto primary = registry.color("accent.primary.base");
+    ASSERT_TRUE(primary.has_value());
+
+    const auto alias = registry.color("Primary");
+    ASSERT_TRUE(alias.has_value());
+    EXPECT_NEAR(alias->b, primary->b, 1e-6f);
+}
+
 TEST(ColorRegistry, ProducesLinearSpace)
 {
     auto& registry = Genesis::Style::ColorRegistry::instance();

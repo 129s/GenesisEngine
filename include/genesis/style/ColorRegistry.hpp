@@ -21,6 +21,7 @@ public:
     [[nodiscard]] bool isLoaded() const noexcept;
 
     bool tryLoadFrom(const std::filesystem::path& filePath, std::optional<std::string> forcedTheme = std::nullopt);
+    bool loadCompiledDefault(std::optional<std::string> forcedTheme = std::nullopt);
     void unload();
 
     [[nodiscard]] std::optional<RgbaColor> color(std::string_view token,

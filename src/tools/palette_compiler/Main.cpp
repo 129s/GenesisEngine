@@ -332,6 +332,11 @@ std::vector<ThemeContext> CollectThemes(const Genesis::Style::PaletteDocument& d
     return contexts;
 }
 
+std::string AliasArrayName(const ThemeContext& ctx, const Genesis::Style::PaletteEntry& entry)
+{
+    return ctx.pascalName + "_" + ToSnakeCase(entry.token, true) + "_Aliases";
+}
+
 bool WriteFile(const fs::path& path, const std::string& content)
 {
     std::ofstream output(path, std::ios::binary);
@@ -343,7 +348,8 @@ bool WriteFile(const fs::path& path, const std::string& content)
     return static_cast<bool>(output);
 }
 
-std::string GenerateCppHeader(const std::vector<ThemeContext>& contexts)
+std::string GenerateCppHeader(const Genesis::Style::PaletteDocument& document,
+                              const std::vector<ThemeContext>& contexts)
 {
     std::ostringstream oss;
     oss << "// 自动生成文件，请勿手动编辑\n";
@@ -351,6 +357,8 @@ std::string GenerateCppHeader(const std::vector<ThemeContext>& contexts)
     oss << "#include <array>\n";
     oss << "#include <cstddef>\n\n";
     oss << "namespace Genesis::Style::Generated\n{\n\n";
+    oss << "inline constexpr int PaletteVersion = " << document.version << ";\n";
+    oss << "inline constexpr const char* DefaultThemeId = \"" << EscapeString(document.default_theme_id) << "\";\n\n";
     oss << "struct ColorSample\n{\n";
     oss << "    float srgb[4];\n";
     oss << "    float linear[4];\n";
@@ -360,6 +368,8 @@ std::string GenerateCppHeader(const std::vector<ThemeContext>& contexts)
     oss << "    const char* category;\n";
     oss << "    const char* description;\n";
     oss << "    ColorSample color;\n";
+    oss << "    const char* const* aliases;\n";
+    oss << "    std::size_t alias_count;\n";
     oss << "};\n\n";
     oss << "struct ThemeInfo\n{\n";
     oss << "    const char* id;\n";
@@ -371,13 +381,32 @@ std::string GenerateCppHeader(const std::vector<ThemeContext>& contexts)
 
     for (const auto& ctx : contexts)
     {
+        for (const auto* entry : ctx.entries)
+        {
+            if (entry->aliases.empty())
+            {
+                continue;
+            }
+            const std::string aliasArrayName = AliasArrayName(ctx, *entry);
+            oss << "inline constexpr std::array<const char*, " << entry->aliases.size() << "> " << aliasArrayName << " = {\n";
+            for (const auto& alias : entry->aliases)
+            {
+                oss << "    \"" << EscapeString(alias) << "\",\n";
+            }
+            oss << "};\n";
+        }
+        if (!ctx.entries.empty())
+        {
+            oss << "\n";
+        }
+
         oss << "inline constexpr std::array<PaletteEntry, " << ctx.entries.size() << "> " << ctx.pascalName << "Entries = {\n";
         for (const auto* entry : ctx.entries)
         {
-            oss << "    {\""
+            oss << "    PaletteEntry{\""
                 << EscapeString(entry->token) << "\", \""
                 << EscapeString(entry->category) << "\", \""
-                << EscapeString(entry->description) << "\", {{\n"
+                << EscapeString(entry->description) << "\", {\n"
                 << "        {" << FormatFloat(entry->sample.srgb.r) << ", "
                 << FormatFloat(entry->sample.srgb.g) << ", "
                 << FormatFloat(entry->sample.srgb.b) << ", "
@@ -386,7 +415,18 @@ std::string GenerateCppHeader(const std::vector<ThemeContext>& contexts)
                 << FormatFloat(entry->sample.linear.g) << ", "
                 << FormatFloat(entry->sample.linear.b) << ", "
                 << FormatFloat(entry->sample.linear.a) << "}\n"
-                << "    }}},\n";
+                << "    }, ";
+
+            if (!entry->aliases.empty())
+            {
+                const std::string aliasArrayName = AliasArrayName(ctx, *entry);
+                oss << aliasArrayName << ".data(), " << entry->aliases.size();
+            }
+            else
+            {
+                oss << "nullptr, 0";
+            }
+            oss << "},\n";
         }
         oss << "};\n\n";
     }
@@ -558,7 +598,7 @@ int Run(int argc, char** argv)
 
     if (options.emit_cpp)
     {
-        const auto headerContent = GenerateCppHeader(contexts);
+        const auto headerContent = GenerateCppHeader(document, contexts);
         const auto headerPath = options.output / "PaletteGenerated.hpp";
         if (!WriteFile(headerPath, headerContent))
         {

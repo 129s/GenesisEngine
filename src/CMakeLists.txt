@@ -1,6 +1,29 @@
+set(GENESIS_PALETTE_DATA_SOURCES
+    style/PaletteLoader.cpp
+)
+
+add_library(genesis_palette_data STATIC ${GENESIS_PALETTE_DATA_SOURCES})
+add_library(Genesis::PaletteData ALIAS genesis_palette_data)
+
+target_include_directories(genesis_palette_data
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_palette_data
+    PUBLIC
+        nlohmann_json::nlohmann_json
+        spdlog::spdlog_header_only
+)
+
+set_target_properties(genesis_palette_data PROPERTIES
+    OUTPUT_NAME "genesis_palette_data"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
 set(GENESIS_STYLE_SOURCES
     style/ColorRegistry.cpp
-    style/PaletteLoader.cpp
 )
 
 add_library(genesis_style STATIC ${GENESIS_STYLE_SOURCES})
@@ -14,7 +37,7 @@ target_include_directories(genesis_style
 
 target_link_libraries(genesis_style
     PUBLIC
-        nlohmann_json::nlohmann_json
+        Genesis::PaletteData
         spdlog::spdlog_header_only
 )
 
@@ -35,7 +58,7 @@ target_include_directories(genesis_palette_compiler
 
 target_link_libraries(genesis_palette_compiler
     PRIVATE
-        Genesis::Style
+        Genesis::PaletteData
         nlohmann_json::nlohmann_json
         spdlog::spdlog_header_only
 )
@@ -59,6 +82,8 @@ add_custom_target(genesis_palette_assets ALL
         ${PALETTE_OUTPUT_DIR}/PaletteGenerated.glsl
         ${PALETTE_OUTPUT_DIR}/PaletteIndex.json
 )
+
+add_dependencies(genesis_style genesis_palette_assets)
 
 set(GENESIS_RENDERING_SOURCES
     rendering/ProceduralAsset.cpp

@@ -52,13 +52,14 @@ data/
 核心方法：
 - `ColorRegistry::instance()` 获取全局单例。
 - `bool tryLoadFrom(std::filesystem::path, std::optional<std::string>)` 加载调色板并可选指定激活主题。
+- `bool loadCompiledDefault(std::optional<std::string>)` 读取编译阶段生成的 `PaletteGenerated.hpp`，确保运行时无需再解析 JSON。
 - `std::optional<RgbaColor> color(token, ColorSpace, theme)` 获取颜色（默认 sRGB，支持线性空间）。
 - `bool setActiveTheme(std::string_view)` 切换主题。
 - `std::vector<std::string> themes()/tokens()` 枚举可用主题、令牌。
 
 Sandbox GUI 的 `DesignTokens` 已改为优先查询 `ColorRegistry`，若色板缺失会退回旧的硬编码表并输出 warn。
 
-> **注意**：库默认尝试从当前工作目录向上查找 `data/palette/core.json`。若可执行文件放置在其他路径，需在初始化阶段调用 `ColorRegistry::instance().tryLoadFrom()` 明确指定配置位置。
+> **注意**：构建流程会在 `build/generated/palette/` 输出 `PaletteGenerated.hpp` 并在运行时优先加载。当编译产物缺失（例如自定义构建流程跳过了 `genesis_palette_assets`）时，库仍会回退到从工作目录查找 `data/palette/core.json`，必要时可手动调用 `tryLoadFrom()` 指明配置文件。
 
 ## 离线调色板编译工具
 路径：`src/tools/palette_compiler`，可执行文件名：`genesis_palette_compiler`

@@ -22,15 +22,18 @@
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/WorldRegistry.hpp"
 
+// 前置声明：新世界数据库接口（避免在头文件中包含加载器实现）
+namespace genesis { namespace world { class WorldDatabase; } }
+
 // 前置声明以避免 GUI 层头文件依赖模拟内核实现
 namespace genesis::core { class Engine; }
 
 namespace Genesis::Sandbox::Gui
 {
 
-class RuntimeBridge
-{
-public:
+    class RuntimeBridge
+    {
+    public:
     struct Vector2
     {
         float x{0.0f};
@@ -157,7 +160,9 @@ public:
 
     [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;
 
-    [[nodiscard]] const WorldAtlas& atlas() const noexcept { return atlas_; }
+        [[nodiscard]] const WorldAtlas& atlas() const noexcept { return atlas_; }
+        // 试验性：加载新世界数据（world.json + map_#.json 文件夹），仅影响 GUI 的 Atlas 构建
+        bool loadWorldDatabaseFolder(const std::filesystem::path& folder, std::string& errorMessage);
 
     std::uint64_t enqueueRuntimeEvent(genesis::runtime::RuntimeEvent event, std::string source = "direct");
     std::optional<std::uint64_t> enqueueCommandFromJson(const nlohmann::json& descriptor, std::string source, std::string& errorMessage);
@@ -166,14 +171,15 @@ public:
 
     [[nodiscard]] std::vector<CommandProgress> commandStatusSnapshot() const;
 
-private:
-    void runLoop();
-    void captureSnapshot();
-    static WorldAtlas buildWorldAtlas(const genesis::core::Engine& engine);
-    void reconcileCommands(const std::vector<genesis::runtime::RuntimeEventReport>& reports);
-    std::uint64_t recordPending(std::uint64_t id, genesis::runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt);
-    void completeCommand(std::uint64_t id, bool success, std::string message, std::optional<std::string> payloadOverride = std::nullopt);
-    void purgeFinishedTasks();
+    private:
+        void runLoop();
+        void captureSnapshot();
+        static WorldAtlas buildWorldAtlas(const genesis::core::Engine& engine);
+        static WorldAtlas buildWorldAtlas(const genesis::world::WorldDatabase& db);
+        void reconcileCommands(const std::vector<genesis::runtime::RuntimeEventReport>& reports);
+        std::uint64_t recordPending(std::uint64_t id, genesis::runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt);
+        void completeCommand(std::uint64_t id, bool success, std::string message, std::optional<std::string> payloadOverride = std::nullopt);
+        void purgeFinishedTasks();
 
     genesis::runtime::Runtime runtime_;
     std::size_t maxSnapshots_;
@@ -190,7 +196,8 @@ private:
     double speedMultiplier_{1.0};
     std::thread worker_;
 
-    WorldAtlas atlas_;
+        WorldAtlas atlas_;
+        std::shared_ptr<genesis::world::WorldDatabase> worldDb_;
     mutable std::mutex lastGenerationMutex_;
     std::optional<genesis::runtime::Runtime::WorldGenerationResult> lastGeneration_;
 

@@ -301,6 +301,7 @@ target_link_libraries(genesis_sandbox_gui
     PRIVATE
         Genesis::Style
         Genesis::Runtime
+        Genesis::WorldModel
         Genesis::Rendering
         spdlog::spdlog_header_only
         imgui::imgui

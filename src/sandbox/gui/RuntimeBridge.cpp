@@ -1,5 +1,6 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
 #include "genesis/core/Engine.hpp"
+#include "genesis/world/WorldDatabaseLoader.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -40,7 +41,82 @@ RuntimeBridge::Vector2 computeExtent(std::size_t maxPerLevel, std::size_t levelC
     return RuntimeBridge::Vector2{std::max(width, kMinExtent), std::max(height, kMinExtent)};
 }
 
+// 注：buildWorldAtlas(WorldDatabase) 与 loadWorldDatabaseFolder 的定义移至匿名命名空间外部
+
 } // namespace
+
+RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::world::WorldDatabase& db)
+{
+    WorldAtlas atlas;
+
+    const auto& maps = db.maps();
+    std::size_t levelCount = 1;
+    std::size_t maxPerLevel = maps.size();
+    atlas.extent = computeExtent(maxPerLevel, levelCount);
+
+    float x = 0.0f;
+    for (const auto& m : maps)
+    {
+        WorldAtlas::Node n{};
+        n.id = genesis::world::LocationId{m.id};
+        n.parent = genesis::world::InvalidLocation;
+        n.kind = genesis::world::LocationKind::Region;
+        n.name = m.name;
+        n.position = Vector2{x, 0.0f};
+        atlas.nodeLookup.emplace(n.id.value, n.position);
+        atlas.nodes.push_back(std::move(n));
+        x += kHorizontalSpacing;
+    }
+
+    for (const auto& e : db.mapEdges())
+    {
+        WorldAtlas::Edge ae{};
+        ae.from = genesis::world::LocationId{e.from};
+        ae.to = genesis::world::LocationId{e.to};
+        ae.bidirectional = e.bidirectional;
+        atlas.edges.push_back(std::move(ae));
+    }
+
+    for (const auto& m : maps)
+    {
+        for (const auto& inter : db.interactions(m.id))
+        {
+            if (inter.kind == genesis::world::InteractionKind::Resource)
+            {
+                genesis::world::ResourceSpawn spawn{};
+                spawn.name = inter.name;
+                spawn.location = genesis::world::LocationId{m.id};
+                if (inter.coord.first != 0 || inter.coord.second != 0)
+                {
+                    spawn.local_coord = std::make_pair(inter.coord.first, inter.coord.second);
+                }
+                Vector2 position{0.0f, 0.0f};
+                if (auto p = atlas.nodePosition(spawn.location)) position = *p;
+                atlas.spawns.push_back(WorldAtlas::Spawn{.resource = spawn, .position = position});
+            }
+        }
+    }
+
+    return atlas;
+}
+
+bool RuntimeBridge::loadWorldDatabaseFolder(const std::filesystem::path& folder, std::string& errorMessage)
+{
+    errorMessage.clear();
+    auto res = genesis::world::loadWorldDatabaseFromFolder(folder);
+    if (!res.success || !res.database)
+    {
+        errorMessage = res.error.empty() ? std::string("加载 world.json/map_#.json 失败") : res.error;
+        return false;
+    }
+
+    {
+        std::lock_guard lock(controlMutex_);
+        worldDb_ = res.database;
+    }
+    rebuildAtlasOnRuntimeThread();
+    return true;
+}
 
 RuntimeBridge::RuntimeBridge(genesis::runtime::RuntimeConfig config, std::size_t maxSnapshots)
     : runtime_(std::move(config))
@@ -840,7 +916,15 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& 
 
 void RuntimeBridge::rebuildAtlasOnRuntimeThread()
 {
-    auto nextAtlas = buildWorldAtlas(runtime_.engine());
+    WorldAtlas nextAtlas{};
+    if (worldDb_)
+    {
+        nextAtlas = buildWorldAtlas(*worldDb_);
+    }
+    else
+    {
+        nextAtlas = buildWorldAtlas(runtime_.engine());
+    }
     std::lock_guard snapLock(snapshotMutex_);
     atlas_ = std::move(nextAtlas);
     snapshots_.clear();

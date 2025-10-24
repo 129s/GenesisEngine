@@ -161,7 +161,8 @@ nlohmann::json toJson(const genesis::telemetry::TelemetryBuffer& buffer) {
         for (const auto& agent : tick.agents) {
             agents.push_back({
                 {"entityId", agent.entityId},
-                {"location", agent.location.value},
+                {"mapId", agent.mapId},
+                {"position", {agent.position.x, agent.position.y}},
             });
         }
 
@@ -204,3 +205,4 @@ int main(int argc, char** argv) {
     spdlog::info("GenesisEngine shutdown");
     return 0;
 }
+

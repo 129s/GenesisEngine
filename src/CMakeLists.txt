@@ -165,6 +165,9 @@ set_target_properties(genesis_worldgen PROPERTIES
 set(GENESIS_ENGINE_SOURCES
     core/SimulationClock.cpp
     core/Engine.cpp
+    simulation/Movement2DSystem.cpp
+    simulation/TelemetryCollector.cpp
+    simulation/Scheduler.cpp
     telemetry/TelemetryBuffer.cpp
 )
 

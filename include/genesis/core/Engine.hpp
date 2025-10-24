@@ -10,6 +10,9 @@
 #include "genesis/core/SimulationClock.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/simulation/Movement2DSystem.hpp"
+#include "genesis/simulation/Scheduler.hpp"
+#include "genesis/simulation/TelemetryCollector.hpp"
 
 namespace genesis { namespace world { struct WorldLoadResult; class WorldDatabase; } }
 
@@ -47,6 +50,9 @@ private:
 
     SimulationClock m_clock;
     entt::registry m_registry;
+    simulation::Movement2DSystem m_movement2d;
+    simulation::Scheduler m_scheduler{&m_movement2d};
+    simulation::TelemetryCollector m_telemetryCollector;
     telemetry::TelemetryBuffer m_telemetry;
     std::uint64_t m_lastTelemetryReportStep{0};
     static constexpr std::uint64_t kTelemetryReportInterval = 120;

@@ -44,33 +44,7 @@ void Engine::step(std::uint64_t steps) {
 
 void Engine::processStep(std::uint64_t stepIndex) {
     const float deltaSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
-    auto view = m_registry.view<genesis::agents::components::AgentLocation2D, genesis::agents::components::MovementIntent2D>();
-    view.each([&](auto entity, auto& loc, auto& intent) {
-        if (intent.targetMapId != loc.mapId) {
-            loc.mapId = intent.targetMapId;
-            loc.x = intent.targetX; loc.y = intent.targetY;
-            m_registry.remove<genesis::agents::components::MovementIntent2D>(entity);
-            return;
-        }
-        const float dx = intent.targetX - loc.x;
-        const float dy = intent.targetY - loc.y;
-        const float dist2 = dx*dx + dy*dy;
-        const float speed = std::max(intent.speed, 0.0f);
-        if (dist2 <= 1e-6f || speed <= 0.0f) {
-            loc.x = intent.targetX; loc.y = intent.targetY;
-            m_registry.remove<genesis::agents::components::MovementIntent2D>(entity);
-            return;
-        }
-        const float dist = std::sqrt(dist2);
-        const float step = speed * deltaSeconds;
-        if (step >= dist) {
-            loc.x = intent.targetX; loc.y = intent.targetY;
-            m_registry.remove<genesis::agents::components::MovementIntent2D>(entity);
-        } else {
-            loc.x += dx / dist * step;
-            loc.y += dy / dist * step;
-        }
-    });
+    m_scheduler.update(m_registry, deltaSeconds);
     captureTelemetry(stepIndex);
 }
 
@@ -89,20 +63,7 @@ genesis::world::WorldLoadResult Engine::loadWorldFromFile(const std::filesystem:
 }
 
 void Engine::captureTelemetry(std::uint64_t stepIndex) {
-    telemetry::TickTelemetry tick{};
-    tick.step = stepIndex;
-    tick.stepSeconds = std::chrono::duration<float>(m_clock.stepDuration()).count();
-
-    auto agentView = m_registry.view<genesis::agents::components::AgentLocation2D>();
-    agentView.each([&](auto entity, const genesis::agents::components::AgentLocation2D& loc) {
-        telemetry::AgentSnapshot snapshot{};
-        snapshot.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
-        snapshot.name = "Agent";
-        snapshot.mapId = loc.mapId;
-        snapshot.position.x = loc.x;
-        snapshot.position.y = loc.y;
-        tick.agents.push_back(std::move(snapshot));
-    });
+    telemetry::TickTelemetry tick = m_telemetryCollector.collect(m_registry, stepIndex, std::chrono::duration<float>(m_clock.stepDuration()).count());
 
     if (m_snapshotCallback) {
         m_snapshotCallback(tick);

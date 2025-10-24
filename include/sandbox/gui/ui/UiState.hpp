@@ -148,6 +148,10 @@ struct UiState
     std::uint32_t agent_tp_mapId{1};
     float agent_tp_x{0.0f};
     float agent_tp_y{0.0f};
+
+    // 资源操作（v2）
+    std::uint32_t resource_consume_interactionId{0};
+    std::uint32_t resource_consume_amount{1};
 };
 
 } // namespace Genesis::Sandbox::Gui

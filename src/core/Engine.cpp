@@ -57,6 +57,7 @@ genesis::world::WorldLoadResult Engine::loadWorldFromFile(const std::filesystem:
         return out;
     }
     m_worldDb = std::move(res.database);
+    initializeResourcesFromDatabase();
     spawnDemoAgentsIfEmpty();
     out.success = true;
     return out;
@@ -98,6 +99,14 @@ void Engine::spawnDemoAgentsIfEmpty() {
         genesis::agents::components::MovementIntent2D intent{};
         intent.targetMapId = 1; intent.targetX = 10.0f; intent.targetY = 5.0f; intent.speed = 2.0f;
         m_registry.emplace<genesis::agents::components::MovementIntent2D>(e, intent);
+    }
+}
+
+void Engine::initializeResourcesFromDatabase() {
+    if (m_worldDb) {
+        m_resource2d.initializeFromDatabase(*m_worldDb);
+    } else {
+        m_resource2d.clear();
     }
 }
 

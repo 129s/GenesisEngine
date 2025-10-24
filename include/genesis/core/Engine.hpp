@@ -13,6 +13,7 @@
 #include "genesis/simulation/Movement2DSystem.hpp"
 #include "genesis/simulation/Scheduler.hpp"
 #include "genesis/simulation/TelemetryCollector.hpp"
+#include "genesis/simulation/ResourceSystem2D.hpp"
 
 namespace genesis { namespace world { struct WorldLoadResult; class WorldDatabase; } }
 
@@ -51,13 +52,19 @@ private:
     SimulationClock m_clock;
     entt::registry m_registry;
     simulation::Movement2DSystem m_movement2d;
-    simulation::Scheduler m_scheduler{&m_movement2d};
+    simulation::ResourceSystem2D m_resource2d;
+    simulation::Scheduler m_scheduler{&m_movement2d, &m_resource2d};
     simulation::TelemetryCollector m_telemetryCollector;
     telemetry::TelemetryBuffer m_telemetry;
     std::uint64_t m_lastTelemetryReportStep{0};
     static constexpr std::uint64_t kTelemetryReportInterval = 120;
     SnapshotCallback m_snapshotCallback;
     std::shared_ptr<genesis::world::WorldDatabase> m_worldDb;
+
+public:
+    // 资源接口（供 Runtime 命令使用）
+    std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount) { return m_resource2d.consume(interactionId, amount); }
+    void initializeResourcesFromDatabase();
 };
 
 } // namespace genesis::core

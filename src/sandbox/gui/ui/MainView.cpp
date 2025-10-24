@@ -887,6 +887,26 @@ namespace Genesis::Sandbox::Gui
                 Ui::applyClickableCursorToLastItem();
                 if (!runtimeReady2) ImGui::EndDisabled();
 
+                CardSectionHeader(cardLayout, "资源（v2）", firstSection);
+                ImGui::Text("interactionId"); ImGui::SameLine(); ImGui::InputScalar("##ResInterId", ImGuiDataType_U32, &ctx.state.resource_consume_interactionId);
+                ImGui::Text("amount"); ImGui::SameLine(); ImGui::InputScalar("##ResAmount", ImGuiDataType_U32, &ctx.state.resource_consume_amount);
+                if (!runtimeReady2) ImGui::BeginDisabled();
+                if (ImGui::Button("消耗资源"))
+                {
+                    json cmd = {
+                        {"action","resource.consume"},
+                        {"interactionId", ctx.state.resource_consume_interactionId},
+                        {"amount", ctx.state.resource_consume_amount}
+                    };
+                    std::string err;
+                    if (!ctx.runtime_bridge->enqueueCommandFromJson(cmd, "ui", err))
+                    {
+                        ctx.state.pushToast(std::string("消耗失败：") + err, Style::DesignTokens::color(Style::ColorToken::Danger));
+                    }
+                }
+                Ui::applyClickableCursorToLastItem();
+                if (!runtimeReady2) ImGui::EndDisabled();
+
                 CardSectionHeader(cardLayout, "当前实体", firstSection);
                 if (ctx.latest_snapshot && !ctx.latest_snapshot->telemetry.agents.empty())
                 {

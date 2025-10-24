@@ -848,6 +848,84 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         }
         return id;
     }
+    if (action == "agent.delete2d")
+    {
+        errorMessage.clear();
+        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+            errorMessage = "'agent.delete2d' requires entityId";
+            return std::nullopt;
+        }
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"agent.delete2d"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, command]() {
+            bool success = false; std::string message;
+            try {
+                genesis::runtime::RuntimeEvent ev;
+                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                ev.label = "agent.delete2d";
+                ev.payloadJson = command.dump();
+                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
+                    auto& reg = runtime.engine().registry();
+                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
+                    if (!reg.valid(entId)) throw std::runtime_error("entity not found");
+                    reg.destroy(entId);
+                    success = true; message = "deleted";
+                };
+                (void)runtime_.enqueueEvent(std::move(ev));
+            } catch (const std::exception& ex) { message = ex.what(); }
+            catch (...) { message = "agent.delete2d unknown error"; }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
+    if (action == "resource.consume")
+    {
+        errorMessage.clear();
+        if (!command.contains("interactionId") || !command.at("interactionId").is_number_unsigned()) {
+            errorMessage = "'resource.consume' requires interactionId";
+            return std::nullopt;
+        }
+        if (!command.contains("amount") || !command.at("amount").is_number_unsigned()) {
+            errorMessage = "'resource.consume' requires amount";
+            return std::nullopt;
+        }
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"resource.consume"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, command]() {
+            bool success = false; std::string message;
+            try {
+                const auto interId = command.at("interactionId").get<std::uint32_t>();
+                const auto amount = command.at("amount").get<std::uint32_t>();
+                genesis::runtime::RuntimeEvent ev;
+                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                ev.label = "resource.consume";
+                ev.payloadJson = command.dump();
+                ev.runtimeHandler = [interId, amount, &success, &message](genesis::runtime::Runtime& runtime) {
+                    const auto taken = runtime.engine().consumeResource(interId, amount);
+                    success = (taken > 0);
+                    message = std::string("consumed ") + std::to_string(taken) + "/" + std::to_string(amount);
+                };
+                (void)runtime_.enqueueEvent(std::move(ev));
+            } catch (const std::exception& ex) { message = ex.what(); }
+            catch (...) { message = "resource.consume unknown error"; }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
     if (action == "world.db.save")
     {
         errorMessage.clear();

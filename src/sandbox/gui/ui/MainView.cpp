@@ -758,6 +758,122 @@ namespace Genesis::Sandbox::Gui
 
         ImGui::Dummy(ImVec2(0.0f, cardSpacing));
 
+        // --- Entities (v2) ---
+        {
+            Style::Layout::CardScope card("EntitiesV2Card",
+                                          cardLayout,
+                                          ImGuiWindowFlags_NoScrollbar);
+            if (card.isOpen())
+            {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+                drawCardHeader("实体（v2）");
+
+                const bool runtimeReady2 = (ctx.runtime_bridge != nullptr);
+                if (!runtimeReady2)
+                {
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "运行时未连接");
+                }
+
+                bool firstSection = true;
+                CardSectionHeader(cardLayout, "创建", firstSection);
+
+                ImGui::Text("mapId"); ImGui::SameLine();
+                ImGui::InputScalar("##CreateMapId", ImGuiDataType_U32, &ctx.state.agent_create_mapId);
+                ImGui::Text("x"); ImGui::SameLine(); ImGui::InputFloat("##CreateX", &ctx.state.agent_create_x);
+                ImGui::Text("y"); ImGui::SameLine(); ImGui::InputFloat("##CreateY", &ctx.state.agent_create_y);
+                ImGui::Checkbox("创建后立即移动", &ctx.state.agent_create_with_move);
+                if (ctx.state.agent_create_with_move)
+                {
+                    ImGui::Text("to.x"); ImGui::SameLine(); ImGui::InputFloat("##CreateMoveX", &ctx.state.agent_create_move_x);
+                    ImGui::Text("to.y"); ImGui::SameLine(); ImGui::InputFloat("##CreateMoveY", &ctx.state.agent_create_move_y);
+                    ImGui::Text("speed"); ImGui::SameLine(); ImGui::InputFloat("##CreateMoveSpeed", &ctx.state.agent_create_move_speed);
+                }
+
+                if (!runtimeReady2) ImGui::BeginDisabled();
+                if (ImGui::Button("创建实体"))
+                {
+                    json cmd = {
+                        {"action","agent.create2d"},
+                        {"mapId", ctx.state.agent_create_mapId},
+                        {"x", ctx.state.agent_create_x},
+                        {"y", ctx.state.agent_create_y}
+                    };
+                    if (ctx.state.agent_create_with_move)
+                    {
+                        cmd["move"] = {
+                            {"mapId", ctx.state.agent_create_mapId},
+                            {"x", ctx.state.agent_create_move_x},
+                            {"y", ctx.state.agent_create_move_y},
+                            {"speed", ctx.state.agent_create_move_speed}
+                        };
+                    }
+                    std::string err;
+                    if (!ctx.runtime_bridge->enqueueCommandFromJson(cmd, "ui", err))
+                    {
+                        ctx.state.pushToast(std::string("创建失败：") + err, Style::DesignTokens::color(Style::ColorToken::Danger));
+                    }
+                }
+                Ui::applyClickableCursorToLastItem();
+                if (!runtimeReady2) ImGui::EndDisabled();
+
+                CardSectionHeader(cardLayout, "移动", firstSection);
+                ImGui::Text("entityId"); ImGui::SameLine();
+                ImGui::InputScalar("##MoveEntityId", ImGuiDataType_U32, &ctx.state.agent_move_entityId);
+                ImGui::Text("mapId"); ImGui::SameLine(); ImGui::InputScalar("##MoveMapId", ImGuiDataType_U32, &ctx.state.agent_move_mapId);
+                ImGui::Text("x"); ImGui::SameLine(); ImGui::InputFloat("##MoveX", &ctx.state.agent_move_x);
+                ImGui::Text("y"); ImGui::SameLine(); ImGui::InputFloat("##MoveY", &ctx.state.agent_move_y);
+                ImGui::Text("speed"); ImGui::SameLine(); ImGui::InputFloat("##MoveSpeed", &ctx.state.agent_move_speed);
+
+                if (!runtimeReady2) ImGui::BeginDisabled();
+                if (ImGui::Button("移动实体"))
+                {
+                    json cmd = {
+                        {"action","agent.move2d"},
+                        {"entityId", ctx.state.agent_move_entityId},
+                        {"mapId", ctx.state.agent_move_mapId},
+                        {"x", ctx.state.agent_move_x},
+                        {"y", ctx.state.agent_move_y},
+                        {"speed", ctx.state.agent_move_speed}
+                    };
+                    std::string err;
+                    if (!ctx.runtime_bridge->enqueueCommandFromJson(cmd, "ui", err))
+                    {
+                        ctx.state.pushToast(std::string("移动失败：") + err, Style::DesignTokens::color(Style::ColorToken::Danger));
+                    }
+                }
+                Ui::applyClickableCursorToLastItem();
+                if (!runtimeReady2) ImGui::EndDisabled();
+
+                CardSectionHeader(cardLayout, "当前实体", firstSection);
+                if (ctx.latest_snapshot && !ctx.latest_snapshot->telemetry.agents.empty())
+                {
+                    if (ImGui::BeginTable("AgentsTable", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                    {
+                        ImGui::TableSetupColumn("ID");
+                        ImGui::TableSetupColumn("Map");
+                        ImGui::TableSetupColumn("X");
+                        ImGui::TableSetupColumn("Y");
+                        ImGui::TableHeadersRow();
+                        for (const auto &a : ctx.latest_snapshot->telemetry.agents)
+                        {
+                            ImGui::TableNextRow();
+                            ImGui::TableSetColumnIndex(0); ImGui::Text("%u", a.entityId);
+                            ImGui::TableSetColumnIndex(1); ImGui::Text("%u", a.mapId);
+                            ImGui::TableSetColumnIndex(2); ImGui::Text("%.2f", a.position.x);
+                            ImGui::TableSetColumnIndex(3); ImGui::Text("%.2f", a.position.y);
+                        }
+                        ImGui::EndTable();
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("无实体");
+                }
+
+                ImGui::PopTextWrapPos();
+            }
+        }
+
         if (!worldVm.commands.empty())
         {
             ImGui::Separator();

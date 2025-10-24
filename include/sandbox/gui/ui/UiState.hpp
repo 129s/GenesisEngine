@@ -124,6 +124,23 @@ struct UiState
     std::string world_db_load_status;
     std::string world_db_save_status;
     std::string command_script_status;
+
+    // v2 实体控制（GUI 直连 Runtime 命令）
+    // 创建实体
+    std::uint32_t agent_create_mapId{1};
+    float agent_create_x{0.0f};
+    float agent_create_y{0.0f};
+    bool agent_create_with_move{false};
+    float agent_create_move_x{0.0f};
+    float agent_create_move_y{0.0f};
+    float agent_create_move_speed{1.0f};
+
+    // 移动实体
+    std::uint32_t agent_move_entityId{0};
+    std::uint32_t agent_move_mapId{1};
+    float agent_move_x{0.0f};
+    float agent_move_y{0.0f};
+    float agent_move_speed{1.0f};
 };
 
 } // namespace Genesis::Sandbox::Gui

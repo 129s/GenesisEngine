@@ -16,12 +16,13 @@ if(GENESIS_WITH_STYLE)
     gtest_discover_tests(genesis_style_tests)
 endif()
 
-set(PALETTE_GENERATED_TEST_DIR ${CMAKE_BINARY_DIR}/tests/palette_artifacts)
-
-add_test(
-    NAME PaletteCompiler.GenerateArtifacts
-    COMMAND genesis_palette_compiler --input ${CMAKE_SOURCE_DIR}/data/palette/core.json --output ${PALETTE_GENERATED_TEST_DIR} --quiet
-)
+if(TARGET genesis_palette_compiler)
+    set(PALETTE_GENERATED_TEST_DIR ${CMAKE_BINARY_DIR}/tests/palette_artifacts)
+    add_test(
+        NAME PaletteCompiler.GenerateArtifacts
+        COMMAND genesis_palette_compiler --input ${CMAKE_SOURCE_DIR}/data/palette/core.json --output ${PALETTE_GENERATED_TEST_DIR} --quiet
+    )
+endif()
 
 ## v2 重构：移除 worldgen 相关测试（依赖旧引擎图模型）
 

@@ -108,6 +108,12 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
                     i.coord.first = ji["coord"][0].get<int>();
                     i.coord.second = ji["coord"][1].get<int>();
                 }
+                if (ji.contains("capacity") && ji["capacity"].is_number_unsigned()) {
+                    i.capacity = ji["capacity"].get<std::uint32_t>();
+                }
+                if (ji.contains("regen") && ji["regen"].is_number_unsigned()) {
+                    i.regenPerStep = ji["regen"].get<std::uint32_t>();
+                }
                 if (i.id != 0) db->addInteraction(std::move(i));
             }
         }
@@ -132,4 +138,3 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
 }
 
 } // namespace genesis::world
-

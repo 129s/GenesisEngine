@@ -11,8 +11,11 @@ void ResourceSystem2D::initializeFromDatabase(const world::WorldDatabase& db) {
     for (const auto& m : db.maps()) {
         for (const auto& i : db.interactions(m.id)) {
             if (i.kind == world::InteractionKind::Resource) {
-                // 默认配置：容量100，每步+1，起始100
-                states_.emplace(i.id, ResourceState{});
+                ResourceState st{};
+                if (i.capacity) { st.capacity = *i.capacity; }
+                if (i.regenPerStep) { st.regenPerStep = *i.regenPerStep; }
+                st.current = st.capacity; // 启动时填满
+                states_.emplace(i.id, st);
             }
         }
     }
@@ -37,4 +40,3 @@ std::uint32_t ResourceSystem2D::consume(world::InteractionId id, std::uint32_t a
 }
 
 } // namespace genesis::simulation
-

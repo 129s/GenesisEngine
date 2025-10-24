@@ -52,6 +52,14 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
                     {"coord", {i.coord.first, i.coord.second}},
                     {"name", i.name}
                 });
+                if (i.kind == InteractionKind::Resource) {
+                    if (i.capacity) {
+                        jm["interactions"].back()["capacity"] = *i.capacity;
+                    }
+                    if (i.regenPerStep) {
+                        jm["interactions"].back()["regen"] = *i.regenPerStep;
+                    }
+                }
             }
             // portals
             jm["portals"] = json::array();
@@ -80,4 +88,3 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
 }
 
 } // namespace genesis::world
-

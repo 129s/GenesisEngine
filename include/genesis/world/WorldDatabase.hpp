@@ -44,6 +44,9 @@ struct Interaction {
     InteractionKind kind{InteractionKind::Unknown};
     std::pair<int, int> coord{0, 0};
     std::string name;
+    // Resource-specific (optional)
+    std::optional<std::uint32_t> capacity;      // max units
+    std::optional<std::uint32_t> regenPerStep;  // units per step
 };
 
 struct Portal {
@@ -101,4 +104,3 @@ private:
 };
 
 } // namespace genesis::world
-

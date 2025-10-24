@@ -64,7 +64,12 @@ genesis::world::WorldLoadResult Engine::loadWorldFromFile(const std::filesystem:
 }
 
 void Engine::captureTelemetry(std::uint64_t stepIndex) {
-    telemetry::TickTelemetry tick = m_telemetryCollector.collect(m_registry, stepIndex, std::chrono::duration<float>(m_clock.stepDuration()).count());
+    telemetry::TickTelemetry tick = m_telemetryCollector.collect(
+        m_registry,
+        m_worldDb ? m_worldDb.get() : nullptr,
+        &m_resource2d,
+        stepIndex,
+        std::chrono::duration<float>(m_clock.stepDuration()).count());
 
     if (m_snapshotCallback) {
         m_snapshotCallback(tick);

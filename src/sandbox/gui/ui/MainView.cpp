@@ -816,6 +816,27 @@ namespace Genesis::Sandbox::Gui
                 Ui::applyClickableCursorToLastItem();
                 if (!runtimeReady2) ImGui::EndDisabled();
 
+                if (ctx.latest_snapshot && !ctx.latest_snapshot->telemetry.resourcesV2.empty())
+                {
+                    if (ImGui::BeginTable("ResourcesV2Table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                    {
+                        ImGui::TableSetupColumn("InteractionId");
+                        ImGui::TableSetupColumn("Name");
+                        ImGui::TableSetupColumn("Current");
+                        ImGui::TableSetupColumn("Capacity");
+                        ImGui::TableHeadersRow();
+                        for (const auto &r : ctx.latest_snapshot->telemetry.resourcesV2)
+                        {
+                            ImGui::TableNextRow();
+                            ImGui::TableSetColumnIndex(0); ImGui::Text("%u", r.interactionId);
+                            ImGui::TableSetColumnIndex(1); ImGui::TextUnformatted(r.name.c_str());
+                            ImGui::TableSetColumnIndex(2); ImGui::Text("%u", r.current);
+                            ImGui::TableSetColumnIndex(3); ImGui::Text("%u", r.capacity);
+                        }
+                        ImGui::EndTable();
+                    }
+                }
+
                 CardSectionHeader(cardLayout, "移动", firstSection);
                 ImGui::Text("entityId"); ImGui::SameLine();
                 ImGui::InputScalar("##MoveEntityId", ImGuiDataType_U32, &ctx.state.agent_move_entityId);

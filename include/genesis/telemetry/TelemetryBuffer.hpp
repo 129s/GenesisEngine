@@ -22,6 +22,15 @@ struct ResourceSnapshot {
     std::uint32_t capacity{0};
 };
 
+// v2 资源快照（基于 WorldDatabase::Interaction）
+struct ResourceV2Snapshot {
+    std::uint32_t interactionId{0};
+    std::uint32_t mapId{0};
+    std::string name;
+    std::uint32_t current{0};
+    std::uint32_t capacity{0};
+};
+
 struct NeedSnapshot {
     std::uint32_t entityId{0};
     std::string needName;
@@ -66,6 +75,7 @@ struct TickTelemetry {
     std::uint64_t step{0};
     float stepSeconds{0.0f};
     std::vector<ResourceSnapshot> resources;
+    std::vector<ResourceV2Snapshot> resourcesV2;
     std::vector<NeedSnapshot> needs;
     std::vector<PlannerSnapshot> plannerDecisions;
     std::vector<ActionSnapshot> actions;

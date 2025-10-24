@@ -738,6 +738,54 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     {
         return enqueueWorldSaveCommand(command, std::move(source), errorMessage);
     }
+    if (action == "world.db.load")
+    {
+        // Experimental: load new world database (GUI-side only)
+        errorMessage.clear();
+        if (!command.contains("folder") || !command.at("folder").is_string())
+        {
+            errorMessage = "'world.db.load' requires folder field";
+            return std::nullopt;
+        }
+        const auto folder = std::filesystem::path(command.at("folder").get<std::string>());
+
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"world.db.load"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, folder]() {
+            std::string message;
+            bool success = false;
+            try
+            {
+                if (this->loadWorldDatabaseFolder(folder, message))
+                {
+                    if (message.empty()) message = "world.db.load succeeded";
+                    success = true;
+                }
+                else
+                {
+                    if (message.empty()) message = "world.db.load failed";
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                message = ex.what();
+            }
+            catch (...)
+            {
+                message = "world.db.load unknown error";
+            }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
 
     errorMessage = "Unsupported command action: " + action;
     return std::nullopt;

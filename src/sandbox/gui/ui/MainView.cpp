@@ -661,6 +661,39 @@ namespace Genesis::Sandbox::Gui
                     ImGui::TextWrapped("%s", ctx.state.world_db_load_status.c_str());
                 }
 
+                // Save v2 section
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
+                ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+                ImGui::TextUnformatted("保存为（world.json + map_#.json 目录）");
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputText("##WorldDbSaveFolder", ctx.state.world_db_save_folder_buffer.data(), ctx.state.world_db_save_folder_buffer.size());
+                const std::string dbSaveFolder = ctx.state.world_db_save_folder_buffer.data();
+                const bool dbSaveEmpty = dbSaveFolder.empty();
+                if (dbSaveEmpty) ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写保存目录");
+                if (dbSaveEmpty) ImGui::BeginDisabled();
+                if (ImGui::Button("保存新模型（仅保存 DB）"))
+                {
+                    nlohmann::json cmd = { {"action","world.db.save"}, {"folder", dbSaveFolder} };
+                    std::string err;
+                    if (ctx.runtime_bridge->enqueueCommandFromJson(cmd, "ui", err))
+                    {
+                        ctx.state.world_db_save_status = std::string("已提交保存任务 → ") + dbSaveFolder;
+                        ctx.state.pushToast("World DB save queued", ImVec4(0.62f, 0.84f, 0.58f, 1.0f), 3.0);
+                    }
+                    else
+                    {
+                        ctx.state.world_db_save_status = std::string("保存失败：") + err;
+                        ctx.state.pushToast("World DB save failed", ImVec4(0.95f, 0.45f, 0.45f, 1.0f), 3.0);
+                    }
+                }
+                Ui::applyClickableCursorToLastItem();
+                if (dbSaveEmpty) ImGui::EndDisabled();
+                if (!ctx.state.world_db_save_status.empty())
+                {
+                    ImGui::TextWrapped("%s", ctx.state.world_db_save_status.c_str());
+                }
+
                 ImGui::PopTextWrapPos();
             }
         }

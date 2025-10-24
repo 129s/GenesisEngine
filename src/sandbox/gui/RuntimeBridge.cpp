@@ -2,6 +2,9 @@
 #include "genesis/core/Engine.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldLoader.hpp"
+#include "genesis/world/WorldDatabaseSaver.hpp"
+#include <entt/entt.hpp>
+#include "genesis/agents/Movement2D.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -741,6 +744,139 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     if (action == "world.save")
     {
         return enqueueWorldSaveCommand(command, std::move(source), errorMessage);
+    }
+    if (action == "agent.create2d")
+    {
+        errorMessage.clear();
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"agent.create2d"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, command]() {
+            bool success = false;
+            std::string message;
+            try {
+                genesis::runtime::RuntimeEvent ev;
+                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                ev.label = "agent.create2d";
+                ev.payloadJson = command.dump();
+                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
+                    auto& reg = runtime.engine().registry();
+                    auto e = reg.create();
+                    genesis::agents::components::AgentLocation2D loc{};
+                    loc.mapId = command.value("mapId", 1U);
+                    loc.x = command.value("x", 0.0f);
+                    loc.y = command.value("y", 0.0f);
+                    reg.emplace<genesis::agents::components::AgentLocation2D>(e, loc);
+                    if (command.contains("move") && command["move"].is_object()) {
+                        const auto& mv = command["move"];
+                        genesis::agents::components::MovementIntent2D intent{};
+                        intent.targetMapId = mv.value("mapId", loc.mapId);
+                        intent.targetX = mv.value("x", loc.x);
+                        intent.targetY = mv.value("y", loc.y);
+                        intent.speed = mv.value("speed", 1.0f);
+                        reg.emplace<genesis::agents::components::MovementIntent2D>(e, intent);
+                    }
+                    success = true;
+                    message = std::string("created entity ") + std::to_string(static_cast<std::uint32_t>(entt::to_integral(e)));
+                };
+                auto rid = runtime_.enqueueEvent(std::move(ev));
+                (void)rid;
+            } catch (const std::exception& ex) {
+                message = ex.what();
+            } catch (...) {
+                message = "agent.create2d unknown error";
+            }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
+    if (action == "agent.move2d")
+    {
+        errorMessage.clear();
+        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+            errorMessage = "'agent.move2d' requires entityId";
+            return std::nullopt;
+        }
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"agent.move2d"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, command]() {
+            bool success = false;
+            std::string message;
+            try {
+                genesis::runtime::RuntimeEvent ev;
+                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                ev.label = "agent.move2d";
+                ev.payloadJson = command.dump();
+                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
+                    auto& reg = runtime.engine().registry();
+                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
+                    if (!reg.valid(entId)) { throw std::runtime_error("entity not found"); }
+                    genesis::agents::components::MovementIntent2D intent{};
+                    intent.targetMapId = command.value("mapId", reg.get<genesis::agents::components::AgentLocation2D>(entId).mapId);
+                    intent.targetX = command.value("x", 0.0f);
+                    intent.targetY = command.value("y", 0.0f);
+                    intent.speed = command.value("speed", 1.0f);
+                    if (auto* existing = reg.try_get<genesis::agents::components::MovementIntent2D>(entId)) {
+                        *existing = intent;
+                    } else {
+                        reg.emplace<genesis::agents::components::MovementIntent2D>(entId, intent);
+                    }
+                    success = true;
+                    message = "move intent set";
+                };
+                auto rid = runtime_.enqueueEvent(std::move(ev));
+                (void)rid;
+            } catch (const std::exception& ex) {
+                message = ex.what();
+            } catch (...) {
+                message = "agent.move2d unknown error";
+            }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
+    if (action == "world.db.save")
+    {
+        errorMessage.clear();
+        if (!command.contains("folder") || !command.at("folder").is_string()) {
+            errorMessage = "'world.db.save' requires folder";
+            return std::nullopt;
+        }
+        const auto folder = std::filesystem::path(command.at("folder").get<std::string>());
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"world.db.save"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, folder]() {
+            bool success = false; std::string message;
+            try {
+                auto db = runtime_.worldDatabase();
+                if (!db) throw std::runtime_error("no world database loaded");
+                auto r = genesis::world::saveWorldDatabaseToFolder(folder, *db);
+                success = r.success; message = r.success ? std::string("saved to ")+folder.string() : r.error;
+            } catch (const std::exception& ex) { message = ex.what(); }
+            catch (...) { message = "world.db.save unknown error"; }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
     }
     if (action == "world.db.load")
     {

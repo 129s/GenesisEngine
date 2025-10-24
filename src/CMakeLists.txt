@@ -113,6 +113,7 @@ set_target_properties(genesis_rendering PROPERTIES
 add_library(genesis_world_model STATIC
     world/WorldDatabase.cpp
     world/WorldDatabaseLoader.cpp
+    world/WorldDatabaseSaver.cpp
 )
 add_library(Genesis::WorldModel ALIAS genesis_world_model)
 

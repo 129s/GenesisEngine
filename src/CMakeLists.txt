@@ -105,6 +105,29 @@ set_target_properties(genesis_rendering PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
+# --- A1: 世界数据模型与加载器（独立于旧 WorldRegistry） ---
+add_library(genesis_world_model STATIC
+    world/WorldDatabase.cpp
+    world/WorldDatabaseLoader.cpp
+)
+add_library(Genesis::WorldModel ALIAS genesis_world_model)
+
+target_include_directories(genesis_world_model
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_world_model
+    PUBLIC
+        nlohmann_json::nlohmann_json
+)
+
+set_target_properties(genesis_world_model PROPERTIES
+    OUTPUT_NAME "genesis_world_model"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
 set(GENESIS_WORLDGEN_SOURCES
     worldgen/ConfigLoader.cpp
     worldgen/Context.cpp
@@ -231,7 +254,7 @@ target_link_libraries(genesis_diagnostics
 # --- Phase 1（占位别名）：逐步拆分仿真内核 ---
 add_library(genesis_world INTERFACE)
 add_library(Genesis::World ALIAS genesis_world)
-target_link_libraries(genesis_world INTERFACE Genesis::Engine)
+target_link_libraries(genesis_world INTERFACE Genesis::Engine genesis_world_model)
 
 add_library(genesis_agents INTERFACE)
 add_library(Genesis::Agents ALIAS genesis_agents)

@@ -110,6 +110,7 @@ struct UiState
     std::array<char, 512> worldgen_output_buffer{};
     std::array<char, 512> world_load_buffer{};
     std::array<char, 512> world_save_buffer{};
+    std::array<char, 512> world_db_folder_buffer{}; // 新世界模型（world.json + map_#.json）目录
     std::array<char, 512> command_script_buffer{};
     bool worldgen_use_random_seed{true};
     std::uint64_t worldgen_seed{0};
@@ -119,6 +120,7 @@ struct UiState
     std::string world_command_status;
     std::string world_load_status;
     std::string world_save_status;
+    std::string world_db_load_status;
     std::string command_script_status;
 };
 

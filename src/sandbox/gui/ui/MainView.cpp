@@ -616,6 +616,51 @@ namespace Genesis::Sandbox::Gui
                     ImGui::TextWrapped("%s", ctx.state.world_save_status.c_str());
                 }
 
+                // Experimental: load new world database (world.json + map_#.json)
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
+                ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
+                drawCardHeader("新世界模型（实验）");
+
+                ImGui::TextUnformatted("文件夹（包含 world.json 与 map_#.json）");
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                ImGui::InputText("##WorldDbFolder", ctx.state.world_db_folder_buffer.data(), ctx.state.world_db_folder_buffer.size());
+
+                const std::string dbFolder = ctx.state.world_db_folder_buffer.data();
+                const bool dbFolderEmpty = dbFolder.empty();
+                if (dbFolderEmpty)
+                {
+                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写目录路径");
+                }
+
+                if (dbFolderEmpty)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if (ImGui::Button("加载新模型（仅影响图谱）"))
+                {
+                    std::string error;
+                    if (ctx.runtime_bridge->loadWorldDatabaseFolder(dbFolder, error))
+                    {
+                        ctx.state.world_db_load_status = "已加载新世界模型（仅影响 GUI Atlas）";
+                        ctx.state.pushToast("World DB loaded", ImVec4(0.62f, 0.84f, 0.58f, 1.0f), 3.0);
+                    }
+                    else
+                    {
+                        ctx.state.world_db_load_status = "加载失败：" + error;
+                        ctx.state.pushToast("World DB load failed", ImVec4(0.95f, 0.45f, 0.45f, 1.0f), 3.0);
+                    }
+                }
+                Ui::applyClickableCursorToLastItem();
+                if (dbFolderEmpty)
+                {
+                    ImGui::EndDisabled();
+                }
+                if (!ctx.state.world_db_load_status.empty())
+                {
+                    ImGui::TextWrapped("%s", ctx.state.world_db_load_status.c_str());
+                }
+
                 ImGui::PopTextWrapPos();
             }
         }

@@ -1,0 +1,8 @@
+[
+  {
+    "action": "world.db.load",
+    "folder": "data/world_new",
+    "label": "Load new World DB"
+  }
+]
+

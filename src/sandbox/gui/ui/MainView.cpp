@@ -844,6 +844,49 @@ namespace Genesis::Sandbox::Gui
                 Ui::applyClickableCursorToLastItem();
                 if (!runtimeReady2) ImGui::EndDisabled();
 
+                CardSectionHeader(cardLayout, "停止", firstSection);
+                ImGui::Text("entityId"); ImGui::SameLine();
+                ImGui::InputScalar("##StopEntityId", ImGuiDataType_U32, &ctx.state.agent_stop_entityId);
+                if (!runtimeReady2) ImGui::BeginDisabled();
+                if (ImGui::Button("停止移动"))
+                {
+                    json cmd = {
+                        {"action","agent.stop2d"},
+                        {"entityId", ctx.state.agent_stop_entityId},
+                    };
+                    std::string err;
+                    if (!ctx.runtime_bridge->enqueueCommandFromJson(cmd, "ui", err))
+                    {
+                        ctx.state.pushToast(std::string("停止失败：") + err, Style::DesignTokens::color(Style::ColorToken::Danger));
+                    }
+                }
+                Ui::applyClickableCursorToLastItem();
+                if (!runtimeReady2) ImGui::EndDisabled();
+
+                CardSectionHeader(cardLayout, "传送", firstSection);
+                ImGui::Text("entityId"); ImGui::SameLine(); ImGui::InputScalar("##TpEntityId", ImGuiDataType_U32, &ctx.state.agent_tp_entityId);
+                ImGui::Text("mapId"); ImGui::SameLine(); ImGui::InputScalar("##TpMapId", ImGuiDataType_U32, &ctx.state.agent_tp_mapId);
+                ImGui::Text("x"); ImGui::SameLine(); ImGui::InputFloat("##TpX", &ctx.state.agent_tp_x);
+                ImGui::Text("y"); ImGui::SameLine(); ImGui::InputFloat("##TpY", &ctx.state.agent_tp_y);
+                if (!runtimeReady2) ImGui::BeginDisabled();
+                if (ImGui::Button("传送实体"))
+                {
+                    json cmd = {
+                        {"action","agent.teleport2d"},
+                        {"entityId", ctx.state.agent_tp_entityId},
+                        {"mapId", ctx.state.agent_tp_mapId},
+                        {"x", ctx.state.agent_tp_x},
+                        {"y", ctx.state.agent_tp_y}
+                    };
+                    std::string err;
+                    if (!ctx.runtime_bridge->enqueueCommandFromJson(cmd, "ui", err))
+                    {
+                        ctx.state.pushToast(std::string("传送失败：") + err, Style::DesignTokens::color(Style::ColorToken::Danger));
+                    }
+                }
+                Ui::applyClickableCursorToLastItem();
+                if (!runtimeReady2) ImGui::EndDisabled();
+
                 CardSectionHeader(cardLayout, "当前实体", firstSection);
                 if (ctx.latest_snapshot && !ctx.latest_snapshot->telemetry.agents.empty())
                 {

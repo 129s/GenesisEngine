@@ -878,6 +878,117 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         }
         return id;
     }
+    if (action == "world.db.reload")
+    {
+        errorMessage.clear();
+        if (!command.contains("folder") || !command.at("folder").is_string()) {
+            errorMessage = "'world.db.reload' requires folder";
+            return std::nullopt;
+        }
+        const auto folder = std::filesystem::path(command.at("folder").get<std::string>());
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"world.db.reload"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, folder]() {
+            bool success = false; std::string message;
+            try {
+                auto r = runtime_.loadWorldFromFile(folder);
+                success = r.success; message = r.success ? std::string("reloaded from ")+folder.string() : r.error;
+                if (success) rebuildAtlasOnRuntimeThread();
+            } catch (const std::exception& ex) { message = ex.what(); }
+            catch (...) { message = "world.db.reload unknown error"; }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
+    if (action == "agent.stop2d")
+    {
+        errorMessage.clear();
+        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+            errorMessage = "'agent.stop2d' requires entityId";
+            return std::nullopt;
+        }
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"agent.stop2d"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, command]() {
+            bool success = false; std::string message;
+            try {
+                genesis::runtime::RuntimeEvent ev;
+                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                ev.label = "agent.stop2d";
+                ev.payloadJson = command.dump();
+                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime){
+                    auto& reg = runtime.engine().registry();
+                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
+                    if (!reg.valid(entId)) throw std::runtime_error("entity not found");
+                    if (reg.any_of<genesis::agents::components::MovementIntent2D>(entId)) {
+                        reg.remove<genesis::agents::components::MovementIntent2D>(entId);
+                    }
+                    success = true; message = "stopped";
+                };
+                (void)runtime_.enqueueEvent(std::move(ev));
+            } catch (const std::exception& ex) { message = ex.what(); }
+            catch (...) { message = "agent.stop2d unknown error"; }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
+    if (action == "agent.teleport2d")
+    {
+        errorMessage.clear();
+        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+            errorMessage = "'agent.teleport2d' requires entityId";
+            return std::nullopt;
+        }
+        const auto payload = command.dump();
+        const auto label = command.value("label", std::string{"agent.teleport2d"});
+        const auto enqueuedAt = std::chrono::steady_clock::now();
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        purgeFinishedTasks();
+        auto task = std::async(std::launch::async, [this, id, command]() {
+            bool success = false; std::string message;
+            try {
+                genesis::runtime::RuntimeEvent ev;
+                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                ev.label = "agent.teleport2d";
+                ev.payloadJson = command.dump();
+                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime){
+                    auto& reg = runtime.engine().registry();
+                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
+                    if (!reg.valid(entId)) throw std::runtime_error("entity not found");
+                    auto& loc = reg.get_or_emplace<genesis::agents::components::AgentLocation2D>(entId);
+                    loc.mapId = command.value("mapId", loc.mapId);
+                    loc.x = command.value("x", loc.x);
+                    loc.y = command.value("y", loc.y);
+                    if (reg.any_of<genesis::agents::components::MovementIntent2D>(entId)) {
+                        reg.remove<genesis::agents::components::MovementIntent2D>(entId);
+                    }
+                    success = true; message = "teleported";
+                };
+                (void)runtime_.enqueueEvent(std::move(ev));
+            } catch (const std::exception& ex) { message = ex.what(); }
+            catch (...) { message = "agent.teleport2d unknown error"; }
+            completeCommand(id, success, std::move(message));
+        });
+        {
+            std::lock_guard lock(asyncMutex_);
+            asyncTasks_.push_back(std::move(task));
+        }
+        return id;
+    }
     if (action == "world.db.load")
     {
         // Experimental: load new world database (GUI-side only)

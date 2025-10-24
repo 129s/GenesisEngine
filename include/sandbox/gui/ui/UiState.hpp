@@ -141,6 +141,13 @@ struct UiState
     float agent_move_x{0.0f};
     float agent_move_y{0.0f};
     float agent_move_speed{1.0f};
+
+    // 停止与传送
+    std::uint32_t agent_stop_entityId{0};
+    std::uint32_t agent_tp_entityId{0};
+    std::uint32_t agent_tp_mapId{1};
+    float agent_tp_x{0.0f};
+    float agent_tp_y{0.0f};
 };
 
 } // namespace Genesis::Sandbox::Gui

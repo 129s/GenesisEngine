@@ -179,7 +179,162 @@
           "srgb": [0.0, 0.0, 0.0, 0.35]
         }
       }
+    },
+    {
+      "id": "genesis/pale",
+      "label": "Genesis Pale",
+      "description": "依据 ref/pale.png 提取的清浅粉彩主题，适合明亮背景界面。",
+      "tokens": {
+        "surface.canvas": {
+          "category": "surface",
+          "description": "最底层画布背景（极浅冷白）。",
+          "srgb": "#F8FAFF",
+          "aliases": ["Canvas", "ui.canvas"]
+        },
+        "surface.layer": {
+          "category": "surface",
+          "description": "常规面板与窗口的基础背景（浅粉蓝）。",
+          "srgb": "#F1F6FF",
+          "aliases": ["Surface", "ui.surface"]
+        },
+        "surface.layer.alt": {
+          "category": "surface",
+          "description": "交替或内层背景（更显色）。",
+          "srgb": "#EAF1FF",
+          "aliases": ["SurfaceAlt", "ui.surface.alt"]
+        },
+        "surface.layer.active": {
+          "category": "surface",
+          "description": "悬停/选中时的背景高亮。",
+          "srgb": "#E2ECFF",
+          "aliases": ["SurfaceActive", "ui.surface.active"]
+        },
+        "surface.muted": {
+          "category": "surface",
+          "description": "弱分隔或次要区域背景。",
+          "srgb": "#E7EEF4",
+          "aliases": ["Muted", "ui.surface.muted"]
+        },
+
+        "accent.primary.base": {
+          "category": "accent",
+          "description": "主要交互的粉彩青色（取自色卡青/蓝段）。",
+          "srgb": "#74F2F2",
+          "aliases": ["Primary", "ui.primary"]
+        },
+        "accent.primary.hover": {
+          "category": "accent",
+          "description": "主要交互 hover。",
+          "srgb": "#8EF6F6",
+          "aliases": ["PrimaryHover", "ui.primary.hover"]
+        },
+        "accent.primary.active": {
+          "category": "accent",
+          "description": "主要交互 active。",
+          "srgb": "#54E5E5",
+          "aliases": ["PrimaryActive", "ui.primary.active"]
+        },
+
+        "accent.secondary.base": {
+          "category": "accent",
+          "description": "辅助强调的粉彩绿色（取自色卡绿段）。",
+          "srgb": "#A7E9AF",
+          "aliases": ["Accent", "ui.accent"]
+        },
+        "accent.secondary.hover": {
+          "category": "accent",
+          "description": "辅助交互 hover。",
+          "srgb": "#B8F0BE",
+          "aliases": ["AccentHover", "ui.accent.hover"]
+        },
+        "accent.secondary.active": {
+          "category": "accent",
+          "description": "辅助交互 active。",
+          "srgb": "#8FD69B",
+          "aliases": ["AccentActive", "ui.accent.active"]
+        },
+
+        "text.primary": {
+          "category": "text",
+          "description": "正文深色文字（在浅底上对比度充足）。",
+          "srgb": "#2F3A44",
+          "aliases": ["TextPrimary", "ui.text.primary"]
+        },
+        "text.secondary": {
+          "category": "text",
+          "description": "次要文字。",
+          "srgb": "#52606D",
+          "aliases": ["TextSecondary", "ui.text.secondary"]
+        },
+        "text.disabled": {
+          "category": "text",
+          "description": "禁用文字。",
+          "srgb": "#9AA7B2",
+          "aliases": ["TextDisabled", "ui.text.disabled"]
+        },
+
+        "border.soft": {
+          "category": "border",
+          "description": "轻度分隔线与控件轮廓。",
+          "srgb": "#D7E0EA",
+          "aliases": ["BorderSoft", "ui.border.soft"]
+        },
+        "border.strong": {
+          "category": "border",
+          "description": "重点区域更强对比边框。",
+          "srgb": "#9FB0BD",
+          "aliases": ["BorderStrong", "ui.border.strong"]
+        },
+
+        "status.success": {
+          "category": "status",
+          "description": "成功态（粉彩绿）。",
+          "srgb": "#9CF6A8",
+          "aliases": ["Success", "ui.status.success"]
+        },
+        "status.warning": {
+          "category": "status",
+          "description": "警告（粉彩黄）。",
+          "srgb": "#FFF275",
+          "aliases": ["Warning", "ui.status.warning"]
+        },
+        "status.danger": {
+          "category": "status",
+          "description": "危险/错误（粉彩珊瑚粉）。",
+          "srgb": "#FFB3C1",
+          "aliases": ["Danger", "ui.status.danger"]
+        },
+        "status.info": {
+          "category": "status",
+          "description": "信息提示（粉彩蓝）。",
+          "srgb": "#AECBFA",
+          "aliases": ["Info", "ui.status.info"]
+        },
+
+        "state.highlight": {
+          "category": "state",
+          "description": "选中文本/高亮背景。",
+          "srgb": "#CDEAFE",
+          "aliases": ["Highlight", "ui.state.highlight"]
+        },
+
+        "ui.shadow.soft": {
+          "category": "surface",
+          "description": "界面软阴影（明亮主题建议更轻）。",
+          "srgb": [0.0, 0.0, 0.0, 0.18]
+        },
+
+        "ppa.sky.zenith": {
+          "category": "ppa.sky",
+          "description": "天顶（粉彩蓝）。",
+          "srgb": "#B7CCFF"
+        },
+        "ppa.sky.horizon": {
+          "category": "ppa.sky",
+          "description": "地平线（粉彩暖黄）。",
+          "srgb": "#FFF3C4"
+        }
+      }
     }
   ]
 }
-

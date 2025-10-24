@@ -1,6 +1,7 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
 #include "genesis/core/Engine.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
+#include "genesis/world/WorldLoader.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -121,9 +122,12 @@ bool RuntimeBridge::loadWorldDatabaseFolder(const std::filesystem::path& folder,
 RuntimeBridge::RuntimeBridge(genesis::runtime::RuntimeConfig config, std::size_t maxSnapshots)
     : runtime_(std::move(config))
     , maxSnapshots_(std::max<std::size_t>(1, maxSnapshots))
-    , atlas_(buildWorldAtlas(runtime_.engine()))
+    , atlas_()
     , maxCommandHistory_(kDefaultCommandHistory)
 {
+    if (auto db = runtime_.worldDatabase()) {
+        atlas_ = buildWorldAtlas(*db);
+    }
 }
 
 RuntimeBridge::~RuntimeBridge()
@@ -965,13 +969,12 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& 
 void RuntimeBridge::rebuildAtlasOnRuntimeThread()
 {
     WorldAtlas nextAtlas{};
-    if (worldDb_)
-    {
+    if (auto db = runtime_.worldDatabase()) {
+        nextAtlas = buildWorldAtlas(*db);
+    } else if (worldDb_) {
         nextAtlas = buildWorldAtlas(*worldDb_);
-    }
-    else
-    {
-        nextAtlas = buildWorldAtlas(runtime_.engine());
+    } else {
+        nextAtlas = {};
     }
     std::lock_guard snapLock(snapshotMutex_);
     atlas_ = std::move(nextAtlas);
@@ -1066,8 +1069,8 @@ void RuntimeBridge::captureSnapshot()
     snapshot.agentPositions.reserve(snapshot.telemetry.agents.size());
     for (const auto& agent : snapshot.telemetry.agents)
     {
-        // Safe: map to static node position only; avoids touching ECS from GUI thread.
-        auto pos = atlas_.nodePosition(agent.location).value_or(Vector2{});
+        // 新语义：优先使用 agent.position（直线移动），不依赖节点坐标
+        Vector2 pos{agent.position.x, agent.position.y};
         snapshot.agentPositions.push_back(pos);
     }
 
@@ -1079,170 +1082,9 @@ void RuntimeBridge::captureSnapshot()
     }
 }
 
-RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::Engine& engine)
-{
-    RuntimeBridge::WorldAtlas atlas;
-
-    const auto nodes = engine.world().locations();
-    if (nodes.empty())
-    {
-        return atlas;
-    }
-    // Compute positions from global grid coordinates if provided; otherwise simple layered fallback layout.
-    bool hasAllGlobal = true;
-    int minX = std::numeric_limits<int>::max();
-    int minY = std::numeric_limits<int>::max();
-    int maxX = std::numeric_limits<int>::min();
-    int maxY = std::numeric_limits<int>::min();
-    for (const auto& node : nodes)
-    {
-        if (!node.coord_global.has_value())
-        {
-            hasAllGlobal = false;
-            break;
-        }
-        minX = std::min(minX, node.coord_global->first);
-        minY = std::min(minY, node.coord_global->second);
-        maxX = std::max(maxX, node.coord_global->first);
-        maxY = std::max(maxY, node.coord_global->second);
-    }
-
-    std::unordered_map<genesis::world::LocationId, Vector2, genesis::world::LocationIdHasher> positions;
-    positions.reserve(nodes.size());
-
-    if (!hasAllGlobal)
-    {
-        spdlog::error("WorldAtlas requires coord_global for all nodes under the new schema; map rendering will be empty.");
-        // Leave atlas.nodes empty to signal UI there is no drawable map; positions remain empty.
-        return atlas;
-    }
-
-    const float width = static_cast<float>(std::max(1, maxX - minX + 1));
-    const float height = static_cast<float>(std::max(1, maxY - minY + 1));
-    atlas.extent = Vector2{std::max(width, 1.0f), std::max(height, 1.0f)};
-
-    for (const auto& node : nodes)
-    {
-        const int gx = node.coord_global->first - minX;
-        const int gy = node.coord_global->second - minY;
-        Vector2 position{static_cast<float>(gx), static_cast<float>(gy)};
-        positions.emplace(node.id, position);
-        atlas.nodes.push_back(WorldAtlas::Node{
-            .id = node.id,
-            .parent = node.parent,
-            .kind = node.kind,
-            .name = node.name,
-            .position = position,
-        });
-        atlas.nodeLookup.emplace(node.id.value, position);
-    }
-
-    std::set<std::pair<std::uint32_t, std::uint32_t>> seenEdges;
-    for (const auto& node : nodes)
-    {
-        const auto edges = engine.world().edgesFrom(node.id);
-        for (const auto& edge : edges)
-        {
-            const auto key = std::minmax(edge.from.value, edge.to.value);
-            if (!seenEdges.insert(key).second)
-            {
-                continue;
-            }
-
-            WorldAtlas::Edge e{};
-            e.from = edge.from;
-            e.to = edge.to;
-            e.bidirectional = edge.bidirectional;
-            // Map polyline from grid ints to atlas Vector2 (use raw grid units)
-            if (!edge.polyline.empty())
-            {
-                e.polyline.reserve(edge.polyline.size());
-                for (const auto& pt : edge.polyline)
-                {
-                    e.polyline.push_back(Vector2{static_cast<float>(pt.first), static_cast<float>(pt.second)});
-                }
-            }
-            if (edge.anchor_at_from.has_value())
-            {
-                e.anchorFrom = Vector2{static_cast<float>(edge.anchor_at_from->first), static_cast<float>(edge.anchor_at_from->second)};
-            }
-            if (edge.anchor_at_to.has_value())
-            {
-                e.anchorTo = Vector2{static_cast<float>(edge.anchor_at_to->first), static_cast<float>(edge.anchor_at_to->second)};
-            }
-            atlas.edges.push_back(std::move(e));
-        }
-    }
-
-    for (const auto& spawn : engine.world().allSpawns())
-    {
-        Vector2 position{};
-        if (auto it = positions.find(spawn.location); it != positions.end())
-        {
-            position = it->second;
-        }
-
-        atlas.spawns.push_back(WorldAtlas::Spawn{
-            .resource = spawn,
-            .position = position,
-        });
-    }
-
-    // Build tilemap metadata: start with explicit meta from world, then add portals and infer bounds
-    std::unordered_map<std::uint32_t, WorldAtlas::Tilemap> tilemapByNode;
-    for (const auto& tm : engine.world().tilemaps())
-    {
-        WorldAtlas::Tilemap t{};
-        t.nodeId = tm.node.value;
-        t.width = tm.width;
-        t.height = tm.height;
-        t.tileW = tm.tileW;
-        t.tileH = tm.tileH;
-        tilemapByNode[tm.node.value] = std::move(t);
-    }
-    // Portals from edges
-    for (const auto& e : atlas.edges)
-    {
-        if (e.anchorFrom.has_value())
-        {
-            auto& tm = tilemapByNode[e.from.value];
-            tm.nodeId = e.from.value;
-            tm.portals.push_back(WorldAtlas::Portal{.to = e.to, .anchor = *e.anchorFrom});
-        }
-        if (e.anchorTo.has_value())
-        {
-            auto& tm = tilemapByNode[e.to.value];
-            tm.nodeId = e.to.value;
-            tm.portals.push_back(WorldAtlas::Portal{.to = e.from, .anchor = *e.anchorTo});
-        }
-    }
-    // Bounds from spawns local coords
-    struct Bounds { int minx{INT_MAX}, miny{INT_MAX}, maxx{INT_MIN}, maxy{INT_MIN}; };
-    std::unordered_map<std::uint32_t, Bounds> bounds;
-    for (const auto& s : atlas.spawns)
-    {
-        if (!s.resource.local_coord.has_value()) continue;
-        auto& b = bounds[s.resource.location.value];
-        b.minx = std::min(b.minx, s.resource.local_coord->first);
-        b.miny = std::min(b.miny, s.resource.local_coord->second);
-        b.maxx = std::max(b.maxx, s.resource.local_coord->first);
-        b.maxy = std::max(b.maxy, s.resource.local_coord->second);
-    }
-    for (auto& [nodeId, tm] : tilemapByNode)
-    {
-        if (auto itb = bounds.find(nodeId); itb != bounds.end())
-        {
-            auto b = itb->second;
-            if (b.minx <= b.maxx && b.miny <= b.maxy)
-            {
-                tm.width = std::max(1, b.maxx - b.minx + 1);
-                tm.height = std::max(1, b.maxy - b.miny + 1);
-            }
-        }
-        atlas.tilemaps.push_back(std::move(tm));
-    }
-
-    return atlas;
+RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::Engine&) {
+    // 旧路径已废弃：返回空 Atlas，由 GUI 判断是否可渲染
+    return {};
 }
 
 } // namespace Genesis::Sandbox::Gui

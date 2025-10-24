@@ -1,89 +1,93 @@
-set(GENESIS_PALETTE_DATA_SOURCES
-    style/PaletteLoader.cpp
-)
+option(GENESIS_WITH_STYLE "Build style/palette system" OFF)
 
-add_library(genesis_palette_data STATIC ${GENESIS_PALETTE_DATA_SOURCES})
-add_library(Genesis::PaletteData ALIAS genesis_palette_data)
+if(GENESIS_WITH_STYLE)
+    set(GENESIS_PALETTE_DATA_SOURCES
+        style/PaletteLoader.cpp
+    )
 
-target_include_directories(genesis_palette_data
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
+    add_library(genesis_palette_data STATIC ${GENESIS_PALETTE_DATA_SOURCES})
+    add_library(Genesis::PaletteData ALIAS genesis_palette_data)
 
-target_link_libraries(genesis_palette_data
-    PUBLIC
-        nlohmann_json::nlohmann_json
-        spdlog::spdlog_header_only
-)
+    target_include_directories(genesis_palette_data
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    )
 
-set_target_properties(genesis_palette_data PROPERTIES
-    OUTPUT_NAME "genesis_palette_data"
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
-)
+    target_link_libraries(genesis_palette_data
+        PUBLIC
+            nlohmann_json::nlohmann_json
+            spdlog::spdlog_header_only
+    )
 
-set(GENESIS_STYLE_SOURCES
-    style/ColorRegistry.cpp
-)
+    set_target_properties(genesis_palette_data PROPERTIES
+        OUTPUT_NAME "genesis_palette_data"
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+    )
 
-add_library(genesis_style STATIC ${GENESIS_STYLE_SOURCES})
-add_library(Genesis::Style ALIAS genesis_style)
+    set(GENESIS_STYLE_SOURCES
+        style/ColorRegistry.cpp
+    )
 
-target_include_directories(genesis_style
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-        ${CMAKE_BINARY_DIR}/generated
-)
+    add_library(genesis_style STATIC ${GENESIS_STYLE_SOURCES})
+    add_library(Genesis::Style ALIAS genesis_style)
 
-target_link_libraries(genesis_style
-    PUBLIC
-        Genesis::PaletteData
-        spdlog::spdlog_header_only
-)
+    target_include_directories(genesis_style
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/../include
+            ${CMAKE_BINARY_DIR}/generated
+    )
 
-set_target_properties(genesis_style PROPERTIES
-    OUTPUT_NAME "genesis_style"
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
-)
+    target_link_libraries(genesis_style
+        PUBLIC
+            Genesis::PaletteData
+            spdlog::spdlog_header_only
+    )
 
-add_executable(genesis_palette_compiler
-    tools/palette_compiler/Main.cpp
-)
+    set_target_properties(genesis_style PROPERTIES
+        OUTPUT_NAME "genesis_style"
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+    )
 
-target_include_directories(genesis_palette_compiler
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
+    add_executable(genesis_palette_compiler
+        tools/palette_compiler/Main.cpp
+    )
 
-target_link_libraries(genesis_palette_compiler
-    PRIVATE
-        Genesis::PaletteData
-        nlohmann_json::nlohmann_json
-        spdlog::spdlog_header_only
-)
+    target_include_directories(genesis_palette_compiler
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    )
 
-set(PALETTE_OUTPUT_DIR ${CMAKE_BINARY_DIR}/generated/palette)
+    target_link_libraries(genesis_palette_compiler
+        PRIVATE
+            Genesis::PaletteData
+            nlohmann_json::nlohmann_json
+            spdlog::spdlog_header_only
+    )
 
-add_custom_command(
-    OUTPUT
-        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.hpp
-        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.glsl
-        ${PALETTE_OUTPUT_DIR}/PaletteIndex.json
-    COMMAND genesis_palette_compiler --input ${CMAKE_SOURCE_DIR}/data/palette/core.json --output ${PALETTE_OUTPUT_DIR}
-    DEPENDS genesis_palette_compiler ${CMAKE_SOURCE_DIR}/data/palette/core.json
-    COMMENT "Generating palette artifacts"
-    VERBATIM
-)
+    set(PALETTE_OUTPUT_DIR ${CMAKE_BINARY_DIR}/generated/palette)
 
-add_custom_target(genesis_palette_assets ALL
-    DEPENDS
-        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.hpp
-        ${PALETTE_OUTPUT_DIR}/PaletteGenerated.glsl
-        ${PALETTE_OUTPUT_DIR}/PaletteIndex.json
-)
+    add_custom_command(
+        OUTPUT
+            ${PALETTE_OUTPUT_DIR}/PaletteGenerated.hpp
+            ${PALETTE_OUTPUT_DIR}/PaletteGenerated.glsl
+            ${PALETTE_OUTPUT_DIR}/PaletteIndex.json
+        COMMAND genesis_palette_compiler --input ${CMAKE_SOURCE_DIR}/data/palette/core.json --output ${PALETTE_OUTPUT_DIR}
+        DEPENDS genesis_palette_compiler ${CMAKE_SOURCE_DIR}/data/palette/core.json
+        COMMENT "Generating palette artifacts"
+        VERBATIM
+    )
 
-add_dependencies(genesis_style genesis_palette_assets)
+    add_custom_target(genesis_palette_assets ALL
+        DEPENDS
+            ${PALETTE_OUTPUT_DIR}/PaletteGenerated.hpp
+            ${PALETTE_OUTPUT_DIR}/PaletteGenerated.glsl
+            ${PALETTE_OUTPUT_DIR}/PaletteIndex.json
+    )
+
+    add_dependencies(genesis_style genesis_palette_assets)
+endif()
 
 set(GENESIS_RENDERING_SOURCES
     rendering/ProceduralAsset.cpp
@@ -159,17 +163,8 @@ set_target_properties(genesis_worldgen PROPERTIES
 )
 
 set(GENESIS_ENGINE_SOURCES
-    agents/NeedSystem.cpp
-    agents/NeedSatisfier.cpp
-    agents/ActionSystem.cpp
-    agents/MovementSystem.cpp
     core/SimulationClock.cpp
     core/Engine.cpp
-    world/WorldRegistry.cpp
-    world/WorldBootstrap.cpp
-    world/WorldLoader.cpp
-    world/system/ResourceSystem.cpp
-    planner/HungerPlanner.cpp
     telemetry/TelemetryBuffer.cpp
 )
 
@@ -186,6 +181,7 @@ target_link_libraries(genesis_engine
         spdlog::spdlog_header_only
         EnTT::EnTT
         nlohmann_json::nlohmann_json
+        Genesis::WorldModel
 )
 
 set_target_properties(genesis_engine PROPERTIES
@@ -207,7 +203,7 @@ target_include_directories(genesis_runtime
 
 target_link_libraries(genesis_runtime
     PUBLIC
-        Genesis::Worldgen
+        Genesis::WorldModel
     PRIVATE
         Genesis::Engine
 )
@@ -299,7 +295,7 @@ target_include_directories(genesis_sandbox_gui
 
 target_link_libraries(genesis_sandbox_gui
     PRIVATE
-        Genesis::Style
+        #Genesis::Style
         Genesis::Runtime
         Genesis::WorldModel
         Genesis::Rendering

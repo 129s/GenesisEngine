@@ -15,24 +15,16 @@
 #include "genesis/runtime/SimulationSnapshot.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
-#include "genesis/world/WorldLoader.hpp"
-#include "genesis/world/WorldTypes.hpp"
-#include "genesis/worldgen/Types.hpp"
 #include "genesis/runtime/RuntimeEvents.hpp"
+
+namespace genesis { namespace world { struct WorldLoadResult; struct WorldSaveResult; class WorldDatabase; } }
 
 namespace genesis::runtime {
 
 struct RuntimeConfig {
     std::uint64_t bootstrapSteps{0};
 
-    struct InitialWorldgen {
-        bool autoGenerate{false};
-        std::filesystem::path configPath{};
-        std::optional<std::uint64_t> seedOverride;
-        std::optional<std::filesystem::path> outputPath;
-    };
-
-    std::optional<InitialWorldgen> worldgen;
+    // 新：可选初始世界目录（包含 world.json + map_#.json）
     std::optional<std::filesystem::path> initialWorldPath;
 };
 
@@ -51,21 +43,21 @@ public:
 
     [[nodiscard]] const SimulationSnapshot* latestSnapshot() const noexcept;
     [[nodiscard]] std::optional<SimulationSnapshotDiff> latestSnapshotDiff() const noexcept;
-    [[nodiscard]] const std::optional<genesis::worldgen::Seed>& lastSeed() const noexcept { return m_lastSeed; }
+    [[nodiscard]] const std::optional<std::uint64_t>& lastSeed() const noexcept { return m_lastSeed; }
 
     struct WorldGenerationResult {
         bool success{false};
         std::filesystem::path configPath{};
         std::optional<std::filesystem::path> outputPath;
-        genesis::worldgen::Seed seed{};
+        struct Seed { std::uint64_t value{0}; } seed{};
         std::size_t locationCount{0};
         std::size_t edgeCount{0};
         double durationMs{0.0};
-        std::vector<genesis::worldgen::GenerationLogEntry> logs;
-        std::optional<genesis::world::LocationGraph> worldGraph;
+        std::vector<std::string> logs;
         std::string error;
     };
 
+    // 已弃用：占位返回失败，避免编译器/调用处大改
     WorldGenerationResult generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
     [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept { return m_lastWorldGen; }
 
@@ -74,6 +66,7 @@ public:
 
     [[nodiscard]] genesis::core::Engine& engine() noexcept { return m_engine; }
     [[nodiscard]] const genesis::core::Engine& engine() const noexcept { return m_engine; }
+    [[nodiscard]] std::shared_ptr<class genesis::world::WorldDatabase> worldDatabase() const noexcept;
 
     std::uint64_t enqueueEvent(RuntimeEvent event);
 
@@ -82,7 +75,7 @@ private:
 
     RuntimeConfig m_config;
     genesis::core::Engine m_engine;
-    std::optional<genesis::worldgen::Seed> m_lastSeed;
+    std::optional<std::uint64_t> m_lastSeed;
     std::optional<WorldGenerationResult> m_lastWorldGen;
     std::atomic<std::uint64_t> m_snapshotVersion{0};
     SimulationSnapshotBuffer m_snapshotBuffer;

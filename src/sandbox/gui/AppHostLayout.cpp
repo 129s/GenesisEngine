@@ -32,6 +32,7 @@ void AppHost::drawDockspace()
         ImGuiID dock_left = ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.23f, nullptr, &dock_main);
 
         ImGui::DockBuilderDockWindow("Browser", dock_left);
+        ImGui::DockBuilderDockWindow("Palette", dock_left);
         ImGui::DockBuilderDockWindow("Main View", dock_main);
 
         ImGui::DockBuilderFinish(dockspace_id);

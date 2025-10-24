@@ -1,6 +1,6 @@
 #include "sandbox/gui/style/DesignTokens.hpp"
 
-#include "genesis/style/ColorRegistry.hpp"
+#include <optional>
 
 #include <spdlog/spdlog.h>
 
@@ -76,79 +76,13 @@ namespace
         "state.highlight",
     };
 
-    ImVec4 ToImVec(const Genesis::Style::RgbaColor& color)
-    {
-        return ImVec4(color.r, color.g, color.b, color.a);
-    }
+    // removed ToImVec (palette disabled)
 
-    void EnsurePaletteLoaded()
-    {
-        static std::once_flag flag;
-        std::call_once(flag, []() {
-            auto& registry = Genesis::Style::ColorRegistry::instance();
-            if (registry.isLoaded())
-            {
-                return;
-            }
-
-            if (registry.loadCompiledDefault())
-            {
-                spdlog::info("DesignTokens: 使用编译期调色板 (theme={})", registry.activeTheme());
-                return;
-            }
-
-            std::filesystem::path base = std::filesystem::current_path();
-            bool loaded = false;
-            for (int asc = 0; asc < 5 && !loaded; ++asc)
-            {
-                const auto candidate = base / "data" / "palette" / "core.json";
-                if (std::filesystem::exists(candidate))
-                {
-                    loaded = registry.tryLoadFrom(candidate);
-                    if (loaded)
-                    {
-                        spdlog::info("DesignTokens: 已从 {} 加载调色板", candidate.string());
-                        break;
-                    }
-                }
-                base = base.parent_path();
-            }
-
-            if (!loaded)
-            {
-                spdlog::warn("DesignTokens: 未能加载外部调色板配置，将使用内置颜色表");
-            }
-        });
-    }
+    void EnsurePaletteLoaded() {}
 
     std::optional<ImVec4> ResolvePaletteColor(ColorToken token)
     {
-        EnsurePaletteLoaded();
-        auto& registry = Genesis::Style::ColorRegistry::instance();
-        if (!registry.isLoaded())
-        {
-            return std::nullopt;
-        }
-
-        const auto index = static_cast<std::size_t>(token);
-        if (index >= kPaletteTokenNames.size())
-        {
-            return std::nullopt;
-        }
-
-        const auto& tokenName = kPaletteTokenNames[index];
-        if (tokenName.empty())
-        {
-            return std::nullopt;
-        }
-
-        const auto color = registry.color(tokenName, Genesis::Style::ColorSpace::SRGB);
-        if (!color)
-        {
-            spdlog::warn("DesignTokens: 调色板缺少 token '{}'", tokenName);
-            return std::nullopt;
-        }
-        return ToImVec(*color);
+        return std::nullopt;
     }
 } // namespace
 
@@ -269,3 +203,4 @@ float DesignTokens::spacing(SpacingToken token)
 }
 
 } // namespace Genesis::Sandbox::Gui::Style
+

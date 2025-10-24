@@ -497,9 +497,9 @@ namespace Genesis::Sandbox::Gui
                             ImGui::Dummy(ImVec2(0.0f, cardLayout.lineGap));
                             if (ImGui::BeginChild("WorldGenLogs", ImVec2(0.0f, 160.0f), true))
                             {
-                                for (const auto &entry : result.logs)
+                                for (const auto &msg : result.logs)
                                 {
-                                    ImGui::TextUnformatted(entry.message.c_str());
+                                    ImGui::TextUnformatted(msg.c_str());
                                 }
                             }
                             ImGui::EndChild();

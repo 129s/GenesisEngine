@@ -109,3 +109,16 @@ add_test(
     COMMAND ${GENESIS_ENGINE_APP_EXECUTABLE} --steps=60 --telemetry-file ${CMAKE_BINARY_DIR}/telemetry_e2e.json
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+# --- World Model tests ---
+add_executable(genesis_world_model_tests
+    test_world_database_loader.cpp
+)
+
+target_link_libraries(genesis_world_model_tests
+    PRIVATE
+        Genesis::WorldModel
+        GTest::gtest_main
+)
+
+gtest_discover_tests(genesis_world_model_tests)

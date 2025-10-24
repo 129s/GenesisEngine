@@ -2,7 +2,7 @@
 
 本文定义“地图/场景/交互点/传送”四要素的概念与数据契约，明确运行时与渲染层的边界。目标：在保证表达力的前提下，以极低运行开销支持上千 NPC 并发。
 
-## 决策摘要（v1）
+## 决策摘要（v2）
 - Map 图（有向）：世界由若干 Map 组成，Map 之间通过有向边（MapEdge）表征可达性与代价。
 - Scene 树（分组/布局）：每张 Map 内部是 Scene 树，仅用于组织与坐标继承，不参与寻路。
 - Interaction（交互点）：挂在 Scene 下的可交互锚点，包含 Portal/Resource/Workbench/Trigger 等，导航目标均指向交互点坐标。
@@ -64,8 +64,8 @@
     { "id": 200, "parent": 100, "name": "Tavern" }
   ],
   "interactions": [
-    { "id": 10001, "sceneId": 100, "kind": "Resource", "coord_local": [10, 5], "meta": { "resource": "Food", "capacity": 24, "rate": 3 } },
-    { "id": 10002, "sceneId": 200, "kind": "Portal",   "coord_local": [3,  7] }
+    { "id": 10001, "sceneId": 100, "kind": "Resource", "coord": [10, 5], "capacity": 24, "regen": 3 },
+    { "id": 10002, "sceneId": 200, "kind": "Portal",   "coord": [3,  7] }
   ],
   "portals": [
     { "interactionId": 10002, "channelId": "tavern-door", "oneWay": false, "teleportCost": 0.5 }
@@ -87,6 +87,8 @@
 说明：
 - 生产管线可将 `coord_local` 结合 Scene 原点转为 `coord_global`（可选缓存）；运行时最少只需统一整格/世界坐标即可直线移动。
 - Portal 的跨图连接关系体现在 `map_edges`，而非“Portal 对默认全连”。
+
+注：简化起见，v2 当前 `world.json` 的 `map_edges` 最小字段为 `{ from,to,bidirectional? }`；如需 `cost/rules` 可在后续 schema 扩展时加入。
 
 ## 内容制作规范
 - Map 语义：Map 内应“无阻挡、可直达”。若存在门/墙/楼层等阻断，请拆分为多个 Map，用 Portal/MapEdge 相连。
@@ -116,4 +118,3 @@
 相关文档：
 - `world-representation.md`：渲染层契约（Tilemap 与可视化）。
 - `world-generation.md`：数据生产流程与校验。
-

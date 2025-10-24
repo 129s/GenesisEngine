@@ -1,47 +1,55 @@
-# 世界数据契约迁移指南（LocationGraph → 含坐标/锚点）
+# 世界数据契约迁移指南（v1 LocationGraph → v2 WorldDatabase）
 
-目标：将现有世界数据升级到新的必备契约，支持 Map/Scene 一致渲染与过渡。
+目标：从旧的基于节点/边（LocationGraph）的世界表达迁移到 v2 的 `WorldDatabase` 契约，采用“world.json + map_{id}.json”目录结构，支持 Map 内直线移动与 Map 图跨图拼接。
 
-## 必备字段（重构后）
-- `locations[i].coord_global: [int,int]`（Map 全局网格坐标）
-- `edges[i].anchors: { at_from:[int,int], at_to:[int,int] }`（Scene 入/出场锚点，局部坐标）
-- `spawns[i].local_coord: [int,int]`（Scene 资源/交互点局部坐标）
-- 可选：`edges[i].polyline: [[int,int], ...]`（Map 边几何）
+## v2 数据产物
+- 世界总表 `world.json`：
+  - `maps[]: { id:uint32, name:string }`
+  - `map_edges[]: { from:uint32, to:uint32, bidirectional?:bool }`
+- 每图分表 `map_{id}.json`：
+  - `scenes[]: { id:uint32, parent?:uint32, name:string }`
+  - `interactions[]: { id:uint32, sceneId:uint32, kind:string, coord:[int,int], capacity?:uint32, regen?:uint32 }`
+  - `portals[]: { interactionId:uint32, targetMapId:uint32, targetSceneId?:uint32, targetCoord?:[int,int] }`
+  - `tilemap?`: 渲染层元数据（与运行时解耦）
+
+说明：
+- 资源交互（`kind=Resource`）可直接在 `interactions` 中声明 `capacity` 与 `regen`（每步再生量）。
+- 跨图连接通过 `map_edges` 表达；如需 `cost/rules` 等高级字段，可在后续 schema 扩展时加入。
+
+## 迁移映射
+- v1 Location → v2 Interaction：
+  - 将能被“停留/交互”的节点转为 `Interaction(kind=Landmark|Resource|Portal|...)`，并确定 `sceneId` 与 `coord`（整格/世界坐标）。
+  - v1 的资源产点（spawns）转换为 `Interaction(kind=Resource)`，同步迁移 `capacity/rate` → `capacity/regen`。
+- v1 Edge → v2 MapEdge/Portal：
+  - 跨区域/楼层/地图的连通转换为 Map 层 `map_edges`；场景入/出锚点转为 `portals[]` 与对应的 `interactionId`。
+  - v1 边的几何/锚点（polyline/anchors）仅用于渲染可视化，可择机写入 `tilemap/meta`，运行时不读取。
 
 ## 迁移步骤
-1) 为每个 `locations[i]` 指定 `coord_global`（建议使用网格化编辑或简单脚本分配）。
-2) 为每条 `edges[i]` 指定 `anchors`：
-   - `at_from` 是 `from` 节点所属 Scene 的局部坐标；
-   - `at_to` 是 `to` 节点所属 Scene 的局部坐标；
-   - 如节点未绑定 Scene，可将锚点设置为占位局部中心（但仍需提供数值）。
-3) 为每个 `spawns[i]` 指定 `local_coord`（资源在 Scene 的局部位置）。
-4) 设置 `schema_version`（与 Runtime/GUI 配置一致）。
-5) 用最小示例跑通 Map/Scene 渲染后，再完善实际大图数据。
+1) 建立 `maps[]` 与 `map_edges[]`：将原区域/楼层划分为 Map；按可达关系建立有向边，必要时标注 `bidirectional=false`。
+2) 为每张 Map 建立 `map_{id}.json`：梳理 `scenes[]`（分组/布局），把可交互处转为 `interactions[]` 并填入 `coord`。
+3) 对资源交互补齐 `capacity/regen`；Portal 转为 `portals[]` 并声明目标定位（Map/Scene/Coord）。
+4) 用最小样例跑通 GUI Atlas/实体直线移动；逐步扩充数据与渲染元。
 
-## 最小示例片段（节选）
+## 最小示例（v2）
+world.json
 ```json
 {
-  "schema_version": 1,
-  "locations": [
-    { "id": 1, "parent": 0, "name": "Town Center", "kind": "Region",   "navigable": true,  "coord_global": [10, 8] },
-    { "id": 2, "parent": 1, "name": "Tavern",       "kind": "Building", "navigable": true,  "coord_global": [12, 9] },
-    { "id": 3, "parent": 2, "name": "Kitchen",      "kind": "Room",     "navigable": true,  "coord_global": [13, 10] }
+  "maps": [ { "id": 1, "name": "Town" } ],
+  "map_edges": []
+}
+```
+map_1.json
+```json
+{
+  "scenes": [ { "id": 100, "name": "Town Center" } ],
+  "interactions": [
+    { "id": 10001, "sceneId": 100, "kind": "Resource", "coord": [10, 5], "capacity": 24, "regen": 3 }
   ],
-  "edges": [
-    { "from": 1, "to": 2, "cost": 1.0, "bidirectional": true,
-      "anchors": { "at_from": [5,5], "at_to": [2,6] } },
-    { "from": 2, "to": 3, "cost": 0.5, "bidirectional": true,
-      "anchors": { "at_from": [3,2], "at_to": [4,4] } }
-  ],
-  "spawns": [
-    { "name": "Tavern Food Prep", "type": "Food", "location": 3,
-      "capacity": 24, "rate_per_step": 3, "local_coord": [6,4] }
-  ]
+  "portals": []
 }
 ```
 
-## 工具与校验建议
-- 使用脚本检查所有节点/边/资源是否具备上述字段。
-- 对 `coord_global` 做去重/越界校验；对 `anchors/local_coord` 做 Scene 范围校验。
-- 可在导入器中加入 schema 校验并在日志中报告缺失字段。
-
+## 校验建议
+- ID 唯一性与引用合法性（sceneId/interactionId/mapId）。
+- 坐标范围与数据类型（`coord` 为整数对）。
+- 资源参数非负且 `current<=capacity`（运行时默认填满）。

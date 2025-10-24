@@ -2,7 +2,7 @@
 
 本文档汇总当前主干分支的构建、测试与生成资产的工作流，适用于 Windows/Linux/macOS 开发环境。若后续流程调整，请同步更新此文档并在 PR 中注明。
 
-## 1. 环境与依赖准备
+## 1. 环境与依赖准备\n\n注意：v2 使用 WorldDatabase（world.json + map_{id}.json）作为数据通道，历史 Worldgen 默认不参与构建。
 - CMake ≥ 3.21（推荐与 Ninja 一起使用，加快增量构建）
 - 支持 C++20 的编译器：MSVC 17 系列、Clang 14+ 或 GCC 11+
 - 系统需预装 Freetype 库（`find_package(Freetype REQUIRED)`），可通过 vcpkg、Homebrew、apt 等包管理器安装
@@ -58,12 +58,7 @@ ctest --test-dir build --output-on-failure
 - `GenesisRuntime_Smoke`：保证运行时可加载自身依赖
 - `GenesisEngine_E2E`：运行 `genesis-engine --steps=60` 并生成 `build/telemetry_e2e.json`
 
-## 5. 世界生成（Worldgen）
-- Worldgen 模块（`Genesis::Worldgen`）读取 TOML 配置并生成 `LocationGraph`、布局与 Tilemap 资产，详情参考 `docs/architecture/WORLD_GENERATION.md`。
-- 运行时通过 `Runtime::generateWorldFromConfig` 与命令队列的 `world.generate` 操作触发生成；沙盒 GUI 的 World Generation 面板即使用这一流程。
-- 若需要离线生成或批处理，可在自定义工具中直接调用 `genesis::worldgen::generate_world`，并使用 `genesis::world::saveWorldToFile` 将结果写入 JSON。
-
-## 6. 增量构建与常见目录
+## 5. 世界生成（Worldgen）\n- 历史路径（默认关闭）：v2 运行时不再依赖 `LocationGraph` 与生成流程。\n- 如需参考旧设计与实现，请查阅 `docs/architecture/world/world-generation.md` 与相关历史代码。\n\n## 6. 增量构建与常见目录
 - 源码：`src/`（核心库、工具、GUI）、`include/`（公共头文件）
 - 构建输出：`build/src`（可执行/动态库）、`build/lib`（静态库）、`build/tests`（测试二进制）
 - 测试资产：`tests/` 与 `build/telemetry_*.json`
@@ -77,3 +72,4 @@ ctest --test-dir build --output-on-failure
 5. 在 `build/src/genesis-sandbox-gui` 目录下启动 GUI 进行回归验证
 
 若引入新依赖或修改工具链，请记得更新本文件并在 PR 描述中说明。
+

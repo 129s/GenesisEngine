@@ -1,0 +1,10 @@
+{
+  "scenes": [
+    { "id": 200, "name": "SceneB" }
+  ],
+  "interactions": [
+    { "id": 2000, "sceneId": 200, "kind": "Resource", "coord": [3, 4], "name": "WaterPoint" }
+  ],
+  "portals": []
+}
+

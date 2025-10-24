@@ -1,0 +1,10 @@
+{
+  "maps": [
+    { "id": 1, "name": "DemoMapA" },
+    { "id": 2, "name": "DemoMapB" }
+  ],
+  "map_edges": [
+    { "from": 1, "to": 2, "bidirectional": true }
+  ]
+}
+

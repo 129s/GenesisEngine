@@ -1,0 +1,13 @@
+{
+  "scenes": [
+    { "id": 100, "name": "SceneA" }
+  ],
+  "interactions": [
+    { "id": 1000, "sceneId": 100, "kind": "Resource", "coord": [5, 5], "name": "FoodStall" },
+    { "id": 1001, "sceneId": 100, "kind": "Portal", "coord": [10, 2], "name": "GateToB" }
+  ],
+  "portals": [
+    { "interactionId": 1001, "targetMapId": 2, "targetSceneId": 200, "targetCoord": [1, 1] }
+  ]
+}
+

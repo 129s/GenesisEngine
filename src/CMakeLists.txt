@@ -1,4 +1,5 @@
 option(GENESIS_WITH_STYLE "Build style/palette system" OFF)
+option(GENESIS_BUILD_GUI "Build sandbox GUI application" OFF)
 
 if(GENESIS_WITH_STYLE)
     set(GENESIS_PALETTE_DATA_SOURCES
@@ -218,19 +219,22 @@ set_target_properties(genesis_runtime PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-add_executable(genesis_engine_app
-    main.cpp
-)
+option(GENESIS_BUILD_ENGINE_APP "Build CLI engine app" OFF)
+if (GENESIS_BUILD_ENGINE_APP)
+    add_executable(genesis_engine_app
+        main.cpp
+    )
 
-target_link_libraries(genesis_engine_app
-    PRIVATE
-        Genesis::Engine
-        spdlog::spdlog_header_only
-)
+    target_link_libraries(genesis_engine_app
+        PRIVATE
+            Genesis::Engine
+            spdlog::spdlog_header_only
+    )
 
-set_target_properties(genesis_engine_app PROPERTIES
-    OUTPUT_NAME "genesis-engine"
-)
+    set_target_properties(genesis_engine_app PROPERTIES
+        OUTPUT_NAME "genesis-engine"
+    )
+endif()
 
 # --- Phase 0: 基础/诊断模块骨架（占位，便于后续迁移） ---
 add_library(genesis_base INTERFACE)
@@ -273,48 +277,50 @@ add_library(genesis_runtime_snapshot INTERFACE)
 add_library(Genesis::RuntimeSnapshot ALIAS genesis_runtime_snapshot)
 target_link_libraries(genesis_runtime_snapshot INTERFACE Genesis::Runtime)
 
-add_executable(genesis_sandbox_gui
-    apps/sandbox_gui/Main.cpp
-    sandbox/gui/AppHostCore.cpp
-    sandbox/gui/AppHostLayout.cpp
-    sandbox/gui/AppHostPanelWorld.cpp
-    sandbox/gui/style/DesignTokens.cpp
-    sandbox/gui/style/LayoutMetrics.cpp
-    sandbox/gui/controller/WorldCommandController.cpp
-    sandbox/gui/presenter/MainViewPresenters.cpp
-    sandbox/gui/ui/UiState.cpp
-    sandbox/gui/ui/UiContext.cpp
-    sandbox/gui/ui/StatusBarView.cpp
-    sandbox/gui/ui/ControlBarView.cpp
-    sandbox/gui/ui/BrowserView.cpp
-    sandbox/gui/ui/MainView.cpp
-    sandbox/gui/ui/LayoutHelpers.cpp
-    sandbox/gui/RuntimeBridge.cpp
-)
+if (GENESIS_BUILD_GUI)
+    add_executable(genesis_sandbox_gui
+        apps/sandbox_gui/Main.cpp
+        sandbox/gui/AppHostCore.cpp
+        sandbox/gui/AppHostLayout.cpp
+        sandbox/gui/AppHostPanelWorld.cpp
+        sandbox/gui/style/DesignTokens.cpp
+        sandbox/gui/style/LayoutMetrics.cpp
+        sandbox/gui/controller/WorldCommandController.cpp
+        sandbox/gui/presenter/MainViewPresenters.cpp
+        sandbox/gui/ui/UiState.cpp
+        sandbox/gui/ui/UiContext.cpp
+        sandbox/gui/ui/StatusBarView.cpp
+        sandbox/gui/ui/ControlBarView.cpp
+        sandbox/gui/ui/BrowserView.cpp
+        sandbox/gui/ui/MainView.cpp
+        sandbox/gui/ui/LayoutHelpers.cpp
+        sandbox/gui/RuntimeBridge.cpp
+    )
 
-target_include_directories(genesis_sandbox_gui
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
+    target_include_directories(genesis_sandbox_gui
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    )
 
-target_link_libraries(genesis_sandbox_gui
-    PRIVATE
-        #Genesis::Style
-        Genesis::Runtime
-        Genesis::WorldModel
-        Genesis::Rendering
-        spdlog::spdlog_header_only
-        imgui::imgui
-        glfw
-)
+    target_link_libraries(genesis_sandbox_gui
+        PRIVATE
+            #Genesis::Style
+            Genesis::Runtime
+            Genesis::WorldModel
+            Genesis::Rendering
+            spdlog::spdlog_header_only
+            imgui::imgui
+            glfw
+    )
 
-if(WIN32)
-    target_link_libraries(genesis_sandbox_gui PRIVATE opengl32)
-else()
-    find_package(OpenGL REQUIRED)
-    target_link_libraries(genesis_sandbox_gui PRIVATE OpenGL::GL)
+    if(WIN32)
+        target_link_libraries(genesis_sandbox_gui PRIVATE opengl32)
+    else()
+        find_package(OpenGL REQUIRED)
+        target_link_libraries(genesis_sandbox_gui PRIVATE OpenGL::GL)
+    endif()
+
+    set_target_properties(genesis_sandbox_gui PROPERTIES
+        OUTPUT_NAME "genesis-sandbox-gui"
+    )
 endif()
-
-set_target_properties(genesis_sandbox_gui PROPERTIES
-    OUTPUT_NAME "genesis-sandbox-gui"
-)

@@ -180,7 +180,13 @@
   - SceneView：按 Tile 层渲染并高亮交互点/Portal；
   - Inspector：以 Interaction/Portal 为一等公民。
 
-验收（A）：工程可构建；Demo 代理在单图内直线运动；资源消费闭环正常；GUI 可浏览 Map/Scene/交互点/Portal。
+验收（A）：工程可构建；Demo 代理在单图内直线运动；资源消费闭环正常。GUI 适配可延后到 Phase A3。
+
+构建开关（便于专注内核重构）：
+- 在 `src/CMakeLists.txt` 新增选项：
+  - `-DGENESIS_BUILD_ENGINE_APP=OFF`（默认 OFF）禁用 CLI App 构建。
+  - `-DGENESIS_BUILD_GUI=OFF`（默认 OFF）禁用 Sandbox GUI 构建。
+  - 仅编译内核与运行时：`cmake -S src -B build -DGENESIS_BUILD_ENGINE_APP=OFF -DGENESIS_BUILD_GUI=OFF`。
 
 ### Phase B · 渲染层“可见内”局部寻路（仅可视化）
 1) 可见性与资产

@@ -3,7 +3,7 @@ option(GENESIS_BUILD_GUI "Build sandbox GUI application" OFF)
 
 if(GENESIS_WITH_STYLE)
     set(GENESIS_PALETTE_DATA_SOURCES
-        style/PaletteLoader.cpp
+        engine/style/PaletteLoader.cpp
     )
 
     add_library(genesis_palette_data STATIC ${GENESIS_PALETTE_DATA_SOURCES})
@@ -27,7 +27,7 @@ if(GENESIS_WITH_STYLE)
     )
 
     set(GENESIS_STYLE_SOURCES
-        style/ColorRegistry.cpp
+        engine/style/ColorRegistry.cpp
     )
 
     add_library(genesis_style STATIC ${GENESIS_STYLE_SOURCES})
@@ -91,9 +91,9 @@ if(GENESIS_WITH_STYLE)
 endif()
 
 set(GENESIS_RENDERING_SOURCES
-    rendering/ProceduralAsset.cpp
-    rendering/AssetPack.cpp
-    rendering/AssetCache.cpp
+    engine/rendering/ProceduralAsset.cpp
+    engine/rendering/AssetPack.cpp
+    engine/rendering/AssetCache.cpp
 )
 
 add_library(genesis_rendering STATIC ${GENESIS_RENDERING_SOURCES})
@@ -112,9 +112,9 @@ set_target_properties(genesis_rendering PROPERTIES
 
 # --- A1: 世界数据模型与加载器（独立于旧 WorldRegistry） ---
 add_library(genesis_world_model STATIC
-    world/WorldDatabase.cpp
-    world/WorldDatabaseLoader.cpp
-    world/WorldDatabaseSaver.cpp
+    engine/world/WorldDatabase.cpp
+    engine/world/WorldDatabaseLoader.cpp
+    engine/world/WorldDatabaseSaver.cpp
 )
 add_library(Genesis::WorldModel ALIAS genesis_world_model)
 
@@ -135,13 +135,13 @@ set_target_properties(genesis_world_model PROPERTIES
 )
 
 set(GENESIS_WORLDGEN_SOURCES
-    worldgen/ConfigLoader.cpp
-    worldgen/Context.cpp
-    worldgen/Generator.cpp
-    worldgen/LayoutModule.cpp
-    worldgen/Rng.cpp
-    worldgen/TopologyModule.cpp
-    worldgen/ValidationModule.cpp
+    engine/worldgen/ConfigLoader.cpp
+    engine/worldgen/Context.cpp
+    engine/worldgen/Generator.cpp
+    engine/worldgen/LayoutModule.cpp
+    engine/worldgen/Rng.cpp
+    engine/worldgen/TopologyModule.cpp
+    engine/worldgen/ValidationModule.cpp
 )
 
 add_library(genesis_worldgen STATIC ${GENESIS_WORLDGEN_SOURCES})
@@ -164,17 +164,17 @@ set_target_properties(genesis_worldgen PROPERTIES
 )
 
 set(GENESIS_ENGINE_SOURCES
-    core/SimulationClock.cpp
-    core/Engine.cpp
-    agents/ActionSystem.cpp
-    agents/NeedSystem.cpp
-    agents/NeedSatisfier.cpp
-    simulation/Movement2DSystem.cpp
-    simulation/SimulationContext.cpp
-    simulation/TelemetryCollector.cpp
-    simulation/Scheduler.cpp
-    world/system/ResourceSystem.cpp
-    telemetry/TelemetryBuffer.cpp
+    engine/core/SimulationClock.cpp
+    engine/core/Engine.cpp
+    engine/agents/ActionSystem.cpp
+    engine/agents/NeedSystem.cpp
+    engine/agents/NeedSatisfier.cpp
+    engine/simulation/Movement2DSystem.cpp
+    engine/simulation/SimulationContext.cpp
+    engine/simulation/TelemetryCollector.cpp
+    engine/simulation/Scheduler.cpp
+    engine/world/system/ResourceSystem.cpp
+    engine/telemetry/TelemetryBuffer.cpp
 )
 
 add_library(genesis_engine STATIC ${GENESIS_ENGINE_SOURCES})
@@ -200,8 +200,8 @@ set_target_properties(genesis_engine PROPERTIES
 )
 
 add_library(genesis_runtime SHARED
-    runtime/Runtime.cpp
-    runtime/SnapshotDiff.cpp
+    engine/runtime/Runtime.cpp
+    engine/runtime/SnapshotDiff.cpp
 )
 add_library(Genesis::Runtime ALIAS genesis_runtime)
 
@@ -268,26 +268,28 @@ target_link_libraries(genesis_runtime_snapshot INTERFACE Genesis::Runtime)
 if (GENESIS_BUILD_GUI)
     add_executable(genesis_sandbox_gui
         apps/sandbox_gui/Main.cpp
-        sandbox/gui/AppHostCore.cpp
-        sandbox/gui/AppHostLayout.cpp
-        sandbox/gui/AppHostPanelWorld.cpp
-        sandbox/gui/style/DesignTokens.cpp
-        sandbox/gui/style/LayoutMetrics.cpp
-        sandbox/gui/controller/WorldCommandController.cpp
-        sandbox/gui/presenter/MainViewPresenters.cpp
-        sandbox/gui/ui/UiState.cpp
-        sandbox/gui/ui/UiContext.cpp
-        sandbox/gui/ui/StatusBarView.cpp
-        sandbox/gui/ui/ControlBarView.cpp
-        sandbox/gui/ui/BrowserView.cpp
-        sandbox/gui/ui/MainView.cpp
-        sandbox/gui/ui/LayoutHelpers.cpp
-        sandbox/gui/RuntimeBridge.cpp
+        apps/sandbox_gui/gui/AppHostCore.cpp
+        apps/sandbox_gui/gui/AppHostLayout.cpp
+        apps/sandbox_gui/gui/AppHostPanelWorld.cpp
+        apps/sandbox_gui/gui/style/DesignTokens.cpp
+        apps/sandbox_gui/gui/style/LayoutMetrics.cpp
+        apps/sandbox_gui/gui/controller/WorldCommandController.cpp
+        apps/sandbox_gui/gui/presenter/MainViewPresenters.cpp
+        apps/sandbox_gui/gui/ui/UiState.cpp
+        apps/sandbox_gui/gui/ui/UiContext.cpp
+        apps/sandbox_gui/gui/ui/StatusBarView.cpp
+        apps/sandbox_gui/gui/ui/ControlBarView.cpp
+        apps/sandbox_gui/gui/ui/BrowserView.cpp
+        apps/sandbox_gui/gui/ui/MainView.cpp
+        apps/sandbox_gui/gui/ui/LayoutHelpers.cpp
+        apps/sandbox_gui/gui/RuntimeBridge.cpp
     )
 
     target_include_directories(genesis_sandbox_gui
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/../include
+            ${CMAKE_CURRENT_SOURCE_DIR}/apps/sandbox_gui/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/apps/sandbox_gui
     )
 
     target_link_libraries(genesis_sandbox_gui

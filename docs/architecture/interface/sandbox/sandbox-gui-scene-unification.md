@@ -51,10 +51,10 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| `src/sandbox/gui/ui/MainView.cpp:1260` | 单画布渲染主流程、摄像机与交互处理。|
-| `include/sandbox/gui/presenter/MainViewPresenters.hpp:64` | `SceneNodePortal`、`SceneNodeDetails` 定义。|
-| `src/sandbox/gui/presenter/MainViewPresenters.cpp:222` | 从 `WorldAtlas::Tilemap` 解析 Portal 信息并补充 ViewModel。|
-| `src/sandbox/gui/AppHostCore.cpp:508` | Ctrl+1 快捷键切换“传送门”叠加提示文案。|
+| `src/apps/sandbox_gui/gui/ui/MainView.cpp:1260` | 单画布渲染主流程、摄像机与交互处理。|
+| `src/apps/sandbox_gui/include/sandbox/gui/presenter/MainViewPresenters.hpp:64` | `SceneNodePortal`、`SceneNodeDetails` 定义。|
+| `src/apps/sandbox_gui/gui/presenter/MainViewPresenters.cpp:222` | 从 `WorldAtlas::Tilemap` 解析 Portal 信息并补充 ViewModel。|
+| `src/apps/sandbox_gui/gui/AppHostCore.cpp:508` | Ctrl+1 快捷键切换“传送门”叠加提示文案。|
 
 ## 6. TODO
 

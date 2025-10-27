@@ -30,12 +30,14 @@ endif()
 
 add_executable(genesis_sandbox_gui_tests
     test_sandbox_gui_presenters.cpp
-    ../src/sandbox/gui/presenter/MainViewPresenters.cpp
+    ../src/apps/sandbox_gui/gui/presenter/MainViewPresenters.cpp
 )
 
 target_include_directories(genesis_sandbox_gui_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src/apps/sandbox_gui/include
+        ${CMAKE_SOURCE_DIR}/src/apps/sandbox_gui
         ${CMAKE_SOURCE_DIR}/src
 )
 

@@ -5,7 +5,7 @@
 - 将命令控制拆分为多个卡片，保持输入控件与状态文字的对齐与留白一致。
 
 ## 主要改动
-- 新增 `Style::Layout::CardScope`、`WindowStyleScope` 等助手（`include/sandbox/gui/style/LayoutMetrics.hpp`），集中处理窗口、卡片、顶栏的 padding/spacing。
+- 新增 `Style::Layout::CardScope`、`WindowStyleScope` 等助手（`src/apps/sandbox_gui/include/sandbox/gui/style/LayoutMetrics.hpp`），集中处理窗口、卡片、顶栏的 padding/spacing。
 - World Tab 重新拆分为三张卡片：
   1. **世界生成**：配置路径、输出路径、随机/固定种子、生成按钮、最近结果与日志。
   2. **加载/保存**：独立的输入区域与按钮，并显示状态文案。

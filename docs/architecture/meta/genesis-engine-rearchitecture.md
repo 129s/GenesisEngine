@@ -138,7 +138,7 @@
 - Phase 0：基础设施（已落地最小骨架）
   - 新增 `Genesis::Base` 与 `Genesis::Diagnostics`（头文件级封装），作为公共类型与日志门面占位，后续逐步替换直接使用 spdlog 的调用。
 - Phase 1：仿真内核解耦（第一步）
-  - 降低 GUI 对内核的头文件耦合：`include/sandbox/gui/RuntimeBridge.hpp` 移除对 `genesis/core/Engine.hpp` 的直接包含，改为前置声明；`RuntimeBridge.cpp` 内部包含实现依赖。
+  - 降低 GUI 对内核的头文件耦合：`src/apps/sandbox_gui/include/sandbox/gui/RuntimeBridge.hpp` 移除对 `genesis/core/Engine.hpp` 的直接包含，改为前置声明；`RuntimeBridge.cpp` 内部包含实现依赖。
   - CMake 引入占位别名目标：`Genesis::World`、`Genesis::Agents`、`Genesis::Simulation`（当前指向 `Genesis::Engine`），为后续实体化拆分准备依赖图。
 - Phase 2：运行时子域（占位）
   - CMake 引入别名目标：`Genesis::RuntimeCore`、`Genesis::RuntimeSnapshot`（当前指向 `Genesis::Runtime`），为后续 API/实现分离预热。

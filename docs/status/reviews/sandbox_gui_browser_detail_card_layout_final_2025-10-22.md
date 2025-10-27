@@ -8,7 +8,7 @@
 - `ImGui::PushTextWrapPos(cursor + avail)` 确保文本在可视区域内自然换行，同时配合 `ImGuiWindowFlags_AlwaysUseWindowPadding` 让内边距真实生效。
 
 ## 代码位置
-- `src/sandbox/gui/ui/BrowserView.cpp:364` 起的 `drawDetailCard` 函数。
+- `src/apps/sandbox_gui/gui/ui/BrowserView.cpp:364` 起的 `drawDetailCard` 函数。
 
 ## 说明
 - 解决问题：标题贴边/裁切、上下不对称、左右无留白等。

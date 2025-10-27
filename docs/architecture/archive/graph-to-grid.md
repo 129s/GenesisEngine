@@ -13,7 +13,7 @@
   - 资源：`Telemetry::ResourceSnapshot`（含 `location`）
   - 行动：`Telemetry::ActionSnapshot`（含 `target`）
   - 代理：`Telemetry::AgentSnapshot`（含 `location`）
-- CLI 渲染输入（历史路径）：`include/sandbox/CliRenderer.hpp` — `render(const TickTelemetry&)`
+- CLI 渲染输入（历史路径）：`src/apps/sandbox_gui/include/sandbox/CliRenderer.hpp` — `render(const TickTelemetry&)`
 - 布局映射（历史类型）：`Layout{ width,height, nodes: map<locationId, LayoutNode{x,y,label}> }`
 - 渲染逻辑（历史实现）：`src/sandbox/CliRenderer.cpp` 根据快照中的 `LocationId.value` 查找布局坐标，并在 `grid[y][x]` 处写符号。
 

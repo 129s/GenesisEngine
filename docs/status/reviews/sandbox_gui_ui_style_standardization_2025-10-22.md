@@ -9,16 +9,16 @@
 
 ## 影响范围
 - 所有新创建的窗口/Child 默认无额外留白、无边框；如果需要统一留白，应在对应视图内手动应用 `DesignTokens::spacing(...)`。
-- 新增 `Style::LayoutMetrics`（`include/sandbox/gui/style/LayoutMetrics.hpp`）：提供 `WindowStyleScope`、`CardScope`、`BarScope` 等 RAII 封装，集中管理常见的窗口/详情卡/顶部工具栏间距。
+- 新增 `Style::LayoutMetrics`（`src/apps/sandbox_gui/include/sandbox/gui/style/LayoutMetrics.hpp`）：提供 `WindowStyleScope`、`CardScope`、`BarScope` 等 RAII 封装，集中管理常见的窗口/详情卡/顶部工具栏间距。
 - Browser 详情卡、Status Bar、Control Bar、Main View 已接入上述助手，恢复对齐与可读性。
 - Inspector 面板改造为卡片式布局（Agent/Resource/Node/运行事件分节），使用表格/列表统一展示节奏。
 - Monitor 标签采用双卡片（运行概览 / 日志）结构，指标表与日志滚动区域实现统一间距。
 - Settings 标签改写为“显示设置 / 设计令牌”双卡片，标题与控件保持统一留白。
 
 ## 代码位置
-- `src/sandbox/gui/style/DesignTokens.cpp`
-- `include/sandbox/gui/style/LayoutMetrics.hpp`
-- `src/sandbox/gui/style/LayoutMetrics.cpp`
+- `src/apps/sandbox_gui/gui/style/DesignTokens.cpp`
+- `src/apps/sandbox_gui/include/sandbox/gui/style/LayoutMetrics.hpp`
+- `src/apps/sandbox_gui/gui/style/LayoutMetrics.cpp`
 
 ## 后续建议
 - 后续将 Scene/Monitor 等子面板迁移到 `LayoutMetrics`，形成统一组件库。

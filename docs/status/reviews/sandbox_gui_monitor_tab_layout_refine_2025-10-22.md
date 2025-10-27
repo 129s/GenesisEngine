@@ -12,8 +12,8 @@
 - 日志滚动区域设定最小高度 180px，并保持自动滚动逻辑。
 
 ## 代码
-- `src/sandbox/gui/ui/MainView.cpp`: `drawMonitorTab`、`drawMonitorTelemetry`、`drawMonitorLog` 重写；引入卡片布局。
-- `include/sandbox/gui/ui/MainView.hpp`: 更新函数签名，添加 `LayoutMetrics` 依赖。
+- `src/apps/sandbox_gui/gui/ui/MainView.cpp`: `drawMonitorTab`、`drawMonitorTelemetry`、`drawMonitorLog` 重写；引入卡片布局。
+- `src/apps/sandbox_gui/include/sandbox/gui/ui/MainView.hpp`: 更新函数签名，添加 `LayoutMetrics` 依赖。
 
 ## 验证
 - Release 构建通过。

@@ -7,7 +7,7 @@
 - 左右包边统一：取消 `PushTextWrapPos(... - outerPadding)` 的额外右侧收缩，改为对齐子窗口可用宽度，确保左右内边距一致（由 `WindowPadding` 控制）。
 
 ## 涉及代码
-- `src/sandbox/gui/ui/BrowserView.cpp`：函数 `drawDetailCard` 内部布局参数与分隔符周围留白调整。
+- `src/apps/sandbox_gui/gui/ui/BrowserView.cpp`：函数 `drawDetailCard` 内部布局参数与分隔符周围留白调整。
 
 ## 影响范围
 - 仅影响 Browser 面板下方“详情”卡片的文本排版与留白，未更改业务逻辑。

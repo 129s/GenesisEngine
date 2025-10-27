@@ -17,7 +17,7 @@
 
 ## 可执行产物
 - `genesis-engine`：命令行烟雾测试入口，只依赖 `Genesis::Engine`。
-- `genesis-sandbox-gui`：主 GUI，链接 `Genesis::Style`、`Genesis::Runtime`、`Genesis::Rendering`、ImGui、GLFW，以及平台相关的 OpenGL 库；GUI 代码集中在 `src/sandbox/gui`，其中 `RuntimeBridge.cpp` (~33k 行) 与 `AppHostCore.cpp` (~22k 行) 体量巨大，提示高耦合。
+- `genesis-sandbox-gui`：主 GUI，链接 `Genesis::Style`、`Genesis::Runtime`、`Genesis::Rendering`、ImGui、GLFW，以及平台相关的 OpenGL 库；GUI 代码集中在 `src/apps/sandbox_gui/gui`，其中 `RuntimeBridge.cpp` (~33k 行) 与 `AppHostCore.cpp` (~22k 行) 体量巨大，提示高耦合。
 - `genesis_palette_compiler`：构建期/测试期资产生成工具，同时被部分 CTest 项直接调用。
 
 ## 目录与模块边界

@@ -32,9 +32,9 @@
 根因：
 - `AppHost::updateRuntimeSnapshot()` 每帧都会调用 `RuntimeBridge::latestSnapshot()`，而该函数按值返回 `Snapshot`。`Snapshot` 本身包含 `TickTelemetry`（资源、需求、行动队列、代理、移动等多个大型数组）、事件日志、命令状态与预计算坐标。
 - 即使暂停后 `RuntimeBridge` 不再推进模拟，新帧循环仍会逐帧复制整份结构，造成大量内存拷贝和 CPU 消耗。参见：
-  - `include/sandbox/gui/RuntimeBridge.hpp` 的 `Snapshot` 定义；
-  - `src/sandbox/gui/RuntimeBridge.cpp:222` 对 `snapshots_.back()` 的复制；
-  - `src/sandbox/gui/AppHostCore.cpp:312-340` 的快照轮询逻辑。
+  - `src/apps/sandbox_gui/include/sandbox/gui/RuntimeBridge.hpp` 的 `Snapshot` 定义；
+  - `src/apps/sandbox_gui/gui/RuntimeBridge.cpp:222` 对 `snapshots_.back()` 的复制；
+  - `src/apps/sandbox_gui/gui/AppHostCore.cpp:312-340` 的快照轮询逻辑。
 
 排查与修复建议：
 1. **返回轻量引用**：让 `latestSnapshot()` 返回 `shared_ptr<const Snapshot>` 或内部持有的 `const Snapshot&`，GUI 只读访问，不触发深拷贝。

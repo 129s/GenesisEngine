@@ -1,6 +1,6 @@
 # Sandbox GUI：Browser 详情卡片问题分析（2025-10-22）
 
-本分析基于实际截图与当前实现（`src/sandbox/gui/ui/BrowserView.cpp`）。问题集中在详情卡片的信息表达与平台一致性。
+本分析基于实际截图与当前实现（`src/apps/sandbox_gui/gui/ui/BrowserView.cpp`）。问题集中在详情卡片的信息表达与平台一致性。
 
 ## 复现
 - 打开 Sandbox GUI → Browser 面板。
@@ -19,11 +19,11 @@
 
 ## 根因定位（源码）
 - 相对路径为点：`relativeKey(...)` 对根返回 `"."`，并直接用于展示。
-  - 参见：`src/sandbox/gui/ui/BrowserView.cpp:47`（函数定义），`src/sandbox/gui/ui/BrowserView.cpp:424`（渲染相对路径）。
+  - 参见：`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:47`（函数定义），`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:424`（渲染相对路径）。
 - 绝对路径自动换行：详情卡片在进入时设置了 `PushTextWrapPos(...)`，且绝对路径使用 `TextWrapped` 输出。
-  - 参见：`src/sandbox/gui/ui/BrowserView.cpp:382`（设置 wrap），`src/sandbox/gui/ui/BrowserView.cpp:425`（绝对路径 `TextWrapped`）。
+  - 参见：`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:382`（设置 wrap），`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:425`（绝对路径 `TextWrapped`）。
 - 正斜杠来源：调用 `selectedPath.generic_string()` 强制使用 `/`。
-  - 参见：`src/sandbox/gui/ui/BrowserView.cpp:425`。
+  - 参见：`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:425`。
 
 ## 建议改进（最小改动优先）
 - 相对路径：根目录显示为 `"/"` 或 `"(根) data/"`，或文案改为 `位置` 并特殊处理 `"."`。
@@ -35,8 +35,8 @@
 - 文案一致性：统一使用中文全角冒号（当前实现已基本统一，但需回归自查）。
 
 ## 参考代码位置
-- 详情卡片入口：`src/sandbox/gui/ui/BrowserView.cpp:363`
-- 相对/绝对路径渲染：`src/sandbox/gui/ui/BrowserView.cpp:424`、`src/sandbox/gui/ui/BrowserView.cpp:425`
+- 详情卡片入口：`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:363`
+- 相对/绝对路径渲染：`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:424`、`src/apps/sandbox_gui/gui/ui/BrowserView.cpp:425`
 
 ## 后续工作（如采纳）
 - UI 变更：按上述建议微调 4 处代码，新增复制/打开两个按钮（不引入新依赖）。

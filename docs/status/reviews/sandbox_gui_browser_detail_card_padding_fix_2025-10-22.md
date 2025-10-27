@@ -4,7 +4,7 @@
 
 修复：
 - 仅对 `BrowserDetailCard` 子窗口设置 `WindowPadding=(4,4)`，不改变其它布局与换行逻辑。
-- 代码：`src/sandbox/gui/ui/BrowserView.cpp` 中 `drawDetailCard`，在 `BeginChild` 前 `PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4,4))`，在 `EndChild` 后 `PopStyleVar()`。
+- 代码：`src/apps/sandbox_gui/gui/ui/BrowserView.cpp` 中 `drawDetailCard`，在 `BeginChild` 前 `PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4,4))`，在 `EndChild` 后 `PopStyleVar()`。
 
 验证：
 - Release 构建通过；其余测试不受影响。

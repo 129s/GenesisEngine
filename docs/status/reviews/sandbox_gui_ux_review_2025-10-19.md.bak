@@ -1,6 +1,6 @@
 # Sandbox GUI · 界面问题分析与优化方案（2025-10-19）
 
-> 范围：基于当前 Sandbox GUI 截图与代码（src/sandbox/gui/AppHost.cpp 等）进行一次轻量 UX 评审，聚焦信息架构、可读性与操作流畅度；结论用于指导下一个迭代周期（1–2 周）。
+> 范围：基于当前 Sandbox GUI 截图与代码（src/apps/sandbox_gui/gui/AppHost.cpp 等）进行一次轻量 UX 评审，聚焦信息架构、可读性与操作流畅度；结论用于指导下一个迭代周期（1–2 周）。
 
 ## 主要问题
 - 信息架构分散：控制（暂停/步进/倍速）、世界生成、日志、遥测、Inspector 分布在多个窗口（Welcome/World Generation/Log/Telemetry/Inspector），需要频繁在小窗之间切换；中部还夹着“World Generation”导致主视图区被挤占。

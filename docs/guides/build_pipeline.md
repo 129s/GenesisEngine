@@ -32,7 +32,7 @@ cmake -S . -B build -G Ninja ^
 ```bash
 cmake --build build               # 全量构建
 cmake --build build --target genesis_sandbox_gui
-cmake --build build --target genesis_engine_app
+cmake --build build --target genesis_engine
 ```
 
 主要产物位于 `build/src`：

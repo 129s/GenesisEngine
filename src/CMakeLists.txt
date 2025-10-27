@@ -219,22 +219,6 @@ set_target_properties(genesis_runtime PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-option(GENESIS_BUILD_ENGINE_APP "Build CLI engine app" OFF)
-if (GENESIS_BUILD_ENGINE_APP)
-    add_executable(genesis_engine_app
-        main.cpp
-    )
-
-    target_link_libraries(genesis_engine_app
-        PRIVATE
-            Genesis::Engine
-            spdlog::spdlog_header_only
-    )
-
-    set_target_properties(genesis_engine_app PROPERTIES
-        OUTPUT_NAME "genesis-engine"
-    )
-endif()
 
 # --- Phase 0: 基础/诊断模块骨架（占位，便于后续迁移） ---
 add_library(genesis_base INTERFACE)

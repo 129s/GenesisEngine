@@ -35,15 +35,13 @@ struct SimulationSnapshotDiff {
     std::vector<SnapshotChange<telemetry::PlannerSnapshot>> plannerChanges;
     std::vector<SnapshotChange<telemetry::ActionSnapshot>> actionChanges;
     std::vector<SnapshotChange<telemetry::AgentSnapshot>> agentChanges;
-    std::vector<SnapshotChange<telemetry::MovementProgressSnapshot>> movementChanges;
     std::vector<RuntimeEventReport> executedEvents;
 
     [[nodiscard]] bool empty() const noexcept {
-        return resourceChanges.empty() && needChanges.empty() && plannerChanges.empty() && actionChanges.empty() && agentChanges.empty() && movementChanges.empty() && executedEvents.empty();
+        return resourceChanges.empty() && needChanges.empty() && plannerChanges.empty() && actionChanges.empty() && agentChanges.empty() && executedEvents.empty();
     }
 };
 
 [[nodiscard]] SimulationSnapshotDiff diffSnapshots(const SimulationSnapshot* base, const SimulationSnapshot& target);
 
 } // namespace genesis::runtime
-

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "genesis/world/WorldTypes.hpp"
+#include "genesis/world/WorldDatabase.hpp"
 
 namespace genesis::telemetry {
 
@@ -15,15 +16,6 @@ struct Float2 {
 };
 
 struct ResourceSnapshot {
-    std::string name;
-    genesis::world::ResourceType type{genesis::world::ResourceType::Food};
-    genesis::world::LocationId location{genesis::world::InvalidLocation};
-    std::uint32_t current{0};
-    std::uint32_t capacity{0};
-};
-
-// v2 资源快照（基于 WorldDatabase::Interaction）
-struct ResourceV2Snapshot {
     std::uint32_t interactionId{0};
     std::uint32_t mapId{0};
     std::string name;
@@ -40,7 +32,7 @@ struct NeedSnapshot {
 
 struct PlannerSnapshot {
     std::uint32_t entityId{0};
-    genesis::world::LocationId target{genesis::world::InvalidLocation};
+    genesis::world::InteractionId target{0};
     float travelCost{0.0f};
     float score{0.0f};
 };
@@ -49,7 +41,7 @@ struct ActionSnapshot {
     std::uint32_t entityId{0};
     std::string currentAction;
     std::uint32_t queueLength{0};
-    genesis::world::LocationId target{genesis::world::InvalidLocation};
+    genesis::world::InteractionId target{0};
     float speed{0.0f};
     genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
     std::uint32_t amount{0};
@@ -59,28 +51,18 @@ struct ActionSnapshot {
 struct AgentSnapshot {
     std::uint32_t entityId{0};
     std::string name;
-    genesis::world::LocationId location{genesis::world::InvalidLocation};
     std::uint32_t mapId{1};
     Float2 position{}; // 地图内世界坐标（直线移动语义）
-};
-
-struct MovementProgressSnapshot {
-    std::uint32_t entityId{0};
-    genesis::world::LocationId from{genesis::world::InvalidLocation};
-    genesis::world::LocationId to{genesis::world::InvalidLocation};
-    float t01{0.0f};
 };
 
 struct TickTelemetry {
     std::uint64_t step{0};
     float stepSeconds{0.0f};
     std::vector<ResourceSnapshot> resources;
-    std::vector<ResourceV2Snapshot> resourcesV2;
     std::vector<NeedSnapshot> needs;
     std::vector<PlannerSnapshot> plannerDecisions;
     std::vector<ActionSnapshot> actions;
     std::vector<AgentSnapshot> agents;
-    std::vector<MovementProgressSnapshot> movementProgress;
 };
 
 class TelemetryBuffer {

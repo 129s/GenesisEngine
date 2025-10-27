@@ -12,12 +12,12 @@ namespace {
 constexpr float kMinSpeed = 0.1f;
 }
 
-ActionExecutor::ActionExecutor(genesis::world::WorldRegistry& world, genesis::world::system::ResourceSystem& resources)
-    : m_world(world)
+ActionExecutor::ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources)
+    : m_db(db)
     , m_resources(resources) {
 }
 
-void ActionExecutor::requestMove(entt::entity entity, genesis::world::LocationId target, float speed, entt::registry& registry) {
+void ActionExecutor::requestMoveToInteraction(entt::entity entity, genesis::world::InteractionId target, float speed, entt::registry& registry) {
     ensureQueue(entity, registry);
     auto& queue = registry.get<ActionQueue>(entity);
 
@@ -26,26 +26,37 @@ void ActionExecutor::requestMove(entt::entity entity, genesis::world::LocationId
     }
 
     ActionTask move{};
-    move.type = ActionType::MoveTo;
-    move.location = target;
+    move.type = ActionType::MoveToInteraction;
+    move.interaction = target;
     move.speed = std::max(speed, kMinSpeed);
     queue.tasks.push_back(move);
 }
 
-void ActionExecutor::requestConsume(entt::entity entity, genesis::world::LocationId location, genesis::world::ResourceType type, std::uint32_t amount, float reliefPerUnit, entt::registry& registry) {
+void ActionExecutor::requestConsume(entt::entity entity, genesis::world::InteractionId interaction, genesis::world::ResourceType type, std::uint32_t amount, float reliefPerUnit, entt::registry& registry) {
     ensureQueue(entity, registry);
     auto& queue = registry.get<ActionQueue>(entity);
 
-    if (hasPendingConsume(queue, location, type)) {
+    if (hasPendingConsume(queue, interaction, type)) {
         return;
     }
 
     if (queue.tasks.empty()) {
-        const auto* agentLocation = registry.try_get<components::AgentLocation>(entity);
-        if (!agentLocation || agentLocation->location != location) {
+        const auto* agentLocation = registry.try_get<components::AgentLocation2D>(entity);
+        bool atTarget = false;
+        genesis::world::MapId targetMap{0};
+        float tx = 0.0f, ty = 0.0f;
+        if (auto it = m_db.findInteraction(interaction)) {
+            targetMap = it->mapId;
+            tx = static_cast<float>(it->coord.first);
+            ty = static_cast<float>(it->coord.second);
+            if (agentLocation) {
+                atTarget = (agentLocation->mapId == targetMap && agentLocation->x == tx && agentLocation->y == ty);
+            }
+        }
+        if (!atTarget) {
             ActionTask move{};
-            move.type = ActionType::MoveTo;
-            move.location = location;
+            move.type = ActionType::MoveToInteraction;
+            move.interaction = interaction;
             move.speed = 1.0f;
             queue.tasks.push_back(move);
         }
@@ -53,7 +64,7 @@ void ActionExecutor::requestConsume(entt::entity entity, genesis::world::Locatio
 
     ActionTask consume{};
     consume.type = ActionType::ConsumeResource;
-    consume.location = location;
+    consume.interaction = interaction;
     consume.resource = type;
     consume.amount = amount;
     consume.reliefPerUnit = reliefPerUnit;
@@ -61,11 +72,11 @@ void ActionExecutor::requestConsume(entt::entity entity, genesis::world::Locatio
 }
 
 void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
-    auto view = registry.view<ActionQueue, components::AgentLocation>();
+    auto view = registry.view<ActionQueue, components::AgentLocation2D>();
 
     for (auto entity : view) {
         auto& queue = view.get<ActionQueue>(entity);
-        auto& location = view.get<components::AgentLocation>(entity);
+        auto& location = view.get<components::AgentLocation2D>(entity);
 
         bool advanced = true;
         while (advanced && !queue.tasks.empty()) {
@@ -73,7 +84,7 @@ void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
             advanced = false;
 
             switch (task.type) {
-            case ActionType::MoveTo:
+            case ActionType::MoveToInteraction:
                 processMove(entity, queue, location, registry);
                 advanced = false;
                 break;
@@ -86,11 +97,8 @@ void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
 
         if (queue.tasks.empty()) {
             registry.remove<ActionQueue>(entity);
-            if (registry.any_of<components::MovementIntent>(entity)) {
-                registry.remove<components::MovementIntent>(entity);
-            }
-            if (registry.any_of<components::MovementState>(entity)) {
-                registry.remove<components::MovementState>(entity);
+            if (registry.any_of<components::MovementIntent2D>(entity)) {
+                registry.remove<components::MovementIntent2D>(entity);
             }
         }
     }
@@ -110,44 +118,64 @@ void ActionExecutor::ensureQueue(entt::entity entity, entt::registry& registry) 
     }
 }
 
-bool ActionExecutor::hasPendingConsume(const ActionQueue& queue, genesis::world::LocationId location, genesis::world::ResourceType type) const {
+bool ActionExecutor::hasPendingConsume(const ActionQueue& queue, genesis::world::InteractionId interaction, genesis::world::ResourceType type) const {
     return std::any_of(queue.tasks.begin(), queue.tasks.end(), [&](const ActionTask& task) {
-        return task.type == ActionType::ConsumeResource && task.location == location && task.resource == type;
+        return task.type == ActionType::ConsumeResource && task.interaction == interaction && task.resource == type;
     });
 }
 
-void ActionExecutor::processMove(entt::entity entity, ActionQueue& queue, components::AgentLocation& location, entt::registry& registry) {
+void ActionExecutor::processMove(entt::entity entity, ActionQueue& queue, components::AgentLocation2D& location, entt::registry& registry) {
     if (queue.tasks.empty()) {
         return;
     }
 
     auto& task = queue.tasks.front();
-    if (location.location == task.location) {
+    // Resolve interaction target
+    auto it = m_db.findInteraction(task.interaction);
+    if (!it) {
         queue.tasks.pop_front();
-        if (registry.any_of<components::MovementIntent>(entity)) {
-            registry.remove<components::MovementIntent>(entity);
-        }
-        if (registry.any_of<components::MovementState>(entity)) {
-            registry.remove<components::MovementState>(entity);
+        return;
+    }
+
+    const auto targetMap = it->mapId;
+    const float tx = static_cast<float>(it->coord.first);
+    const float ty = static_cast<float>(it->coord.second);
+
+    if (location.mapId == targetMap && location.x == tx && location.y == ty) {
+        queue.tasks.pop_front();
+        if (registry.any_of<components::MovementIntent2D>(entity)) {
+            registry.remove<components::MovementIntent2D>(entity);
         }
         return;
     }
 
-    auto& intent = registry.get_or_emplace<components::MovementIntent>(entity);
-    intent.target = task.location;
+    auto& intent = registry.get_or_emplace<components::MovementIntent2D>(entity);
+    intent.targetMapId = targetMap;
+    intent.targetX = tx;
+    intent.targetY = ty;
     intent.speed = std::max(task.speed, kMinSpeed);
 }
 
-void ActionExecutor::processConsume(entt::entity entity, ActionQueue& queue, components::AgentLocation& location, entt::registry& registry) {
+void ActionExecutor::processConsume(entt::entity entity, ActionQueue& queue, components::AgentLocation2D& location, entt::registry& registry) {
     if (queue.tasks.empty()) {
         return;
     }
 
     auto& task = queue.tasks.front();
-    if (location.location != task.location) {
+    auto it = m_db.findInteraction(task.interaction);
+    if (!it) {
+        queue.tasks.pop_front();
+        return;
+    }
+
+    const auto targetMap = it->mapId;
+    const float tx = static_cast<float>(it->coord.first);
+    const float ty = static_cast<float>(it->coord.second);
+
+    if (!(location.mapId == targetMap && location.x == tx && location.y == ty)) {
         ActionTask move{};
-        move.type = ActionType::MoveTo;
-        move.location = task.location;
+        move.type = ActionType::MoveToInteraction;
+        move.interaction = task.interaction;
         move.speed = 1.0f;
         queue.tasks.emplace(queue.tasks.begin(), move);
         return;
@@ -166,7 +194,7 @@ void ActionExecutor::processConsume(entt::entity entity, ActionQueue& queue, com
         return;
     }
 
-    const auto consumed = m_resources.consume(registry, task.resource, task.amount, task.location);
+    const auto consumed = m_resources.consume(registry, task.resource, task.amount, task.interaction);
     if (consumed > 0U) {
         const float relief = static_cast<float>(consumed) * task.reliefPerUnit;
         hungerState->value = std::max(hungerDescriptor->minValue, hungerState->value - relief);
@@ -178,4 +206,3 @@ void ActionExecutor::processConsume(entt::entity entity, ActionQueue& queue, com
 }
 
 } // namespace genesis::agents
-

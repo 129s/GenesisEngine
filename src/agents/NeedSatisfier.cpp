@@ -4,9 +4,8 @@
 #include <optional>
 
 #include "genesis/agents/ActionSystem.hpp"
-#include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/Needs.hpp"
-#include "genesis/world/WorldTypes.hpp"
+#include "genesis/agents/Movement2D.hpp"
 
 namespace genesis::agents {
 
@@ -35,7 +34,7 @@ NeedSatisfier::NeedSatisfier(NeedSatisfierConfig config)
     }
     if (!m_config.hungerPreferredLocator) {
         m_config.hungerPreferredLocator = [](entt::entity) {
-            return genesis::world::InvalidLocation;
+            return genesis::world::InteractionId{0};
         };
     }
 }
@@ -57,36 +56,18 @@ void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSyst
             continue;
         }
 
-        const auto preferredLocation = m_config.hungerPreferredLocator(entity);
-        if (preferredLocation == world::InvalidLocation) {
+        const auto preferredInteraction = m_config.hungerPreferredLocator(entity);
+        if (preferredInteraction == 0) {
             continue;
         }
 
         if (actionExecutor) {
-            actionExecutor->requestConsume(entity, preferredLocation, world::ResourceType::Food, m_config.hungerUnitsPerRequest, m_config.hungerReliefPerUnit, registry);
+            actionExecutor->requestConsume(entity, preferredInteraction, world::ResourceType::Food, m_config.hungerUnitsPerRequest, m_config.hungerReliefPerUnit, registry);
             continue;
         }
 
-        auto* location = registry.try_get<components::AgentLocation>(entity);
-        if (!location) {
-            location = &registry.emplace<components::AgentLocation>(entity);
-        }
-
-        if (location->location != preferredLocation) {
-            auto* intent = registry.try_get<components::MovementIntent>(entity);
-            if (!intent) {
-                intent = &registry.emplace<components::MovementIntent>(entity);
-            }
-            if (intent->target != preferredLocation) {
-                intent->target = preferredLocation;
-            }
-            if (intent->speed <= 0.0f) {
-                intent->speed = 1.0f;
-            }
-            continue;
-        }
-
-        const auto consumed = resourceSystem.consume(registry, world::ResourceType::Food, m_config.hungerUnitsPerRequest, preferredLocation);
+        // 无 ActionExecutor 时无法查询交互点坐标以触发移动，跳过主动移动，仅尝试直接在首选交互点消费
+        const auto consumed = resourceSystem.consume(registry, world::ResourceType::Food, m_config.hungerUnitsPerRequest, preferredInteraction);
         if (consumed == 0U) {
             continue;
         }

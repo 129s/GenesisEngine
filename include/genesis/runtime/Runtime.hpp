@@ -16,8 +16,10 @@
 #include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/runtime/RuntimeEvents.hpp"
+#include "genesis/world/WorldDatabaseLoader.hpp"
+#include "genesis/world/WorldDatabaseSaver.hpp"
 
-namespace genesis { namespace world { struct WorldLoadResult; struct WorldSaveResult; class WorldDatabase; } }
+namespace genesis { namespace world { class WorldDatabase; } }
 
 namespace genesis::runtime {
 
@@ -61,8 +63,8 @@ public:
     WorldGenerationResult generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
     [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept { return m_lastWorldGen; }
 
-    [[nodiscard]] genesis::world::WorldLoadResult loadWorldFromFile(const std::filesystem::path& path);
-    [[nodiscard]] genesis::world::WorldSaveResult saveWorldToFile(const std::filesystem::path& path) const;
+    [[nodiscard]] genesis::world::WorldDbLoadResult loadWorldFromFile(const std::filesystem::path& path);
+    [[nodiscard]] genesis::world::WorldDbSaveResult saveWorldToFile(const std::filesystem::path& path) const;
 
     [[nodiscard]] genesis::core::Engine& engine() noexcept { return m_engine; }
     [[nodiscard]] const genesis::core::Engine& engine() const noexcept { return m_engine; }

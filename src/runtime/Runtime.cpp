@@ -15,7 +15,7 @@
 #include <spdlog/spdlog.h>
 
 #include "genesis/world/WorldDatabaseLoader.hpp"
-#include "genesis/world/WorldLoader.hpp"
+#include "genesis/world/WorldDatabaseSaver.hpp"
 
 namespace genesis::runtime {
 
@@ -104,7 +104,7 @@ Runtime::WorldGenerationResult Runtime::generateWorldFromConfig(const std::files
     return *m_lastWorldGen;
 }
 
-genesis::world::WorldLoadResult Runtime::loadWorldFromFile(const std::filesystem::path& path) {
+genesis::world::WorldDbLoadResult Runtime::loadWorldFromFile(const std::filesystem::path& path) {
     const auto absolute = std::filesystem::absolute(path);
     auto result = m_engine.loadWorldFromFile(absolute);
     if (result.success) {
@@ -113,11 +113,15 @@ genesis::world::WorldLoadResult Runtime::loadWorldFromFile(const std::filesystem
     return result;
 }
 
-genesis::world::WorldSaveResult Runtime::saveWorldToFile(const std::filesystem::path&) const {
-    genesis::world::WorldSaveResult r{};
-    r.success = false;
-    r.error = "world save not implemented for v2";
-    return r;
+genesis::world::WorldDbSaveResult Runtime::saveWorldToFile(const std::filesystem::path& folder) const {
+    genesis::world::WorldDbSaveResult r{};
+    auto db = worldDatabase();
+    if (!db) {
+        r.success = false;
+        r.error = "no world database loaded";
+        return r;
+    }
+    return genesis::world::saveWorldDatabaseToFolder(folder, *db);
 }
 
 std::unique_ptr<Runtime> createRuntime(RuntimeConfig config) {

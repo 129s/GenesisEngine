@@ -1,7 +1,6 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
 #include "genesis/core/Engine.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
-#include "genesis/world/WorldLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
 #include <entt/entt.hpp>
 #include "genesis/agents/Movement2D.hpp"
@@ -62,12 +61,11 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::world::W
     for (const auto& m : maps)
     {
         WorldAtlas::Node n{};
-        n.id = genesis::world::LocationId{m.id};
-        n.parent = genesis::world::InvalidLocation;
-        n.kind = genesis::world::LocationKind::Region;
+        n.id = m.id;
+        n.parent = std::nullopt;
         n.name = m.name;
         n.position = Vector2{x, 0.0f};
-        atlas.nodeLookup.emplace(n.id.value, n.position);
+        atlas.nodeLookup.emplace(n.id, n.position);
         atlas.nodes.push_back(std::move(n));
         x += kHorizontalSpacing;
     }
@@ -75,8 +73,8 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::world::W
     for (const auto& e : db.mapEdges())
     {
         WorldAtlas::Edge ae{};
-        ae.from = genesis::world::LocationId{e.from};
-        ae.to = genesis::world::LocationId{e.to};
+        ae.from = e.from;
+        ae.to = e.to;
         ae.bidirectional = e.bidirectional;
         atlas.edges.push_back(std::move(ae));
     }
@@ -87,16 +85,15 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::world::W
         {
             if (inter.kind == genesis::world::InteractionKind::Resource)
             {
-                genesis::world::ResourceSpawn spawn{};
-                spawn.name = inter.name;
-                spawn.location = genesis::world::LocationId{m.id};
-                if (inter.coord.first != 0 || inter.coord.second != 0)
-                {
-                    spawn.local_coord = std::make_pair(inter.coord.first, inter.coord.second);
-                }
                 Vector2 position{0.0f, 0.0f};
-                if (auto p = atlas.nodePosition(spawn.location)) position = *p;
-                atlas.spawns.push_back(WorldAtlas::Spawn{.resource = spawn, .position = position});
+                if (auto p = atlas.nodePosition(m.id)) position = *p;
+                WorldAtlas::Spawn s{};
+                s.name = inter.name;
+                s.type = genesis::world::ResourceType::Food; // 显示用途：细化类型映射可在数据扩展时加入
+                s.mapId = m.id;
+                s.interactionId = inter.id;
+                s.position = position;
+                atlas.spawns.push_back(std::move(s));
             }
         }
     }
@@ -263,7 +260,7 @@ std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::g
     return lastGeneration_;
 }
 
-genesis::world::WorldLoadResult RuntimeBridge::loadWorld(const std::filesystem::path& path)
+genesis::world::WorldDbLoadResult RuntimeBridge::loadWorld(const std::filesystem::path& path)
 {
     bool wasRunning = false;
     bool wasPaused = false;
@@ -297,7 +294,7 @@ genesis::world::WorldLoadResult RuntimeBridge::loadWorld(const std::filesystem::
     return result;
 }
 
-genesis::world::WorldSaveResult RuntimeBridge::saveWorld(const std::filesystem::path& path)
+genesis::world::WorldDbSaveResult RuntimeBridge::saveWorld(const std::filesystem::path& path)
 {
     bool wasRunning = false;
     bool wasPaused = false;

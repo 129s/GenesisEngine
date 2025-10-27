@@ -10,7 +10,7 @@
 
 #include <toml++/toml.hpp>
 
-#include "genesis/world/WorldTypes.hpp"
+// 迁移到 v2：不再生成旧 LocationGraph，改为输出 Topology/Layout 草图，供后续数据库生成阶段使用。
 
 namespace genesis::worldgen
 {
@@ -160,7 +160,6 @@ struct GeneratedWorld
     std::vector<GenerationLogEntry> logs{};
     TopologyDraft topology{};
     LayoutDraft layout{};
-    world::LocationGraph world_graph{};
 };
 
 } // namespace genesis::worldgen

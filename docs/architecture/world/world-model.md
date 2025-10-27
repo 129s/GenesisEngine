@@ -90,6 +90,8 @@
 
 注：简化起见，v2 当前 `world.json` 的 `map_edges` 最小字段为 `{ from,to,bidirectional? }`；如需 `cost/rules` 可在后续 schema 扩展时加入。
 
+迁移实施状态：仓库已移除旧的 LocationGraph/WorldRegistry/WorldLoader/WorldBootstrap 图模型与依赖，统一采用 WorldDatabase 与 Movement2D 运行时语义。所有新功能与测试请基于本文件定义的数据契约进行。
+
 ## 内容制作规范
 - Map 语义：Map 内应“无阻挡、可直达”。若存在门/墙/楼层等阻断，请拆分为多个 Map，用 Portal/MapEdge 相连。
 - Scene 作用：仅负责分组/布局与坐标继承；不要以 Scene 节点作为导航中转或碰撞代理。

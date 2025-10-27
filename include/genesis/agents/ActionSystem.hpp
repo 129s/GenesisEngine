@@ -5,29 +5,25 @@
 
 #include <entt/entt.hpp>
 
-#include "genesis/agents/AgentComponents.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/agents/Needs.hpp"
-#include "genesis/world/WorldTypes.hpp"
+#include "genesis/agents/Movement2D.hpp"
+#include "genesis/world/WorldDatabase.hpp"
 
 namespace genesis::world {
-class WorldRegistry;
-
-namespace system {
-class ResourceSystem;
-} // namespace system
+namespace system { class ResourceSystem; }
 } // namespace genesis::world
 
 namespace genesis::agents {
 
 enum class ActionType {
-    MoveTo,
+    MoveToInteraction,
     ConsumeResource
 };
 
 struct ActionTask {
-    ActionType type{ActionType::MoveTo};
-    genesis::world::LocationId location{genesis::world::InvalidLocation};
+    ActionType type{ActionType::MoveToInteraction};
+    genesis::world::InteractionId interaction{0};
     float speed{1.0f};
     genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
     std::uint32_t amount{0};
@@ -40,10 +36,10 @@ struct ActionQueue {
 
 class ActionExecutor {
 public:
-    ActionExecutor(genesis::world::WorldRegistry& world, genesis::world::system::ResourceSystem& resources);
+    ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources);
 
-    void requestMove(entt::entity entity, genesis::world::LocationId target, float speed, entt::registry& registry);
-    void requestConsume(entt::entity entity, genesis::world::LocationId location, genesis::world::ResourceType type, std::uint32_t amount, float reliefPerUnit, entt::registry& registry);
+    void requestMoveToInteraction(entt::entity entity, genesis::world::InteractionId target, float speed, entt::registry& registry);
+    void requestConsume(entt::entity entity, genesis::world::InteractionId interaction, genesis::world::ResourceType type, std::uint32_t amount, float reliefPerUnit, entt::registry& registry);
 
     void update(entt::registry& registry, float deltaSeconds);
 
@@ -51,11 +47,11 @@ public:
 
 private:
     void ensureQueue(entt::entity entity, entt::registry& registry);
-    bool hasPendingConsume(const ActionQueue& queue, genesis::world::LocationId location, genesis::world::ResourceType type) const;
-    void processMove(entt::entity entity, ActionQueue& queue, components::AgentLocation& location, entt::registry& registry);
-    void processConsume(entt::entity entity, ActionQueue& queue, components::AgentLocation& location, entt::registry& registry);
+    bool hasPendingConsume(const ActionQueue& queue, genesis::world::InteractionId interaction, genesis::world::ResourceType type) const;
+    void processMove(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
+    void processConsume(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
 
-    genesis::world::WorldRegistry& m_world;
+    genesis::world::WorldDatabase& m_db;
     genesis::world::system::ResourceSystem& m_resources;
 };
 

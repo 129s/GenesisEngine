@@ -138,7 +138,6 @@ set(GENESIS_WORLDGEN_SOURCES
     worldgen/Context.cpp
     worldgen/Generator.cpp
     worldgen/LayoutModule.cpp
-    worldgen/TilemapModule.cpp
     worldgen/Rng.cpp
     worldgen/TopologyModule.cpp
     worldgen/ValidationModule.cpp

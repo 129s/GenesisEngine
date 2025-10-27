@@ -12,8 +12,8 @@
 
 namespace genesis::world::system {
 
-ResourceSystem::ResourceSystem(WorldRegistry& registry, genesis::messaging::EventBus& eventBus)
-    : m_world(registry)
+ResourceSystem::ResourceSystem(WorldDatabase& database, genesis::messaging::EventBus& eventBus)
+    : m_db(database)
     , m_eventBus(eventBus) {
 }
 
@@ -22,25 +22,31 @@ void ResourceSystem::initialize(entt::registry& registry) {
         return;
     }
 
-    const auto& spawns = m_world.resourceSpawns();
-    m_spawnEntities.reserve(spawns.size());
+    // Build spawn entities from database interactions of kind Resource
+    std::size_t total = 0;
+    for (const auto& m : m_db.maps()) {
+        const auto interactions = m_db.interactions(m.id);
+        for (const auto& it : interactions) {
+            if (it.kind != InteractionKind::Resource) continue;
 
-    for (const auto& spawn : spawns) {
-        const auto entity = registry.create();
-        auto& inventory = registry.emplace<components::ResourceInventory>(entity);
-        inventory.capacity = spawn.capacity;
-        inventory.current = spawn.capacity;
+            const auto entity = registry.create();
+            auto& inventory = registry.emplace<components::ResourceInventory>(entity);
+            inventory.capacity = it.capacity.value_or(0);
+            inventory.current = inventory.capacity;
 
-        auto& info = registry.emplace<components::ResourceSpawn>(entity);
-        info.name = spawn.name;
-        info.type = spawn.type;
-        info.location = spawn.location;
-        info.ratePerStep = spawn.ratePerStep;
+            auto& info = registry.emplace<components::ResourceSpawn>(entity);
+            info.name = it.name;
+            info.type = ResourceType::Food; // 默认：细化映射可在数据模型扩展时加入类型字段
+            info.interaction = it.id;
+            info.mapId = it.mapId;
+            info.ratePerStep = it.regenPerStep.value_or(0);
 
-        m_spawnEntities.push_back(entity);
+            m_spawnEntities.push_back(entity);
+            ++total;
+        }
     }
 
-    spdlog::info("ResourceSystem initialized {} spawns", m_spawnEntities.size());
+    spdlog::info("ResourceSystem initialized {} spawns", total);
     m_initialized = true;
 }
 
@@ -78,7 +84,7 @@ void ResourceSystem::tick(entt::registry& registry, std::uint64_t stepIndex) {
     }
 }
 
-std::uint32_t ResourceSystem::consume(entt::registry& registry, genesis::world::ResourceType type, std::uint32_t amount, genesis::world::LocationId preferred) {
+std::uint32_t ResourceSystem::consume(entt::registry& registry, genesis::world::ResourceType type, std::uint32_t amount, genesis::world::InteractionId preferred) {
     if (!m_initialized) {
         initialize(registry);
     }
@@ -98,7 +104,8 @@ std::uint32_t ResourceSystem::consume(entt::registry& registry, genesis::world::
         genesis::world::events::ResourceConsumed event{};
         event.name = spawn.name;
         event.type = spawn.type;
-        event.location = spawn.location;
+        event.interaction = spawn.interaction;
+        event.mapId = spawn.mapId;
         event.amount = taken;
         event.remaining = inventory.current;
         m_eventBus.trigger<genesis::world::events::ResourceConsumed>(std::move(event));
@@ -108,17 +115,18 @@ std::uint32_t ResourceSystem::consume(entt::registry& registry, genesis::world::
             genesis::world::events::ResourceLowStock low{};
             low.name = spawn.name;
             low.type = spawn.type;
-            low.location = spawn.location;
+            low.interaction = spawn.interaction;
+            low.mapId = spawn.mapId;
             low.remaining = inventory.current;
             low.capacity = inventory.capacity;
             m_eventBus.trigger<genesis::world::events::ResourceLowStock>(std::move(low));
         }
     };
 
-    if (preferred != genesis::world::InvalidLocation) {
+    if (preferred != 0) {
         for (const auto entity : m_spawnEntities) {
             const auto& spawn = registry.get<components::ResourceSpawn>(entity);
-            if (spawn.type == type && spawn.location == preferred) {
+            if (spawn.type == type && spawn.interaction == preferred) {
                 consumeFromEntity(entity, spawn);
             }
         }
@@ -130,7 +138,7 @@ std::uint32_t ResourceSystem::consume(entt::registry& registry, genesis::world::
 
     for (const auto entity : m_spawnEntities) {
         const auto& spawn = registry.get<components::ResourceSpawn>(entity);
-        if (spawn.type != type || spawn.location == preferred) {
+        if (spawn.type != type || spawn.interaction == preferred) {
             continue;
         }
 

@@ -61,11 +61,11 @@ std::vector<SnapshotChange<Snapshot>> diffCollection(
 }
 
 std::string resourceKey(const telemetry::ResourceSnapshot& snapshot) {
-    return std::to_string(snapshot.location.value) + ":" + std::to_string(static_cast<int>(snapshot.type));
+    return std::to_string(snapshot.interactionId);
 }
 
 bool resourceEqual(const telemetry::ResourceSnapshot& lhs, const telemetry::ResourceSnapshot& rhs) {
-    return lhs.name == rhs.name && lhs.type == rhs.type && lhs.location.value == rhs.location.value && lhs.current == rhs.current && lhs.capacity == rhs.capacity;
+    return lhs.name == rhs.name && lhs.mapId == rhs.mapId && lhs.current == rhs.current && lhs.capacity == rhs.capacity;
 }
 
 std::string needKey(const telemetry::NeedSnapshot& snapshot) {
@@ -77,11 +77,11 @@ bool needEqual(const telemetry::NeedSnapshot& lhs, const telemetry::NeedSnapshot
 }
 
 std::string plannerKey(const telemetry::PlannerSnapshot& snapshot) {
-    return std::to_string(snapshot.entityId) + ":" + std::to_string(snapshot.target.value);
+    return std::to_string(snapshot.entityId) + ":" + std::to_string(snapshot.target);
 }
 
 bool plannerEqual(const telemetry::PlannerSnapshot& lhs, const telemetry::PlannerSnapshot& rhs) {
-    return lhs.entityId == rhs.entityId && lhs.target.value == rhs.target.value && lhs.travelCost == rhs.travelCost && lhs.score == rhs.score;
+    return lhs.entityId == rhs.entityId && lhs.target == rhs.target && lhs.travelCost == rhs.travelCost && lhs.score == rhs.score;
 }
 
 std::string actionKey(const telemetry::ActionSnapshot& snapshot) {
@@ -89,7 +89,7 @@ std::string actionKey(const telemetry::ActionSnapshot& snapshot) {
 }
 
 bool actionEqual(const telemetry::ActionSnapshot& lhs, const telemetry::ActionSnapshot& rhs) {
-    return lhs.entityId == rhs.entityId && lhs.currentAction == rhs.currentAction && lhs.queueLength == rhs.queueLength && lhs.target.value == rhs.target.value &&
+    return lhs.entityId == rhs.entityId && lhs.currentAction == rhs.currentAction && lhs.queueLength == rhs.queueLength && lhs.target == rhs.target &&
            lhs.speed == rhs.speed && lhs.resource == rhs.resource && lhs.amount == rhs.amount && lhs.reliefPerUnit == rhs.reliefPerUnit;
 }
 
@@ -100,19 +100,12 @@ std::string agentKey(const telemetry::AgentSnapshot& snapshot) {
 bool agentEqual(const telemetry::AgentSnapshot& lhs, const telemetry::AgentSnapshot& rhs) {
     if (lhs.entityId != rhs.entityId) return false;
     if (lhs.name != rhs.name) return false;
-    if (lhs.location.value != rhs.location.value) return false;
     if (lhs.mapId != rhs.mapId) return false;
     if (lhs.position.x != rhs.position.x || lhs.position.y != rhs.position.y) return false;
     return true;
 }
 
-std::string movementKey(const telemetry::MovementProgressSnapshot& snapshot) {
-    return std::to_string(snapshot.entityId);
-}
-
-bool movementEqual(const telemetry::MovementProgressSnapshot& lhs, const telemetry::MovementProgressSnapshot& rhs) {
-    return lhs.entityId == rhs.entityId && lhs.from.value == rhs.from.value && lhs.to.value == rhs.to.value && lhs.t01 == rhs.t01;
-}
+// 移除 MovementProgress 比对（v2 统一直线运动，不追踪离散节点路径）
 
 } // namespace
 
@@ -135,7 +128,7 @@ SimulationSnapshotDiff diffSnapshots(const SimulationSnapshot* base, const Simul
     diff.plannerChanges = diffCollection(baseTelemetry ? &baseTelemetry->plannerDecisions : nullptr, target.telemetry.plannerDecisions, plannerKey, plannerEqual);
     diff.actionChanges = diffCollection(baseTelemetry ? &baseTelemetry->actions : nullptr, target.telemetry.actions, actionKey, actionEqual);
     diff.agentChanges = diffCollection(baseTelemetry ? &baseTelemetry->agents : nullptr, target.telemetry.agents, agentKey, agentEqual);
-    diff.movementChanges = diffCollection(baseTelemetry ? &baseTelemetry->movementProgress : nullptr, target.telemetry.movementProgress, movementKey, movementEqual);
+    // v2: 无 movementProgress 采样
 
     return diff;
 }

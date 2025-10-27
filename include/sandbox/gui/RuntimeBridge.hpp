@@ -20,7 +20,7 @@
 #include "genesis/runtime/Runtime.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
-#include "genesis/world/WorldRegistry.hpp"
+#include "genesis/world/WorldDatabase.hpp"
 
 // 前置声明：新世界数据库接口（避免在头文件中包含加载器实现）
 namespace genesis { namespace world { class WorldDatabase; } }
@@ -56,19 +56,17 @@ namespace Genesis::Sandbox::Gui
     {
         struct Node
         {
-            genesis::world::LocationId id{};
-            genesis::world::LocationId parent{};
-            genesis::world::LocationKind kind{genesis::world::LocationKind::Point};
+            std::uint32_t id{0};
+            std::optional<std::uint32_t> parent{};
             std::string name;
             Vector2 position;
         };
 
         struct Edge
         {
-            genesis::world::LocationId from{};
-            genesis::world::LocationId to{};
+            std::uint32_t from{0};
+            std::uint32_t to{0};
             bool bidirectional{true};
-            // Optional geometry and anchors (grid-based to be mapped as needed)
             std::vector<Vector2> polyline;
             std::optional<Vector2> anchorFrom;
             std::optional<Vector2> anchorTo;
@@ -76,8 +74,8 @@ namespace Genesis::Sandbox::Gui
 
         struct Portal
         {
-            genesis::world::LocationId to{}; // target node id
-            Vector2 anchor;                  // local grid coord in owning node's scene
+            std::uint32_t to{0}; // target node id
+            Vector2 anchor;       // local grid coord in owning node's scene
         };
 
         struct Tilemap
@@ -92,7 +90,10 @@ namespace Genesis::Sandbox::Gui
 
         struct Spawn
         {
-            genesis::world::ResourceSpawn resource;
+            std::string name;
+            genesis::world::ResourceType type{genesis::world::ResourceType::Food};
+            std::uint32_t mapId{0};
+            std::uint32_t interactionId{0};
             Vector2 position;
         };
 
@@ -103,9 +104,9 @@ namespace Genesis::Sandbox::Gui
         Vector2 extent{800.0f, 600.0f};
         std::vector<Tilemap> tilemaps;
 
-        [[nodiscard]] std::optional<Vector2> nodePosition(genesis::world::LocationId id) const
+        [[nodiscard]] std::optional<Vector2> nodePosition(std::uint32_t id) const
         {
-            auto it = nodeLookup.find(id.value);
+            auto it = nodeLookup.find(id);
             if (it == nodeLookup.end())
             {
                 return std::nullopt;
@@ -154,8 +155,8 @@ namespace Genesis::Sandbox::Gui
     [[nodiscard]] double speedMultiplier() const;
 
     std::optional<genesis::runtime::Runtime::WorldGenerationResult> generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
-    genesis::world::WorldLoadResult loadWorld(const std::filesystem::path& path);
-    genesis::world::WorldSaveResult saveWorld(const std::filesystem::path& path);
+    genesis::world::WorldDbLoadResult loadWorld(const std::filesystem::path& path);
+    genesis::world::WorldDbSaveResult saveWorld(const std::filesystem::path& path);
     [[nodiscard]] std::optional<genesis::runtime::Runtime::WorldGenerationResult> lastGeneration() const noexcept;
 
     [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;

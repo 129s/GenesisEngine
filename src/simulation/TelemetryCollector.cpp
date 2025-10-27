@@ -29,7 +29,7 @@ telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
     // v2 资源采集
     if (db && resources) {
         for (const auto& [iid, state] : resources->states()) {
-            telemetry::ResourceV2Snapshot r{};
+            telemetry::ResourceSnapshot r{};
             r.interactionId = iid;
             r.current = state.current;
             r.capacity = state.capacity;
@@ -37,7 +37,7 @@ telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
                 r.name = inter->name;
                 r.mapId = inter->mapId;
             }
-            tick.resourcesV2.push_back(std::move(r));
+            tick.resources.push_back(std::move(r));
         }
     }
 

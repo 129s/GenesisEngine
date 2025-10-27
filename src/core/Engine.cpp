@@ -1,7 +1,6 @@
 // New minimal Engine implementation (v2)
 #include "genesis/core/Engine.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
-#include "genesis/world/WorldLoader.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -48,19 +47,14 @@ void Engine::processStep(std::uint64_t stepIndex) {
     captureTelemetry(stepIndex);
 }
 
-genesis::world::WorldLoadResult Engine::loadWorldFromFile(const std::filesystem::path& folder) {
-    genesis::world::WorldLoadResult out{};
+genesis::world::WorldDbLoadResult Engine::loadWorldFromFile(const std::filesystem::path& folder) {
     auto res = genesis::world::loadWorldDatabaseFromFolder(folder);
-    if (!res.success || !res.database) {
-        out.success = false;
-        out.error = res.error.empty() ? std::string("未能加载世界数据库") : res.error;
-        return out;
+    if (res.success && res.database) {
+        m_worldDb = res.database;
+        initializeResourcesFromDatabase();
+        spawnDemoAgentsIfEmpty();
     }
-    m_worldDb = std::move(res.database);
-    initializeResourcesFromDatabase();
-    spawnDemoAgentsIfEmpty();
-    out.success = true;
-    return out;
+    return res;
 }
 
 void Engine::captureTelemetry(std::uint64_t stepIndex) {

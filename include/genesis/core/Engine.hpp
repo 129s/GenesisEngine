@@ -14,8 +14,9 @@
 #include "genesis/simulation/Scheduler.hpp"
 #include "genesis/simulation/TelemetryCollector.hpp"
 #include "genesis/simulation/ResourceSystem2D.hpp"
+#include "genesis/world/WorldDatabaseLoader.hpp"
 
-namespace genesis { namespace world { struct WorldLoadResult; class WorldDatabase; } }
+namespace genesis { namespace world { class WorldDatabase; } }
 
 namespace genesis::core {
 
@@ -26,7 +27,7 @@ public:
     void run(std::uint64_t maxSteps);
     void step(std::uint64_t steps = 1);
 
-    [[nodiscard]] genesis::world::WorldLoadResult loadWorldFromFile(const std::filesystem::path& folder);
+    [[nodiscard]] genesis::world::WorldDbLoadResult loadWorldFromFile(const std::filesystem::path& folder);
 
     [[nodiscard]] SimulationClock& clock() noexcept { return m_clock; }
     [[nodiscard]] const SimulationClock& clock() const noexcept { return m_clock; }

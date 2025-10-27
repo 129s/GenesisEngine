@@ -7,7 +7,7 @@
 
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
-#include "genesis/world/WorldTypes.hpp"
+#include "genesis/world/WorldDatabase.hpp"
 
 namespace genesis::agents {
 
@@ -17,7 +17,7 @@ struct NeedSatisfierConfig {
     std::uint32_t hungerUnitsPerRequest{2};
     float hungerReliefPerUnit{12.0f};
     float hungerPrepareMargin{5.0f};
-    std::function<world::LocationId(entt::entity)> hungerPreferredLocator{};
+    std::function<world::InteractionId(entt::entity)> hungerPreferredLocator{};
 };
 
 class NeedSatisfier {

@@ -7,16 +7,14 @@
 #include <optional>
 #include <vector>
 
-#include <entt/entt.hpp>
-
 #include "genesis/core/SimulationClock.hpp"
+#include "genesis/simulation/SimulationHost.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
-#include "genesis/agents/Movement2D.hpp"
-#include "genesis/simulation/SimulationContext.hpp"
-#include "genesis/simulation/TelemetryCollector.hpp"
-#include "genesis/world/WorldDatabaseLoader.hpp"
 
-namespace genesis { namespace world { class WorldDatabase; } }
+namespace genesis::world {
+class WorldDatabase;
+struct WorldDbLoadResult;
+}
 
 namespace genesis::core {
 
@@ -39,7 +37,7 @@ public:
     void setSnapshotCallback(SnapshotCallback callback);
 
     // 新：访问当前加载的世界数据库
-    [[nodiscard]] std::shared_ptr<genesis::world::WorldDatabase> worldDatabase() const noexcept { return m_worldDb; }
+    [[nodiscard]] std::shared_ptr<genesis::world::WorldDatabase> worldDatabase() const noexcept { return m_host.worldDatabase(); }
 
     std::uint32_t createAgent2D(const genesis::agents::components::AgentLocation2D& location,
                                 const std::optional<genesis::agents::components::MovementIntent2D>& intent = std::nullopt);
@@ -53,25 +51,16 @@ public:
     std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount);
 
 private:
-    [[nodiscard]] entt::entity toEntity(std::uint32_t id) const noexcept;
-    void destroyAllAgents();
     void processStep(std::uint64_t stepIndex);
     void captureTelemetry(std::uint64_t stepIndex);
     void reportTelemetry(std::uint64_t stepIndex);
-    void spawnDemoAgentsIfEmpty();
 
     SimulationClock m_clock;
-    entt::registry m_registry;
-    simulation::SimulationContext m_simulation;
-    simulation::TelemetryCollector m_telemetryCollector;
+    simulation::SimulationHost m_host;
     telemetry::TelemetryBuffer m_telemetry;
-    std::vector<telemetry::ResourceSnapshot> m_resourceScratch;
     std::uint64_t m_lastTelemetryReportStep{0};
     static constexpr std::uint64_t kTelemetryReportInterval = 120;
     SnapshotCallback m_snapshotCallback;
-    std::shared_ptr<genesis::world::WorldDatabase> m_worldDb;
-
-    void initializeResourcesFromDatabase();
 };
 
 } // namespace genesis::core

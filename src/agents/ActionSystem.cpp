@@ -10,14 +10,16 @@ namespace genesis::agents {
 
 namespace {
 constexpr float kMinSpeed = 0.1f;
-}
+} // namespace
 
 ActionExecutor::ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources)
     : m_db(db)
-    , m_resources(resources) {
-}
+    , m_resources(resources) {}
 
-void ActionExecutor::requestMoveToInteraction(entt::entity entity, genesis::world::InteractionId target, float speed, entt::registry& registry) {
+void ActionExecutor::requestMoveToInteraction(entt::entity entity,
+                                              genesis::world::InteractionId target,
+                                              float speed,
+                                              entt::registry& registry) {
     ensureQueue(entity, registry);
     auto& queue = registry.get<ActionQueue>(entity);
 
@@ -32,7 +34,12 @@ void ActionExecutor::requestMoveToInteraction(entt::entity entity, genesis::worl
     queue.tasks.push_back(move);
 }
 
-void ActionExecutor::requestConsume(entt::entity entity, genesis::world::InteractionId interaction, genesis::world::ResourceType type, std::uint32_t amount, float reliefPerUnit, entt::registry& registry) {
+void ActionExecutor::requestConsume(entt::entity entity,
+                                    genesis::world::InteractionId interaction,
+                                    genesis::world::ResourceType type,
+                                    std::uint32_t amount,
+                                    float reliefPerUnit,
+                                    entt::registry& registry) {
     ensureQueue(entity, registry);
     auto& queue = registry.get<ActionQueue>(entity);
 
@@ -118,19 +125,23 @@ void ActionExecutor::ensureQueue(entt::entity entity, entt::registry& registry) 
     }
 }
 
-bool ActionExecutor::hasPendingConsume(const ActionQueue& queue, genesis::world::InteractionId interaction, genesis::world::ResourceType type) const {
+bool ActionExecutor::hasPendingConsume(const ActionQueue& queue,
+                                       genesis::world::InteractionId interaction,
+                                       genesis::world::ResourceType type) const {
     return std::any_of(queue.tasks.begin(), queue.tasks.end(), [&](const ActionTask& task) {
         return task.type == ActionType::ConsumeResource && task.interaction == interaction && task.resource == type;
     });
 }
 
-void ActionExecutor::processMove(entt::entity entity, ActionQueue& queue, components::AgentLocation2D& location, entt::registry& registry) {
+void ActionExecutor::processMove(entt::entity entity,
+                                 ActionQueue& queue,
+                                 components::AgentLocation2D& location,
+                                 entt::registry& registry) {
     if (queue.tasks.empty()) {
         return;
     }
 
     auto& task = queue.tasks.front();
-    // Resolve interaction target
     auto it = m_db.findInteraction(task.interaction);
     if (!it) {
         queue.tasks.pop_front();
@@ -156,7 +167,10 @@ void ActionExecutor::processMove(entt::entity entity, ActionQueue& queue, compon
     intent.speed = std::max(task.speed, kMinSpeed);
 }
 
-void ActionExecutor::processConsume(entt::entity entity, ActionQueue& queue, components::AgentLocation2D& location, entt::registry& registry) {
+void ActionExecutor::processConsume(entt::entity entity,
+                                    ActionQueue& queue,
+                                    components::AgentLocation2D& location,
+                                    entt::registry& registry) {
     if (queue.tasks.empty()) {
         return;
     }
@@ -206,3 +220,4 @@ void ActionExecutor::processConsume(entt::entity entity, ActionQueue& queue, com
 }
 
 } // namespace genesis::agents
+

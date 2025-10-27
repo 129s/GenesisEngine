@@ -11,7 +11,10 @@ namespace genesis::agents {
 
 namespace {
 
-NeedSample ensureSample(const NeedComponent& component, NeedType type, const NeedDescriptor& descriptor, const NeedState& state) {
+NeedSample ensureSample(const NeedComponent& component,
+                        NeedType type,
+                        const NeedDescriptor& descriptor,
+                        const NeedState& state) {
     const auto idx = needIndex(type);
     if (component.lastSamples[idx].has_value()) {
         return *component.lastSamples[idx];
@@ -39,7 +42,9 @@ NeedSatisfier::NeedSatisfier(NeedSatisfierConfig config)
     }
 }
 
-void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSystem& resourceSystem, ActionExecutor* actionExecutor) const {
+void NeedSatisfier::update(entt::registry& registry,
+                           world::system::ResourceSystem& resourceSystem,
+                           ActionExecutor* actionExecutor) const {
     auto view = registry.view<NeedComponent>();
 
     for (auto entity : view) {
@@ -62,12 +67,19 @@ void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSyst
         }
 
         if (actionExecutor) {
-            actionExecutor->requestConsume(entity, preferredInteraction, world::ResourceType::Food, m_config.hungerUnitsPerRequest, m_config.hungerReliefPerUnit, registry);
+            actionExecutor->requestConsume(entity,
+                                           preferredInteraction,
+                                           world::ResourceType::Food,
+                                           m_config.hungerUnitsPerRequest,
+                                           m_config.hungerReliefPerUnit,
+                                           registry);
             continue;
         }
 
-        // 无 ActionExecutor 时无法查询交互点坐标以触发移动，跳过主动移动，仅尝试直接在首选交互点消费
-        const auto consumed = resourceSystem.consume(registry, world::ResourceType::Food, m_config.hungerUnitsPerRequest, preferredInteraction);
+        const auto consumed = resourceSystem.consume(registry,
+                                                     world::ResourceType::Food,
+                                                     m_config.hungerUnitsPerRequest,
+                                                     preferredInteraction);
         if (consumed == 0U) {
             continue;
         }
@@ -81,3 +93,4 @@ void NeedSatisfier::update(entt::registry& registry, world::system::ResourceSyst
 }
 
 } // namespace genesis::agents
+

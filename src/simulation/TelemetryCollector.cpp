@@ -25,7 +25,6 @@ telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
         tick.agents.push_back(std::move(snapshot));
     });
 
-    // v2 资源采集
     if (!resources.empty()) {
         tick.resources.reserve(resources.size());
         for (auto resource : resources) {
@@ -43,3 +42,4 @@ telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
 }
 
 } // namespace genesis::simulation
+

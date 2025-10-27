@@ -27,3 +27,4 @@ void Scheduler::update(entt::registry& registry, float deltaSeconds, std::uint64
 }
 
 } // namespace genesis::simulation
+

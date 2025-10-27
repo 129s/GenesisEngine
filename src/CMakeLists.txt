@@ -163,17 +163,84 @@ set_target_properties(genesis_worldgen PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-set(GENESIS_ENGINE_SOURCES
-    engine/core/SimulationClock.cpp
-    engine/core/Engine.cpp
-    engine/agents/ActionSystem.cpp
-    engine/agents/NeedSystem.cpp
-    engine/agents/NeedSatisfier.cpp
-    engine/simulation/Movement2DSystem.cpp
-    engine/simulation/SimulationContext.cpp
-    engine/simulation/TelemetryCollector.cpp
-    engine/simulation/Scheduler.cpp
+set(GENESIS_BASE_SOURCES
+    foundation/SimulationClock.cpp
+)
+
+add_library(genesis_base STATIC ${GENESIS_BASE_SOURCES})
+add_library(Genesis::Base ALIAS genesis_base)
+
+target_include_directories(genesis_base
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+set_target_properties(genesis_base PROPERTIES
+    OUTPUT_NAME "genesis_base"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+set(GENESIS_AGENTS_SOURCES
+    agents/ActionSystem.cpp
+    agents/NeedSystem.cpp
+    agents/NeedSatisfier.cpp
+)
+
+add_library(genesis_agents STATIC ${GENESIS_AGENTS_SOURCES})
+add_library(Genesis::Agents ALIAS genesis_agents)
+
+target_include_directories(genesis_agents
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_agents
+    PUBLIC
+        EnTT::EnTT
+        Genesis::WorldModel
+)
+
+set_target_properties(genesis_agents PROPERTIES
+    OUTPUT_NAME "genesis_agents"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+set(GENESIS_SIMULATION_SOURCES
+    simulation/Movement2DSystem.cpp
+    simulation/SimulationContext.cpp
+    simulation/TelemetryCollector.cpp
+    simulation/Scheduler.cpp
+    simulation/SimulationHost.cpp
     engine/world/system/ResourceSystem.cpp
+)
+
+add_library(genesis_simulation STATIC ${GENESIS_SIMULATION_SOURCES})
+add_library(Genesis::Simulation ALIAS genesis_simulation)
+
+target_include_directories(genesis_simulation
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_simulation
+    PUBLIC
+        Genesis::Agents
+        Genesis::WorldModel
+        Genesis::Base
+        EnTT::EnTT
+        spdlog::spdlog_header_only
+)
+
+set_target_properties(genesis_simulation PROPERTIES
+    OUTPUT_NAME "genesis_simulation"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+set(GENESIS_ENGINE_SOURCES
+    engine/core/Engine.cpp
     engine/telemetry/TelemetryBuffer.cpp
 )
 
@@ -191,6 +258,8 @@ target_link_libraries(genesis_engine
         EnTT::EnTT
         nlohmann_json::nlohmann_json
         Genesis::WorldModel
+        Genesis::Base
+        Genesis::Simulation
 )
 
 set_target_properties(genesis_engine PROPERTIES
@@ -225,13 +294,6 @@ set_target_properties(genesis_runtime PROPERTIES
 
 
 # --- Phase 0: 基础/诊断模块骨架（占位，便于后续迁移） ---
-add_library(genesis_base INTERFACE)
-add_library(Genesis::Base ALIAS genesis_base)
-target_include_directories(genesis_base
-    INTERFACE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-)
-
 add_library(genesis_diagnostics INTERFACE)
 add_library(Genesis::Diagnostics ALIAS genesis_diagnostics)
 target_include_directories(genesis_diagnostics
@@ -246,15 +308,7 @@ target_link_libraries(genesis_diagnostics
 # --- Phase 1（占位别名）：逐步拆分仿真内核 ---
 add_library(genesis_world INTERFACE)
 add_library(Genesis::World ALIAS genesis_world)
-target_link_libraries(genesis_world INTERFACE Genesis::Engine genesis_world_model)
-
-add_library(genesis_agents INTERFACE)
-add_library(Genesis::Agents ALIAS genesis_agents)
-target_link_libraries(genesis_agents INTERFACE Genesis::Engine)
-
-add_library(genesis_simulation INTERFACE)
-add_library(Genesis::Simulation ALIAS genesis_simulation)
-target_link_libraries(genesis_simulation INTERFACE Genesis::Engine)
+target_link_libraries(genesis_world INTERFACE Genesis::WorldModel)
 
 # --- Phase 2（占位别名）：拆分 Runtime 子域 ---
 add_library(genesis_runtime_core INTERFACE)

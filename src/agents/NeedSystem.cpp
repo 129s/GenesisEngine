@@ -36,3 +36,4 @@ void NeedSystem::setDefaultDescriptor(const NeedDescriptor& descriptor) {
 }
 
 } // namespace genesis::agents
+

@@ -55,7 +55,8 @@ void SimulationContext::reset(entt::registry& registry) {
     bindScheduler();
 }
 
-void SimulationContext::collectResourceSnapshots(const entt::registry& registry, std::vector<telemetry::ResourceSnapshot>& out) const {
+void SimulationContext::collectResourceSnapshots(const entt::registry& registry,
+                                                 std::vector<telemetry::ResourceSnapshot>& out) const {
     out.clear();
     if (!m_resourceSystem || !m_worldDatabase || !m_resourceSystem->m_initialized) {
         return;
@@ -80,3 +81,4 @@ void SimulationContext::collectResourceSnapshots(const entt::registry& registry,
 }
 
 } // namespace genesis::simulation
+

@@ -23,7 +23,7 @@
 ```
 ┌─────────────────────────────────────────────┐
 │             Interface & Experience          │
-│  Sandbox GUI · CLIs · Automation Tools      │
+│  Game · Sandbox GUI · Automation Tools      │
 └──────────────▲──────────────────────────────┘
                │ Facade / DTO
 ┌──────────────┴──────────────────────────────┐
@@ -77,7 +77,7 @@
 ### 4.4 Interface & Experience Layer
 - **分区**：
   - `Genesis::Interface::SandboxGUI`：ImGui 前端，依赖 `Runtime::Core`/`Snapshot`，通过桥接器获取数据与发送命令。
-  - `Genesis::Interface::CLI`：命令行执行器（现有 `genesis-engine`），未来可扩展为自动化脚本入口。
+- `Genesis::Interface::Game`：游戏客户端（运行时消费方，计划替代 CLI 作为主要交互入口）。
   - `Genesis::Tools::*`：资产编译器、调试工具；依赖 Foundation 与必要的 Runtime Facade。
 - **职责**：
   - 呈现数据、收集用户指令、调试辅助。
@@ -98,7 +98,7 @@
   - Foundation：`genesis_base`、`genesis_diagnostics`、`genesis_assets`。
   - Simulation：`genesis_world`、`genesis_agents`、`genesis_simulation`、`genesis_telemetry`.
   - Runtime：`genesis_runtime_core`、`genesis_runtime_snapshot`、`genesis_runtime_automation`.
-  - Interface/Tools：`genesis_cli`, `genesis_sandbox_gui`, `genesis_palette_compiler`, `genesis_debug_console`.
+- Interface/Tools：`genesis_game`（计划）、`genesis_sandbox_gui`, `genesis_palette_compiler`, `genesis_debug_console`。
 - 约束：
   - 通过 INTERFACE 库聚合公共头文件，减少 include 路径膨胀。
   - 资产生成目标补充 `BYPRODUCTS`、`OUTPUT` 与目录创建命令，保证多生成器一致性。
@@ -113,7 +113,7 @@
    - 重写单测以适配新模块。
 3. **Phase 2：Runtime Facade 重建**
    - 拆出 `Runtime::Core` + `Runtime::Snapshot`，提供命令/事件 API。
-   - GUI/CLI 改用 Facade；移除对 `Engine` 的直接引用。
+  - GUI/Game 改用 Facade；移除对 `Engine` 的直接引用。
 4. **Phase 3：Interface 层调优**
    - 将 `RuntimeBridge.cpp`、`AppHostCore.cpp` 拆分成 Presenter/Command/Query 子组件。
    - 引入 UI 状态容器与渲染适配器，减小单文件体积。

@@ -1,6 +1,6 @@
 # GenesisEngine · Architecture Overview（v2）
 
-GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现式叙事模拟核心。v2 版本以单线程 `Engine` 为核心，采用“Map 内直线移动 + Map 图（有向）跨图拼接”的世界语义，对外暴露稳定的 Runtime API（快照/事件/命令），前端（CLI/GUI/Game）共享同一契约。本文概览分层结构、世界表达、并发边界与相关文档。
+GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现式叙事模拟核心。v2 版本以单线程 `Engine` 为核心，采用“Map 内直线移动 + Map 图（有向）跨图拼接”的世界语义，对外暴露稳定的 Runtime API（快照/事件/命令），前端（Game/GUI）共享同一契约。本文概览分层结构、世界表达、并发边界与相关文档。
 
 ## 分层（自下而上）
 - **Core Runtime（Engine + Systems）**
@@ -9,7 +9,7 @@ GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现
     - `Movement2DSystem`：Map 内直线移动；跨图由上层根据 `mapEdges` 决策并下发命令。
     - `ResourceSystem2D`：基于 `Interaction(kind=Resource)` 的库存/再生（capacity/regen）。
     - `Scheduler`：以固定顺序调度各系统。
-  - `TelemetryCollector`：采集每步 `TickTelemetry`（agents、resourcesV2 等）。
+  - `TelemetryCollector`：采集每步 `TickTelemetry`（agents、resources 等）。
 - **Runtime 封装**
   - 控制面：`setPaused`、`requestStep`、`setSpeedMultiplier`、`start/stop`。
   - 查询面：`latestSnapshot()`、`latestSnapshotDiff()`；`worldDatabase()` 只读句柄（GUI 用于构建 Atlas）。
@@ -17,7 +17,7 @@ GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现
   - 并发：模拟线程唯一写入者；前端仅读取快照/Atlas；双缓冲与版本号保障并发安全。
 - **前端适配**
   - GUI（主力）：GLFW + ImGui；消费 Atlas/Telemetry，提供“世界（v2）/实体（v2）”操作面板。
-  - CLI/游戏：与 GUI 共享 Runtime 契约。
+  - Game：与 GUI 共享 Runtime 契约，作为最终用户入口（替代 CLI）。
 
 ## 世界表达（v2）：Map 图 + Scene 分组 + Interaction/Portal
 - 世界层：世界由若干 Map 组成，Map 之间通过有向边（MapEdge）表征可达性与代价；跨图移动在此层拼接。

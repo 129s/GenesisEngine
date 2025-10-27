@@ -37,8 +37,8 @@ cmake --build build --target genesis_engine
 
 主要产物位于 `build/src`：
 - `genesis-sandbox-gui`：ImGui 驱动的沙盒 GUI，可交互查看世界状态
-- `genesis-engine`：命令行运行时烟雾测试入口
 - `genesis_runtime`（动态库）、`genesis_engine` / `genesis_worldgen` / `genesis_rendering`（静态库）
+- Game 客户端（计划）：作为最终用户入口，构建目标与运行脚本将在后续迭代提供
 
 ## 4. 测试与验证
 启用测试选项后，CMake 将注册以下目标：
@@ -54,9 +54,9 @@ cmake --build build --target genesis_engine_tests
 ctest --test-dir build --output-on-failure
 ```
 
-`ctest` 自动运行上面四个 gtest 二进制及两个额外的 CTest 条目：
+`ctest` 自动运行上面四个 gtest 二进制及若干 CTest 条目：
 - `GenesisRuntime_Smoke`：保证运行时可加载自身依赖
-- `GenesisEngine_E2E`：运行 `genesis-engine --steps=60` 并生成 `build/telemetry_e2e.json`
+- E2E（预留）：CLI 已移除，后续以 Game 客户端或脚本化测试替代
 
 ## 5. 世界生成（Worldgen）\n- 历史路径（默认关闭）：v2 运行时不再依赖 `LocationGraph` 与生成流程。\n- 如需参考旧设计与实现，请查阅 `docs/architecture/world/world-generation.md` 与相关历史代码。\n\n## 6. 增量构建与常见目录
 - 源码：`src/`（核心库、工具、GUI）、`include/`（公共头文件）

@@ -16,6 +16,7 @@
 #include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/runtime/RuntimeEvents.hpp"
+#include "genesis/simulation/AgentApi.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
 #include "genesis/agents/Movement2D.hpp"
@@ -70,14 +71,23 @@ public:
     [[nodiscard]] std::shared_ptr<class genesis::world::WorldDatabase> worldDatabase() const noexcept;
 
     std::uint64_t enqueueEvent(RuntimeEvent event);
+    std::uint32_t createAgent(const simulation::AgentSpawnParams2D& params);
+    bool setAgentMovementIntent(std::uint32_t entityId, const simulation::MovementCommand2D& command);
+    bool teleportAgent(std::uint32_t entityId, const simulation::AgentPose2D& target);
+    std::optional<simulation::AgentPose2D> agentPose(std::uint32_t entityId) const;
+
+    [[deprecated("Use AgentSpawnParams2D overload")]]
     std::uint32_t createAgent2D(const genesis::agents::components::AgentLocation2D& location,
                                 const std::optional<genesis::agents::components::MovementIntent2D>& intent = std::nullopt);
+    [[deprecated("Use MovementCommand2D overload")]]
     bool setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent);
     bool stopAgentMovement(std::uint32_t entityId);
+    [[deprecated("Use AgentPose2D overload")]]
     bool teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target);
     bool deleteAgent(std::uint32_t entityId);
     std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount);
     bool agentExists(std::uint32_t entityId) const;
+    [[deprecated("Use agentPose()")]]
     std::optional<genesis::agents::components::AgentLocation2D> agentLocation(std::uint32_t entityId) const;
 
 private:

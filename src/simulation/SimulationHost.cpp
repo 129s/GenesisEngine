@@ -46,28 +46,71 @@ telemetry::TickTelemetry SimulationHost::captureTelemetry(std::uint64_t stepInde
         stepSeconds);
 }
 
-std::uint32_t SimulationHost::createAgent2D(const agents::components::AgentLocation2D& location,
-                                            const std::optional<agents::components::MovementIntent2D>& intent) {
+std::uint32_t SimulationHost::createAgent(const AgentSpawnParams2D& params) {
     const auto entity = m_registry.create();
+    agents::components::AgentLocation2D location{};
+    location.mapId = params.location.mapId;
+    location.x = params.location.x;
+    location.y = params.location.y;
     m_registry.emplace<agents::components::AgentLocation2D>(entity, location);
-    if (intent) {
-        m_registry.emplace<agents::components::MovementIntent2D>(entity, *intent);
+
+    if (params.initialMovement) {
+        agents::components::MovementIntent2D intent{};
+        intent.targetMapId = params.initialMovement->targetMapId;
+        intent.targetX = params.initialMovement->targetX;
+        intent.targetY = params.initialMovement->targetY;
+        intent.speed = params.initialMovement->speed;
+        m_registry.emplace<agents::components::MovementIntent2D>(entity, intent);
     }
     return static_cast<std::uint32_t>(entt::to_integral(entity));
 }
 
-bool SimulationHost::setAgentMovementIntent(std::uint32_t entityId,
-                                            const agents::components::MovementIntent2D& intent) {
+bool SimulationHost::setAgentMovementIntent(std::uint32_t entityId, const MovementCommand2D& command) {
     const auto entity = toEntity(entityId);
     if (!m_registry.valid(entity) || !m_registry.all_of<agents::components::AgentLocation2D>(entity)) {
         return false;
     }
     if (auto* existing = m_registry.try_get<agents::components::MovementIntent2D>(entity)) {
-        *existing = intent;
+        existing->targetMapId = command.targetMapId;
+        existing->targetX = command.targetX;
+        existing->targetY = command.targetY;
+        existing->speed = command.speed;
     } else {
+        agents::components::MovementIntent2D intent{};
+        intent.targetMapId = command.targetMapId;
+        intent.targetX = command.targetX;
+        intent.targetY = command.targetY;
+        intent.speed = command.speed;
         m_registry.emplace<agents::components::MovementIntent2D>(entity, intent);
     }
     return true;
+}
+
+std::uint32_t SimulationHost::createAgent2D(const agents::components::AgentLocation2D& location,
+                                            const std::optional<agents::components::MovementIntent2D>& intent) {
+    AgentSpawnParams2D params{};
+    params.location.mapId = location.mapId;
+    params.location.x = location.x;
+    params.location.y = location.y;
+    if (intent) {
+        MovementCommand2D command{};
+        command.targetMapId = intent->targetMapId;
+        command.targetX = intent->targetX;
+        command.targetY = intent->targetY;
+        command.speed = intent->speed;
+        params.initialMovement = command;
+    }
+    return createAgent(params);
+}
+
+bool SimulationHost::setAgentMovementIntent(std::uint32_t entityId,
+                                            const agents::components::MovementIntent2D& intent) {
+    MovementCommand2D command{};
+    command.targetMapId = intent.targetMapId;
+    command.targetX = intent.targetX;
+    command.targetY = intent.targetY;
+    command.speed = intent.speed;
+    return setAgentMovementIntent(entityId, command);
 }
 
 bool SimulationHost::clearAgentMovementIntent(std::uint32_t entityId) {
@@ -81,17 +124,27 @@ bool SimulationHost::clearAgentMovementIntent(std::uint32_t entityId) {
     return true;
 }
 
-bool SimulationHost::teleportAgent(std::uint32_t entityId, const agents::components::AgentLocation2D& target) {
+bool SimulationHost::teleportAgent(std::uint32_t entityId, const AgentPose2D& target) {
     const auto entity = toEntity(entityId);
     if (!m_registry.valid(entity)) {
         return false;
     }
     auto& loc = m_registry.get_or_emplace<agents::components::AgentLocation2D>(entity);
-    loc = target;
+    loc.mapId = target.mapId;
+    loc.x = target.x;
+    loc.y = target.y;
     if (m_registry.any_of<agents::components::MovementIntent2D>(entity)) {
         m_registry.remove<agents::components::MovementIntent2D>(entity);
     }
     return true;
+}
+
+bool SimulationHost::teleportAgent(std::uint32_t entityId, const agents::components::AgentLocation2D& target) {
+    AgentPose2D pose{};
+    pose.mapId = target.mapId;
+    pose.x = target.x;
+    pose.y = target.y;
+    return teleportAgent(entityId, pose);
 }
 
 bool SimulationHost::deleteAgent(std::uint32_t entityId) {
@@ -109,11 +162,28 @@ bool SimulationHost::agentExists(std::uint32_t entityId) const {
 }
 
 std::optional<agents::components::AgentLocation2D> SimulationHost::queryAgentLocation(std::uint32_t entityId) const {
+    auto pose = queryAgentPose(entityId);
+    if (!pose) {
+        return std::nullopt;
+    }
+    agents::components::AgentLocation2D location{};
+    location.mapId = pose->mapId;
+    location.x = pose->x;
+    location.y = pose->y;
+    return location;
+}
+
+std::optional<AgentPose2D> SimulationHost::queryAgentPose(std::uint32_t entityId) const {
     const auto entity = toEntity(entityId);
     if (!m_registry.valid(entity) || !m_registry.all_of<agents::components::AgentLocation2D>(entity)) {
         return std::nullopt;
     }
-    return m_registry.get<agents::components::AgentLocation2D>(entity);
+    const auto& loc = m_registry.get<agents::components::AgentLocation2D>(entity);
+    AgentPose2D pose{};
+    pose.mapId = loc.mapId;
+    pose.x = loc.x;
+    pose.y = loc.y;
+    return pose;
 }
 
 std::uint32_t SimulationHost::consumeResource(std::uint32_t interactionId, std::uint32_t amount) {
@@ -126,18 +196,17 @@ std::uint32_t SimulationHost::consumeResource(std::uint32_t interactionId, std::
 
 void SimulationHost::spawnDemoAgentsIfEmpty() {
     if (m_registry.view<agents::components::AgentLocation2D>().empty()) {
-        agents::components::AgentLocation2D loc{};
-        loc.mapId = 1;
-        loc.x = 0.0f;
-        loc.y = 0.0f;
-
-        agents::components::MovementIntent2D intent{};
+        AgentSpawnParams2D params{};
+        params.location.mapId = 1;
+        params.location.x = 0.0f;
+        params.location.y = 0.0f;
+        MovementCommand2D intent{};
         intent.targetMapId = 1;
         intent.targetX = 10.0f;
         intent.targetY = 5.0f;
         intent.speed = 2.0f;
-
-        (void)createAgent2D(loc, std::optional{intent});
+        params.initialMovement = intent;
+        (void)createAgent(params);
     }
 }
 

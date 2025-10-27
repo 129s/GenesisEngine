@@ -132,21 +132,54 @@ std::shared_ptr<genesis::world::WorldDatabase> Runtime::worldDatabase() const no
     return m_engine.worldDatabase();
 }
 
+std::uint32_t Runtime::createAgent(const simulation::AgentSpawnParams2D& params) {
+    return m_engine.createAgent(params);
+}
+
 std::uint32_t Runtime::createAgent2D(const genesis::agents::components::AgentLocation2D& location,
                                      const std::optional<genesis::agents::components::MovementIntent2D>& intent) {
-    return m_engine.createAgent2D(location, intent);
+    simulation::AgentSpawnParams2D params{};
+    params.location.mapId = location.mapId;
+    params.location.x = location.x;
+    params.location.y = location.y;
+    if (intent) {
+        simulation::MovementCommand2D command{};
+        command.targetMapId = intent->targetMapId;
+        command.targetX = intent->targetX;
+        command.targetY = intent->targetY;
+        command.speed = intent->speed;
+        params.initialMovement = command;
+    }
+    return createAgent(params);
+}
+
+bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const simulation::MovementCommand2D& command) {
+    return m_engine.setAgentMovementIntent(entityId, command);
 }
 
 bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent) {
-    return m_engine.setAgentMovementIntent(entityId, intent);
+    simulation::MovementCommand2D command{};
+    command.targetMapId = intent.targetMapId;
+    command.targetX = intent.targetX;
+    command.targetY = intent.targetY;
+    command.speed = intent.speed;
+    return setAgentMovementIntent(entityId, command);
 }
 
 bool Runtime::stopAgentMovement(std::uint32_t entityId) {
     return m_engine.clearAgentMovementIntent(entityId);
 }
 
-bool Runtime::teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target) {
+bool Runtime::teleportAgent(std::uint32_t entityId, const simulation::AgentPose2D& target) {
     return m_engine.teleportAgent(entityId, target);
+}
+
+bool Runtime::teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target) {
+    simulation::AgentPose2D pose{};
+    pose.mapId = target.mapId;
+    pose.x = target.x;
+    pose.y = target.y;
+    return teleportAgent(entityId, pose);
 }
 
 bool Runtime::deleteAgent(std::uint32_t entityId) {
@@ -161,8 +194,20 @@ bool Runtime::agentExists(std::uint32_t entityId) const {
     return m_engine.agentExists(entityId);
 }
 
+std::optional<simulation::AgentPose2D> Runtime::agentPose(std::uint32_t entityId) const {
+    return m_engine.queryAgentPose(entityId);
+}
+
 std::optional<genesis::agents::components::AgentLocation2D> Runtime::agentLocation(std::uint32_t entityId) const {
-    return m_engine.queryAgentLocation(entityId);
+    auto pose = agentPose(entityId);
+    if (!pose) {
+        return std::nullopt;
+    }
+    genesis::agents::components::AgentLocation2D location{};
+    location.mapId = pose->mapId;
+    location.x = pose->x;
+    location.y = pose->y;
+    return location;
 }
 
 void Runtime::drainPendingEvents() {

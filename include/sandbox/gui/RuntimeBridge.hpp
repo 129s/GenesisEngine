@@ -25,9 +25,6 @@
 // 前置声明：新世界数据库接口（避免在头文件中包含加载器实现）
 namespace genesis { namespace world { class WorldDatabase; } }
 
-// 前置声明以避免 GUI 层头文件依赖模拟内核实现
-namespace genesis::core { class Engine; }
-
 namespace Genesis::Sandbox::Gui
 {
 
@@ -175,7 +172,6 @@ namespace Genesis::Sandbox::Gui
     private:
         void runLoop();
         void captureSnapshot();
-        static WorldAtlas buildWorldAtlas(const genesis::core::Engine& engine);
         static WorldAtlas buildWorldAtlas(const genesis::world::WorldDatabase& db);
         void reconcileCommands(const std::vector<genesis::runtime::RuntimeEventReport>& reports);
         std::uint64_t recordPending(std::uint64_t id, genesis::runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt);

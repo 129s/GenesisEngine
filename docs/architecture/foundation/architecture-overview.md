@@ -1,39 +1,102 @@
-# GenesisEngine · Architecture Overview（v2）
+# GenesisEngine · 核心架构总览（v3）
 
-GenesisEngine 的使命是构建“可扩展、可观测、可复用”的涌现式叙事模拟核心。v2 版本以单线程 `Engine` 为核心，采用“Map 内直线移动 + Map 图（有向）跨图拼接”的世界语义，对外暴露稳定的 Runtime API（快照/事件/命令），前端（Game/GUI）共享同一契约。本文概览分层结构、世界表达、并发边界与相关文档。
+> 面向引擎内核与运行时的贡献者；本文描述 v3 重构后的主干模块、分层职责与数据流。设计原则继承自 [`meta/vision.md`](../meta/vision.md)，具体命名空间规范见 [`meta/namespace-strategy.md`](../meta/namespace-strategy.md)。
 
-## 分层（自下而上）
-- **Core Runtime（Engine + Systems）**
-  - `WorldDatabase`（只读数据总线）：提供 `maps`、`mapEdges`、`scenes`、`interactions`、`portals`、`findInteraction(id)` 查询；运行时不暴露 ECS。
-  - 系统集合（模块化）：
-    - `Movement2DSystem`：Map 内直线移动；跨图由上层根据 `mapEdges` 决策并下发命令。
-    - `ResourceSystem2D`：基于 `Interaction(kind=Resource)` 的库存/再生（capacity/regen）。
-    - `Scheduler`：以固定顺序调度各系统。
-  - `TelemetryCollector`：采集每步 `TickTelemetry`（agents、resources 等）。
-- **Runtime 封装**
-  - 控制面：`setPaused`、`requestStep`、`setSpeedMultiplier`、`start/stop`。
-  - 查询面：`latestSnapshot()`、`latestSnapshotDiff()`；`worldDatabase()` 只读句柄（GUI 用于构建 Atlas）。
-  - 命令面：`enqueueEvent(RuntimeEvent)` 串行执行命令（`world.db.load/save/reload`、`agent.create|move|stop|teleport|delete 2d`、`resource.consume` 等）。
-  - 并发：模拟线程唯一写入者；前端仅读取快照/Atlas；双缓冲与版本号保障并发安全。
-- **前端适配**
-  - GUI（主力）：GLFW + ImGui；消费 Atlas/Telemetry，提供“世界（v2）/实体（v2）”操作面板。
-  - Game：与 GUI 共享 Runtime 契约，作为最终用户入口（替代 CLI）。
+## 1. 分层视图
 
-## 世界表达（v2）：Map 图 + Scene 分组 + Interaction/Portal
-- 世界层：世界由若干 Map 组成，Map 之间通过有向边（MapEdge）表征可达性与代价；跨图移动在此层拼接。
-- 地图层：Scene 仅用于分组/布局与坐标继承；Interaction 是交互锚点（含 Portal/Resource/...），导航目标均指向交互点坐标。Map 内移动采用直线语义。
-- 渲染层：Tilemap 仅用于表现，与运行时解耦；Atlas 聚合 maps/mapEdges 与每图的 scenes/interactions/portals。
+```
+┌────────────────────────────────────────────┐
+│ Interface & Experience ── RuntimeBridge ／ │
+│ Sandbox GUI ／ Game ／ 自动化脚本           │
+└─────────────▲──────────────────────────────┘
+              │ 只读快照 + 命令 API
+┌─────────────┴──────────────────────────────┐
+│ Runtime Services ── Runtime ／ Snapshot ／  │
+│ Command 队列 ／ 世界存取                     │
+└─────────────▲──────────────────────────────┘
+              │ Tick 调度／领域接口
+┌─────────────┴──────────────────────────────┐
+│ Simulation Kernel ── SimulationContext ／   │
+│ Scheduler ／ Agents ／ World Systems        │
+└─────────────▲──────────────────────────────┘
+              │ 基础工具／只读数据源
+┌─────────────┴──────────────────────────────┐
+│ Foundation ── EventBus ／ Telemetry ／      │
+│ WorldDatabase ／ Diagnostics                │
+└────────────────────────────────────────────┘
+```
 
-说明：v2 暂未接入 Needs/Planner/ActionExecutor 等高级系统，后续将以模块形式回归并挂接到 `Scheduler`。
+## 2. Simulation Kernel
 
-## 并发与数据流
-- 模拟线程：唯一可以修改世界状态的线程；命令需排队执行。
-- 前端线程：只读取 `SimulationSnapshot` / WorldAtlas，禁止直接访问 ECS。GUI 不做碰撞/局部寻路，只绘制 Atlas/Telemetry。
-- 版本机制：世界数据变化会更新 `world_version`，前端可按版本刷新缓存；Telemetry 携带 `schema_version` 以便协议演进。
+### 2.1 SimulationContext
+- 负责持有 `entt::registry` 与领域系统实例，不再对外暴露原始 ECS。
+- 管理世界级资源：
+  - `world::system::ResourceSystem`——基于世界数据库的交互点生成库存实体，驱动再生与事件派发。
+  - `agents::ActionExecutor`——依赖资源系统执行移动/消耗任务。
+- 与 `Scheduler` 协同，按帧调用 Need → Action → Movement → World 系统。
+- 提供只读采样接口 `collectResourceSnapshots`，供遥测聚合使用。
 
-## 相关文档
-- 运行时接口：[foundation/runtime-api.md](runtime-api.md)
-- 世界模型：[world/world-model.md](../world/world-model.md)
-- 生成（暂未接入 v2，历史文档供参考）：[world/world-generation.md](../world/world-generation.md)
-- 行为与人格（历史/规划）：[agents/agent-personality-big5.md](../agents/agent-personality-big5.md)
-- 渲染/调试：见 [interface/sandbox/sandbox-gui.md](../interface/sandbox/sandbox-gui.md)
+### 2.2 Scheduler
+- 取代旧的“Movement + Resource”顺序，改为阶段化调度：
+  1. `NeedSystem::update`：评估需求强度并刷新状态样本。
+  2. `NeedSatisfier::update`：结合 `ResourceSystem` 与 `ActionExecutor` 推送动作队列。
+  3. `ActionExecutor::update`：对 Agent 应用移动/消费请求。
+  4. `Movement2DSystem::update`：执行直线移动与跨图瞬移。
+  5. `ResourceSystem::tick`：按步再生资源并触发库存事件。
+- 所有指针均为弱依赖，可按需裁剪或扩展阶段。
+
+### 2.3 Engine
+- 作为 SimulationContext 的拥有者，负责：
+  - `SimulationClock` 推进与 Step 循环。
+  - 快照回调、Telemetry 管线以及 Demo Agent 注入。
+  - 世界装载：`loadWorldFromFile` 通过 `WorldDatabaseLoader` 生成只读数据库，并交给 SimulationContext 重建资源系统。
+- 暴露受控命令接口（已移除 `registry()` 访问）：
+  - `createAgent2D / setAgentMovementIntent / stopAgentMovement / teleportAgent / deleteAgent`
+  - `consumeResource`（内部映射到 `ResourceSystem::consume`）
+  - `queryAgentLocation`（运行时在不暴露 ECS 的情况下查询位置）
+
+## 3. Runtime Services
+
+### 3.1 Runtime
+- 封装 Engine，维护：
+  - 命令队列（`RuntimeEvent`）与顺序执行。
+  - `SimulationSnapshotBuffer` 双缓冲快照及差分计算。
+  - 世界载入、保存流程（暂停工作线程、重建 Atlas）。
+- 对界面层暴露的 Facade：
+  - 快照读取：`latestSnapshot()` / `latestSnapshotDiff()`
+  - 世界生命周期：`loadWorldFromFile` / `saveWorldToFile`
+  - Agent 与资源命令：复用 Engine 的受控接口
+  - 查询：`worldDatabase()`、`agentLocation()`、`agentExists()`
+- 所有命令均在模拟线程执行，失败信息通过 `RuntimeEventReport` 回传。
+
+### 3.2 Telemetry
+- `TelemetryCollector::collect` 接收资源快照 DTO，与 Agent 位置组合成 `telemetry::TickTelemetry`。
+- Engine 维护循环缓冲 `TelemetryBuffer` 并按固定步长输出概览日志。
+
+## 4. Interface Layer（以 Sandbox GUI 为例）
+- `RuntimeBridge` 仅访问 Runtime Facade：
+  - Atlas 构建直接读取 `WorldDatabase`，不再触碰 Engine。
+  - 命令脚本（create/move/delete/teleport/consume）通过 Runtime 受控 API 完成。
+  - 背景线程消费快照并维护命令状态机，UI 线程只处理 DTO。
+- GUI 扩展新的命令类型时只需新增脚本描述与 Runtime 调用，无需了解仿真实现。
+
+## 5. 数据流与并发
+- **模拟线程**：Runtime 的工作线程调用 `Engine::step`，拥有唯一写权限。
+- **前端线程**：读取快照、Atlas 与事件报告，所有共享状态均受互斥量保护。
+- **事件执行**：在模拟线程处理，成功/失败均写回 `RuntimeEventReport` 并通过快照广播。
+- **遥测数据**：每 Tick 采集 Agent/Resource 状态，携带版本号与时间戳，供 UI/自动化差异比较。
+
+## 6. 世界装载流程
+1. Runtime 接收 `loadWorldFromFile` 命令并暂停工作线程。
+2. `WorldDatabaseLoader` 解析 `world.json` 与 `map_*.json`，生成共享数据库。
+3. Engine `destroyAllAgents()` 清理旧实体，SimulationContext `reset()` 释放旧资源系统。
+4. SimulationContext 使用新数据库重建 `ResourceSystem` 与 `ActionExecutor`，将资源锚点注入 registry。
+5. Engine 无世界内容时注入 Demo Agent，随后 Resume，快照版本递增。
+
+## 7. 扩展指引
+- 新增领域系统时，为 `Scheduler` 提供注册接口并定义执行阶段。
+- 对外暴露的新命令应先在 Engine 添加受控方法，再由 Runtime 包装事件，最后在界面层调用。
+- Telemetry 扩展遵循 DTO 原则，避免泄露 ECS。
+- 界面层禁止直接引用 `entt::registry`；若需查询状态，先为 Runtime 增加 Facade 方法。
+
+> 旧版 `ResourceSystem2D` 与 `Engine::registry()` 已移除，相关业务需要迁移至上述 Facade。

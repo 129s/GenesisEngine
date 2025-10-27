@@ -166,10 +166,14 @@ set_target_properties(genesis_worldgen PROPERTIES
 set(GENESIS_ENGINE_SOURCES
     core/SimulationClock.cpp
     core/Engine.cpp
+    agents/ActionSystem.cpp
+    agents/NeedSystem.cpp
+    agents/NeedSatisfier.cpp
     simulation/Movement2DSystem.cpp
-    simulation/ResourceSystem2D.cpp
+    simulation/SimulationContext.cpp
     simulation/TelemetryCollector.cpp
     simulation/Scheduler.cpp
+    world/system/ResourceSystem.cpp
     telemetry/TelemetryBuffer.cpp
 )
 

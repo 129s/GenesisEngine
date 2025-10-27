@@ -30,7 +30,7 @@ SceneMapViewModel ScenePresenter::buildMapViewModel(const ScenePresenterInput& i
             resource.current,
             resource.capacity,
             resource.type};
-        groupedResources[resource.location.value].push_back(std::move(entry));
+        groupedResources[resource.mapId].push_back(std::move(entry));
     }
 
     viewModel.resourceBuckets.reserve(groupedResources.size());
@@ -52,25 +52,7 @@ SceneMapViewModel ScenePresenter::buildMapViewModel(const ScenePresenterInput& i
     });
 
     // Build movement interpolation data.
-    if (!input.snapshot->telemetry.movementProgress.empty())
-    {
-        for (const auto& progress : input.snapshot->telemetry.movementProgress)
-        {
-            SceneMovementProgress entry{};
-            if (input.atlas)
-            {
-                entry.from = input.atlas->nodePosition(progress.from).value_or(RuntimeBridge::Vector2{});
-                entry.to = input.atlas->nodePosition(progress.to).value_or(entry.from);
-            }
-            else
-            {
-                entry.from = RuntimeBridge::Vector2{};
-                entry.to = RuntimeBridge::Vector2{};
-            }
-            entry.t = std::clamp(progress.t01, 0.0f, 1.0f);
-            viewModel.movement.emplace(progress.entityId, entry);
-        }
-    }
+    // movementProgress 已在 v3 中移除，GUI 暂不绘制移动插值。
 
     // Map agent current activity from telemetry.
     std::unordered_map<std::uint32_t, SceneAgentActivity> activityByEntity;
@@ -97,7 +79,7 @@ SceneMapViewModel ScenePresenter::buildMapViewModel(const ScenePresenterInput& i
     {
         SceneAgentStatus status{};
         status.entityId = agent.entityId;
-        status.locationId = agent.location.value;
+        status.locationId = agent.mapId;
         status.name = agent.name;
         if (auto it = activityByEntity.find(agent.entityId); it != activityByEntity.end())
         {
@@ -125,14 +107,14 @@ SceneNodeViewModel ScenePresenter::buildNodeViewModel(const ScenePresenterInput&
     viewModel.nodes.reserve(input.atlas->nodes.size());
     for (const auto& node : input.atlas->nodes)
     {
-        viewModel.nodes.push_back(SceneNodeSummary{node.id.value, node.name});
+        viewModel.nodes.push_back(SceneNodeSummary{node.id, node.name});
     }
 
     const std::uint32_t selectedId = input.state.scene_selected_node;
     auto findNode = [&]() -> const RuntimeBridge::WorldAtlas::Node* {
         for (const auto& node : input.atlas->nodes)
         {
-            if (node.id.value == selectedId)
+            if (node.id == selectedId)
             {
                 return &node;
             }
@@ -147,43 +129,39 @@ SceneNodeViewModel ScenePresenter::buildNodeViewModel(const ScenePresenterInput&
     }
 
     SceneNodeDetails details{};
-    details.nodeId = selectedNode->id.value;
+    details.nodeId = selectedNode->id;
     details.name = selectedNode->name;
 
     // Collect resources with local coordinates.
     for (const auto& spawn : input.atlas->spawns)
     {
-        if (spawn.resource.location.value != details.nodeId)
+        if (spawn.mapId != details.nodeId)
         {
             continue;
         }
-        if (!spawn.resource.local_coord.has_value())
-        {
-            continue;
-        }
-        const auto& [gx, gy] = *spawn.resource.local_coord;
+        const auto& position = spawn.position;
         details.resources.push_back(SceneNodeResource{
-            static_cast<float>(gx),
-            static_cast<float>(gy),
-            spawn.resource.type});
+            position.x,
+            position.y,
+            spawn.type});
     }
 
     // Collect anchors pointing away from this node.
     for (const auto& edge : input.atlas->edges)
     {
-        if (edge.from.value == details.nodeId && edge.anchorFrom.has_value())
+        if (edge.from == details.nodeId && edge.anchorFrom.has_value())
         {
             details.anchors.push_back(SceneNodeAnchor{
                 edge.anchorFrom->x,
                 edge.anchorFrom->y,
-                edge.to.value});
+                edge.to});
         }
-        if (edge.to.value == details.nodeId && edge.anchorTo.has_value())
+        if (edge.to == details.nodeId && edge.anchorTo.has_value())
         {
             details.anchors.push_back(SceneNodeAnchor{
                 edge.anchorTo->x,
                 edge.anchorTo->y,
-                edge.from.value});
+                edge.from});
         }
     }
 
@@ -211,7 +189,7 @@ SceneNodeViewModel ScenePresenter::buildNodeViewModel(const ScenePresenterInput&
             details.portals.push_back(SceneNodePortal{
                 portal.anchor.x,
                 portal.anchor.y,
-                portal.to.value});
+                portal.to});
         }
         break;
     }
@@ -330,7 +308,7 @@ MonitorTelemetryViewModel MonitorPresenter::buildTelemetryViewModel(const Monito
     for (const auto& resource : telemetry.resources)
     {
         viewModel.resources.push_back(MonitorResourceViewModel{
-            resource.location.value,
+            resource.mapId,
             resource.name,
             resource.current,
             resource.capacity});

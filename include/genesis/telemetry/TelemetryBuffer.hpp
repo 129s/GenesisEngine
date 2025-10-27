@@ -19,6 +19,7 @@ struct ResourceSnapshot {
     std::uint32_t interactionId{0};
     std::uint32_t mapId{0};
     std::string name;
+    genesis::world::ResourceType type{genesis::world::ResourceType::Food};
     std::uint32_t current{0};
     std::uint32_t capacity{0};
 };

@@ -1,8 +1,6 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
-#include "genesis/core/Engine.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
-#include <entt/entt.hpp>
 #include "genesis/agents/Movement2D.hpp"
 
 #include <algorithm>
@@ -11,6 +9,7 @@
 #include <climits>
 #include <fstream>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -278,7 +277,11 @@ genesis::world::WorldDbLoadResult RuntimeBridge::loadWorld(const std::filesystem
     auto result = runtime_.loadWorldFromFile(path);
     if (result.success)
     {
-        atlas_ = buildWorldAtlas(runtime_.engine());
+        if (auto db = runtime_.worldDatabase()) {
+            atlas_ = buildWorldAtlas(*db);
+        } else {
+            atlas_ = {};
+        }
         std::lock_guard snapshotLock(snapshotMutex_);
         snapshots_.clear();
     }
@@ -759,24 +762,25 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.label = "agent.create2d";
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
-                    auto& reg = runtime.engine().registry();
-                    auto e = reg.create();
                     genesis::agents::components::AgentLocation2D loc{};
                     loc.mapId = command.value("mapId", 1U);
                     loc.x = command.value("x", 0.0f);
                     loc.y = command.value("y", 0.0f);
-                    reg.emplace<genesis::agents::components::AgentLocation2D>(e, loc);
-                    if (command.contains("move") && command["move"].is_object()) {
-                        const auto& mv = command["move"];
-                        genesis::agents::components::MovementIntent2D intent{};
-                        intent.targetMapId = mv.value("mapId", loc.mapId);
-                        intent.targetX = mv.value("x", loc.x);
-                        intent.targetY = mv.value("y", loc.y);
-                        intent.speed = mv.value("speed", 1.0f);
-                        reg.emplace<genesis::agents::components::MovementIntent2D>(e, intent);
+
+                    std::optional<genesis::agents::components::MovementIntent2D> intent;
+                    if (command.contains("move") && command.at("move").is_object()) {
+                        const auto& mv = command.at("move");
+                        genesis::agents::components::MovementIntent2D move{};
+                        move.targetMapId = mv.value("mapId", loc.mapId);
+                        move.targetX = mv.value("x", loc.x);
+                        move.targetY = mv.value("y", loc.y);
+                        move.speed = mv.value("speed", 1.0f);
+                        intent = move;
                     }
+
+                    const auto entityId = runtime.createAgent2D(loc, intent);
                     success = true;
-                    message = std::string("created entity ") + std::to_string(static_cast<std::uint32_t>(entt::to_integral(e)));
+                    message = std::string("created entity ") + std::to_string(entityId);
                 };
                 auto rid = runtime_.enqueueEvent(std::move(ev));
                 (void)rid;
@@ -814,18 +818,20 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.label = "agent.move2d";
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
-                    auto& reg = runtime.engine().registry();
-                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
-                    if (!reg.valid(entId)) { throw std::runtime_error("entity not found"); }
+                    const auto entId = command.at("entityId").get<std::uint32_t>();
+                    auto currentLoc = runtime.agentLocation(entId);
+                    if (!currentLoc) {
+                        throw std::runtime_error("entity not found");
+                    }
+
                     genesis::agents::components::MovementIntent2D intent{};
-                    intent.targetMapId = command.value("mapId", reg.get<genesis::agents::components::AgentLocation2D>(entId).mapId);
-                    intent.targetX = command.value("x", 0.0f);
-                    intent.targetY = command.value("y", 0.0f);
+                    intent.targetMapId = command.value("mapId", currentLoc->mapId);
+                    intent.targetX = command.value("x", currentLoc->x);
+                    intent.targetY = command.value("y", currentLoc->y);
                     intent.speed = command.value("speed", 1.0f);
-                    if (auto* existing = reg.try_get<genesis::agents::components::MovementIntent2D>(entId)) {
-                        *existing = intent;
-                    } else {
-                        reg.emplace<genesis::agents::components::MovementIntent2D>(entId, intent);
+
+                    if (!runtime.setAgentMovementIntent(entId, intent)) {
+                        throw std::runtime_error("failed to set movement intent");
                     }
                     success = true;
                     message = "move intent set";
@@ -865,10 +871,10 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.label = "agent.delete2d";
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
-                    auto& reg = runtime.engine().registry();
-                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
-                    if (!reg.valid(entId)) throw std::runtime_error("entity not found");
-                    reg.destroy(entId);
+                    const auto entId = command.at("entityId").get<std::uint32_t>();
+                    if (!runtime.deleteAgent(entId)) {
+                        throw std::runtime_error("entity not found");
+                    }
                     success = true; message = "deleted";
                 };
                 (void)runtime_.enqueueEvent(std::move(ev));
@@ -908,7 +914,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.label = "resource.consume";
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [interId, amount, &success, &message](genesis::runtime::Runtime& runtime) {
-                    const auto taken = runtime.engine().consumeResource(interId, amount);
+                    const auto taken = runtime.consumeResource(interId, amount);
                     success = (taken > 0);
                     message = std::string("consumed ") + std::to_string(taken) + "/" + std::to_string(amount);
                 };
@@ -1002,12 +1008,11 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.label = "agent.stop2d";
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime){
-                    auto& reg = runtime.engine().registry();
-                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
-                    if (!reg.valid(entId)) throw std::runtime_error("entity not found");
-                    if (reg.any_of<genesis::agents::components::MovementIntent2D>(entId)) {
-                        reg.remove<genesis::agents::components::MovementIntent2D>(entId);
+                    const auto entId = command.at("entityId").get<std::uint32_t>();
+                    if (!runtime.agentExists(entId)) {
+                        throw std::runtime_error("entity not found");
                     }
+                    runtime.stopAgentMovement(entId);
                     success = true; message = "stopped";
                 };
                 (void)runtime_.enqueueEvent(std::move(ev));
@@ -1041,15 +1046,19 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.label = "agent.teleport2d";
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime){
-                    auto& reg = runtime.engine().registry();
-                    const auto entId = static_cast<entt::entity>(command.at("entityId").get<std::uint32_t>());
-                    if (!reg.valid(entId)) throw std::runtime_error("entity not found");
-                    auto& loc = reg.get_or_emplace<genesis::agents::components::AgentLocation2D>(entId);
-                    loc.mapId = command.value("mapId", loc.mapId);
-                    loc.x = command.value("x", loc.x);
-                    loc.y = command.value("y", loc.y);
-                    if (reg.any_of<genesis::agents::components::MovementIntent2D>(entId)) {
-                        reg.remove<genesis::agents::components::MovementIntent2D>(entId);
+                    const auto entId = command.at("entityId").get<std::uint32_t>();
+                    auto current = runtime.agentLocation(entId);
+                    if (!current) {
+                        throw std::runtime_error("entity not found");
+                    }
+
+                    genesis::agents::components::AgentLocation2D target = *current;
+                    target.mapId = command.value("mapId", target.mapId);
+                    target.x = command.value("x", target.x);
+                    target.y = command.value("y", target.y);
+
+                    if (!runtime.teleportAgent(entId, target)) {
+                        throw std::runtime_error("teleport failed");
                     }
                     success = true; message = "teleported";
                 };
@@ -1402,11 +1411,6 @@ void RuntimeBridge::captureSnapshot()
     {
         snapshots_.pop_front();
     }
-}
-
-RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::core::Engine&) {
-    // 旧路径已废弃：返回空 Atlas，由 GUI 判断是否可渲染
-    return {};
 }
 
 } // namespace Genesis::Sandbox::Gui

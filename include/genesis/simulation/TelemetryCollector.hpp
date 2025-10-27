@@ -2,11 +2,11 @@
 
 #include <cstdint>
 #include <entt/entt.hpp>
-#include <memory>
+#include <vector>
 
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 namespace genesis { namespace world { class WorldDatabase; } }
-namespace genesis { namespace simulation { class ResourceSystem2D; } }
+namespace genesis { namespace world { namespace system { class ResourceSystem; } } }
 
 namespace genesis::simulation {
 
@@ -14,7 +14,7 @@ class TelemetryCollector {
 public:
     telemetry::TickTelemetry collect(entt::registry& registry,
                                      const genesis::world::WorldDatabase* db,
-                                     const genesis::simulation::ResourceSystem2D* resources,
+                                     const std::vector<telemetry::ResourceSnapshot>& resources,
                                      std::uint64_t stepIndex,
                                      float stepSeconds) const;
 };

@@ -132,6 +132,39 @@ std::shared_ptr<genesis::world::WorldDatabase> Runtime::worldDatabase() const no
     return m_engine.worldDatabase();
 }
 
+std::uint32_t Runtime::createAgent2D(const genesis::agents::components::AgentLocation2D& location,
+                                     const std::optional<genesis::agents::components::MovementIntent2D>& intent) {
+    return m_engine.createAgent2D(location, intent);
+}
+
+bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent) {
+    return m_engine.setAgentMovementIntent(entityId, intent);
+}
+
+bool Runtime::stopAgentMovement(std::uint32_t entityId) {
+    return m_engine.clearAgentMovementIntent(entityId);
+}
+
+bool Runtime::teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target) {
+    return m_engine.teleportAgent(entityId, target);
+}
+
+bool Runtime::deleteAgent(std::uint32_t entityId) {
+    return m_engine.deleteAgent(entityId);
+}
+
+std::uint32_t Runtime::consumeResource(std::uint32_t interactionId, std::uint32_t amount) {
+    return m_engine.consumeResource(interactionId, amount);
+}
+
+bool Runtime::agentExists(std::uint32_t entityId) const {
+    return m_engine.agentExists(entityId);
+}
+
+std::optional<genesis::agents::components::AgentLocation2D> Runtime::agentLocation(std::uint32_t entityId) const {
+    return m_engine.queryAgentLocation(entityId);
+}
+
 void Runtime::drainPendingEvents() {
     std::queue<RuntimeEvent> local;
     {

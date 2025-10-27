@@ -9,6 +9,7 @@
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/world/WorldDatabase.hpp"
+#include "genesis/world/WorldTypes.hpp"
 
 namespace genesis::world {
 namespace system { class ResourceSystem; }

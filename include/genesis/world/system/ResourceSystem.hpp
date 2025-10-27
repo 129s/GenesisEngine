@@ -10,6 +10,8 @@
 #include "genesis/world/components/ResourceInventory.hpp"
 #include "genesis/world/components/ResourceSpawn.hpp"
 
+namespace genesis::simulation { class SimulationContext; }
+
 namespace genesis::world::system {
 
 class ResourceSystem {
@@ -23,6 +25,8 @@ public:
     std::uint32_t consume(entt::registry& registry, genesis::world::ResourceType type, std::uint32_t amount, genesis::world::InteractionId preferred);
 
 private:
+    friend class genesis::simulation::SimulationContext;
+
     WorldDatabase& m_db;
     genesis::messaging::EventBus& m_eventBus;
     std::vector<entt::entity> m_spawnEntities;

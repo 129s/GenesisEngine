@@ -18,6 +18,7 @@
 #include "genesis/runtime/RuntimeEvents.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
+#include "genesis/agents/Movement2D.hpp"
 
 namespace genesis { namespace world { class WorldDatabase; } }
 
@@ -66,11 +67,18 @@ public:
     [[nodiscard]] genesis::world::WorldDbLoadResult loadWorldFromFile(const std::filesystem::path& path);
     [[nodiscard]] genesis::world::WorldDbSaveResult saveWorldToFile(const std::filesystem::path& path) const;
 
-    [[nodiscard]] genesis::core::Engine& engine() noexcept { return m_engine; }
-    [[nodiscard]] const genesis::core::Engine& engine() const noexcept { return m_engine; }
     [[nodiscard]] std::shared_ptr<class genesis::world::WorldDatabase> worldDatabase() const noexcept;
 
     std::uint64_t enqueueEvent(RuntimeEvent event);
+    std::uint32_t createAgent2D(const genesis::agents::components::AgentLocation2D& location,
+                                const std::optional<genesis::agents::components::MovementIntent2D>& intent = std::nullopt);
+    bool setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent);
+    bool stopAgentMovement(std::uint32_t entityId);
+    bool teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target);
+    bool deleteAgent(std::uint32_t entityId);
+    std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount);
+    bool agentExists(std::uint32_t entityId) const;
+    std::optional<genesis::agents::components::AgentLocation2D> agentLocation(std::uint32_t entityId) const;
 
 private:
     void drainPendingEvents();

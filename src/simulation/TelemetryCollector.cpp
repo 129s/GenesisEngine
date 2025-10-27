@@ -2,13 +2,12 @@
 
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/world/WorldDatabase.hpp"
-#include "genesis/simulation/ResourceSystem2D.hpp"
 
 namespace genesis::simulation {
 
 telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
                                                      const genesis::world::WorldDatabase* db,
-                                                     const genesis::simulation::ResourceSystem2D* resources,
+                                                     const std::vector<telemetry::ResourceSnapshot>& resources,
                                                      std::uint64_t stepIndex,
                                                      float stepSeconds) const {
     telemetry::TickTelemetry tick{};
@@ -27,17 +26,16 @@ telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
     });
 
     // v2 资源采集
-    if (db && resources) {
-        for (const auto& [iid, state] : resources->states()) {
-            telemetry::ResourceSnapshot r{};
-            r.interactionId = iid;
-            r.current = state.current;
-            r.capacity = state.capacity;
-            if (auto inter = db->findInteraction(iid)) {
-                r.name = inter->name;
-                r.mapId = inter->mapId;
+    if (!resources.empty()) {
+        tick.resources.reserve(resources.size());
+        for (auto resource : resources) {
+            if (db && resource.mapId == 0) {
+                if (auto inter = db->findInteraction(resource.interactionId)) {
+                    resource.name = inter->name;
+                    resource.mapId = inter->mapId;
+                }
             }
-            tick.resources.push_back(std::move(r));
+            tick.resources.push_back(std::move(resource));
         }
     }
 

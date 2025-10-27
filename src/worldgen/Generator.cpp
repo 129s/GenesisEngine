@@ -11,7 +11,6 @@
 
 #include <cstdint>
 #include "genesis/worldgen/LayoutModule.hpp"
-#include "genesis/worldgen/TilemapModule.hpp"
 #include "genesis/worldgen/TopologyModule.hpp"
 #include "genesis/worldgen/ValidationModule.hpp"
 

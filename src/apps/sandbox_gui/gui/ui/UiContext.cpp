@@ -3,7 +3,7 @@
 #include "sandbox/gui/AppHost.hpp"
 #include "sandbox/gui/controller/WorldCommandController.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 void UiContext::pushToast(const std::string& text, const ImVec4& color, double lifetime_sec)
@@ -26,4 +26,4 @@ void UiContext::updateWorldCommandStatuses(const std::vector<RuntimeBridge::Comm
     world_commands.refreshStatuses(commands);
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

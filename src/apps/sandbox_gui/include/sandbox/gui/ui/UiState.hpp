@@ -14,7 +14,7 @@
 
 #include "sandbox/gui/RuntimeBridge.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 class ImGuiLogSink;
@@ -154,4 +154,4 @@ struct UiState
     std::uint32_t resource_consume_amount{1};
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

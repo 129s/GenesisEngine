@@ -28,7 +28,7 @@ int main(int argc, char** argv)
     spdlog::set_pattern("%H:%M:%S %^%l%$ [%n] %v");
     spdlog::set_level(spdlog::level::info);
 
-    Genesis::Sandbox::Gui::AppHost app;
+    genesis::sandbox::gui::AppHost app;
     spdlog::info("Starting Genesis Sandbox GUI…");
 
     try

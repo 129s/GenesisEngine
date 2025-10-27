@@ -24,7 +24,7 @@
 
 struct GLFWwindow;
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 struct AppHostConfig
@@ -95,4 +95,4 @@ private:
 
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

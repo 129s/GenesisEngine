@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 void UiState::pushToast(const std::string& text, const ImVec4& color, double lifetime_sec)
@@ -28,4 +28,4 @@ void UiState::pruneExpiredToasts(double now)
     }
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

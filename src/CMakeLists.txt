@@ -266,8 +266,7 @@ add_library(Genesis::RuntimeSnapshot ALIAS genesis_runtime_snapshot)
 target_link_libraries(genesis_runtime_snapshot INTERFACE Genesis::Runtime)
 
 if (GENESIS_BUILD_GUI)
-    add_executable(genesis_sandbox_gui
-        apps/sandbox_gui/Main.cpp
+    set(GENESIS_SANDBOX_GUI_SOURCES
         apps/sandbox_gui/gui/AppHostCore.cpp
         apps/sandbox_gui/gui/AppHostLayout.cpp
         apps/sandbox_gui/gui/AppHostPanelWorld.cpp
@@ -281,20 +280,26 @@ if (GENESIS_BUILD_GUI)
         apps/sandbox_gui/gui/ui/ControlBarView.cpp
         apps/sandbox_gui/gui/ui/BrowserView.cpp
         apps/sandbox_gui/gui/ui/MainView.cpp
+        apps/sandbox_gui/gui/ui/MainViewScene.cpp
         apps/sandbox_gui/gui/ui/LayoutHelpers.cpp
         apps/sandbox_gui/gui/RuntimeBridge.cpp
+        apps/sandbox_gui/gui/RuntimeBridgeAtlas.cpp
+        apps/sandbox_gui/gui/RuntimeBridgeCommands.cpp
     )
 
-    target_include_directories(genesis_sandbox_gui
+    add_library(genesis_sandbox_gui_lib STATIC ${GENESIS_SANDBOX_GUI_SOURCES})
+    add_library(Genesis::SandboxGui ALIAS genesis_sandbox_gui_lib)
+
+    target_include_directories(genesis_sandbox_gui_lib
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/apps/sandbox_gui/include
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/../include
-            ${CMAKE_CURRENT_SOURCE_DIR}/apps/sandbox_gui/include
             ${CMAKE_CURRENT_SOURCE_DIR}/apps/sandbox_gui
     )
 
-    target_link_libraries(genesis_sandbox_gui
-        PRIVATE
-            #Genesis::Style
+    target_link_libraries(genesis_sandbox_gui_lib
+        PUBLIC
             Genesis::Runtime
             Genesis::WorldModel
             Genesis::Rendering
@@ -304,11 +309,20 @@ if (GENESIS_BUILD_GUI)
     )
 
     if(WIN32)
-        target_link_libraries(genesis_sandbox_gui PRIVATE opengl32)
+        target_link_libraries(genesis_sandbox_gui_lib PUBLIC opengl32)
     else()
         find_package(OpenGL REQUIRED)
-        target_link_libraries(genesis_sandbox_gui PRIVATE OpenGL::GL)
+        target_link_libraries(genesis_sandbox_gui_lib PUBLIC OpenGL::GL)
     endif()
+
+    add_executable(genesis_sandbox_gui
+        apps/sandbox_gui/Main.cpp
+    )
+
+    target_link_libraries(genesis_sandbox_gui
+        PRIVATE
+            Genesis::SandboxGui
+    )
 
     set_target_properties(genesis_sandbox_gui PROPERTIES
         OUTPUT_NAME "genesis-sandbox-gui"

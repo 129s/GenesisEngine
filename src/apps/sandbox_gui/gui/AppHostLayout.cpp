@@ -4,7 +4,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 void AppHost::drawDockspace()
@@ -100,4 +100,4 @@ void AppHost::drawOuterFrame()
     drawList->AddRectFilled(ImVec2(right - thickness, top), ImVec2(right, bottom), borderColor);
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

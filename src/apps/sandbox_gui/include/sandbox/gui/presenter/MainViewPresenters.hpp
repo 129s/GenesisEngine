@@ -9,7 +9,7 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
 #include "sandbox/gui/ui/UiState.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 struct ScenePresenterInput
@@ -201,4 +201,4 @@ public:
     [[nodiscard]] MonitorTelemetryViewModel buildTelemetryViewModel(const MonitorPresenterInput& input) const;
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

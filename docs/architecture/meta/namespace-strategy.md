@@ -3,13 +3,13 @@
 > 目标：明确 GenesisEngine 代码库的命名空间标准，为后续逐步迁移提供依据。
 
 ## 现状与问题
-- 核心模块沿用小写 `genesis::core / genesis::worldgen / genesis::runtime`，而新引入的 Sandbox GUI、Style 子系统采用首字母大写 `Genesis::Sandbox::Gui / Genesis::Style`。
+- 核心模块沿用小写 `genesis::core / genesis::worldgen / genesis::runtime`，Sandbox GUI 也已调整为 `genesis::sandbox::gui`，而 Style 子系统仍保持首字母大写的 `Genesis::Style`，不同约定并存。
 - 调用方在不同模块间切换时需要频繁添加双重 `namespace` 别名，降低可读性并增加出错概率。
 - 文档与示例代码在引用命名空间时缺乏一致标准，阻碍团队对外输出和未来重构。
 
 ## 统一规范
 - 采用首字母大写的 `Genesis::` 作为唯一根命名空间。
-- 一级子命名空间遵循 PascalCase，例如 `Genesis::Core`、`Genesis::World`、`Genesis::Runtime`、`Genesis::Sandbox::Gui`。
+- 一级子命名空间遵循 PascalCase，例如 `Genesis::Core`、`Genesis::World`、`Genesis::Runtime`，当前已调整为小写的 `genesis::sandbox::gui` 将在最终阶段迁移至 `Genesis::Sandbox::Gui`。
 - 测试、工具与脚本若需要引用内部实现，可在测试专用命名空间下使用 `Genesis::Testing` 等派生名称，避免污染顶层结构。
 - 对于仍位于 `genesis::` 小写命名空间的模块，后续将通过代码迁移将其重命名至对应的 PascalCase 形式。
 
@@ -28,7 +28,7 @@
 - `genesis::runtime`
 - `genesis::messaging`
 
-> 以上模块均需迁移至 `Genesis::` 前缀，并与现有 `Genesis::Style`、`Genesis::Sandbox::Gui` 保持一致。
+> 以上模块均需迁移至 `Genesis::` 前缀，并与现有 `Genesis::Style`、`genesis::sandbox::gui` 的最新状态保持一致。
 
 ## 配套行动
 - 在后续重构任务中，创建针对命名空间迁移的专题分支，避免与其他功能改动交叉。

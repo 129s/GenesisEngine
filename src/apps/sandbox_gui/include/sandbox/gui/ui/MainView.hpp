@@ -6,7 +6,7 @@
 
 #include <optional>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 struct SceneViewportRenderState
@@ -55,4 +55,4 @@ public:
     void render(UiContext& ctx, const std::optional<SceneViewportRenderState>& viewportState);
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

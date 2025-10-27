@@ -6,7 +6,7 @@
 
 #include "FilesystemHelpers.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 void AppHost::resetSceneForNewWorld()
 {
@@ -68,4 +68,4 @@ void AppHost::refreshDefaultWorldgenConfig()
     std::snprintf(ui_state_.world_save_buffer.data(), ui_state_.world_save_buffer.size(), "%s", outputText.c_str());
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

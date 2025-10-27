@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 inline std::filesystem::path locateAsset(const std::filesystem::path& relative)
@@ -53,5 +53,5 @@ inline std::filesystem::path locateCjkFont()
     return {};
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui
 

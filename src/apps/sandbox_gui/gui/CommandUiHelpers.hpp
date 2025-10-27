@@ -7,7 +7,7 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 inline const char* commandStateLabel(RuntimeBridge::CommandState state)
@@ -50,4 +50,4 @@ inline std::string commandStateSummary(const RuntimeBridge::CommandProgress& com
     return summary;
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

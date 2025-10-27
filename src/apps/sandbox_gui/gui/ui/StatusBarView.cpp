@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 void StatusBarView::render(UiContext& ctx)
@@ -44,4 +44,4 @@ void StatusBarView::render(UiContext& ctx)
     }
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

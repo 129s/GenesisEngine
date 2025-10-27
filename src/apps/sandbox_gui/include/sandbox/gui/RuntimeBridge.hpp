@@ -25,7 +25,7 @@
 // 前置声明：新世界数据库接口（避免在头文件中包含加载器实现）
 namespace genesis { namespace world { class WorldDatabase; } }
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
     class RuntimeBridge
@@ -238,4 +238,4 @@ namespace Genesis::Sandbox::Gui
     std::optional<std::uint64_t> enqueueWorldSaveCommand(const nlohmann::json& descriptor, std::string source, std::string& errorMessage);
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

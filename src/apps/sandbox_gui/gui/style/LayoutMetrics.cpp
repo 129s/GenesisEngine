@@ -5,7 +5,7 @@
 
 #include <cmath>
 
-namespace Genesis::Sandbox::Gui::Style::Layout
+namespace genesis::sandbox::gui::Style::Layout
 {
 
 CardLayoutConfig detailCard()
@@ -108,4 +108,4 @@ BarScope::~BarScope()
     ImGui::PopStyleVar(styleCount_);
 }
 
-} // namespace Genesis::Sandbox::Gui::Style::Layout
+} // namespace genesis::sandbox::gui::Style::Layout

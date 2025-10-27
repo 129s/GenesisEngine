@@ -5,7 +5,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
-namespace Genesis::Sandbox::Gui::Ui
+namespace genesis::sandbox::gui::Ui
 {
 
 void applyClickableCursor(bool hovered)
@@ -80,4 +80,4 @@ void drawDockAnchorOverlay(const char* id_suffix, bool layout_mode_enabled)
     ImGui::SetCursorScreenPos(original_cursor);
 }
 
-} // namespace Genesis::Sandbox::Gui::Ui
+} // namespace genesis::sandbox::gui::Ui

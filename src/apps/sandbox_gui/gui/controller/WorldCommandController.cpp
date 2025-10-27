@@ -5,7 +5,7 @@
 
 #include "../CommandUiHelpers.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 WorldCommandController::WorldCommandController(UiState& state,
@@ -100,4 +100,4 @@ void WorldCommandController::refreshStatuses(const std::vector<RuntimeBridge::Co
     });
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

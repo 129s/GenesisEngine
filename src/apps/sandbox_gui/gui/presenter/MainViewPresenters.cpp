@@ -6,7 +6,7 @@
 
 #include "../CommandUiHelpers.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 SceneMapViewModel ScenePresenter::buildMapViewModel(const ScenePresenterInput& input) const
@@ -317,4 +317,4 @@ MonitorTelemetryViewModel MonitorPresenter::buildTelemetryViewModel(const Monito
     return viewModel;
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

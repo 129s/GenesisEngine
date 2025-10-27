@@ -6,7 +6,7 @@
 #include "sandbox/gui/RuntimeBridge.hpp"
 #include "sandbox/gui/ui/UiState.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 class WorldCommandController
@@ -30,5 +30,5 @@ private:
     ResetSceneFn reset_scene_fn_;
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui
 

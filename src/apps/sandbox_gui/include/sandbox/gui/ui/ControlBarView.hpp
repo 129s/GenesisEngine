@@ -2,7 +2,7 @@
 
 #include "sandbox/gui/ui/UiContext.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 class ControlBarView
@@ -11,4 +11,4 @@ public:
     void render(UiContext& ctx);
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

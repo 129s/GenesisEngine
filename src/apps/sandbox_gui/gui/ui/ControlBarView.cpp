@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 namespace
 {
@@ -158,4 +158,4 @@ void ControlBarView::render(UiContext& ctx)
     }
 }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

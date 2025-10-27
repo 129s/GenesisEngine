@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 
-namespace Genesis::Sandbox::Gui::Ui
+namespace genesis::sandbox::gui::Ui
 {
 
 // 在布局模式下为当前窗口绘制可拖拽的停靠锚点。
@@ -11,4 +11,4 @@ void drawDockAnchorOverlay(const char* id_suffix, bool layout_mode_enabled);
 void applyClickableCursor(bool hovered);
 void applyClickableCursorToLastItem(ImGuiHoveredFlags flags = ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
 
-} // namespace Genesis::Sandbox::Gui::Ui
+} // namespace genesis::sandbox::gui::Ui

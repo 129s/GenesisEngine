@@ -5,7 +5,7 @@
 
 #include "sandbox/gui/ui/UiState.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 class AppHost;
@@ -28,4 +28,4 @@ struct UiContext
     void updateWorldCommandStatuses(const std::vector<RuntimeBridge::CommandProgress>& commands);
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

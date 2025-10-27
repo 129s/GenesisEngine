@@ -21,7 +21,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 namespace
 {
@@ -672,4 +672,4 @@ void BrowserView::render(UiContext& ctx)
 
     ImGui::End();
 }
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

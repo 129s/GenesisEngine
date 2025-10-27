@@ -33,7 +33,7 @@
 #include "ImGuiLogSink.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
     using json = nlohmann::json;
 
@@ -620,4 +620,4 @@ namespace Genesis::Sandbox::Gui
         }
     }
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui

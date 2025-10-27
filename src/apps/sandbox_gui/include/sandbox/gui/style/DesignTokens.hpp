@@ -4,7 +4,7 @@
 
 #include <imgui.h>
 
-namespace Genesis::Sandbox::Gui::Style
+namespace genesis::sandbox::gui::Style
 {
 
 enum class ColorToken : std::size_t
@@ -62,4 +62,4 @@ struct DesignTokens
     static constexpr float scrollbarSize() { return 8.0f; }
 };
 
-} // namespace Genesis::Sandbox::Gui::Style
+} // namespace genesis::sandbox::gui::Style

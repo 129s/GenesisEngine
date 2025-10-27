@@ -28,27 +28,27 @@ endif()
 
 ## v2 重构：暂时移除旧引擎/运行时测试
 
-add_executable(genesis_sandbox_gui_tests
-    test_sandbox_gui_presenters.cpp
-    ../src/apps/sandbox_gui/gui/presenter/MainViewPresenters.cpp
-)
+if(GENESIS_BUILD_GUI)
+    add_executable(genesis_sandbox_gui_tests
+        test_sandbox_gui_presenters.cpp
+    )
 
-target_include_directories(genesis_sandbox_gui_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/src/apps/sandbox_gui/include
-        ${CMAKE_SOURCE_DIR}/src/apps/sandbox_gui
-        ${CMAKE_SOURCE_DIR}/src
-)
+    target_include_directories(genesis_sandbox_gui_tests
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}/src/apps/sandbox_gui/include
+            ${CMAKE_SOURCE_DIR}/src/apps/sandbox_gui
+            ${CMAKE_SOURCE_DIR}/src
+    )
 
-target_link_libraries(genesis_sandbox_gui_tests
-    PRIVATE
-        GTest::gtest_main
-        imgui::imgui
-        tomlplusplus::tomlplusplus
-)
+    target_link_libraries(genesis_sandbox_gui_tests
+        PRIVATE
+            GTest::gtest_main
+            Genesis::SandboxGui
+    )
 
-gtest_discover_tests(genesis_sandbox_gui_tests)
+    gtest_discover_tests(genesis_sandbox_gui_tests)
+endif()
 
 ## 同步移除依赖运行时/引擎可执行的 E2E 测试
 

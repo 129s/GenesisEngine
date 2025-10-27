@@ -10,7 +10,7 @@
 #include <optional>
 #include <string_view>
 
-namespace Genesis::Sandbox::Gui::Style
+namespace genesis::sandbox::gui::Style
 {
 namespace
 {
@@ -202,5 +202,5 @@ float DesignTokens::spacing(SpacingToken token)
     return kSpacing[static_cast<std::size_t>(token)];
 }
 
-} // namespace Genesis::Sandbox::Gui::Style
+} // namespace genesis::sandbox::gui::Style
 

@@ -8,7 +8,7 @@
 
 #include <spdlog/sinks/base_sink.h>
 
-namespace Genesis::Sandbox::Gui
+namespace genesis::sandbox::gui
 {
 
 // Custom sink that buffers log lines for in-app display.
@@ -51,5 +51,5 @@ private:
     std::deque<std::string> entries_;
 };
 
-} // namespace Genesis::Sandbox::Gui
+} // namespace genesis::sandbox::gui
 

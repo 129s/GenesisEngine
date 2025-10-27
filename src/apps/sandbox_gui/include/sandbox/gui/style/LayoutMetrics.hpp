@@ -4,7 +4,7 @@
 
 #include <imgui.h>
 
-namespace Genesis::Sandbox::Gui::Style::Layout
+namespace genesis::sandbox::gui::Style::Layout
 {
 
 struct CardLayoutConfig
@@ -100,4 +100,4 @@ private:
     int styleCount_{0};
 };
 
-} // namespace Genesis::Sandbox::Gui::Style::Layout
+} // namespace genesis::sandbox::gui::Style::Layout

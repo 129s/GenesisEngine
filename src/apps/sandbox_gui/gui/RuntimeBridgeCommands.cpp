@@ -442,23 +442,22 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.label = "agent.create2d";
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
-                    genesis::agents::components::AgentLocation2D loc{};
-                    loc.mapId = command.value("mapId", 1U);
-                    loc.x = command.value("x", 0.0f);
-                    loc.y = command.value("y", 0.0f);
+                    genesis::simulation::AgentSpawnParams2D params{};
+                    params.location.mapId = command.value("mapId", 1U);
+                    params.location.x = command.value("x", 0.0f);
+                    params.location.y = command.value("y", 0.0f);
 
-                    std::optional<genesis::agents::components::MovementIntent2D> intent;
                     if (command.contains("move") && command.at("move").is_object()) {
                         const auto& mv = command.at("move");
-                        genesis::agents::components::MovementIntent2D move{};
-                        move.targetMapId = mv.value("mapId", loc.mapId);
-                        move.targetX = mv.value("x", loc.x);
-                        move.targetY = mv.value("y", loc.y);
+                        genesis::simulation::MovementCommand2D move{};
+                        move.targetMapId = mv.value("mapId", params.location.mapId);
+                        move.targetX = mv.value("x", params.location.x);
+                        move.targetY = mv.value("y", params.location.y);
                         move.speed = mv.value("speed", 1.0f);
-                        intent = move;
+                        params.initialMovement = move;
                     }
 
-                    const auto entityId = runtime.createAgent2D(loc, intent);
+                    const auto entityId = runtime.createAgent(params);
                     success = true;
                     message = std::string("created entity ") + std::to_string(entityId);
                 };
@@ -499,18 +498,18 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
                     const auto entId = command.at("entityId").get<std::uint32_t>();
-                    auto currentLoc = runtime.agentLocation(entId);
-                    if (!currentLoc) {
+                    auto currentPose = runtime.agentPose(entId);
+                    if (!currentPose) {
                         throw std::runtime_error("entity not found");
                     }
 
-                    genesis::agents::components::MovementIntent2D intent{};
-                    intent.targetMapId = command.value("mapId", currentLoc->mapId);
-                    intent.targetX = command.value("x", currentLoc->x);
-                    intent.targetY = command.value("y", currentLoc->y);
-                    intent.speed = command.value("speed", 1.0f);
+                    genesis::simulation::MovementCommand2D move{};
+                    move.targetMapId = command.value("mapId", currentPose->mapId);
+                    move.targetX = command.value("x", currentPose->x);
+                    move.targetY = command.value("y", currentPose->y);
+                    move.speed = command.value("speed", 1.0f);
 
-                    if (!runtime.setAgentMovementIntent(entId, intent)) {
+                    if (!runtime.setAgentMovementIntent(entId, move)) {
                         throw std::runtime_error("failed to set movement intent");
                     }
                     success = true;
@@ -727,12 +726,12 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                 ev.payloadJson = command.dump();
                 ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime){
                     const auto entId = command.at("entityId").get<std::uint32_t>();
-                    auto current = runtime.agentLocation(entId);
+                    auto current = runtime.agentPose(entId);
                     if (!current) {
                         throw std::runtime_error("entity not found");
                     }
 
-                    genesis::agents::components::AgentLocation2D target = *current;
+                    genesis::simulation::AgentPose2D target = *current;
                     target.mapId = command.value("mapId", target.mapId);
                     target.x = command.value("x", target.x);
                     target.y = command.value("y", target.y);

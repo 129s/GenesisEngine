@@ -1,29 +1,24 @@
 #include "genesis/simulation/TelemetryCollector.hpp"
 
-#include "genesis/agents/Movement2D.hpp"
 #include "genesis/world/WorldDatabase.hpp"
 
 namespace genesis::simulation {
 
-telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
+telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::AgentSnapshot> agents,
                                                      const genesis::world::WorldDatabase* db,
-                                                     const std::vector<telemetry::ResourceSnapshot>& resources,
+                                                     std::span<const telemetry::ResourceSnapshot> resources,
                                                      std::uint64_t stepIndex,
                                                      float stepSeconds) const {
     telemetry::TickTelemetry tick{};
     tick.step = stepIndex;
     tick.stepSeconds = stepSeconds;
 
-    auto agentView = registry.view<genesis::agents::components::AgentLocation2D>();
-    agentView.each([&](auto entity, const genesis::agents::components::AgentLocation2D& loc) {
-        telemetry::AgentSnapshot snapshot{};
-        snapshot.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
-        snapshot.name = "Agent";
-        snapshot.mapId = loc.mapId;
-        snapshot.position.x = loc.x;
-        snapshot.position.y = loc.y;
-        tick.agents.push_back(std::move(snapshot));
-    });
+    if (!agents.empty()) {
+        tick.agents.reserve(agents.size());
+        for (const auto& agent : agents) {
+            tick.agents.push_back(agent);
+        }
+    }
 
     if (!resources.empty()) {
         tick.resources.reserve(resources.size());
@@ -42,4 +37,3 @@ telemetry::TickTelemetry TelemetryCollector::collect(entt::registry& registry,
 }
 
 } // namespace genesis::simulation
-

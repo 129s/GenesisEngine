@@ -5,8 +5,6 @@
 #include <optional>
 #include <vector>
 
-#include <entt/entt.hpp>
-
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/simulation/AgentApi.hpp"
 #include "genesis/simulation/SimulationContext.hpp"
@@ -55,11 +53,9 @@ public:
     void spawnDemoAgentsIfEmpty();
 
 private:
-    [[nodiscard]] entt::entity toEntity(std::uint32_t id) const noexcept;
-
-    entt::registry m_registry;
     SimulationContext m_context;
     TelemetryCollector m_telemetryCollector;
+    std::vector<telemetry::AgentSnapshot> m_agentScratch;
     std::vector<telemetry::ResourceSnapshot> m_resourceScratch;
     std::shared_ptr<world::WorldDatabase> m_worldDb;
 };

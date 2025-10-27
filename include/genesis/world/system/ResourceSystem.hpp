@@ -10,8 +10,6 @@
 #include "genesis/world/components/ResourceInventory.hpp"
 #include "genesis/world/components/ResourceSpawn.hpp"
 
-namespace genesis::simulation { class SimulationContext; }
-
 namespace genesis::world::system {
 
 class ResourceSystem {
@@ -24,8 +22,22 @@ public:
 
     std::uint32_t consume(entt::registry& registry, genesis::world::ResourceType type, std::uint32_t amount, genesis::world::InteractionId preferred);
 
+    template <typename Fn>
+    void forEachSpawn(const entt::registry& registry, Fn&& fn) const {
+        if (!m_initialized) {
+            return;
+        }
+        for (const auto entity : m_spawnEntities) {
+            if (!registry.valid(entity)) {
+                continue;
+            }
+            const auto& inventory = registry.get<components::ResourceInventory>(entity);
+            const auto& spawn = registry.get<components::ResourceSpawn>(entity);
+            fn(spawn, inventory);
+        }
+    }
+
 private:
-    friend class genesis::simulation::SimulationContext;
 
     WorldDatabase& m_db;
     genesis::messaging::EventBus& m_eventBus;

@@ -4,10 +4,11 @@
 
 #include "genesis/core/Engine.hpp"
 #include "genesis/runtime/SimulationService.hpp"
+#include "genesis/simulation/Namespace.hpp"
 
 namespace Genesis::Runtime {
 
-namespace simulation = genesis::simulation;
+namespace simulation = Genesis::Simulation;
 namespace world = Genesis::World;
 
 

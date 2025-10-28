@@ -5,9 +5,11 @@
 #include <spdlog/spdlog.h>
 
 #include "genesis/world/WorldDatabaseLoader.hpp"
+#include "genesis/simulation/Namespace.hpp"
 
 namespace genesis::core {
 
+namespace simulation = Genesis::Simulation;
 namespace agent_components = Genesis::Agents::Components;
 
 Engine::Engine()

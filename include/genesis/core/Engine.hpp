@@ -11,6 +11,7 @@
 #include "genesis/agents/Namespace.hpp"
 #include "genesis/core/SimulationClock.hpp"
 #include "genesis/simulation/AgentApi.hpp"
+#include "genesis/simulation/Namespace.hpp"
 #include "genesis/simulation/SimulationHost.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 

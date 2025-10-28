@@ -18,4 +18,9 @@
 # Misc
 *.cache
 *.user
+
+# Agent
+/.claude
+/.serena
 AGENTS.md
+CLAUDE.md

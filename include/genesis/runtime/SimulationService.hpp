@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "genesis/simulation/AgentApi.hpp"
+#include "genesis/simulation/Namespace.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 
 namespace genesis::telemetry {
@@ -19,7 +20,7 @@ class WorldDatabase;
 
 namespace Genesis::Runtime {
 
-namespace simulation = genesis::simulation;
+namespace simulation = Genesis::Simulation;
 namespace telemetry = genesis::telemetry;
 namespace world = Genesis::World;
 

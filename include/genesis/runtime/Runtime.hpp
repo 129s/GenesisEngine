@@ -1,14 +1,11 @@
 #pragma once
 
-#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
-#include <queue>
 #include <string>
 #include <vector>
 
@@ -18,6 +15,7 @@
 #include "genesis/runtime/RuntimeEvents.hpp"
 #include "genesis/runtime/SimulationService.hpp"
 #include "genesis/simulation/AgentApi.hpp"
+#include "genesis/simulation/Namespace.hpp"
 #include "genesis/agents/Namespace.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
@@ -27,7 +25,7 @@ namespace genesis { namespace world { class WorldDatabase; } }
 
 namespace Genesis::Runtime {
 
-namespace simulation = genesis::simulation;
+namespace simulation = Genesis::Simulation;
 namespace telemetry = genesis::telemetry;
 namespace world = Genesis::World;
 
@@ -44,7 +42,7 @@ struct RuntimeConfig {
 class Runtime {
 public:
     explicit Runtime(RuntimeConfig config = {});
-    ~Runtime() = default;
+    ~Runtime();
 
     Runtime(const Runtime&) = delete;
     Runtime& operator=(const Runtime&) = delete;
@@ -56,7 +54,7 @@ public:
 
     [[nodiscard]] const SimulationSnapshot* latestSnapshot() const noexcept;
     [[nodiscard]] std::optional<SimulationSnapshotDiff> latestSnapshotDiff() const noexcept;
-    [[nodiscard]] const std::optional<std::uint64_t>& lastSeed() const noexcept { return m_lastSeed; }
+    [[nodiscard]] const std::optional<std::uint64_t>& lastSeed() const noexcept;
 
     struct WorldGenerationResult {
         bool success{false};
@@ -72,7 +70,7 @@ public:
 
     // 已弃用：占位返回失败，避免编译器/调用处大改
     WorldGenerationResult generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
-    [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept { return m_lastWorldGen; }
+    [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept;
 
     [[nodiscard]] world::WorldDbLoadResult loadWorldFromFile(const std::filesystem::path& path);
     [[nodiscard]] world::WorldDbSaveResult saveWorldToFile(const std::filesystem::path& path) const;
@@ -100,18 +98,8 @@ public:
     std::optional<Genesis::Agents::Components::AgentLocation2D> agentLocation(std::uint32_t entityId) const;
 
 private:
-    void drainPendingEvents();
-
-    RuntimeConfig m_config;
-    std::unique_ptr<SimulationService> m_simulation;
-    std::optional<std::uint64_t> m_lastSeed;
-    std::optional<WorldGenerationResult> m_lastWorldGen;
-    std::atomic<std::uint64_t> m_snapshotVersion{0};
-    SimulationSnapshotBuffer m_snapshotBuffer;
-    std::atomic<std::uint64_t> m_nextEventId{1};
-    mutable std::mutex m_eventMutex;
-    std::queue<RuntimeEvent> m_pendingEvents;
-    std::vector<RuntimeEventReport> m_eventsSinceLastSnapshot;
+    class Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
 std::unique_ptr<Runtime> createRuntime(RuntimeConfig config = {});

@@ -4,7 +4,10 @@
 #include <unordered_map>
 #include <utility>
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
+
+namespace telemetry = genesis::telemetry;
+
 namespace {
 
 template <typename T>
@@ -133,4 +136,4 @@ SimulationSnapshotDiff diffSnapshots(const SimulationSnapshot* base, const Simul
     return diff;
 }
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

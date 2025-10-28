@@ -21,7 +21,7 @@ constexpr std::string_view kSourceUI = "ui";
 using json = nlohmann::json;
 } // namespace
 
-std::uint64_t RuntimeBridge::enqueueRuntimeEvent(genesis::runtime::RuntimeEvent event, std::string source)
+std::uint64_t RuntimeBridge::enqueueRuntimeEvent(Genesis::Runtime::RuntimeEvent event, std::string source)
 {
     const auto enqueuedAt = std::chrono::steady_clock::now();
     const auto payload = event.payloadJson;
@@ -150,7 +150,7 @@ std::vector<RuntimeBridge::CommandProgress> RuntimeBridge::commandStatusSnapshot
     return snapshot;
 }
 
-std::uint64_t RuntimeBridge::recordPending(std::uint64_t id, genesis::runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt)
+std::uint64_t RuntimeBridge::recordPending(std::uint64_t id, Genesis::Runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt)
 {
     CommandProgress progress;
     progress.id = id;
@@ -196,7 +196,7 @@ void RuntimeBridge::completeCommand(std::uint64_t id, bool success, std::string 
         }
     }
 
-    genesis::runtime::RuntimeEventReport report{};
+    Genesis::Runtime::RuntimeEventReport report{};
     report.id = completed.id;
     report.kind = completed.kind;
     report.label = completed.label;
@@ -232,7 +232,7 @@ void RuntimeBridge::purgeFinishedTasks()
     }
 }
 
-void RuntimeBridge::reconcileCommands(const std::vector<genesis::runtime::RuntimeEventReport>& reports)
+void RuntimeBridge::reconcileCommands(const std::vector<Genesis::Runtime::RuntimeEventReport>& reports)
 {
     if (reports.empty())
     {
@@ -273,7 +273,7 @@ void RuntimeBridge::reconcileCommands(const std::vector<genesis::runtime::Runtim
     }
 }
 
-void RuntimeBridge::advanceSequencesFor(const std::vector<genesis::runtime::RuntimeEventReport>& reports)
+void RuntimeBridge::advanceSequencesFor(const std::vector<Genesis::Runtime::RuntimeEventReport>& reports)
 {
     if (reports.empty())
     {
@@ -431,17 +431,17 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"agent.create2d"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, command]() {
             bool success = false;
             std::string message;
             try {
-                genesis::runtime::RuntimeEvent ev;
-                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                Genesis::Runtime::RuntimeEvent ev;
+                ev.kind = Genesis::Runtime::RuntimeEventKind::Command;
                 ev.label = "agent.create2d";
                 ev.payloadJson = command.dump();
-                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
+                ev.simulationHandler = [command, &success, &message](Genesis::Runtime::SimulationService& simulation) {
                     genesis::simulation::AgentSpawnParams2D params{};
                     params.location.mapId = command.value("mapId", 1U);
                     params.location.x = command.value("x", 0.0f);
@@ -457,7 +457,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                         params.initialMovement = move;
                     }
 
-                    const auto entityId = runtime.createAgent(params);
+                    const auto entityId = simulation.createAgent(params);
                     success = true;
                     message = std::string("created entity ") + std::to_string(entityId);
                 };
@@ -486,19 +486,19 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"agent.move2d"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, command]() {
             bool success = false;
             std::string message;
             try {
-                genesis::runtime::RuntimeEvent ev;
-                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                Genesis::Runtime::RuntimeEvent ev;
+                ev.kind = Genesis::Runtime::RuntimeEventKind::Command;
                 ev.label = "agent.move2d";
                 ev.payloadJson = command.dump();
-                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
+                ev.simulationHandler = [command, &success, &message](Genesis::Runtime::SimulationService& simulation) {
                     const auto entId = command.at("entityId").get<std::uint32_t>();
-                    auto currentPose = runtime.agentPose(entId);
+                    auto currentPose = simulation.queryAgentPose(entId);
                     if (!currentPose) {
                         throw std::runtime_error("entity not found");
                     }
@@ -509,7 +509,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                     move.targetY = command.value("y", currentPose->y);
                     move.speed = command.value("speed", 1.0f);
 
-                    if (!runtime.setAgentMovementIntent(entId, move)) {
+                    if (!simulation.setAgentMovementIntent(entId, move)) {
                         throw std::runtime_error("failed to set movement intent");
                     }
                     success = true;
@@ -540,18 +540,18 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"agent.delete2d"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, command]() {
             bool success = false; std::string message;
             try {
-                genesis::runtime::RuntimeEvent ev;
-                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                Genesis::Runtime::RuntimeEvent ev;
+                ev.kind = Genesis::Runtime::RuntimeEventKind::Command;
                 ev.label = "agent.delete2d";
                 ev.payloadJson = command.dump();
-                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime) {
+                ev.simulationHandler = [command, &success, &message](Genesis::Runtime::SimulationService& simulation) {
                     const auto entId = command.at("entityId").get<std::uint32_t>();
-                    if (!runtime.deleteAgent(entId)) {
+                    if (!simulation.deleteAgent(entId)) {
                         throw std::runtime_error("entity not found");
                     }
                     success = true; message = "deleted";
@@ -581,19 +581,19 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"resource.consume"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, command]() {
             bool success = false; std::string message;
             try {
                 const auto interId = command.at("interactionId").get<std::uint32_t>();
                 const auto amount = command.at("amount").get<std::uint32_t>();
-                genesis::runtime::RuntimeEvent ev;
-                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                Genesis::Runtime::RuntimeEvent ev;
+                ev.kind = Genesis::Runtime::RuntimeEventKind::Command;
                 ev.label = "resource.consume";
                 ev.payloadJson = command.dump();
-                ev.runtimeHandler = [interId, amount, &success, &message](genesis::runtime::Runtime& runtime) {
-                    const auto taken = runtime.consumeResource(interId, amount);
+                ev.simulationHandler = [interId, amount, &success, &message](Genesis::Runtime::SimulationService& simulation) {
+                    const auto taken = simulation.consumeResource(interId, amount);
                     success = (taken > 0);
                     message = std::string("consumed ") + std::to_string(taken) + "/" + std::to_string(amount);
                 };
@@ -619,7 +619,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"world.db.save"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, folder]() {
             bool success = false; std::string message;
@@ -649,7 +649,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"world.db.reload"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, folder]() {
             bool success = false; std::string message;
@@ -677,21 +677,21 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"agent.stop2d"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, command]() {
             bool success = false; std::string message;
             try {
-                genesis::runtime::RuntimeEvent ev;
-                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                Genesis::Runtime::RuntimeEvent ev;
+                ev.kind = Genesis::Runtime::RuntimeEventKind::Command;
                 ev.label = "agent.stop2d";
                 ev.payloadJson = command.dump();
-                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime){
+                ev.simulationHandler = [command, &success, &message](Genesis::Runtime::SimulationService& simulation) {
                     const auto entId = command.at("entityId").get<std::uint32_t>();
-                    if (!runtime.agentExists(entId)) {
+                    if (!simulation.agentExists(entId)) {
                         throw std::runtime_error("entity not found");
                     }
-                    runtime.stopAgentMovement(entId);
+                    simulation.clearAgentMovementIntent(entId);
                     success = true; message = "stopped";
                 };
                 (void)runtime_.enqueueEvent(std::move(ev));
@@ -715,18 +715,18 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"agent.teleport2d"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, command]() {
             bool success = false; std::string message;
             try {
-                genesis::runtime::RuntimeEvent ev;
-                ev.kind = genesis::runtime::RuntimeEventKind::Command;
+                Genesis::Runtime::RuntimeEvent ev;
+                ev.kind = Genesis::Runtime::RuntimeEventKind::Command;
                 ev.label = "agent.teleport2d";
                 ev.payloadJson = command.dump();
-                ev.runtimeHandler = [command, &success, &message](genesis::runtime::Runtime& runtime){
+                ev.simulationHandler = [command, &success, &message](Genesis::Runtime::SimulationService& simulation) {
                     const auto entId = command.at("entityId").get<std::uint32_t>();
-                    auto current = runtime.agentPose(entId);
+                    auto current = simulation.queryAgentPose(entId);
                     if (!current) {
                         throw std::runtime_error("entity not found");
                     }
@@ -736,7 +736,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
                     target.x = command.value("x", target.x);
                     target.y = command.value("y", target.y);
 
-                    if (!runtime.teleportAgent(entId, target)) {
+                    if (!simulation.teleportAgent(entId, target)) {
                         throw std::runtime_error("teleport failed");
                     }
                     success = true; message = "teleported";
@@ -766,7 +766,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
         const auto payload = command.dump();
         const auto label = command.value("label", std::string{"world.db.load"});
         const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
 
         purgeFinishedTasks();
         auto task = std::async(std::launch::async, [this, id, folder]() {
@@ -848,7 +848,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
     const auto payload = descriptor.dump();
     const auto label = descriptor.value("label", std::string{"world.generate"});
     const auto enqueuedAt = std::chrono::steady_clock::now();
-    const auto id = recordPending(nextManualCommandId_.fetch_add(1), genesis::runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
+    const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
 
     purgeFinishedTasks();
 
@@ -912,11 +912,11 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldReloadCommand(const json
 
     auto feedback = std::make_shared<CommandFeedback>();
     const auto payload = descriptor.dump();
-    genesis::runtime::RuntimeEvent event;
-    event.kind = genesis::runtime::RuntimeEventKind::Command;
+    Genesis::Runtime::RuntimeEvent event;
+    event.kind = Genesis::Runtime::RuntimeEventKind::Command;
     event.label = descriptor.value("label", std::string{"world.load"});
     event.payloadJson = payload;
-    event.runtimeHandler = [target, feedback](genesis::runtime::Runtime& runtime) {
+    event.runtimeHandler = [target, feedback](Genesis::Runtime::Runtime& runtime) {
         auto result = runtime.loadWorldFromFile(target);
         if (!result.success)
         {
@@ -925,7 +925,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldReloadCommand(const json
         }
         feedback->message = "world.load succeeded";
     };
-    event.onComplete = [this, feedback](genesis::runtime::RuntimeEventReport& report) {
+    event.onComplete = [this, feedback](Genesis::Runtime::RuntimeEventReport& report) {
         if (!feedback->message.empty())
         {
             report.message = feedback->message;
@@ -952,11 +952,11 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& 
 
     auto feedback = std::make_shared<CommandFeedback>();
     const auto payload = descriptor.dump();
-    genesis::runtime::RuntimeEvent event;
-    event.kind = genesis::runtime::RuntimeEventKind::Command;
+    Genesis::Runtime::RuntimeEvent event;
+    event.kind = Genesis::Runtime::RuntimeEventKind::Command;
     event.label = descriptor.value("label", std::string{"world.save"});
     event.payloadJson = payload;
-    event.runtimeHandler = [target, feedback](genesis::runtime::Runtime& runtime) {
+    event.runtimeHandler = [target, feedback](Genesis::Runtime::Runtime& runtime) {
         auto result = runtime.saveWorldToFile(target);
         if (!result.success)
         {
@@ -965,7 +965,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& 
         }
         feedback->message = "world.save succeeded";
     };
-    event.onComplete = [feedback](genesis::runtime::RuntimeEventReport& report) {
+    event.onComplete = [feedback](Genesis::Runtime::RuntimeEventReport& report) {
         if (!feedback->message.empty())
         {
             report.message = feedback->message;

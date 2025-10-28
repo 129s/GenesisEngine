@@ -3,7 +3,7 @@
 > 目标：明确 GenesisEngine 代码库的命名空间标准，为后续逐步迁移提供依据。
 
 ## 现状与问题
-- 核心模块沿用小写 `genesis::core / genesis::worldgen / genesis::runtime`，Sandbox GUI 也已调整为 `genesis::sandbox::gui`，而 Style 子系统仍保持首字母大写的 `Genesis::Style`，不同约定并存。
+- 核心模块沿用小写 `genesis::core / genesis::worldgen / Genesis::Runtime`，Sandbox GUI 也已调整为 `genesis::sandbox::gui`，而 Style 子系统仍保持首字母大写的 `Genesis::Style`，不同约定并存。
 - 调用方在不同模块间切换时需要频繁添加双重 `namespace` 别名，降低可读性并增加出错概率。
 - 文档与示例代码在引用命名空间时缺乏一致标准，阻碍团队对外输出和未来重构。
 
@@ -25,7 +25,7 @@
 - `genesis::world` 与 `genesis::worldgen`
 - `genesis::planner`
 - `genesis::telemetry`
-- `genesis::runtime`
+- `Genesis::Runtime`（已完成 PascalCase）
 - `genesis::messaging`
 
 > 以上模块均需迁移至 `Genesis::` 前缀，并与现有 `Genesis::Style`、`genesis::sandbox::gui` 的最新状态保持一致。

@@ -17,7 +17,12 @@ namespace genesis::world {
 class WorldDatabase;
 }
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
+
+namespace simulation = genesis::simulation;
+namespace telemetry = genesis::telemetry;
+namespace world = genesis::world;
+
 
 class SimulationService {
 public:
@@ -43,4 +48,4 @@ public:
     [[nodiscard]] virtual std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount) = 0;
 };
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

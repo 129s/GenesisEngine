@@ -1,6 +1,6 @@
 #include "EngineSimulationService.hpp"
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
 
 EngineSimulationService::EngineSimulationService()
     : m_engine() {}
@@ -57,4 +57,4 @@ std::uint32_t EngineSimulationService::consumeResource(std::uint32_t interaction
     return m_engine.consumeResource(interactionId, amount);
 }
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

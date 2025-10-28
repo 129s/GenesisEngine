@@ -6,13 +6,10 @@
 #include <optional>
 #include <string>
 
-namespace genesis::core {
-class Engine;
-} // namespace genesis::core
-
-namespace genesis::runtime {
+namespace Genesis::Runtime {
 
 class Runtime;
+class SimulationService;
 struct RuntimeEventReport;
 
 enum class RuntimeEventKind {
@@ -26,7 +23,7 @@ struct RuntimeEvent {
     std::string label;
     std::optional<std::string> payloadJson;
     std::chrono::steady_clock::time_point enqueuedAt{};
-    std::function<void(genesis::core::Engine&)> handler;
+    std::function<void(SimulationService&)> simulationHandler;
     std::function<void(Runtime&)> runtimeHandler;
     std::function<void(RuntimeEventReport&)> onComplete;
 };
@@ -42,4 +39,4 @@ struct RuntimeEventReport {
     std::string message;
 };
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

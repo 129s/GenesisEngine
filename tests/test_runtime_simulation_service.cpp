@@ -5,7 +5,7 @@
 
 namespace {
 
-class DummySimulationService : public genesis::runtime::SimulationService {
+class DummySimulationService : public Genesis::Runtime::SimulationService {
 public:
     void setSnapshotCallback(SnapshotCallback callback) override {
         snapshotCallback = std::move(callback);
@@ -99,14 +99,14 @@ private:
 TEST(RuntimeSimulationServiceTest, UsesInjectedSimulationService) {
     DummySimulationService* stub = nullptr;
 
-    genesis::runtime::RuntimeConfig config{};
+    Genesis::Runtime::RuntimeConfig config{};
     config.simulationFactory = [&]() {
         auto ptr = std::make_unique<DummySimulationService>();
         stub = ptr.get();
         return ptr;
     };
 
-    genesis::runtime::Runtime runtime(config);
+    Genesis::Runtime::Runtime runtime(config);
 
     ASSERT_NE(stub, nullptr);
     EXPECT_TRUE(stub->snapshotHooked);

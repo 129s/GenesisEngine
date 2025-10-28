@@ -11,7 +11,10 @@
 #include "genesis/runtime/RuntimeEvents.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
+
+namespace telemetry = genesis::telemetry;
+
 
 struct SimulationSnapshot {
     std::uint64_t version{0};
@@ -82,4 +85,4 @@ private:
     std::atomic<std::uint64_t> m_writeCount;
 };
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

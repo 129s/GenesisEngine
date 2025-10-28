@@ -7,7 +7,10 @@
 
 #include "genesis/runtime/SimulationSnapshot.hpp"
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
+
+namespace telemetry = genesis::telemetry;
+
 
 enum class SnapshotChangeKind {
     Added,
@@ -44,4 +47,4 @@ struct SimulationSnapshotDiff {
 
 [[nodiscard]] SimulationSnapshotDiff diffSnapshots(const SimulationSnapshot* base, const SimulationSnapshot& target);
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

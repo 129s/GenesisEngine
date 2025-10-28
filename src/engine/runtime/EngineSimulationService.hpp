@@ -5,7 +5,11 @@
 #include "genesis/core/Engine.hpp"
 #include "genesis/runtime/SimulationService.hpp"
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
+
+namespace simulation = genesis::simulation;
+namespace world = genesis::world;
+
 
 class EngineSimulationService final : public SimulationService {
 public:
@@ -29,11 +33,8 @@ public:
     [[nodiscard]] std::optional<simulation::AgentPose2D> queryAgentPose(std::uint32_t entityId) const override;
     [[nodiscard]] std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount) override;
 
-    [[nodiscard]] genesis::core::Engine& rawEngine() noexcept { return m_engine; }
-
 private:
     genesis::core::Engine m_engine;
 };
 
-} // namespace genesis::runtime
-
+} // namespace Genesis::Runtime

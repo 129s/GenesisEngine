@@ -48,7 +48,7 @@ bool RuntimeBridge::loadWorldDatabaseFolder(const std::filesystem::path& folder,
     return true;
 }
 
-RuntimeBridge::RuntimeBridge(genesis::runtime::RuntimeConfig config, std::size_t maxSnapshots)
+RuntimeBridge::RuntimeBridge(Genesis::Runtime::RuntimeConfig config, std::size_t maxSnapshots)
     : runtime_(std::move(config))
     , maxSnapshots_(std::max<std::size_t>(1, maxSnapshots))
     , atlas_()
@@ -156,7 +156,7 @@ double RuntimeBridge::speedMultiplier() const
     return speedMultiplier_;
 }
 
-std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride, std::optional<std::filesystem::path> outputPath)
+std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> RuntimeBridge::generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride, std::optional<std::filesystem::path> outputPath)
 {
     bool wasRunning = false;
     bool wasPaused = false;
@@ -265,7 +265,7 @@ std::optional<RuntimeBridge::Snapshot> RuntimeBridge::latestSnapshot() const
     return snapshots_.back();
 }
 
-std::optional<genesis::runtime::Runtime::WorldGenerationResult> RuntimeBridge::lastGeneration() const noexcept
+std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> RuntimeBridge::lastGeneration() const noexcept
 {
     std::lock_guard lock(lastGenerationMutex_);
     return lastGeneration_;

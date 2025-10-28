@@ -3,17 +3,17 @@
 #include "genesis/runtime/Runtime.hpp"
 
 TEST(RuntimeEventsTest, EnqueuedEventsExecuteAndAreCaptured) {
-    genesis::runtime::Runtime runtime({});
+    Genesis::Runtime::Runtime runtime({});
     bool executed = false;
     bool completed = false;
 
-    genesis::runtime::RuntimeEvent event{};
-    event.kind = genesis::runtime::RuntimeEventKind::Marker;
+    Genesis::Runtime::RuntimeEvent event{};
+    event.kind = Genesis::Runtime::RuntimeEventKind::Marker;
     event.label = "ui-command";
-    event.handler = [&](genesis::core::Engine&) {
+    event.runtimeHandler = [&](Genesis::Runtime::Runtime&) {
         executed = true;
     };
-    event.onComplete = [&](genesis::runtime::RuntimeEventReport& report) {
+    event.onComplete = [&](Genesis::Runtime::RuntimeEventReport& report) {
         completed = true;
         report.message = "ok";
     };

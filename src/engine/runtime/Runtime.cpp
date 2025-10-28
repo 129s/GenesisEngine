@@ -20,7 +20,12 @@
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
+
+namespace simulation = genesis::simulation;
+namespace telemetry = genesis::telemetry;
+namespace world = genesis::world;
+
 
 namespace {
 
@@ -265,12 +270,11 @@ void Runtime::drainPendingEvents() {
         try {
             if (event.runtimeHandler) {
                 event.runtimeHandler(*this);
-            } else if (event.handler) {
-                if (auto* engineService = dynamic_cast<EngineSimulationService*>(m_simulation.get())) {
-                    event.handler(engineService->rawEngine());
-                } else {
-                    throw std::runtime_error("RuntimeEvent handler requires Engine, but active SimulationService is not engine-backed");
+            } else if (event.simulationHandler) {
+                if (!m_simulation) {
+                    throw std::runtime_error("RuntimeEvent requires SimulationService, but runtime has no active simulation");
                 }
+                event.simulationHandler(*m_simulation);
             }
             report.success = true;
         } catch (const std::exception& ex) {
@@ -303,4 +307,4 @@ void Runtime::drainPendingEvents() {
     }
 }
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

@@ -7,7 +7,7 @@ Sandbox GUI 是主要的可视化与调试前端，消费 Runtime 的 Telemetry/
   - 管理 GLFW 窗口、渲染循环、输入系统、ImGui 初始化（Docking/多视口可选）。
   - 负责加载主题、保存/恢复窗口布局、驱动帧计时与调试面板注册。
 - **RuntimeBridge**
-  - 后台线程推进 `genesis::runtime::Runtime`；负责命令队列、Telemetry 双缓冲、Atlas 版本管理。
+  - 后台线程推进 `Genesis::Runtime::Runtime`；负责命令队列、Telemetry 双缓冲、Atlas 版本管理。
   - 提供 `withLatestTelemetry(fn)`、`submitCommand(cmd)` 等接口，确保线程安全。
   - 当 `world_version` 更新时刷新 Tilemap 缓存、触发面板通知。
 - **Panels（ImGui）**

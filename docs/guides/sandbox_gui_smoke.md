@@ -83,7 +83,7 @@ cmake --build build --target genesis_sandbox_gui
 ## Runtime 控制与快照
 - Control Toolbar（顶栏）提供 Layout 开关：关闭时锁定 Docking 并隐藏标签页，开启后在各面板左上角显示可拖拽锚点以调整布局；同时集中 Pause/Resume、Step、Step ×10、Speed 与 VSync 控件，并响应 F5/F6/F7/F8/F9 快捷键。
 - Welcome 面板保留状态信息与背景色调整。
-- RuntimeBridge 在后台线程持续推进 `genesis::runtime::Runtime`，写入双缓冲 `SimulationSnapshot`（version/capturedAt/`TickTelemetry`，默认保留 96 帧）。
+- RuntimeBridge 在后台线程持续推进 `Genesis::Runtime::Runtime`，写入双缓冲 `SimulationSnapshot`（version/capturedAt/`TickTelemetry`，默认保留 96 帧）。
 - GUI 线程每帧从快照缓冲读取最新数据，更新世界视图、Telemetry 与状态栏。
 
 ## Map View 面板

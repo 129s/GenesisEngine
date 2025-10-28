@@ -24,7 +24,11 @@
 
 namespace genesis { namespace world { class WorldDatabase; } }
 
-namespace genesis::runtime {
+namespace Genesis::Runtime {
+
+namespace simulation = genesis::simulation;
+namespace telemetry = genesis::telemetry;
+namespace world = genesis::world;
 
 struct RuntimeConfig {
     std::uint64_t bootstrapSteps{0};
@@ -111,4 +115,4 @@ private:
 
 std::unique_ptr<Runtime> createRuntime(RuntimeConfig config = {});
 
-} // namespace genesis::runtime
+} // namespace Genesis::Runtime

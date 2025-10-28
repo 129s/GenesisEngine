@@ -82,7 +82,7 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
         try {
             jm = json::parse(text);
         } catch (const std::exception&) {
-            // 忽略单图解析错误（可在诊断中补充），不阻断整体加载
+            // 忽略单图解析错误以保持容错
             continue;
         }
 
@@ -138,3 +138,4 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
 }
 
 } // namespace genesis::world
+

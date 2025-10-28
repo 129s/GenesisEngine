@@ -36,7 +36,7 @@ void ResourceSystem::initialize(entt::registry& registry) {
 
             auto& info = registry.emplace<components::ResourceSpawn>(entity);
             info.name = it.name;
-            info.type = ResourceType::Food; // 默认：细化映射可在数据模型扩展时加入类型字段
+            info.type = ResourceType::Food; // 默认类型：待世界数据模型扩展后细化
             info.interaction = it.id;
             info.mapId = it.mapId;
             info.ratePerStep = it.regenPerStep.value_or(0);
@@ -84,7 +84,10 @@ void ResourceSystem::tick(entt::registry& registry, std::uint64_t stepIndex) {
     }
 }
 
-std::uint32_t ResourceSystem::consume(entt::registry& registry, genesis::world::ResourceType type, std::uint32_t amount, genesis::world::InteractionId preferred) {
+std::uint32_t ResourceSystem::consume(entt::registry& registry,
+                                      genesis::world::ResourceType type,
+                                      std::uint32_t amount,
+                                      genesis::world::InteractionId preferred) {
     if (!m_initialized) {
         initialize(registry);
     }
@@ -152,3 +155,4 @@ std::uint32_t ResourceSystem::consume(entt::registry& registry, genesis::world::
 }
 
 } // namespace genesis::world::system
+

@@ -52,6 +52,26 @@ endif()
 
 ## 同步移除依赖运行时/引擎可执行的 E2E 测试
 
+# --- Runtime tests ---
+add_executable(genesis_runtime_tests
+    test_runtime_events.cpp
+    test_runtime_simulation_service.cpp
+)
+
+target_link_libraries(genesis_runtime_tests
+    PRIVATE
+        Genesis::Runtime
+        GTest::gtest_main
+)
+
+add_custom_command(TARGET genesis_runtime_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:Genesis::Runtime>
+        $<TARGET_FILE_DIR:genesis_runtime_tests>
+)
+
+gtest_discover_tests(genesis_runtime_tests)
+
 # --- World Model tests ---
 add_executable(genesis_world_model_tests
     test_world_database_loader.cpp
@@ -64,3 +84,16 @@ target_link_libraries(genesis_world_model_tests
 )
 
 gtest_discover_tests(genesis_world_model_tests)
+
+add_executable(genesis_world_tests
+    test_world_resource_system.cpp
+)
+
+target_link_libraries(genesis_world_tests
+    PRIVATE
+        Genesis::World
+        Genesis::WorldModel
+        GTest::gtest_main
+)
+
+gtest_discover_tests(genesis_world_tests)

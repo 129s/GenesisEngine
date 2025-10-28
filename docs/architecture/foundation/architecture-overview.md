@@ -33,6 +33,7 @@
 - 管理世界级资源：
   - `world::system::ResourceSystem`——基于世界数据库的交互点生成库存实体，驱动再生与事件派发。
   - `agents::ActionExecutor`——依赖资源系统执行移动/消耗任务。
+- 世界系统现由独立静态库 `Genesis::World` 提供，实现与 Simulation 解耦。
 - 与 `Scheduler` 协同，按帧调用 Need → Action → Movement → World 系统。
 - 提供只读采样接口 `collectResourceSnapshots`，供遥测聚合使用。
 
@@ -58,16 +59,17 @@
 ## 3. Runtime Services
 
 ### 3.1 Runtime
-- 封装 Engine，维护：
+- 基于 `SimulationService` Facade（默认 `EngineSimulationService`）维护：
   - 命令队列（`RuntimeEvent`）与顺序执行。
   - `SimulationSnapshotBuffer` 双缓冲快照及差分计算。
   - 世界载入、保存流程（暂停工作线程、重建 Atlas）。
 - 对界面层暴露的 Facade：
   - 快照读取：`latestSnapshot()` / `latestSnapshotDiff()`
   - 世界生命周期：`loadWorldFromFile` / `saveWorldToFile`
-  - Agent 与资源命令：复用 Engine 的受控接口
+  - Agent 与资源命令：复用仿真服务提供的受控接口
   - 查询：`worldDatabase()`、`agentLocation()`、`agentExists()`
 - 所有命令均在模拟线程执行，失败信息通过 `RuntimeEventReport` 回传。
+- 当 `RuntimeEvent::handler` 需要访问底层 Engine 时，仅在运行时选择 `EngineSimulationService` 时可用；否则必须改写为 `runtimeHandler`。
 
 ### 3.2 Telemetry
 - `TelemetryCollector::collect` 接收资源快照 DTO，与 Agent 位置组合成 `telemetry::TickTelemetry`。

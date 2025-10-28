@@ -139,9 +139,9 @@
   - 新增 `Genesis::Base` 与 `Genesis::Diagnostics`（头文件级封装），作为公共类型与日志门面占位，后续逐步替换直接使用 spdlog 的调用。
 - Phase 1：仿真内核解耦（第一步）
   - 降低 GUI 对内核的头文件耦合：`src/apps/sandbox_gui/include/sandbox/gui/RuntimeBridge.hpp` 移除对 `genesis/core/Engine.hpp` 的直接包含，改为前置声明；`RuntimeBridge.cpp` 内部包含实现依赖。
-  - CMake 引入占位别名目标：`Genesis::World`、`Genesis::Agents`、`Genesis::Simulation`（当前指向 `Genesis::Engine`），为后续实体化拆分准备依赖图。
+  - CMake 实体化 `Genesis::World` 静态库（迁移 `world/system/ResourceSystem`），并让 `Genesis::Simulation` 通过公共接口依赖世界模块。
 - Phase 2：运行时子域（占位）
-  - CMake 引入别名目标：`Genesis::RuntimeCore`、`Genesis::RuntimeSnapshot`（当前指向 `Genesis::Runtime`），为后续 API/实现分离预热。
+  - 引入 `SimulationService` Facade 与默认实现 `EngineSimulationService`，Runtime 可通过工厂替换底层仿真服务；`Genesis::RuntimeCore`、`Genesis::RuntimeSnapshot` 仍指向现有动态库，占位待拆分。
 
 影响与兼容性：本次变更不影响现有可执行与功能，编译链保持稳定；GUI 侧头文件边界更清晰，为“界面层不依赖仿真实现”打基础。
 

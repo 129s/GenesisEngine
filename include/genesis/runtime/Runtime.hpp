@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -11,11 +12,11 @@
 #include <string>
 #include <vector>
 
-#include "genesis/core/Engine.hpp"
 #include "genesis/runtime/SimulationSnapshot.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/runtime/RuntimeEvents.hpp"
+#include "genesis/runtime/SimulationService.hpp"
 #include "genesis/simulation/AgentApi.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
@@ -30,6 +31,9 @@ struct RuntimeConfig {
 
     // 新：可选初始世界目录（包含 world.json + map_#.json）
     std::optional<std::filesystem::path> initialWorldPath;
+
+    // 可选：自定义仿真服务工厂（缺省使用 EngineSimulationService）
+    std::function<std::unique_ptr<SimulationService>()> simulationFactory;
 };
 
 class Runtime {
@@ -94,7 +98,7 @@ private:
     void drainPendingEvents();
 
     RuntimeConfig m_config;
-    genesis::core::Engine m_engine;
+    std::unique_ptr<SimulationService> m_simulation;
     std::optional<std::uint64_t> m_lastSeed;
     std::optional<WorldGenerationResult> m_lastWorldGen;
     std::atomic<std::uint64_t> m_snapshotVersion{0};

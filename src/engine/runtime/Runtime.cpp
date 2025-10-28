@@ -8,21 +8,69 @@
 #include <mutex>
 #include <queue>
 #include <random>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
+#include "EngineSimulationService.hpp"
+
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
 
 namespace genesis::runtime {
 
+namespace {
+
+simulation::AgentSpawnParams2D toSpawnParams(const genesis::agents::components::AgentLocation2D& location,
+                                            const std::optional<genesis::agents::components::MovementIntent2D>& intent) {
+    simulation::AgentSpawnParams2D params{};
+    params.location.mapId = location.mapId;
+    params.location.x = location.x;
+    params.location.y = location.y;
+    if (intent) {
+        simulation::MovementCommand2D command{};
+        command.targetMapId = intent->targetMapId;
+        command.targetX = intent->targetX;
+        command.targetY = intent->targetY;
+        command.speed = intent->speed;
+        params.initialMovement = command;
+    }
+    return params;
+}
+
+simulation::MovementCommand2D toMovementCommand(const genesis::agents::components::MovementIntent2D& intent) {
+    simulation::MovementCommand2D command{};
+    command.targetMapId = intent.targetMapId;
+    command.targetX = intent.targetX;
+    command.targetY = intent.targetY;
+    command.speed = intent.speed;
+    return command;
+}
+
+simulation::AgentPose2D toPose(const genesis::agents::components::AgentLocation2D& target) {
+    simulation::AgentPose2D pose{};
+    pose.mapId = target.mapId;
+    pose.x = target.x;
+    pose.y = target.y;
+    return pose;
+}
+
+} // namespace
+
+
 Runtime::Runtime(RuntimeConfig config)
-    : m_config(std::move(config))
-    , m_engine() {
-    m_engine.setSnapshotCallback([this](const telemetry::TickTelemetry& tick) {
+    : m_config(std::move(config)) {
+    if (m_config.simulationFactory) {
+        m_simulation = m_config.simulationFactory();
+    }
+    if (!m_simulation) {
+        m_simulation = std::make_unique<EngineSimulationService>();
+    }
+
+    m_simulation->setSnapshotCallback([this](const telemetry::TickTelemetry& tick) {
         SimulationSnapshot snapshot{};
         snapshot.version = m_snapshotVersion.fetch_add(1, std::memory_order_relaxed) + 1;
         snapshot.capturedAt = std::chrono::steady_clock::now();
@@ -56,21 +104,21 @@ Runtime::Runtime(RuntimeConfig config)
     }
 
     if (m_config.bootstrapSteps > 0) {
-        m_engine.step(m_config.bootstrapSteps);
+        m_simulation->step(m_config.bootstrapSteps);
     }
 }
 
 void Runtime::step(std::uint64_t steps) {
     for (std::uint64_t processed = 0; processed < steps; ++processed) {
         drainPendingEvents();
-        m_engine.step(1);
+        m_simulation->step(1);
     }
 }
 
 void Runtime::run(std::uint64_t steps) {
     for (std::uint64_t processed = 0; processed < steps; ++processed) {
         drainPendingEvents();
-        m_engine.run(1);
+        m_simulation->run(1);
     }
 }
 
@@ -106,7 +154,7 @@ Runtime::WorldGenerationResult Runtime::generateWorldFromConfig(const std::files
 
 genesis::world::WorldDbLoadResult Runtime::loadWorldFromFile(const std::filesystem::path& path) {
     const auto absolute = std::filesystem::absolute(path);
-    auto result = m_engine.loadWorldFromFile(absolute);
+    auto result = m_simulation->loadWorld(absolute);
     if (result.success) {
         spdlog::info("Runtime loaded world DB from {}", absolute.string());
     }
@@ -129,73 +177,52 @@ std::unique_ptr<Runtime> createRuntime(RuntimeConfig config) {
 }
 
 std::shared_ptr<genesis::world::WorldDatabase> Runtime::worldDatabase() const noexcept {
-    return m_engine.worldDatabase();
+    return m_simulation ? m_simulation->worldDatabase() : nullptr;
 }
 
 std::uint32_t Runtime::createAgent(const simulation::AgentSpawnParams2D& params) {
-    return m_engine.createAgent(params);
+    return m_simulation->createAgent(params);
 }
 
 std::uint32_t Runtime::createAgent2D(const genesis::agents::components::AgentLocation2D& location,
                                      const std::optional<genesis::agents::components::MovementIntent2D>& intent) {
-    simulation::AgentSpawnParams2D params{};
-    params.location.mapId = location.mapId;
-    params.location.x = location.x;
-    params.location.y = location.y;
-    if (intent) {
-        simulation::MovementCommand2D command{};
-        command.targetMapId = intent->targetMapId;
-        command.targetX = intent->targetX;
-        command.targetY = intent->targetY;
-        command.speed = intent->speed;
-        params.initialMovement = command;
-    }
-    return createAgent(params);
+    return createAgent(toSpawnParams(location, intent));
 }
 
 bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const simulation::MovementCommand2D& command) {
-    return m_engine.setAgentMovementIntent(entityId, command);
+    return m_simulation->setAgentMovementIntent(entityId, command);
 }
 
 bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent) {
-    simulation::MovementCommand2D command{};
-    command.targetMapId = intent.targetMapId;
-    command.targetX = intent.targetX;
-    command.targetY = intent.targetY;
-    command.speed = intent.speed;
-    return setAgentMovementIntent(entityId, command);
+    return setAgentMovementIntent(entityId, toMovementCommand(intent));
 }
 
 bool Runtime::stopAgentMovement(std::uint32_t entityId) {
-    return m_engine.clearAgentMovementIntent(entityId);
+    return m_simulation->clearAgentMovementIntent(entityId);
 }
 
 bool Runtime::teleportAgent(std::uint32_t entityId, const simulation::AgentPose2D& target) {
-    return m_engine.teleportAgent(entityId, target);
+    return m_simulation->teleportAgent(entityId, target);
 }
 
 bool Runtime::teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target) {
-    simulation::AgentPose2D pose{};
-    pose.mapId = target.mapId;
-    pose.x = target.x;
-    pose.y = target.y;
-    return teleportAgent(entityId, pose);
+    return teleportAgent(entityId, toPose(target));
 }
 
 bool Runtime::deleteAgent(std::uint32_t entityId) {
-    return m_engine.deleteAgent(entityId);
+    return m_simulation->deleteAgent(entityId);
 }
 
 std::uint32_t Runtime::consumeResource(std::uint32_t interactionId, std::uint32_t amount) {
-    return m_engine.consumeResource(interactionId, amount);
+    return m_simulation->consumeResource(interactionId, amount);
 }
 
 bool Runtime::agentExists(std::uint32_t entityId) const {
-    return m_engine.agentExists(entityId);
+    return m_simulation->agentExists(entityId);
 }
 
 std::optional<simulation::AgentPose2D> Runtime::agentPose(std::uint32_t entityId) const {
-    return m_engine.queryAgentPose(entityId);
+    return m_simulation->queryAgentPose(entityId);
 }
 
 std::optional<genesis::agents::components::AgentLocation2D> Runtime::agentLocation(std::uint32_t entityId) const {
@@ -239,7 +266,11 @@ void Runtime::drainPendingEvents() {
             if (event.runtimeHandler) {
                 event.runtimeHandler(*this);
             } else if (event.handler) {
-                event.handler(m_engine);
+                if (auto* engineService = dynamic_cast<EngineSimulationService*>(m_simulation.get())) {
+                    event.handler(engineService->rawEngine());
+                } else {
+                    throw std::runtime_error("RuntimeEvent handler requires Engine, but active SimulationService is not engine-backed");
+                }
             }
             report.success = true;
         } catch (const std::exception& ex) {

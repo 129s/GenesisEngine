@@ -88,3 +88,4 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
 }
 
 } // namespace genesis::world
+

@@ -112,9 +112,9 @@ set_target_properties(genesis_rendering PROPERTIES
 
 # --- A1: 世界数据模型与加载器（独立于旧 WorldRegistry） ---
 add_library(genesis_world_model STATIC
-    engine/world/WorldDatabase.cpp
-    engine/world/WorldDatabaseLoader.cpp
-    engine/world/WorldDatabaseSaver.cpp
+    world/WorldDatabase.cpp
+    world/WorldDatabaseLoader.cpp
+    world/WorldDatabaseSaver.cpp
 )
 add_library(Genesis::WorldModel ALIAS genesis_world_model)
 
@@ -130,6 +130,31 @@ target_link_libraries(genesis_world_model
 
 set_target_properties(genesis_world_model PROPERTIES
     OUTPUT_NAME "genesis_world_model"
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+set(GENESIS_WORLD_SOURCES
+    world/system/ResourceSystem.cpp
+)
+
+add_library(genesis_world STATIC ${GENESIS_WORLD_SOURCES})
+add_library(Genesis::World ALIAS genesis_world)
+
+target_include_directories(genesis_world
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_link_libraries(genesis_world
+    PUBLIC
+        Genesis::WorldModel
+        EnTT::EnTT
+        spdlog::spdlog_header_only
+)
+
+set_target_properties(genesis_world PROPERTIES
+    OUTPUT_NAME "genesis_world"
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
 )
@@ -213,7 +238,6 @@ set(GENESIS_SIMULATION_SOURCES
     simulation/TelemetryCollector.cpp
     simulation/Scheduler.cpp
     simulation/SimulationHost.cpp
-    engine/world/system/ResourceSystem.cpp
 )
 
 add_library(genesis_simulation STATIC ${GENESIS_SIMULATION_SOURCES})
@@ -227,6 +251,7 @@ target_include_directories(genesis_simulation
 target_link_libraries(genesis_simulation
     PUBLIC
         Genesis::Agents
+        Genesis::World
         Genesis::WorldModel
         Genesis::Base
         EnTT::EnTT
@@ -270,6 +295,7 @@ set_target_properties(genesis_engine PROPERTIES
 
 add_library(genesis_runtime SHARED
     engine/runtime/Runtime.cpp
+    engine/runtime/EngineSimulationService.cpp
     engine/runtime/SnapshotDiff.cpp
 )
 add_library(Genesis::Runtime ALIAS genesis_runtime)
@@ -304,11 +330,6 @@ target_link_libraries(genesis_diagnostics
     INTERFACE
         spdlog::spdlog_header_only
 )
-
-# --- Phase 1（占位别名）：逐步拆分仿真内核 ---
-add_library(genesis_world INTERFACE)
-add_library(Genesis::World ALIAS genesis_world)
-target_link_libraries(genesis_world INTERFACE Genesis::WorldModel)
 
 # --- Phase 2（占位别名）：拆分 Runtime 子域 ---
 add_library(genesis_runtime_core INTERFACE)

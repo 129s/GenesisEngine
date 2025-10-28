@@ -33,7 +33,7 @@ constexpr std::size_t kDefaultCommandHistory = 128;
 bool RuntimeBridge::loadWorldDatabaseFolder(const std::filesystem::path& folder, std::string& errorMessage)
 {
     errorMessage.clear();
-    auto res = genesis::world::loadWorldDatabaseFromFolder(folder);
+    auto res = Genesis::World::loadWorldDatabaseFromFolder(folder);
     if (!res.success || !res.database)
     {
         errorMessage = res.error.empty() ? std::string("加载 world.json/map_#.json 失败") : res.error;
@@ -189,7 +189,7 @@ std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> RuntimeBridge::g
     return lastGeneration_;
 }
 
-genesis::world::WorldDbLoadResult RuntimeBridge::loadWorld(const std::filesystem::path& path)
+Genesis::World::WorldDbLoadResult RuntimeBridge::loadWorld(const std::filesystem::path& path)
 {
     bool wasRunning = false;
     bool wasPaused = false;
@@ -227,7 +227,7 @@ genesis::world::WorldDbLoadResult RuntimeBridge::loadWorld(const std::filesystem
     return result;
 }
 
-genesis::world::WorldDbSaveResult RuntimeBridge::saveWorld(const std::filesystem::path& path)
+Genesis::World::WorldDbSaveResult RuntimeBridge::saveWorld(const std::filesystem::path& path)
 {
     bool wasRunning = false;
     bool wasPaused = false;

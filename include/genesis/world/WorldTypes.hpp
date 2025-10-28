@@ -12,3 +12,7 @@ enum class ResourceType : std::uint8_t {
 };
 
 } // namespace genesis::world
+
+namespace Genesis {
+namespace World = genesis::world;
+} // namespace Genesis

@@ -626,7 +626,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
             try {
                 auto db = runtime_.worldDatabase();
                 if (!db) throw std::runtime_error("no world database loaded");
-                auto r = genesis::world::saveWorldDatabaseToFolder(folder, *db);
+                auto r = Genesis::World::saveWorldDatabaseToFolder(folder, *db);
                 success = r.success; message = r.success ? std::string("saved to ")+folder.string() : r.error;
             } catch (const std::exception& ex) { message = ex.what(); }
             catch (...) { message = "world.db.save unknown error"; }

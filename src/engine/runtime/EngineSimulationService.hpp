@@ -8,7 +8,7 @@
 namespace Genesis::Runtime {
 
 namespace simulation = genesis::simulation;
-namespace world = genesis::world;
+namespace world = Genesis::World;
 
 
 class EngineSimulationService final : public SimulationService {

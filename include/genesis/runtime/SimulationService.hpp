@@ -21,7 +21,7 @@ namespace Genesis::Runtime {
 
 namespace simulation = genesis::simulation;
 namespace telemetry = genesis::telemetry;
-namespace world = genesis::world;
+namespace world = Genesis::World;
 
 
 class SimulationService {

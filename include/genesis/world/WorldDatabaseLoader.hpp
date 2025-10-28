@@ -21,3 +21,6 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
 
 } // namespace genesis::world
 
+namespace Genesis {
+namespace World = genesis::world;
+} // namespace Genesis

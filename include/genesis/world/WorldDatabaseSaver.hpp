@@ -17,3 +17,6 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
 
 } // namespace genesis::world
 
+namespace Genesis {
+namespace World = genesis::world;
+} // namespace Genesis

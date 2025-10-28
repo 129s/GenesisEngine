@@ -24,7 +24,7 @@ namespace Genesis::Runtime {
 
 namespace simulation = genesis::simulation;
 namespace telemetry = genesis::telemetry;
-namespace world = genesis::world;
+namespace world = Genesis::World;
 
 
 namespace {
@@ -157,7 +157,7 @@ Runtime::WorldGenerationResult Runtime::generateWorldFromConfig(const std::files
     return *m_lastWorldGen;
 }
 
-genesis::world::WorldDbLoadResult Runtime::loadWorldFromFile(const std::filesystem::path& path) {
+world::WorldDbLoadResult Runtime::loadWorldFromFile(const std::filesystem::path& path) {
     const auto absolute = std::filesystem::absolute(path);
     auto result = m_simulation->loadWorld(absolute);
     if (result.success) {
@@ -166,22 +166,22 @@ genesis::world::WorldDbLoadResult Runtime::loadWorldFromFile(const std::filesyst
     return result;
 }
 
-genesis::world::WorldDbSaveResult Runtime::saveWorldToFile(const std::filesystem::path& folder) const {
-    genesis::world::WorldDbSaveResult r{};
+world::WorldDbSaveResult Runtime::saveWorldToFile(const std::filesystem::path& folder) const {
+    world::WorldDbSaveResult r{};
     auto db = worldDatabase();
     if (!db) {
         r.success = false;
         r.error = "no world database loaded";
         return r;
     }
-    return genesis::world::saveWorldDatabaseToFolder(folder, *db);
+    return world::saveWorldDatabaseToFolder(folder, *db);
 }
 
 std::unique_ptr<Runtime> createRuntime(RuntimeConfig config) {
     return std::make_unique<Runtime>(std::move(config));
 }
 
-std::shared_ptr<genesis::world::WorldDatabase> Runtime::worldDatabase() const noexcept {
+std::shared_ptr<world::WorldDatabase> Runtime::worldDatabase() const noexcept {
     return m_simulation ? m_simulation->worldDatabase() : nullptr;
 }
 

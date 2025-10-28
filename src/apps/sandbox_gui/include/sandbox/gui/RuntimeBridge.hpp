@@ -88,7 +88,7 @@ namespace genesis::sandbox::gui
         struct Spawn
         {
             std::string name;
-            genesis::world::ResourceType type{genesis::world::ResourceType::Food};
+            Genesis::World::ResourceType type{Genesis::World::ResourceType::Food};
             std::uint32_t mapId{0};
             std::uint32_t interactionId{0};
             Vector2 position;
@@ -152,8 +152,8 @@ namespace genesis::sandbox::gui
     [[nodiscard]] double speedMultiplier() const;
 
     std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> generateWorld(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
-    genesis::world::WorldDbLoadResult loadWorld(const std::filesystem::path& path);
-    genesis::world::WorldDbSaveResult saveWorld(const std::filesystem::path& path);
+    Genesis::World::WorldDbLoadResult loadWorld(const std::filesystem::path& path);
+    Genesis::World::WorldDbSaveResult saveWorld(const std::filesystem::path& path);
     [[nodiscard]] std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> lastGeneration() const noexcept;
 
     [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;
@@ -172,7 +172,7 @@ namespace genesis::sandbox::gui
     private:
         void runLoop();
         void captureSnapshot();
-        static WorldAtlas buildWorldAtlas(const genesis::world::WorldDatabase& db);
+        static WorldAtlas buildWorldAtlas(const Genesis::World::WorldDatabase& db);
         void reconcileCommands(const std::vector<Genesis::Runtime::RuntimeEventReport>& reports);
         std::uint64_t recordPending(std::uint64_t id, Genesis::Runtime::RuntimeEventKind kind, std::string label, std::optional<std::string> payload, std::string source, std::chrono::steady_clock::time_point enqueuedAt);
         void completeCommand(std::uint64_t id, bool success, std::string message, std::optional<std::string> payloadOverride = std::nullopt);
@@ -194,7 +194,7 @@ namespace genesis::sandbox::gui
     std::thread worker_;
 
         WorldAtlas atlas_;
-        std::shared_ptr<genesis::world::WorldDatabase> worldDb_;
+        std::shared_ptr<Genesis::World::WorldDatabase> worldDb_;
     mutable std::mutex lastGenerationMutex_;
     std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> lastGeneration_;
 

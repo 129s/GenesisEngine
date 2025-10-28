@@ -104,3 +104,7 @@ private:
 };
 
 } // namespace genesis::world
+
+namespace Genesis {
+namespace World = genesis::world;
+} // namespace Genesis

@@ -28,7 +28,7 @@ namespace Genesis::Runtime {
 
 namespace simulation = genesis::simulation;
 namespace telemetry = genesis::telemetry;
-namespace world = genesis::world;
+namespace world = Genesis::World;
 
 struct RuntimeConfig {
     std::uint64_t bootstrapSteps{0};
@@ -73,10 +73,10 @@ public:
     WorldGenerationResult generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
     [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept { return m_lastWorldGen; }
 
-    [[nodiscard]] genesis::world::WorldDbLoadResult loadWorldFromFile(const std::filesystem::path& path);
-    [[nodiscard]] genesis::world::WorldDbSaveResult saveWorldToFile(const std::filesystem::path& path) const;
+    [[nodiscard]] world::WorldDbLoadResult loadWorldFromFile(const std::filesystem::path& path);
+    [[nodiscard]] world::WorldDbSaveResult saveWorldToFile(const std::filesystem::path& path) const;
 
-    [[nodiscard]] std::shared_ptr<class genesis::world::WorldDatabase> worldDatabase() const noexcept;
+    [[nodiscard]] std::shared_ptr<class world::WorldDatabase> worldDatabase() const noexcept;
 
     std::uint64_t enqueueEvent(RuntimeEvent event);
     std::uint32_t createAgent(const simulation::AgentSpawnParams2D& params);

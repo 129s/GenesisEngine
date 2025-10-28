@@ -22,7 +22,7 @@ RuntimeBridge::Vector2 computeExtent(std::size_t maxPerLevel, std::size_t levelC
 // 注：buildWorldAtlas(WorldDatabase) 与 loadWorldDatabaseFolder 的定义移至匿名命名空间外部
 
 } // namespace
-RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::world::WorldDatabase& db)
+RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const Genesis::World::WorldDatabase& db)
 {
     WorldAtlas atlas;
 
@@ -57,13 +57,13 @@ RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const genesis::world::W
     {
         for (const auto& inter : db.interactions(m.id))
         {
-            if (inter.kind == genesis::world::InteractionKind::Resource)
+            if (inter.kind == Genesis::World::InteractionKind::Resource)
             {
                 Vector2 position{0.0f, 0.0f};
                 if (auto p = atlas.nodePosition(m.id)) position = *p;
                 WorldAtlas::Spawn s{};
                 s.name = inter.name;
-                s.type = genesis::world::ResourceType::Food; // 显示用途：细化类型映射可在数据扩展时加入
+                s.type = Genesis::World::ResourceType::Food; // 显示用途：细化类型映射可在数据扩展时加入
                 s.mapId = m.id;
                 s.interactionId = inter.id;
                 s.position = position;

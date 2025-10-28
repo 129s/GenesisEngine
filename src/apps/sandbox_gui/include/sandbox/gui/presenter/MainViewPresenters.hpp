@@ -32,7 +32,7 @@ struct SceneMapResource
     std::string name;
     std::uint32_t current{0};
     std::uint32_t capacity{0};
-    genesis::world::ResourceType type{genesis::world::ResourceType::Food};
+    Genesis::World::ResourceType type{Genesis::World::ResourceType::Food};
 };
 
 struct SceneMapResourceBucket
@@ -83,7 +83,7 @@ struct SceneNodeResource
 {
     float x{0.0f};
     float y{0.0f};
-    genesis::world::ResourceType type{genesis::world::ResourceType::Food};
+    Genesis::World::ResourceType type{Genesis::World::ResourceType::Food};
 };
 
 struct SceneNodePortal

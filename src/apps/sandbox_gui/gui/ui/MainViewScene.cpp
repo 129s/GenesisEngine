@@ -180,9 +180,9 @@ namespace genesis::sandbox::gui
                         continue;
                     }
                     const ImVec2 point = toScreen(resource.x + 0.5f, resource.y + 0.5f);
-                    const ImU32 color = (resource.type == genesis::world::ResourceType::Food)
+                    const ImU32 color = (resource.type == Genesis::World::ResourceType::Food)
                                             ? foodColor
-                                            : (resource.type == genesis::world::ResourceType::Drink)
+                                            : (resource.type == Genesis::World::ResourceType::Drink)
                                                   ? drinkColor
                                                   : socialColor;
                     drawList->AddCircleFilled(point, 3.2f, color, 10);
@@ -259,15 +259,15 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
         ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.headerGap));
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
-        const auto resourceTypeName = [](genesis::world::ResourceType type) -> const char *
+        const auto resourceTypeName = [](Genesis::World::ResourceType type) -> const char *
         {
             switch (type)
             {
-            case genesis::world::ResourceType::Food:
+            case Genesis::World::ResourceType::Food:
                 return "Food";
-            case genesis::world::ResourceType::Drink:
+            case Genesis::World::ResourceType::Drink:
                 return "Drink";
-            case genesis::world::ResourceType::Social:
+            case Genesis::World::ResourceType::Social:
                 return "Social";
             default:
                 return "Unknown";
@@ -1504,15 +1504,15 @@ std::optional<SceneViewportRenderState> MainView::drawSceneViewport(UiContext &c
 
         if (ctx.state.scene_show_resources)
         {
-            auto colorForResource = [](genesis::world::ResourceType type) -> ImU32
+            auto colorForResource = [](Genesis::World::ResourceType type) -> ImU32
             {
                 switch (type)
                 {
-                case genesis::world::ResourceType::Food:
+                case Genesis::World::ResourceType::Food:
                     return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-                case genesis::world::ResourceType::Drink:
+                case Genesis::World::ResourceType::Drink:
                     return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
-                case genesis::world::ResourceType::Social:
+                case Genesis::World::ResourceType::Social:
                     return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));
                 default:
                     return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Muted));

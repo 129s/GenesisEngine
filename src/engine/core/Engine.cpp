@@ -8,6 +8,8 @@
 
 namespace genesis::core {
 
+namespace agent_components = Genesis::Agents::Components;
+
 Engine::Engine()
     : m_clock(SimulationClock::duration{500})
     , m_telemetry(512) {
@@ -88,8 +90,8 @@ std::uint32_t Engine::createAgent(const simulation::AgentSpawnParams2D& params) 
     return m_host.createAgent(params);
 }
 
-std::uint32_t Engine::createAgent2D(const genesis::agents::components::AgentLocation2D& location,
-                                    const std::optional<genesis::agents::components::MovementIntent2D>& intent) {
+std::uint32_t Engine::createAgent2D(const agent_components::AgentLocation2D& location,
+                                    const std::optional<agent_components::MovementIntent2D>& intent) {
     simulation::AgentSpawnParams2D params{};
     params.location.mapId = location.mapId;
     params.location.x = location.x;
@@ -105,7 +107,7 @@ std::uint32_t Engine::createAgent2D(const genesis::agents::components::AgentLoca
     return createAgent(params);
 }
 
-bool Engine::setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent) {
+bool Engine::setAgentMovementIntent(std::uint32_t entityId, const agent_components::MovementIntent2D& intent) {
     simulation::MovementCommand2D command{};
     command.targetMapId = intent.targetMapId;
     command.targetX = intent.targetX;
@@ -122,7 +124,7 @@ bool Engine::clearAgentMovementIntent(std::uint32_t entityId) {
     return m_host.clearAgentMovementIntent(entityId);
 }
 
-bool Engine::teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target) {
+bool Engine::teleportAgent(std::uint32_t entityId, const agent_components::AgentLocation2D& target) {
     simulation::AgentPose2D pose{};
     pose.mapId = target.mapId;
     pose.x = target.x;
@@ -146,12 +148,12 @@ std::optional<simulation::AgentPose2D> Engine::queryAgentPose(std::uint32_t enti
     return m_host.queryAgentPose(entityId);
 }
 
-std::optional<genesis::agents::components::AgentLocation2D> Engine::queryAgentLocation(std::uint32_t entityId) const {
+std::optional<agent_components::AgentLocation2D> Engine::queryAgentLocation(std::uint32_t entityId) const {
     auto pose = queryAgentPose(entityId);
     if (!pose) {
         return std::nullopt;
     }
-    genesis::agents::components::AgentLocation2D loc{};
+    agent_components::AgentLocation2D loc{};
     loc.mapId = pose->mapId;
     loc.x = pose->x;
     loc.y = pose->y;

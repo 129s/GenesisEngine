@@ -18,6 +18,7 @@
 #include "genesis/runtime/RuntimeEvents.hpp"
 #include "genesis/runtime/SimulationService.hpp"
 #include "genesis/simulation/AgentApi.hpp"
+#include "genesis/agents/Namespace.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
 #include "genesis/agents/Movement2D.hpp"
@@ -85,18 +86,18 @@ public:
     std::optional<simulation::AgentPose2D> agentPose(std::uint32_t entityId) const;
 
     [[deprecated("Use AgentSpawnParams2D overload")]]
-    std::uint32_t createAgent2D(const genesis::agents::components::AgentLocation2D& location,
-                                const std::optional<genesis::agents::components::MovementIntent2D>& intent = std::nullopt);
+    std::uint32_t createAgent2D(const Genesis::Agents::Components::AgentLocation2D& location,
+                                const std::optional<Genesis::Agents::Components::MovementIntent2D>& intent = std::nullopt);
     [[deprecated("Use MovementCommand2D overload")]]
-    bool setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent);
+    bool setAgentMovementIntent(std::uint32_t entityId, const Genesis::Agents::Components::MovementIntent2D& intent);
     bool stopAgentMovement(std::uint32_t entityId);
     [[deprecated("Use AgentPose2D overload")]]
-    bool teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target);
+    bool teleportAgent(std::uint32_t entityId, const Genesis::Agents::Components::AgentLocation2D& target);
     bool deleteAgent(std::uint32_t entityId);
     std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount);
     bool agentExists(std::uint32_t entityId) const;
     [[deprecated("Use agentPose()")]]
-    std::optional<genesis::agents::components::AgentLocation2D> agentLocation(std::uint32_t entityId) const;
+    std::optional<Genesis::Agents::Components::AgentLocation2D> agentLocation(std::uint32_t entityId) const;
 
 private:
     void drainPendingEvents();

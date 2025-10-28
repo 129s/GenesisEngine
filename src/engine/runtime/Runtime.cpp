@@ -25,12 +25,14 @@ namespace Genesis::Runtime {
 namespace simulation = genesis::simulation;
 namespace telemetry = genesis::telemetry;
 namespace world = Genesis::World;
+namespace agents = Genesis::Agents;
+namespace agent_components = Genesis::Agents::Components;
 
 
 namespace {
 
-simulation::AgentSpawnParams2D toSpawnParams(const genesis::agents::components::AgentLocation2D& location,
-                                            const std::optional<genesis::agents::components::MovementIntent2D>& intent) {
+simulation::AgentSpawnParams2D toSpawnParams(const agent_components::AgentLocation2D& location,
+                                            const std::optional<agent_components::MovementIntent2D>& intent) {
     simulation::AgentSpawnParams2D params{};
     params.location.mapId = location.mapId;
     params.location.x = location.x;
@@ -46,7 +48,7 @@ simulation::AgentSpawnParams2D toSpawnParams(const genesis::agents::components::
     return params;
 }
 
-simulation::MovementCommand2D toMovementCommand(const genesis::agents::components::MovementIntent2D& intent) {
+simulation::MovementCommand2D toMovementCommand(const agent_components::MovementIntent2D& intent) {
     simulation::MovementCommand2D command{};
     command.targetMapId = intent.targetMapId;
     command.targetX = intent.targetX;
@@ -55,7 +57,7 @@ simulation::MovementCommand2D toMovementCommand(const genesis::agents::component
     return command;
 }
 
-simulation::AgentPose2D toPose(const genesis::agents::components::AgentLocation2D& target) {
+simulation::AgentPose2D toPose(const agent_components::AgentLocation2D& target) {
     simulation::AgentPose2D pose{};
     pose.mapId = target.mapId;
     pose.x = target.x;
@@ -189,8 +191,8 @@ std::uint32_t Runtime::createAgent(const simulation::AgentSpawnParams2D& params)
     return m_simulation->createAgent(params);
 }
 
-std::uint32_t Runtime::createAgent2D(const genesis::agents::components::AgentLocation2D& location,
-                                     const std::optional<genesis::agents::components::MovementIntent2D>& intent) {
+std::uint32_t Runtime::createAgent2D(const agent_components::AgentLocation2D& location,
+                                     const std::optional<agent_components::MovementIntent2D>& intent) {
     return createAgent(toSpawnParams(location, intent));
 }
 
@@ -198,7 +200,7 @@ bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const simulation::M
     return m_simulation->setAgentMovementIntent(entityId, command);
 }
 
-bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent) {
+bool Runtime::setAgentMovementIntent(std::uint32_t entityId, const agent_components::MovementIntent2D& intent) {
     return setAgentMovementIntent(entityId, toMovementCommand(intent));
 }
 
@@ -210,7 +212,7 @@ bool Runtime::teleportAgent(std::uint32_t entityId, const simulation::AgentPose2
     return m_simulation->teleportAgent(entityId, target);
 }
 
-bool Runtime::teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target) {
+bool Runtime::teleportAgent(std::uint32_t entityId, const agent_components::AgentLocation2D& target) {
     return teleportAgent(entityId, toPose(target));
 }
 
@@ -230,12 +232,12 @@ std::optional<simulation::AgentPose2D> Runtime::agentPose(std::uint32_t entityId
     return m_simulation->queryAgentPose(entityId);
 }
 
-std::optional<genesis::agents::components::AgentLocation2D> Runtime::agentLocation(std::uint32_t entityId) const {
+std::optional<agent_components::AgentLocation2D> Runtime::agentLocation(std::uint32_t entityId) const {
     auto pose = agentPose(entityId);
     if (!pose) {
         return std::nullopt;
     }
-    genesis::agents::components::AgentLocation2D location{};
+    agent_components::AgentLocation2D location{};
     location.mapId = pose->mapId;
     location.x = pose->x;
     location.y = pose->y;

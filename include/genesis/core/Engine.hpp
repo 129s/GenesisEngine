@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/agents/Namespace.hpp"
 #include "genesis/core/SimulationClock.hpp"
 #include "genesis/simulation/AgentApi.hpp"
 #include "genesis/simulation/SimulationHost.hpp"
@@ -47,17 +48,17 @@ public:
     std::optional<simulation::AgentPose2D> queryAgentPose(std::uint32_t entityId) const;
 
     [[deprecated("Use AgentSpawnParams2D overload")]]
-    std::uint32_t createAgent2D(const genesis::agents::components::AgentLocation2D& location,
-                                const std::optional<genesis::agents::components::MovementIntent2D>& intent = std::nullopt);
+    std::uint32_t createAgent2D(const Genesis::Agents::Components::AgentLocation2D& location,
+                                const std::optional<Genesis::Agents::Components::MovementIntent2D>& intent = std::nullopt);
     [[deprecated("Use MovementCommand2D overload")]]
-    bool setAgentMovementIntent(std::uint32_t entityId, const genesis::agents::components::MovementIntent2D& intent);
+    bool setAgentMovementIntent(std::uint32_t entityId, const Genesis::Agents::Components::MovementIntent2D& intent);
     bool clearAgentMovementIntent(std::uint32_t entityId);
     [[deprecated("Use AgentPose2D overload")]]
-    bool teleportAgent(std::uint32_t entityId, const genesis::agents::components::AgentLocation2D& target);
+    bool teleportAgent(std::uint32_t entityId, const Genesis::Agents::Components::AgentLocation2D& target);
     bool deleteAgent(std::uint32_t entityId);
     bool agentExists(std::uint32_t entityId) const;
     [[deprecated("Use queryAgentPose")]]
-    std::optional<genesis::agents::components::AgentLocation2D> queryAgentLocation(std::uint32_t entityId) const;
+    std::optional<Genesis::Agents::Components::AgentLocation2D> queryAgentLocation(std::uint32_t entityId) const;
 
     std::uint32_t consumeResource(std::uint32_t interactionId, std::uint32_t amount);
 

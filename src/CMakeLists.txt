@@ -211,6 +211,7 @@ set(GENESIS_AGENTS_SOURCES
     agents/ActionSystem.cpp
     agents/NeedSystem.cpp
     agents/NeedSatisfier.cpp
+    agents/ProductionPlanner.cpp
 )
 
 add_library(genesis_agents STATIC ${GENESIS_AGENTS_SOURCES})

@@ -131,6 +131,19 @@ target_link_libraries(genesis_world_model_tests
 
 gtest_discover_tests(genesis_world_model_tests)
 
+add_executable(genesis_agents_tests
+    test_agents_production_planner.cpp
+)
+
+target_link_libraries(genesis_agents_tests
+    PRIVATE
+        Genesis::Agents
+        Genesis::WorldModel
+        GTest::gtest_main
+)
+
+gtest_discover_tests(genesis_agents_tests)
+
 add_executable(genesis_world_tests
     test_world_resource_system.cpp
 )

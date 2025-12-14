@@ -3,17 +3,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <optional>
-#include <string_view>
-#include <vector>
-
-#include <nlohmann/json.hpp>
 
 #include "genesis/agents/CarriedResources.hpp"
 #include "genesis/agents/Needs.hpp"
-#include "genesis/world/ResourceTypeStrings.hpp"
+#include "genesis/agents/ProductionPlanner.hpp"
 #include "genesis/world/MapPathfinding.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 
@@ -21,77 +16,6 @@ namespace genesis::agents {
 
 namespace {
 constexpr float kMinSpeed = 0.1f;
-constexpr float kCrossMapPenalty = 500.0f;
-constexpr std::uint32_t kMaxPlanningRetries = 2;
-constexpr int kMaxAcquireDepth = 4;
-
-using json = nlohmann::json;
-
-struct WorkshopInput {
-    genesis::world::ResourceType type{genesis::world::ResourceType::Food};
-    std::uint32_t units{1};
-};
-
-struct WorkshopRecipe {
-    std::uint32_t outputUnits{1};
-    std::vector<WorkshopInput> inputs{};
-};
-
-std::optional<WorkshopRecipe> parseWorkshopRecipe(const genesis::world::Interaction& interaction) {
-    if (!interaction.meta) {
-        return std::nullopt;
-    }
-    const auto& meta = *interaction.meta;
-    if (!meta.contains("workshop")) {
-        return std::nullopt;
-    }
-    const auto& workshop = meta.at("workshop");
-    if (!workshop.is_object()) {
-        return std::nullopt;
-    }
-
-    WorkshopRecipe recipe{};
-
-    if (workshop.contains("outputUnits") && workshop.at("outputUnits").is_number_unsigned()) {
-        recipe.outputUnits = std::max<std::uint32_t>(1U, workshop.at("outputUnits").get<std::uint32_t>());
-    }
-
-    if (!workshop.contains("inputs") || !workshop.at("inputs").is_array()) {
-        return std::nullopt;
-    }
-
-    for (const auto& item : workshop.at("inputs")) {
-        if (!item.is_object()) {
-            continue;
-        }
-        if (!item.contains("type") || !item.at("type").is_string()) {
-            continue;
-        }
-        if (!item.contains("units") || !item.at("units").is_number_unsigned()) {
-            continue;
-        }
-        const auto type = genesis::world::parseResourceType(item.at("type").get<std::string>());
-        if (!type) {
-            continue;
-        }
-        const auto units = item.at("units").get<std::uint32_t>();
-        if (units == 0U) {
-            continue;
-        }
-        recipe.inputs.push_back(WorkshopInput{*type, units});
-    }
-
-    if (recipe.inputs.empty()) {
-        return std::nullopt;
-    }
-
-    return recipe;
-}
-
-std::uint32_t ceilDiv(std::uint32_t a, std::uint32_t b) {
-    if (b == 0U) return 0U;
-    return (a + (b - 1U)) / b;
-}
 } // namespace
 
 ActionExecutor::ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources)
@@ -385,136 +309,25 @@ void ActionExecutor::processConsume(entt::entity entity,
     }
 
     if (consumed == 0U) {
-        const auto inter = m_db.findInteraction(task.interaction);
-        const auto recipe = inter ? parseWorkshopRecipe(*inter) : std::nullopt;
-        if (recipe && task.retries < kMaxPlanningRetries) {
-            auto* carried = registry.try_get<components::CarriedResources>(entity);
-            if (!carried) {
-                carried = &registry.emplace<components::CarriedResources>(entity);
-            }
+        auto* carried = registry.try_get<components::CarriedResources>(entity);
+        if (!carried) {
+            carried = &registry.emplace<components::CarriedResources>(entity);
+        }
 
-            const std::uint32_t batches = ceilDiv(task.amount, recipe->outputUnits);
+        ProductionPlanner planner(m_db);
+        ProductionPlanner::Request req{};
+        req.location = &location;
+        req.carried = carried;
+        req.targetWorkshop = task.interaction;
+        req.outputType = task.resource;
+        req.outputAmount = task.amount;
+        req.currentRetries = task.retries;
+        req.need = task.need;
+        req.reliefPerUnit = task.reliefPerUnit;
 
-            std::vector<ActionTask> plan;
-            plan.reserve(8);
-
-            auto pickInteraction = [&](genesis::world::ResourceType type) -> std::optional<genesis::world::InteractionId> {
-                float bestCost = std::numeric_limits<float>::infinity();
-                genesis::world::InteractionId best{0};
-
-                for (const auto& m : m_db.maps()) {
-                    for (const auto& candidate : m_db.interactions(m.id)) {
-                        if (candidate.kind != genesis::world::InteractionKind::Resource) {
-                            continue;
-                        }
-                        if (!candidate.resourceType || *candidate.resourceType != type) {
-                            continue;
-                        }
-
-                        float cost = std::numeric_limits<float>::infinity();
-                        if (candidate.mapId == location.mapId) {
-                            const auto c = candidate.worldCoord();
-                            const float dx = static_cast<float>(c.first) - location.x;
-                            const float dy = static_cast<float>(c.second) - location.y;
-                            cost = dx * dx + dy * dy;
-                        } else {
-                            const auto path = genesis::world::shortestMapPath(m_db, location.mapId, candidate.mapId);
-                            if (!path) {
-                                continue;
-                            }
-                            cost = kCrossMapPenalty + static_cast<float>(path->totalCost);
-                        }
-
-                        if (cost < bestCost) {
-                            bestCost = cost;
-                            best = candidate.id;
-                        }
-                    }
-                }
-
-                if (best == 0) {
-                    return std::nullopt;
-                }
-                return best;
-            };
-
-            std::array<bool, components::CarriedResources::kTypeCount> acquiring{};
-
-            std::function<bool(genesis::world::ResourceType, std::uint32_t, int)> acquire;
-            acquire = [&](genesis::world::ResourceType type, std::uint32_t units, int depth) -> bool {
-                if (units == 0U) {
-                    return true;
-                }
-                if (depth > kMaxAcquireDepth) {
-                    return false;
-                }
-                const auto idx = components::resourceTypeIndex(type);
-                if (idx < acquiring.size() && acquiring[idx]) {
-                    return false;
-                }
-                if (idx < acquiring.size()) {
-                    acquiring[idx] = true;
-                }
-
-                const auto targetId = pickInteraction(type);
-                if (!targetId) {
-                    if (idx < acquiring.size()) {
-                        acquiring[idx] = false;
-                    }
-                    return false;
-                }
-
-                const auto targetInter = m_db.findInteraction(*targetId);
-                const auto targetRecipe = targetInter ? parseWorkshopRecipe(*targetInter) : std::nullopt;
-
-                if (targetRecipe) {
-                    const std::uint32_t needBatches = ceilDiv(units, targetRecipe->outputUnits);
-                    for (const auto& input : targetRecipe->inputs) {
-                        acquire(input.type, input.units * needBatches, depth + 1);
-                    }
-
-                    ActionTask prod{};
-                    prod.type = ActionType::ProduceResource;
-                    prod.interaction = *targetId;
-                    prod.resource = type;
-                    prod.batches = needBatches;
-                    plan.push_back(prod);
-                }
-
-                ActionTask take{};
-                take.type = ActionType::TakeResource;
-                take.interaction = *targetId;
-                take.resource = type;
-                take.amount = units;
-                plan.push_back(take);
-
-                if (idx < acquiring.size()) {
-                    acquiring[idx] = false;
-                }
-                return true;
-            };
-
-            for (const auto& input : recipe->inputs) {
-                const std::uint32_t required = input.units * batches;
-                const std::uint32_t have = carried->get(input.type);
-                if (required > have) {
-                    acquire(input.type, required - have, 0);
-                }
-            }
-
-            ActionTask prod{};
-            prod.type = ActionType::ProduceResource;
-            prod.interaction = task.interaction;
-            prod.resource = task.resource;
-            prod.batches = batches;
-            plan.push_back(prod);
-
-            ActionTask retry = task;
-            retry.retries = task.retries + 1;
-            plan.push_back(retry);
-
+        if (auto plan = planner.buildRecoveryPlan(req)) {
             queue.tasks.pop_front();
-            queue.tasks.insert(queue.tasks.begin(), plan.begin(), plan.end());
+            queue.tasks.insert(queue.tasks.begin(), plan->begin(), plan->end());
             return;
         }
     }

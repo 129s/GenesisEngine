@@ -185,12 +185,29 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     return h;
 }
 
+struct BottleneckScore {
+    std::uint32_t interactionId{0};
+    double score{0.0};
+};
+
+[[nodiscard]] double clamp01(double x) {
+    if (x < 0.0) return 0.0;
+    if (x > 1.0) return 1.0;
+    return x;
+}
+
 struct ResourceEconomy {
     std::uint32_t interactionId{0};
     std::uint32_t mapId{0};
     std::string name;
     genesis::world::ResourceType type{genesis::world::ResourceType::Food};
     std::uint32_t capacity{0};
+    bool isWorkshop{false};
+
+    std::uint64_t ticks{0};
+    std::uint64_t zeroSteps{0};
+    double utilizationSum{0.0};
+    std::uint64_t utilizationSamples{0};
 
     std::uint32_t startCurrent{0};
     std::uint32_t endCurrent{0};
@@ -219,6 +236,24 @@ struct ResourceEconomy {
     if (!initialSnapshot) {
         std::cerr << "No snapshot available after bootstrap\n";
         return 2;
+    }
+
+    std::unordered_map<std::uint32_t, bool> workshopByInteraction;
+    workshopByInteraction.reserve(128);
+    if (auto db = runtime.worldDatabase()) {
+        for (const auto& m : db->maps()) {
+            for (const auto& it : db->interactions(m.id)) {
+                if (it.kind != genesis::world::InteractionKind::Resource) {
+                    continue;
+                }
+                bool isWorkshop = false;
+                if (it.meta) {
+                    const auto& meta = *it.meta;
+                    isWorkshop = meta.contains("workshop") && meta.at("workshop").is_object();
+                }
+                workshopByInteraction[it.id] = isWorkshop;
+            }
+        }
     }
 
     if (opts.agentCount > 0) {
@@ -292,7 +327,19 @@ struct ResourceEconomy {
                 economy.name = resource.name;
                 economy.type = resource.type;
                 economy.capacity = resource.capacity;
+                if (auto it = workshopByInteraction.find(resource.interactionId); it != workshopByInteraction.end()) {
+                    economy.isWorkshop = it->second;
+                }
                 economy.startCurrent = resource.current;
+            }
+
+            economy.ticks++;
+            if (economy.capacity > 0U) {
+                economy.utilizationSum += static_cast<double>(resource.current) / static_cast<double>(economy.capacity);
+                economy.utilizationSamples++;
+            }
+            if (resource.current == 0U) {
+                economy.zeroSteps++;
             }
 
             economy.endCurrent = resource.current;
@@ -347,6 +394,8 @@ struct ResourceEconomy {
     std::uint64_t totalFinal = 0;
     std::uint64_t totalConsumed = 0;
     std::uint64_t totalProduced = 0;
+    std::uint64_t workshopProducedTotal = 0;
+    std::uint64_t regenProducedTotal = 0;
 
     json perResource = json::array();
     for (const auto& [interactionId, economy] : resourceByInteraction) {
@@ -357,6 +406,7 @@ struct ResourceEconomy {
         item["name"] = economy.name;
         item["type"] = genesis::world::resourceTypeName(economy.type);
         item["typeId"] = static_cast<std::uint32_t>(economy.type);
+        item["isWorkshop"] = economy.isWorkshop;
         item["capacity"] = economy.capacity;
         item["start"] = economy.startCurrent;
         item["end"] = economy.endCurrent;
@@ -366,12 +416,22 @@ struct ResourceEconomy {
         item["producedTotal"] = economy.totalProduced;
         item["consumeEvents"] = economy.consumptionEvents;
         item["produceEvents"] = economy.productionEvents;
+        item["ticks"] = economy.ticks;
+        item["zeroSteps"] = economy.zeroSteps;
+        item["zeroShare"] = economy.ticks > 0 ? (static_cast<double>(economy.zeroSteps) / static_cast<double>(economy.ticks)) : 0.0;
+        item["avgUtilization"] = economy.utilizationSamples > 0 ? (economy.utilizationSum / static_cast<double>(economy.utilizationSamples)) : 0.0;
+        item["plannerHits"] = plannerTargetCounts.contains(economy.interactionId) ? plannerTargetCounts.at(economy.interactionId) : 0ULL;
         perResource.push_back(std::move(item));
 
         totalCapacity += economy.capacity;
         totalFinal += economy.endCurrent;
         totalConsumed += economy.totalConsumed;
         totalProduced += economy.totalProduced;
+        if (economy.isWorkshop) {
+            workshopProducedTotal += economy.totalProduced;
+        } else {
+            regenProducedTotal += economy.totalProduced;
+        }
     }
 
     json actionCountsJson = json::object();
@@ -410,12 +470,88 @@ struct ResourceEconomy {
         {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0},
         {"totalConsumed", totalConsumed},
         {"totalProduced", totalProduced},
+        {"workshopProducedTotal", workshopProducedTotal},
+        {"regenProducedTotal", regenProducedTotal},
         {"netProducedMinusConsumed", static_cast<std::int64_t>(totalProduced) - static_cast<std::int64_t>(totalConsumed)},
         {"stockoutSteps", stockoutSteps},
         {"stepsWithAnyConsumption", stepsWithAnyConsumption},
         // NOTE: 历史字段名为 `stepsWithAnyRegen`，但此处统计的是 “produced>0”（包含自然 regen 与工坊生产）。
         {"stepsWithAnyProduced", stepsWithAnyRegen},
         {"stepsWithAnyRegen", stepsWithAnyRegen},
+    };
+
+    // --- Summary: Bottlenecks & rollups (human-readable oriented) ---
+    std::vector<BottleneckScore> bottlenecks;
+    bottlenecks.reserve(resourceByInteraction.size());
+
+    std::uint64_t totalPlannerHits = 0;
+    for (const auto& [_, c] : plannerTargetCounts) {
+        totalPlannerHits += c;
+    }
+
+    for (const auto& [interactionId, economy] : resourceByInteraction) {
+        const double zeroShare = economy.ticks > 0 ? (static_cast<double>(economy.zeroSteps) / static_cast<double>(economy.ticks)) : 0.0;
+        const double avgUtil = economy.utilizationSamples > 0 ? (economy.utilizationSum / static_cast<double>(economy.utilizationSamples)) : 0.0;
+        const auto hitsIt = plannerTargetCounts.find(interactionId);
+        const std::uint64_t hits = (hitsIt == plannerTargetCounts.end()) ? 0ULL : hitsIt->second;
+        const double hitShare = totalPlannerHits > 0 ? (static_cast<double>(hits) / static_cast<double>(totalPlannerHits)) : 0.0;
+
+        // Score intuition:
+        // - hot target (hitShare) + frequently empty (zeroShare) => bottleneck candidate.
+        // - low avg utilization reinforces (inventory tends to be low).
+        const double score = std::log1p(static_cast<double>(hits)) * (0.65 * clamp01(zeroShare) + 0.35 * (1.0 - clamp01(avgUtil))) * (0.25 + clamp01(hitShare) * 2.0);
+
+        if (score > 0.0) {
+            bottlenecks.push_back(BottleneckScore{interactionId, score});
+        }
+    }
+
+    std::sort(bottlenecks.begin(), bottlenecks.end(), [](const BottleneckScore& a, const BottleneckScore& b) {
+        return a.score > b.score;
+    });
+
+    json topBottlenecks = json::array();
+    const std::size_t topN = std::min<std::size_t>(8, bottlenecks.size());
+    for (std::size_t i = 0; i < topN; ++i) {
+        const auto id = bottlenecks[i].interactionId;
+        const auto it = resourceByInteraction.find(id);
+        if (it == resourceByInteraction.end()) {
+            continue;
+        }
+        const auto& economy = it->second;
+        const double zeroShare = economy.ticks > 0 ? (static_cast<double>(economy.zeroSteps) / static_cast<double>(economy.ticks)) : 0.0;
+        const double avgUtil = economy.utilizationSamples > 0 ? (economy.utilizationSum / static_cast<double>(economy.utilizationSamples)) : 0.0;
+        const auto hitsIt = plannerTargetCounts.find(id);
+        const std::uint64_t hits = (hitsIt == plannerTargetCounts.end()) ? 0ULL : hitsIt->second;
+
+        topBottlenecks.push_back({
+            {"interactionId", economy.interactionId},
+            {"mapId", economy.mapId},
+            {"name", economy.name},
+            {"type", genesis::world::resourceTypeName(economy.type)},
+            {"isWorkshop", economy.isWorkshop},
+            {"capacity", economy.capacity},
+            {"end", economy.endCurrent},
+            {"consumedTotal", economy.totalConsumed},
+            {"producedTotal", economy.totalProduced},
+            {"plannerHits", hits},
+            {"zeroShare", zeroShare},
+            {"avgUtilization", avgUtil},
+            {"score", bottlenecks[i].score},
+        });
+    }
+
+    report["summary"] = {
+        {"actions", {{"counts", actionCountsJson}, {"entropy_bits", entropyBitsFromCounts(actionTypeCounts)}}},
+        {"plannerTargets", {{"unique", plannerTargetCounts.size()}, {"entropy_bits", entropyBitsFromCounts(plannerTargetCounts)}}},
+        {"resourceEconomy",
+         {{"totalConsumed", totalConsumed},
+          {"totalProduced", totalProduced},
+          {"workshopProducedTotal", workshopProducedTotal},
+          {"regenProducedTotal", regenProducedTotal},
+          {"stockoutSteps", stockoutSteps},
+          {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0}}},
+        {"bottlenecksTop", topBottlenecks},
     };
 
     if (opts.outPath) {

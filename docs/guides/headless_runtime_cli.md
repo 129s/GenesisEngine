@@ -46,3 +46,4 @@ cmake --build build_headless --target genesis_runtime_cli
 - `diversity.actionTypes`：按 `telemetry.actions[].currentAction` 聚合的计数与熵（bits）
 - `diversity.plannerTargets`：按 `telemetry.plannerDecisions[].target` 聚合的计数与熵（bits）
 - `resourceEconomy`：每个资源点的 min/max/start/end、累计消耗/产出（由运行时统计并写入 `telemetry.resources[].consumed/produced`）、stockout 统计；其中 `resources[].type` 为字符串（`Food/Water/Social`），并保留 `resources[].typeId` 便于脚本化处理
+- `summary`：面向人工汇报的摘要（工坊产出 vs 自然再生、stockout、以及基于“热度+缺货”的瓶颈候选 `bottlenecksTop`）

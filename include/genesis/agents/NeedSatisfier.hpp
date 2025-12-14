@@ -15,6 +15,10 @@ namespace genesis::agents {
 class ActionExecutor;
 
 struct NeedSatisfierConfig {
+    float crossMapPenalty{500.0f};
+    float demandPenaltyPerAgent{60.0f};
+    float switchScoreMargin{50.0f};
+
     std::uint32_t hungerUnitsPerRequest{2};
     float hungerReliefPerUnit{12.0f};
     float hungerPrepareMargin{5.0f};

@@ -3,8 +3,7 @@
     { "id": 200, "name": "SceneB" }
   ],
   "interactions": [
-    { "id": 2000, "sceneId": 200, "kind": "Resource", "coord": [3, 4], "name": "WaterPoint" }
+    { "id": 2000, "sceneId": 200, "kind": "Resource", "coord": [3, 4], "name": "WaterPoint", "resourceType": "Drink", "capacity": 50, "regen": 2 }
   ],
   "portals": []
 }
-

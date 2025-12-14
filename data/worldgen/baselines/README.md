@@ -14,3 +14,6 @@
 - `diversity.toml`：Water/Food/Social 混合、多地图；验证分流与多样性基线。
 - `crowding.toml`：Water/Food + 多 agent；验证拥挤下 planner 分裂。
 - `ecosystem_v1.toml`：引入工坊配方（Food 依赖 Water；Social 依赖 Food+Water），要求 agent 执行生产动作，作为“最小生态闭环”第一版。
+- `ecosystem_v2.toml`：引入 `Ore` + 多配方工坊（替代输入）；观察瓶颈转移与“转产”倾向。
+- `substitution_v2.toml`：强化 `Ore` 稀缺下的替代配方；观察在不同压力下是否切换到低产但稳定的 Water-only 路线。
+- `logistics_v2.toml`：使用 `map_overrides` 将 Water/Ore/Food/Social 空间分离；观察迁徙、补给线与跨地图拥堵形态。

@@ -24,41 +24,34 @@ std::uint32_t ceilDiv(std::uint32_t a, std::uint32_t b) {
     return (a + (b - 1U)) / b;
 }
 
-} // namespace
+std::uint32_t parsePositiveU32(const json& value, std::uint32_t fallback) {
+    std::uint32_t out = fallback;
+    if (value.is_number_unsigned()) {
+        out = value.get<std::uint32_t>();
+    } else if (value.is_number_integer()) {
+        const auto v = value.get<std::int64_t>();
+        if (v > 0) {
+            out = static_cast<std::uint32_t>(v);
+        }
+    }
+    return std::max<std::uint32_t>(1U, out);
+}
 
-std::optional<WorkshopRecipe> parseWorkshopRecipe(const genesis::world::Interaction& interaction) {
-    if (!interaction.meta) {
-        return std::nullopt;
-    }
-    const auto& meta = *interaction.meta;
-    if (!meta.contains("workshop")) {
-        return std::nullopt;
-    }
-    const auto& workshop = meta.at("workshop");
-    if (!workshop.is_object()) {
+std::optional<WorkshopRecipe> parseRecipeObject(const json& obj) {
+    if (!obj.is_object()) {
         return std::nullopt;
     }
 
     WorkshopRecipe recipe{};
-
-    if (workshop.contains("outputUnits")) {
-        const auto& value = workshop.at("outputUnits");
-        if (value.is_number_unsigned()) {
-            recipe.outputUnits = std::max<std::uint32_t>(1U, value.get<std::uint32_t>());
-        } else if (value.is_number_integer()) {
-            const auto v = value.get<std::int64_t>();
-            if (v > 0) {
-                recipe.outputUnits = static_cast<std::uint32_t>(v);
-            }
-        }
-        recipe.outputUnits = std::max<std::uint32_t>(1U, recipe.outputUnits);
+    if (obj.contains("outputUnits")) {
+        recipe.outputUnits = parsePositiveU32(obj.at("outputUnits"), recipe.outputUnits);
     }
 
-    if (!workshop.contains("inputs") || !workshop.at("inputs").is_array()) {
+    if (!obj.contains("inputs") || !obj.at("inputs").is_array()) {
         return std::nullopt;
     }
 
-    for (const auto& item : workshop.at("inputs")) {
+    for (const auto& item : obj.at("inputs")) {
         if (!item.is_object()) {
             continue;
         }
@@ -91,8 +84,47 @@ std::optional<WorkshopRecipe> parseWorkshopRecipe(const genesis::world::Interact
     if (recipe.inputs.empty()) {
         return std::nullopt;
     }
-
     return recipe;
+}
+
+} // namespace
+
+std::vector<WorkshopRecipe> parseWorkshopRecipes(const genesis::world::Interaction& interaction) {
+    std::vector<WorkshopRecipe> recipes;
+    if (!interaction.meta) {
+        return recipes;
+    }
+    const auto& meta = *interaction.meta;
+    if (!meta.contains("workshop")) {
+        return recipes;
+    }
+    const auto& workshop = meta.at("workshop");
+    if (!workshop.is_object()) {
+        return recipes;
+    }
+
+    if (workshop.contains("recipes") && workshop.at("recipes").is_array()) {
+        for (const auto& r : workshop.at("recipes")) {
+            if (auto parsed = parseRecipeObject(r)) {
+                recipes.push_back(std::move(*parsed));
+            }
+        }
+        return recipes;
+    }
+
+    // 兼容旧协议：workshop 直接包含 outputUnits/inputs。
+    if (auto parsed = parseRecipeObject(workshop)) {
+        recipes.push_back(std::move(*parsed));
+    }
+    return recipes;
+}
+
+std::optional<WorkshopRecipe> parseWorkshopRecipe(const genesis::world::Interaction& interaction) {
+    auto recipes = parseWorkshopRecipes(interaction);
+    if (recipes.empty()) {
+        return std::nullopt;
+    }
+    return recipes.front();
 }
 
 ProductionPlanner::ProductionPlanner(genesis::world::WorldDatabase& db, ProductionPlannerConfig config)
@@ -124,12 +156,11 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
     if (!workshopInter || workshopInter->kind != genesis::world::InteractionKind::Resource) {
         return std::nullopt;
     }
-    const auto recipe = parseWorkshopRecipe(*workshopInter);
-    if (!recipe) {
+    const auto recipes = parseWorkshopRecipes(*workshopInter);
+    if (recipes.empty()) {
         return std::nullopt;
     }
 
-    const std::uint32_t batches = ceilDiv(request.outputAmount, recipe->outputUnits);
     std::vector<ActionTask> plan;
     plan.reserve(8);
 
@@ -176,6 +207,93 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
         return best;
     };
 
+    auto pickInteractionCost = [&](genesis::world::ResourceType type) -> std::optional<float> {
+        float bestCost = std::numeric_limits<float>::infinity();
+        bool found = false;
+
+        for (const auto& m : m_db.maps()) {
+            for (const auto& candidate : m_db.interactions(m.id)) {
+                if (candidate.kind != genesis::world::InteractionKind::Resource) {
+                    continue;
+                }
+                if (!candidate.resourceType || *candidate.resourceType != type) {
+                    continue;
+                }
+
+                float cost = std::numeric_limits<float>::infinity();
+                if (candidate.mapId == location.mapId) {
+                    const auto c = candidate.worldCoord();
+                    const float dx = static_cast<float>(c.first) - location.x;
+                    const float dy = static_cast<float>(c.second) - location.y;
+                    cost = dx * dx + dy * dy;
+                } else {
+                    const auto path = genesis::world::shortestMapPath(m_db, location.mapId, candidate.mapId);
+                    if (!path) {
+                        continue;
+                    }
+                    cost = m_config.crossMapPenalty + static_cast<float>(path->totalCost);
+                }
+
+                found = true;
+                bestCost = std::min(bestCost, cost);
+            }
+        }
+
+        if (!found || !std::isfinite(bestCost)) {
+            return std::nullopt;
+        }
+        return bestCost;
+    };
+
+    auto pickBestRecipe = [&](const std::vector<WorkshopRecipe>& candidates,
+                              genesis::world::ResourceType outputType,
+                              std::uint32_t outputAmount) -> const WorkshopRecipe* {
+        const WorkshopRecipe* best = nullptr;
+        double bestScore = std::numeric_limits<double>::infinity();
+
+        for (const auto& r : candidates) {
+            const std::uint32_t outUnits = std::max<std::uint32_t>(1U, r.outputUnits);
+            const std::uint32_t batches = ceilDiv(outputAmount, outUnits);
+            double totalCost = 0.0;
+
+            for (const auto& input : r.inputs) {
+                const std::uint32_t required = input.units * batches;
+                const std::uint32_t have = carried.get(input.type);
+                const std::uint32_t missing = (required > have) ? (required - have) : 0U;
+                if (missing == 0U) {
+                    continue;
+                }
+                const auto cost = pickInteractionCost(input.type);
+                if (!cost) {
+                    totalCost = std::numeric_limits<double>::infinity();
+                    break;
+                }
+                totalCost += static_cast<double>(*cost) * static_cast<double>(missing);
+            }
+
+            if (!std::isfinite(totalCost)) {
+                continue;
+            }
+
+            // 轻微偏好：更高产出单位更少批次（减少搬运/生产动作次数）。
+            totalCost += static_cast<double>(batches) * 0.01;
+            if (totalCost < bestScore) {
+                bestScore = totalCost;
+                best = &r;
+            }
+        }
+
+        (void)outputType;
+        return best;
+    };
+
+    const WorkshopRecipe* recipe = pickBestRecipe(recipes, request.outputType, request.outputAmount);
+    if (!recipe) {
+        return std::nullopt;
+    }
+
+    const std::uint32_t batches = ceilDiv(request.outputAmount, std::max<std::uint32_t>(1U, recipe->outputUnits));
+
     std::array<bool, components::CarriedResources::kTypeCount> acquiring{};
 
     std::function<bool(genesis::world::ResourceType, std::uint32_t, int)> acquire;
@@ -204,10 +322,11 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
         }
 
         const auto targetInter = m_db.findInteraction(*targetId);
-        const auto targetRecipe = targetInter ? parseWorkshopRecipe(*targetInter) : std::nullopt;
+        const auto targetRecipes = targetInter ? parseWorkshopRecipes(*targetInter) : std::vector<WorkshopRecipe>{};
+        const WorkshopRecipe* targetRecipe = targetRecipes.empty() ? nullptr : pickBestRecipe(targetRecipes, type, units);
 
         if (targetRecipe) {
-            const std::uint32_t needBatches = ceilDiv(units, targetRecipe->outputUnits);
+            const std::uint32_t needBatches = ceilDiv(units, std::max<std::uint32_t>(1U, targetRecipe->outputUnits));
             for (const auto& input : targetRecipe->inputs) {
                 if (!acquire(input.type, input.units * needBatches, depth + 1)) {
                     break;

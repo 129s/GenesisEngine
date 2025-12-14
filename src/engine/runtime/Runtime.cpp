@@ -318,12 +318,30 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         }
 
         json workshop{};
-        workshop["outputUnits"] = spec->output_units;
         workshop["initial"] = spec->initial;
-        workshop["inputs"] = json::array();
-        for (const auto& input : spec->inputs)
+        workshop["recipes"] = json::array();
+
+        for (const auto& recipe : spec->recipes)
         {
-            workshop["inputs"].push_back({{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}});
+            json r{};
+            r["outputUnits"] = std::max<std::uint32_t>(1U, recipe.output_units);
+            r["inputs"] = json::array();
+            for (const auto& input : recipe.inputs)
+            {
+                r["inputs"].push_back({{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}});
+            }
+            workshop["recipes"].push_back(std::move(r));
+        }
+
+        // 兼容旧协议：保留单配方字段（优先取第一个 recipe）。
+        if (!spec->recipes.empty())
+        {
+            workshop["outputUnits"] = std::max<std::uint32_t>(1U, spec->recipes.front().output_units);
+            workshop["inputs"] = json::array();
+            for (const auto& input : spec->recipes.front().inputs)
+            {
+                workshop["inputs"].push_back({{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}});
+            }
         }
 
         json meta = resource.meta ? *resource.meta : json::object();
@@ -335,13 +353,39 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
     };
 
     if (!hasExplicitResources) {
-        const auto selectConfigResourceType = [&](std::uint64_t ordinal) -> world::ResourceType {
+        const auto selectConfigResourceType = [&](world::MapId mapId, std::uint64_t ordinal) -> world::ResourceType {
             if (config.worlddb.resources.types.empty())
             {
                 return config.worlddb.resources.type;
             }
-            const auto& types = config.worlddb.resources.types;
-            const auto& weights = config.worlddb.resources.weights;
+            const auto* overrideSpec = [&]() -> const genesis::worldgen::WorldDbResourceSettings::MapOverride* {
+                for (const auto& ov : config.worlddb.resources.map_overrides)
+                {
+                    if (ov.map == mapId)
+                    {
+                        return &ov;
+                    }
+                }
+                return nullptr;
+            }();
+
+            const auto& types = (overrideSpec && !overrideSpec->types.empty()) ? overrideSpec->types : config.worlddb.resources.types;
+            const auto& weights = [&]() -> const std::vector<double>& {
+                if (!overrideSpec)
+                {
+                    return config.worlddb.resources.weights;
+                }
+                if (!overrideSpec->weights.empty())
+                {
+                    return overrideSpec->weights;
+                }
+                if (overrideSpec->types.empty())
+                {
+                    return config.worlddb.resources.weights;
+                }
+                static const std::vector<double> empty{};
+                return empty;
+            }();
             double sum = 0.0;
             if (weights.empty())
             {
@@ -408,7 +452,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 resource.mapId = mapId;
                 resource.sceneId = sceneId;
                 resource.kind = world::InteractionKind::Resource;
-                resource.resourceType = selectConfigResourceType((static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(index));
+                resource.resourceType = selectConfigResourceType(mapId, (static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(index));
                 resource.coordLocal = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
                                        std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
                 resource.coordGlobal = resource.coordLocal;
@@ -603,6 +647,19 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             if (created && hasMapLink(exitMap, entryMap)) {
                 (void)addPortalIfMissing(exitMap, exitCoord, entryMap, entryCoord, "PortalTo_" + std::to_string(entryMap));
             }
+        }
+    }
+
+    // 保底：让每条 MapEdge 至少可被一个 Portal 穿越（否则 MapPathfinding 可达但行动系统无法跨图移动）。
+    for (const auto& e : db.mapEdges()) {
+        if (e.from == 0U || e.to == 0U || e.from == e.to) {
+            continue;
+        }
+        const auto entryCoord = coordFor(static_cast<std::size_t>(e.from - 1));
+        const auto exitCoord = coordFor(static_cast<std::size_t>(e.to - 1));
+        (void)addPortalIfMissing(e.from, entryCoord, e.to, exitCoord, "PortalTo_" + std::to_string(e.to));
+        if (e.bidirectional) {
+            (void)addPortalIfMissing(e.to, exitCoord, e.from, entryCoord, "PortalTo_" + std::to_string(e.from));
         }
     }
 

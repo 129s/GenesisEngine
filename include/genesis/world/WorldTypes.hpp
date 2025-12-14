@@ -8,7 +8,8 @@ namespace genesis::world {
 enum class ResourceType : std::uint8_t {
     Food,
     Water,
-    Social
+    Social,
+    Ore
 };
 
 } // namespace genesis::world

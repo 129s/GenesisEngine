@@ -15,6 +15,8 @@ namespace genesis::world {
         return "Water";
     case ResourceType::Social:
         return "Social";
+    case ResourceType::Ore:
+        return "Ore";
     }
     return "Food";
 }
@@ -24,8 +26,8 @@ namespace genesis::world {
     if (sv == "Food" || sv == "food") return ResourceType::Food;
     if (sv == "Water" || sv == "water" || sv == "Drink" || sv == "drink") return ResourceType::Water;
     if (sv == "Social" || sv == "social") return ResourceType::Social;
+    if (sv == "Ore" || sv == "ore") return ResourceType::Ore;
     return std::nullopt;
 }
 
 } // namespace genesis::world
-

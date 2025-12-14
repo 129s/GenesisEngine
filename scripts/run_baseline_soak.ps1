@@ -37,7 +37,10 @@ $baselines = @(
   @{ Name = "diversity"; ConfigPath = "data/worldgen/baselines/diversity.toml"; Seed = $Seed; Agents = 6 },
   @{ Name = "abundance"; ConfigPath = "data/worldgen/baselines/abundance.toml"; Seed = $Seed; Agents = 1 },
   @{ Name = "crowding";  ConfigPath = "data/worldgen/baselines/crowding.toml";  Seed = $Seed; Agents = 12 },
-  @{ Name = "ecosystem_v1"; ConfigPath = "data/worldgen/baselines/ecosystem_v1.toml"; Seed = $Seed; Agents = 8 }
+  @{ Name = "ecosystem_v1"; ConfigPath = "data/worldgen/baselines/ecosystem_v1.toml"; Seed = $Seed; Agents = 8 },
+  @{ Name = "ecosystem_v2"; ConfigPath = "data/worldgen/baselines/ecosystem_v2.toml"; Seed = $Seed; Agents = 10 },
+  @{ Name = "substitution_v2"; ConfigPath = "data/worldgen/baselines/substitution_v2.toml"; Seed = $Seed; Agents = 10 },
+  @{ Name = "logistics_v2"; ConfigPath = "data/worldgen/baselines/logistics_v2.toml"; Seed = $Seed; Agents = 10 }
 )
 
 foreach ($b in $baselines) {
@@ -66,6 +69,9 @@ foreach ($b in $baselines) {
   ($script | ConvertTo-Json -Depth 6) | Out-File -FilePath $scriptPath -Encoding utf8
 
   & $exe run-script $scriptPath --root $repoRoot --max-steps 128 --quiet | Write-Host
+  if ($LASTEXITCODE -ne 0) {
+    throw ("worldgen failed for baseline '{0}' (exit={1})" -f $name, $LASTEXITCODE)
+  }
 
   $metricsOut = Join-Path $repoRoot ("out\\metrics\\soak_{0}_seed{1}_steps{2}.json" -f $name, $seed, $Steps)
   $soakArgs = @("soak", $worldOut, "--root", $repoRoot, "--steps", $Steps, "--out", $metricsOut, "--quiet")
@@ -73,6 +79,9 @@ foreach ($b in $baselines) {
     $soakArgs += @("--agents", $agents)
   }
   & $exe @soakArgs | Write-Host
+  if ($LASTEXITCODE -ne 0) {
+    throw ("soak failed for baseline '{0}' (exit={1})" -f $name, $LASTEXITCODE)
+  }
 
   Write-Host ("[baseline] {0} -> {1}" -f $name, $metricsOut)
 }

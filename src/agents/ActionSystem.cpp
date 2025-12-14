@@ -409,8 +409,8 @@ void ActionExecutor::processProduce(entt::entity entity,
         return;
     }
 
-    const auto recipe = parseWorkshopRecipe(*it);
-    if (!recipe) {
+    const auto recipes = parseWorkshopRecipes(*it);
+    if (recipes.empty()) {
         queue.tasks.pop_front();
         return;
     }
@@ -427,31 +427,43 @@ void ActionExecutor::processProduce(entt::entity entity,
         return;
     }
 
-    const auto outputUnits = std::max<std::uint32_t>(1U, recipe->outputUnits);
     const auto wantedBatches = std::max<std::uint32_t>(1U, task.batches);
 
-    std::uint32_t maxByInputs = std::numeric_limits<std::uint32_t>::max();
-    for (const auto& input : recipe->inputs) {
-        if (input.units == 0U) {
-            continue;
+    const WorkshopRecipe* bestRecipe = nullptr;
+    std::uint32_t bestBatches = 0U;
+
+    for (const auto& r : recipes) {
+        const auto outputUnits = std::max<std::uint32_t>(1U, r.outputUnits);
+
+        std::uint32_t maxByInputs = std::numeric_limits<std::uint32_t>::max();
+        for (const auto& input : r.inputs) {
+            if (input.units == 0U) {
+                continue;
+            }
+            maxByInputs = std::min(maxByInputs, carried->get(input.type) / input.units);
         }
-        maxByInputs = std::min(maxByInputs, carried->get(input.type) / input.units);
+
+        const std::uint32_t space = (state->current >= state->capacity) ? 0U : (state->capacity - state->current);
+        const std::uint32_t maxByCapacity = space / outputUnits;
+
+        const std::uint32_t batches = std::min(wantedBatches, std::min(maxByInputs, maxByCapacity));
+        if (batches > bestBatches) {
+            bestBatches = batches;
+            bestRecipe = &r;
+        }
     }
 
-    const std::uint32_t space = (state->current >= state->capacity) ? 0U : (state->capacity - state->current);
-    const std::uint32_t maxByCapacity = space / outputUnits;
-
-    const std::uint32_t batches = std::min(wantedBatches, std::min(maxByInputs, maxByCapacity));
-    if (batches == 0U) {
+    if (!bestRecipe || bestBatches == 0U) {
         queue.tasks.pop_front();
         return;
     }
 
-    for (const auto& input : recipe->inputs) {
-        carried->remove(input.type, input.units * batches);
+    const auto outputUnits = std::max<std::uint32_t>(1U, bestRecipe->outputUnits);
+    for (const auto& input : bestRecipe->inputs) {
+        carried->remove(input.type, input.units * bestBatches);
     }
 
-    m_resources.produceAtInteraction(registry, task.interaction, outputUnits * batches);
+    m_resources.produceAtInteraction(registry, task.interaction, outputUnits * bestBatches);
     queue.tasks.pop_front();
 }
 

@@ -78,14 +78,41 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
 
     std::size_t id = next_local_id(topology);
 
-    const auto pickType = [&](std::size_t ordinal) -> genesis::world::ResourceType {
+    const auto overrideSpecForMap = [&](std::uint32_t mapId) -> const WorldDbResourceSettings::MapOverride* {
+        for (const auto& ov : config.worlddb.resources.map_overrides)
+        {
+            if (ov.map == mapId)
+            {
+                return &ov;
+            }
+        }
+        return nullptr;
+    };
+
+    const auto pickType = [&](std::uint32_t mapId, std::size_t ordinal) -> genesis::world::ResourceType {
         if (config.worlddb.resources.types.empty())
         {
             return config.worlddb.resources.type;
         }
 
-        const auto& types = config.worlddb.resources.types;
-        const auto& weights = config.worlddb.resources.weights;
+        const auto* overrideSpec = overrideSpecForMap(mapId);
+        const auto& types = (overrideSpec && !overrideSpec->types.empty()) ? overrideSpec->types : config.worlddb.resources.types;
+        const auto& weights = [&]() -> const std::vector<double>& {
+            if (!overrideSpec)
+            {
+                return config.worlddb.resources.weights;
+            }
+            if (!overrideSpec->weights.empty())
+            {
+                return overrideSpec->weights;
+            }
+            if (overrideSpec->types.empty())
+            {
+                return config.worlddb.resources.weights;
+            }
+            static const std::vector<double> empty{};
+            return empty;
+        }();
         double sum = 0.0;
         if (weights.empty())
         {
@@ -101,7 +128,7 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
         }
 
         // 保持确定性：用 ordinal 生成稳定的 [0,1) 伪随机数，再按 weights 取样。
-        const double u = uniform01_from_u64(static_cast<std::uint64_t>(ordinal) ^ 0xA11CEBEEull);
+        const double u = uniform01_from_u64(static_cast<std::uint64_t>(ordinal) ^ (static_cast<std::uint64_t>(mapId) << 32ULL) ^ 0xA11CEBEEull);
         const double r = u * sum;
         double acc = 0.0;
         for (std::size_t i = 0; i < types.size(); ++i)
@@ -129,7 +156,8 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
         const auto count = config.worlddb.resources.per_map;
         for (std::size_t j = 0; j < count; ++j)
         {
-            const auto type = pickType(ordinal++);
+            const auto mapId = static_cast<std::uint32_t>(node.local_id + 1);
+            const auto type = pickType(mapId, ordinal++);
             const auto typeTag = std::string("resource_type=") + resource_type_name(type);
 
             NodeDraft resource{};

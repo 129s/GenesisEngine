@@ -1,0 +1,56 @@
+[world]
+name = "baseline_substitution_v2"
+
+[topology.cluster]
+min_clusters = 2
+max_clusters = 2
+min_nodes_per_cluster = 3
+max_nodes_per_cluster = 3
+
+[topology.corridor]
+enabled = true
+min_length = 2
+max_length = 2
+
+[layout.grid]
+cell_width = 6.0
+cell_height = 5.0
+columns = 3
+margin = 2.0
+
+[layout.cluster]
+radial_distance = 24.0
+radial_step = 6.0
+node_spacing = 3.0
+
+[layout.corridor]
+step = 7.0
+
+[tilemap]
+tile_size = 32
+base_extent = 32
+
+[worlddb.resources]
+per_map = 4
+types = ["Water", "Ore", "Food", "Social"]
+weights = [2.0, 0.35, 1.0, 1.0]
+capacity = 34
+regen_per_step = 2
+
+[[worlddb.resources.workshop]]
+output = "Food"
+initial = 0
+chance = 1.0
+recipes = [
+  { output_units = 3, inputs = [{ type = "Water", units = 2 }] },
+  { output_units = 6, inputs = [{ type = "Water", units = 1 }, { type = "Ore", units = 1 }] }
+]
+
+[[worlddb.resources.workshop]]
+output = "Social"
+initial = 0
+chance = 1.0
+recipes = [
+  { output_units = 2, inputs = [{ type = "Food", units = 1 }, { type = "Water", units = 1 }] },
+  { output_units = 4, inputs = [{ type = "Food", units = 1 }, { type = "Ore", units = 1 }] }
+]

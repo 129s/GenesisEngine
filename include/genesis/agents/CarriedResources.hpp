@@ -16,12 +16,14 @@ constexpr std::size_t resourceTypeIndex(genesis::world::ResourceType type) noexc
         return 1;
     case genesis::world::ResourceType::Social:
         return 2;
+    case genesis::world::ResourceType::Ore:
+        return 3;
     }
     return 0;
 }
 
 struct CarriedResources {
-    static constexpr std::size_t kTypeCount = 3;
+    static constexpr std::size_t kTypeCount = 4;
 
     std::array<std::uint32_t, kTypeCount> units{};
     std::uint32_t capacityPerType{12};
@@ -55,4 +57,3 @@ struct CarriedResources {
 };
 
 } // namespace genesis::agents::components
-

@@ -185,6 +185,29 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     return h;
 }
 
+[[nodiscard]] double giniFromCounts(std::vector<std::uint64_t> counts) {
+    if (counts.empty()) {
+        return 0.0;
+    }
+    std::sort(counts.begin(), counts.end());
+    std::uint64_t sum = 0;
+    for (const auto c : counts) {
+        sum += c;
+    }
+    if (sum == 0) {
+        return 0.0;
+    }
+
+    // Gini = (2*Σ(i*x_i))/(n*Σx) - (n+1)/n, i=1..n, x sorted ascending
+    const double n = static_cast<double>(counts.size());
+    double weighted = 0.0;
+    for (std::size_t i = 0; i < counts.size(); ++i) {
+        weighted += static_cast<double>(i + 1) * static_cast<double>(counts[i]);
+    }
+    const double g = (2.0 * weighted) / (n * static_cast<double>(sum)) - (n + 1.0) / n;
+    return std::clamp(g, 0.0, 1.0);
+}
+
 struct BottleneckScore {
     std::uint32_t interactionId{0};
     double score{0.0};
@@ -285,6 +308,19 @@ struct ResourceEconomy {
     std::unordered_map<std::uint32_t, std::uint64_t> plannerTargetCounts;
     std::unordered_map<std::uint32_t, ResourceEconomy> resourceByInteraction;
 
+    std::vector<std::uint32_t> agentIds;
+    agentIds.reserve(initialSnapshot->telemetry.agents.size());
+    for (const auto& a : initialSnapshot->telemetry.agents) {
+        agentIds.push_back(a.entityId);
+    }
+
+    std::unordered_map<std::uint32_t, std::uint64_t> produceTicksByAgent;
+    std::unordered_map<std::uint32_t, std::uint64_t> takeTicksByAgent;
+    std::unordered_map<std::uint32_t, std::uint32_t> lastProduceTargetByAgent;
+    std::unordered_map<std::uint32_t, std::uint32_t> lastPlannerTargetByAgent;
+    std::uint64_t produceTargetSwitchesTotal = 0;
+    std::uint64_t plannerTargetSwitchesTotal = 0;
+
     bool sawNeeds = !initialSnapshot->telemetry.needs.empty();
     bool sawPlanner = !initialSnapshot->telemetry.plannerDecisions.empty();
     bool sawActions = !initialSnapshot->telemetry.actions.empty();
@@ -309,9 +345,29 @@ struct ResourceEconomy {
 
         for (const auto& action : telemetry.actions) {
             actionTypeCounts[action.currentAction]++;
+
+            if (action.currentAction == "ProduceResource") {
+                produceTicksByAgent[action.entityId]++;
+                if (action.target != 0) {
+                    const auto prev = lastProduceTargetByAgent.contains(action.entityId) ? lastProduceTargetByAgent[action.entityId] : 0U;
+                    if (prev != 0 && prev != action.target) {
+                        produceTargetSwitchesTotal++;
+                    }
+                    lastProduceTargetByAgent[action.entityId] = action.target;
+                }
+            } else if (action.currentAction == "TakeResource") {
+                takeTicksByAgent[action.entityId]++;
+            }
         }
         for (const auto& decision : telemetry.plannerDecisions) {
             plannerTargetCounts[decision.target]++;
+            if (decision.target != 0) {
+                const auto prev = lastPlannerTargetByAgent.contains(decision.entityId) ? lastPlannerTargetByAgent[decision.entityId] : 0U;
+                if (prev != 0 && prev != decision.target) {
+                    plannerTargetSwitchesTotal++;
+                }
+                lastPlannerTargetByAgent[decision.entityId] = decision.target;
+            }
         }
 
         bool anyStockout = false;
@@ -510,6 +566,34 @@ struct ResourceEconomy {
         return a.score > b.score;
     });
 
+    std::vector<std::uint64_t> produceTicks;
+    std::vector<std::uint64_t> takeTicks;
+    produceTicks.reserve(agentIds.size());
+    takeTicks.reserve(agentIds.size());
+    for (const auto id : agentIds) {
+        produceTicks.push_back(produceTicksByAgent.contains(id) ? produceTicksByAgent.at(id) : 0ULL);
+        takeTicks.push_back(takeTicksByAgent.contains(id) ? takeTicksByAgent.at(id) : 0ULL);
+    }
+
+    double oscillationSum = 0.0;
+    std::uint64_t oscillationSamples = 0;
+    double workshopOscillationSum = 0.0;
+    std::uint64_t workshopOscillationSamples = 0;
+    for (const auto& [_, economy] : resourceByInteraction) {
+        if (economy.capacity == 0U) {
+            continue;
+        }
+        const auto minV = (economy.minCurrent == std::numeric_limits<std::uint32_t>::max()) ? economy.endCurrent : economy.minCurrent;
+        const auto maxV = economy.maxCurrent;
+        const double amp = static_cast<double>(maxV - std::min(maxV, minV)) / static_cast<double>(economy.capacity);
+        oscillationSum += amp;
+        oscillationSamples++;
+        if (economy.isWorkshop) {
+            workshopOscillationSum += amp;
+            workshopOscillationSamples++;
+        }
+    }
+
     json topBottlenecks = json::array();
     const std::size_t topN = std::min<std::size_t>(8, bottlenecks.size());
     for (std::size_t i = 0; i < topN; ++i) {
@@ -544,12 +628,22 @@ struct ResourceEconomy {
     report["summary"] = {
         {"actions", {{"counts", actionCountsJson}, {"entropy_bits", entropyBitsFromCounts(actionTypeCounts)}}},
         {"plannerTargets", {{"unique", plannerTargetCounts.size()}, {"entropy_bits", entropyBitsFromCounts(plannerTargetCounts)}}},
+        {"switching",
+         {{"produceTargetSwitchesTotal", produceTargetSwitchesTotal},
+          {"produceTargetSwitchesPerAgent", agentIds.empty() ? 0.0 : (static_cast<double>(produceTargetSwitchesTotal) / static_cast<double>(agentIds.size()))},
+          {"plannerTargetSwitchesTotal", plannerTargetSwitchesTotal},
+          {"plannerTargetSwitchesPerAgent", agentIds.empty() ? 0.0 : (static_cast<double>(plannerTargetSwitchesTotal) / static_cast<double>(agentIds.size()))}}},
+        {"specialization",
+         {{"produceTicksGini", giniFromCounts(produceTicks)},
+          {"takeTicksGini", giniFromCounts(takeTicks)}}},
         {"resourceEconomy",
          {{"totalConsumed", totalConsumed},
           {"totalProduced", totalProduced},
           {"workshopProducedTotal", workshopProducedTotal},
           {"regenProducedTotal", regenProducedTotal},
           {"stockoutSteps", stockoutSteps},
+          {"avgOscillation", oscillationSamples > 0 ? (oscillationSum / static_cast<double>(oscillationSamples)) : 0.0},
+          {"workshopAvgOscillation", workshopOscillationSamples > 0 ? (workshopOscillationSum / static_cast<double>(workshopOscillationSamples)) : 0.0},
           {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0}}},
         {"bottlenecksTop", topBottlenecks},
     };

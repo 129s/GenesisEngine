@@ -21,6 +21,7 @@ struct WorkshopRecipe {
     std::vector<WorkshopRecipeInput> inputs{};
 };
 
+[[nodiscard]] std::vector<WorkshopRecipe> parseWorkshopRecipes(const genesis::world::Interaction& interaction);
 [[nodiscard]] std::optional<WorkshopRecipe> parseWorkshopRecipe(const genesis::world::Interaction& interaction);
 
 struct ProductionPlannerConfig {

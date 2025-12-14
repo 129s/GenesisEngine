@@ -339,6 +339,57 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
                 const auto& arr = *workshop_node->as_array();
                 settings.resources.workshops.reserve(arr.size());
 
+                const auto parse_inputs = [&](const toml::array& inputs_arr,
+                                              std::string_view prefix) -> std::vector<WorldDbResourceSettings::WorkshopInput> {
+                    if (inputs_arr.empty())
+                    {
+                        throw std::runtime_error(std::string(prefix) + "inputs 不能为空");
+                    }
+
+                    std::vector<WorldDbResourceSettings::WorkshopInput> inputs;
+                    inputs.reserve(inputs_arr.size());
+
+                    for (const auto& input_item : inputs_arr)
+                    {
+                        if (!input_item.is_table())
+                        {
+                            throw std::runtime_error(std::string(prefix) + "inputs 数组元素必须为 table");
+                        }
+                        const auto& in_table = *input_item.as_table();
+
+                        WorldDbResourceSettings::WorkshopInput in{};
+
+                        const auto* in_type = in_table.get_as<std::string>("type");
+                        if (!in_type)
+                        {
+                            throw std::runtime_error(std::string(prefix) + "inputs.type 必须存在且为字符串");
+                        }
+                        const auto parsedIn = parse_resource_type(in_type->get());
+                        if (!parsedIn)
+                        {
+                            throw std::runtime_error(std::string("未知资源类型: ") + in_type->get());
+                        }
+                        in.type = *parsedIn;
+
+                        if (auto units = read_size_t(in_table, "units"))
+                        {
+                            if (*units == 0)
+                            {
+                                throw std::runtime_error(std::string(prefix) + "inputs.units 必须大于 0");
+                            }
+                            in.units = static_cast<std::uint32_t>(*units);
+                        }
+                        else
+                        {
+                            throw std::runtime_error(std::string(prefix) + "inputs.units 必须存在且为整数");
+                        }
+
+                        inputs.push_back(in);
+                    }
+
+                    return inputs;
+                };
+
                 for (const auto& item : arr)
                 {
                     if (!item.is_table())
@@ -361,15 +412,6 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
                     }
                     spec.output = *parsedOutput;
 
-                    if (auto out_units = read_size_t(w, "output_units"))
-                    {
-                        if (*out_units == 0)
-                        {
-                            throw std::runtime_error("worlddb.resources.workshop.output_units 必须大于 0");
-                        }
-                        spec.output_units = static_cast<std::uint32_t>(*out_units);
-                    }
-
                     if (auto initial = read_size_t(w, "initial"))
                     {
                         spec.initial = static_cast<std::uint32_t>(*initial);
@@ -384,58 +426,122 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
                         spec.chance = *chance;
                     }
 
-                    const auto* inputs_node = w.get("inputs");
-                    if (!inputs_node || !inputs_node->is_array())
+                    if (const auto* recipes_node = w.get("recipes"))
                     {
-                        throw std::runtime_error("worlddb.resources.workshop.inputs 必须存在且为数组");
-                    }
-
-                    const auto& inputs_arr = *inputs_node->as_array();
-                    if (inputs_arr.empty())
-                    {
-                        throw std::runtime_error("worlddb.resources.workshop.inputs 不能为空");
-                    }
-                    spec.inputs.reserve(inputs_arr.size());
-
-                    for (const auto& input_item : inputs_arr)
-                    {
-                        if (!input_item.is_table())
+                        if (!recipes_node->is_array())
                         {
-                            throw std::runtime_error("worlddb.resources.workshop.inputs 数组元素必须为 table");
+                            throw std::runtime_error("worlddb.resources.workshop.recipes 必须为数组");
                         }
-                        const auto& in_table = *input_item.as_table();
-
-                        WorldDbResourceSettings::WorkshopInput in{};
-
-                        const auto* in_type = in_table.get_as<std::string>("type");
-                        if (!in_type)
+                        const auto& recipes_arr = *recipes_node->as_array();
+                        if (recipes_arr.empty())
                         {
-                            throw std::runtime_error("worlddb.resources.workshop.inputs.type 必须存在且为字符串");
+                            throw std::runtime_error("worlddb.resources.workshop.recipes 不能为空");
                         }
-                        const auto parsedIn = parse_resource_type(in_type->get());
-                        if (!parsedIn)
-                        {
-                            throw std::runtime_error(std::string("未知资源类型: ") + in_type->get());
-                        }
-                        in.type = *parsedIn;
+                        spec.recipes.reserve(recipes_arr.size());
 
-                        if (auto units = read_size_t(in_table, "units"))
+                        for (const auto& recipe_item : recipes_arr)
                         {
-                            if (*units == 0)
+                            if (!recipe_item.is_table())
                             {
-                                throw std::runtime_error("worlddb.resources.workshop.inputs.units 必须大于 0");
+                                throw std::runtime_error("worlddb.resources.workshop.recipes 数组元素必须为 table");
                             }
-                            in.units = static_cast<std::uint32_t>(*units);
+                            const auto& r_table = *recipe_item.as_table();
+
+                            WorldDbResourceSettings::WorkshopRecipe recipe{};
+                            if (auto out_units = read_size_t(r_table, "output_units"))
+                            {
+                                if (*out_units == 0)
+                                {
+                                    throw std::runtime_error("worlddb.resources.workshop.recipes.output_units 必须大于 0");
+                                }
+                                recipe.output_units = static_cast<std::uint32_t>(*out_units);
+                            }
+
+                            const auto* inputs_node = r_table.get("inputs");
+                            if (!inputs_node || !inputs_node->is_array())
+                            {
+                                throw std::runtime_error("worlddb.resources.workshop.recipes.inputs 必须存在且为数组");
+                            }
+                            recipe.inputs = parse_inputs(*inputs_node->as_array(), "worlddb.resources.workshop.recipes.");
+                            spec.recipes.push_back(std::move(recipe));
                         }
-                        else
+                    }
+                    else
+                    {
+                        WorldDbResourceSettings::WorkshopRecipe recipe{};
+                        if (auto out_units = read_size_t(w, "output_units"))
                         {
-                            throw std::runtime_error("worlddb.resources.workshop.inputs.units 必须存在且为整数");
+                            if (*out_units == 0)
+                            {
+                                throw std::runtime_error("worlddb.resources.workshop.output_units 必须大于 0");
+                            }
+                            recipe.output_units = static_cast<std::uint32_t>(*out_units);
                         }
 
-                        spec.inputs.push_back(in);
+                        const auto* inputs_node = w.get("inputs");
+                        if (!inputs_node || !inputs_node->is_array())
+                        {
+                            throw std::runtime_error("worlddb.resources.workshop.inputs 必须存在且为数组");
+                        }
+                        recipe.inputs = parse_inputs(*inputs_node->as_array(), "worlddb.resources.workshop.");
+                        spec.recipes.push_back(std::move(recipe));
                     }
 
                     settings.resources.workshops.push_back(std::move(spec));
+                }
+            }
+
+            if (const auto* override_node = res_table->get("map_overrides"))
+            {
+                if (!override_node->is_array())
+                {
+                    throw std::runtime_error("worlddb.resources.map_overrides 必须为数组");
+                }
+                const auto& arr = *override_node->as_array();
+                settings.resources.map_overrides.reserve(arr.size());
+
+                for (const auto& item : arr)
+                {
+                    if (!item.is_table())
+                    {
+                        throw std::runtime_error("worlddb.resources.map_overrides 数组元素必须为 table");
+                    }
+                    const auto& t = *item.as_table();
+
+                    WorldDbResourceSettings::MapOverride ov{};
+                    if (const auto* map = t.get_as<std::int64_t>("map"))
+                    {
+                        if (*map <= 0)
+                        {
+                            throw std::runtime_error("worlddb.resources.map_overrides.map 必须大于 0");
+                        }
+                        ov.map = static_cast<std::uint32_t>(map->get());
+                    }
+                    else
+                    {
+                        throw std::runtime_error("worlddb.resources.map_overrides.map 必须存在且为整数");
+                    }
+
+                    ov.types = parse_resource_types(t, "types");
+                    ov.weights = parse_weights(t, "weights");
+
+                    const auto& effectiveTypes = ov.types.empty() ? settings.resources.types : ov.types;
+                    if (!effectiveTypes.empty())
+                    {
+                        if (!ov.weights.empty() && ov.weights.size() != effectiveTypes.size())
+                        {
+                            throw std::runtime_error("worlddb.resources.map_overrides.weights 长度必须与 types 一致");
+                        }
+                    }
+                    else
+                    {
+                        if (!ov.weights.empty())
+                        {
+                            throw std::runtime_error("worlddb.resources.map_overrides.weights 仅在提供 types 时可用");
+                        }
+                    }
+
+                    settings.resources.map_overrides.push_back(std::move(ov));
                 }
             }
 

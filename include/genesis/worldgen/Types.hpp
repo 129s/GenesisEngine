@@ -151,18 +151,33 @@ struct WorldDbResourceSettings
         std::uint32_t units{1};
     };
 
+    struct WorkshopRecipe
+    {
+        std::uint32_t output_units{1};
+        std::vector<WorkshopInput> inputs{};
+    };
+
     // 让 agent 执行“生产动作”后才产出目标资源；否则资源点不再被动 regen。
     struct Workshop
     {
         genesis::world::ResourceType output{genesis::world::ResourceType::Food};
-        std::uint32_t output_units{1};
         std::uint32_t initial{0};
         // 将该资源点标记为工坊的概率（0..1）。默认 1 表示“该类型资源点全部为工坊”（保持历史行为）。
         double chance{1.0};
-        std::vector<WorkshopInput> inputs{};
+        std::vector<WorkshopRecipe> recipes{};
     };
 
     std::vector<Workshop> workshops{};
+
+    struct MapOverride
+    {
+        std::uint32_t map{0};
+        std::vector<genesis::world::ResourceType> types{};
+        std::vector<double> weights{};
+    };
+
+    // 可选：按 mapId 覆盖 types/weights（用于构造空间分离/物流压力基准世界）。
+    std::vector<MapOverride> map_overrides{};
 };
 
 struct WorldDbSettings

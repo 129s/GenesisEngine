@@ -40,6 +40,8 @@ namespace world = Genesis::World;
 namespace agents = Genesis::Agents;
 namespace agent_components = Genesis::Agents::Components;
 
+WorldAtlas buildWorldAtlasFromDatabase(const genesis::world::WorldDatabase& db, std::uint32_t worldVersion);
+
 namespace {
 
 simulation::AgentSpawnParams2D toSpawnParams(const agent_components::AgentLocation2D& location,
@@ -468,6 +470,8 @@ public:
 
     [[nodiscard]] const SimulationSnapshot* latestSnapshot() const noexcept;
     [[nodiscard]] std::optional<SimulationSnapshotDiff> latestSnapshotDiff() const noexcept;
+    [[nodiscard]] std::shared_ptr<const WorldAtlas> worldAtlas() const noexcept;
+    [[nodiscard]] std::uint32_t worldVersion() const noexcept { return m_worldVersion.load(std::memory_order_acquire); }
 
     [[nodiscard]] const std::optional<std::uint64_t>& lastSeed() const noexcept { return m_lastSeed; }
     [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept { return m_lastWorldGen; }
@@ -495,6 +499,7 @@ public:
 private:
     void drainPendingEvents(Runtime& owner);
     void onSimulationSnapshot(const telemetry::TickTelemetry& tick);
+    void updateWorldAtlas(std::shared_ptr<world::WorldDatabase> db, std::uint32_t worldVersion);
 
     struct EventState {
         void enqueue(RuntimeEvent event);
@@ -516,6 +521,10 @@ private:
     SimulationSnapshotBuffer m_snapshotBuffer;
     std::atomic<std::uint64_t> m_nextEventId{1};
     EventState m_events;
+
+    std::atomic<std::uint32_t> m_worldVersion{0};
+    mutable std::mutex m_worldMutex;
+    std::shared_ptr<const WorldAtlas> m_worldAtlas;
 };
 
 Runtime::Impl::Impl(RuntimeConfig config)
@@ -646,6 +655,8 @@ world::WorldDbLoadResult Runtime::Impl::loadWorldFromFile(const std::filesystem:
     const auto absolute = std::filesystem::absolute(path);
     auto result = m_simulation->loadWorld(absolute);
     if (result.success) {
+        const auto version = m_worldVersion.fetch_add(1, std::memory_order_acq_rel) + 1;
+        updateWorldAtlas(result.database, version);
         spdlog::info("Runtime loaded world DB from {}", absolute.string());
     }
     return result;
@@ -664,6 +675,20 @@ world::WorldDbSaveResult Runtime::Impl::saveWorldToFile(const std::filesystem::p
 
 std::shared_ptr<world::WorldDatabase> Runtime::Impl::worldDatabase() const noexcept {
     return m_simulation ? m_simulation->worldDatabase() : nullptr;
+}
+
+std::shared_ptr<const WorldAtlas> Runtime::Impl::worldAtlas() const noexcept {
+    std::scoped_lock lock(m_worldMutex);
+    return m_worldAtlas;
+}
+
+void Runtime::Impl::updateWorldAtlas(std::shared_ptr<world::WorldDatabase> db, std::uint32_t worldVersion) {
+    std::shared_ptr<const WorldAtlas> next;
+    if (db) {
+        next = std::make_shared<WorldAtlas>(buildWorldAtlasFromDatabase(*db, worldVersion));
+    }
+    std::scoped_lock lock(m_worldMutex);
+    m_worldAtlas = std::move(next);
 }
 
 std::uint64_t Runtime::Impl::enqueueEvent(RuntimeEvent event) {
@@ -824,6 +849,14 @@ const SimulationSnapshot* Runtime::latestSnapshot() const noexcept {
 
 std::optional<SimulationSnapshotDiff> Runtime::latestSnapshotDiff() const noexcept {
     return m_impl->latestSnapshotDiff();
+}
+
+std::shared_ptr<const WorldAtlas> Runtime::worldAtlas() const noexcept {
+    return m_impl->worldAtlas();
+}
+
+std::uint32_t Runtime::worldVersion() const noexcept {
+    return m_impl->worldVersion();
 }
 
 const std::optional<std::uint64_t>& Runtime::lastSeed() const noexcept {

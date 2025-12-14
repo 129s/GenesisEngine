@@ -11,6 +11,7 @@
 
 #include "genesis/runtime/SimulationSnapshot.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
+#include "genesis/runtime/WorldAtlas.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/runtime/RuntimeEvents.hpp"
 #include "genesis/runtime/SimulationService.hpp"
@@ -54,6 +55,8 @@ public:
 
     [[nodiscard]] const SimulationSnapshot* latestSnapshot() const noexcept;
     [[nodiscard]] std::optional<SimulationSnapshotDiff> latestSnapshotDiff() const noexcept;
+    [[nodiscard]] std::shared_ptr<const WorldAtlas> worldAtlas() const noexcept;
+    [[nodiscard]] std::uint32_t worldVersion() const noexcept;
     [[nodiscard]] const std::optional<std::uint64_t>& lastSeed() const noexcept;
 
     struct WorldGenerationResult {

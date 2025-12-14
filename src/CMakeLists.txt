@@ -298,6 +298,7 @@ add_library(genesis_runtime SHARED
     engine/runtime/Runtime.cpp
     engine/runtime/EngineSimulationService.cpp
     engine/runtime/SnapshotDiff.cpp
+    engine/runtime/WorldAtlas.cpp
 )
 add_library(Genesis::Runtime ALIAS genesis_runtime)
 

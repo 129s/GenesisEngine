@@ -1,6 +1,7 @@
 #include "genesis/worldgen/ConfigLoader.hpp"
 
 #include <filesystem>
+#include <cmath>
 #include <limits>
 #include <optional>
 #include <sstream>
@@ -111,12 +112,13 @@ std::vector<double> parse_weights(const toml::table& table, std::string_view key
 
 std::optional<double> read_double(const toml::table& table, std::string_view key)
 {
-    if (const auto* node = table.get(key))
+    if (const auto* value = table.get_as<double>(key))
     {
-        if (auto value = node->value<double>())
-        {
-            return *value;
-        }
+        return value->get();
+    }
+    if (const auto* value = table.get_as<std::int64_t>(key))
+    {
+        return static_cast<double>(value->get());
     }
     return std::nullopt;
 }
@@ -371,6 +373,15 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
                     if (auto initial = read_size_t(w, "initial"))
                     {
                         spec.initial = static_cast<std::uint32_t>(*initial);
+                    }
+
+                    if (auto chance = read_double(w, "chance"))
+                    {
+                        if (!std::isfinite(*chance) || *chance < 0.0 || *chance > 1.0)
+                        {
+                            throw std::runtime_error("worlddb.resources.workshop.chance 必须在 [0,1] 内");
+                        }
+                        spec.chance = *chance;
                     }
 
                     const auto* inputs_node = w.get("inputs");

@@ -291,7 +291,19 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         return nullptr;
     };
 
-    auto applyWorkshopMetaIfNeeded = [&](world::Interaction& resource) {
+    auto shouldMarkWorkshop = [&](const genesis::worldgen::WorldDbResourceSettings::Workshop& spec, std::uint64_t ordinal) -> bool {
+        const double chance = std::clamp(spec.chance, 0.0, 1.0);
+        if (chance <= 0.0) {
+            return false;
+        }
+        if (chance >= 1.0) {
+            return true;
+        }
+        const double u = uniform01_from_u64(ordinal ^ 0xBADC0FFEEull);
+        return u < chance;
+    };
+
+    auto applyWorkshopMetaIfNeeded = [&](world::Interaction& resource, std::uint64_t workshopOrdinal) {
         if (!resource.resourceType)
         {
             return;
@@ -299,6 +311,9 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         const auto* spec = workshopSpecFor(*resource.resourceType);
         if (!spec)
         {
+            return;
+        }
+        if (!shouldMarkWorkshop(*spec, workshopOrdinal)) {
             return;
         }
 
@@ -311,7 +326,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             workshop["inputs"].push_back({{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}});
         }
 
-        json meta{};
+        json meta = resource.meta ? *resource.meta : json::object();
         meta["workshop"] = std::move(workshop);
         resource.meta = std::move(meta);
 
@@ -400,7 +415,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
                 resource.capacity = config.worlddb.resources.capacity;
                 resource.regenPerStep = config.worlddb.resources.regen_per_step;
-                applyWorkshopMetaIfNeeded(resource);
+                applyWorkshopMetaIfNeeded(resource, (static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(index));
                 db.addInteraction(std::move(resource));
             }
         }
@@ -449,7 +464,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         resource.resourceType = parseResourceTypeTag(node).value_or(config.worlddb.resources.type);
         resource.capacity = config.worlddb.resources.capacity;
         resource.regenPerStep = config.worlddb.resources.regen_per_step;
-        applyWorkshopMetaIfNeeded(resource);
+        applyWorkshopMetaIfNeeded(resource, (static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(resource.id));
         db.addInteraction(std::move(resource));
     }
 

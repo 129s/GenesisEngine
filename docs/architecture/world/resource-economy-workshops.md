@@ -41,9 +41,10 @@
 output = "Food"
 output_units = 3
 initial = 0
+chance = 1.0
 inputs = [{ type = "Water", units = 2 }]
 ```
 
 注意：
-- 当前实现按 `output` 绑定到 `ResourceType`：当某资源类型存在 workshop 规格时，该类型生成的资源点会被标记为工坊并禁用被动 regen。
-
+- `chance` 为 0..1：决定“该资源类型生成的资源点中，有多少会被标记为工坊”（用确定性哈希保证 `config + seed` 可复现）。
+- `chance` 默认 1.0（保持历史行为），但建议在生态类基准世界里使用小于 1 的概率，让同一资源类型同时存在 Source 与 Workshop，以避免全局耦合导致形态单一。

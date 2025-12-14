@@ -157,6 +157,8 @@ struct WorldDbResourceSettings
         genesis::world::ResourceType output{genesis::world::ResourceType::Food};
         std::uint32_t output_units{1};
         std::uint32_t initial{0};
+        // 将该资源点标记为工坊的概率（0..1）。默认 1 表示“该类型资源点全部为工坊”（保持历史行为）。
+        double chance{1.0};
         std::vector<WorkshopInput> inputs{};
     };
 

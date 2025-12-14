@@ -1,9 +1,11 @@
 #include "genesis/agents/ActionSystem.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 
 #include "genesis/agents/Needs.hpp"
+#include "genesis/world/MapPathfinding.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 
 namespace genesis::agents {
@@ -55,8 +57,9 @@ void ActionExecutor::requestConsume(entt::entity entity,
         float tx = 0.0f, ty = 0.0f;
         if (auto it = m_db.findInteraction(interaction)) {
             targetMap = it->mapId;
-            tx = static_cast<float>(it->coord.first);
-            ty = static_cast<float>(it->coord.second);
+            const auto coord = it->worldCoord();
+            tx = static_cast<float>(coord.first);
+            ty = static_cast<float>(coord.second);
             if (agentLocation) {
                 atTarget = (agentLocation->mapId == targetMap && agentLocation->x == tx && agentLocation->y == ty);
             }
@@ -151,13 +154,86 @@ void ActionExecutor::processMove(entt::entity entity,
     }
 
     const auto targetMap = it->mapId;
-    const float tx = static_cast<float>(it->coord.first);
-    const float ty = static_cast<float>(it->coord.second);
+    const auto coord = it->worldCoord();
+    const float tx = static_cast<float>(coord.first);
+    const float ty = static_cast<float>(coord.second);
 
     if (location.mapId == targetMap && location.x == tx && location.y == ty) {
         queue.tasks.pop_front();
         if (registry.any_of<components::MovementIntent2D>(entity)) {
             registry.remove<components::MovementIntent2D>(entity);
+        }
+        return;
+    }
+
+    if (location.mapId != targetMap) {
+        const auto path = genesis::world::shortestMapPath(m_db, location.mapId, targetMap);
+        if (!path || path->maps.size() < 2) {
+            queue.tasks.pop_front();
+            if (registry.any_of<components::MovementIntent2D>(entity)) {
+                registry.remove<components::MovementIntent2D>(entity);
+            }
+            return;
+        }
+
+        const auto nextMap = path->maps[1];
+        std::optional<genesis::world::Portal> bestPortal;
+        float bestCost = std::numeric_limits<float>::infinity();
+
+        for (const auto& portal : m_db.portals(location.mapId)) {
+            if (portal.targetMapId != nextMap) {
+                continue;
+            }
+            auto portalInter = m_db.findInteraction(portal.interactionId);
+            if (!portalInter) {
+                continue;
+            }
+            const auto portalCoord = portalInter->worldCoord();
+            const float px = static_cast<float>(portalCoord.first);
+            const float py = static_cast<float>(portalCoord.second);
+            const float dx = px - location.x;
+            const float dy = py - location.y;
+            const float dist2 = dx * dx + dy * dy;
+            const float cost = dist2 + static_cast<float>(std::max(0.0, portal.teleportCost));
+            if (cost < bestCost) {
+                bestCost = cost;
+                bestPortal = portal;
+            }
+        }
+
+        if (!bestPortal) {
+            queue.tasks.pop_front();
+            if (registry.any_of<components::MovementIntent2D>(entity)) {
+                registry.remove<components::MovementIntent2D>(entity);
+            }
+            return;
+        }
+
+        auto portalInter = m_db.findInteraction(bestPortal->interactionId);
+        if (!portalInter) {
+            queue.tasks.pop_front();
+            if (registry.any_of<components::MovementIntent2D>(entity)) {
+                registry.remove<components::MovementIntent2D>(entity);
+            }
+            return;
+        }
+
+        const auto portalCoord = portalInter->worldCoord();
+        const float px = static_cast<float>(portalCoord.first);
+        const float py = static_cast<float>(portalCoord.second);
+
+        auto& intent = registry.get_or_emplace<components::MovementIntent2D>(entity);
+        if (location.x == px && location.y == py) {
+            const auto targetCoord = bestPortal->targetCoord.value_or(std::make_pair(0, 0));
+            intent.targetMapId = bestPortal->targetMapId;
+            intent.targetX = static_cast<float>(targetCoord.first);
+            intent.targetY = static_cast<float>(targetCoord.second);
+            intent.speed = 0.0f;
+        } else {
+            intent.targetMapId = location.mapId;
+            intent.targetX = px;
+            intent.targetY = py;
+            intent.speed = std::max(task.speed, kMinSpeed);
         }
         return;
     }
@@ -185,8 +261,9 @@ void ActionExecutor::processConsume(entt::entity entity,
     }
 
     const auto targetMap = it->mapId;
-    const float tx = static_cast<float>(it->coord.first);
-    const float ty = static_cast<float>(it->coord.second);
+    const auto coord = it->worldCoord();
+    const float tx = static_cast<float>(coord.first);
+    const float ty = static_cast<float>(coord.second);
 
     if (!(location.mapId == targetMap && location.x == tx && location.y == ty)) {
         ActionTask move{};

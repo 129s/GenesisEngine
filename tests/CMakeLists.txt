@@ -116,6 +116,7 @@ gtest_discover_tests(genesis_runtime_tests)
 # --- World Model tests ---
 add_executable(genesis_world_model_tests
     test_world_database_loader.cpp
+    test_world_map_pathfinding.cpp
 )
 
 target_link_libraries(genesis_world_model_tests

@@ -190,6 +190,13 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         s.name = node.label.empty() ? ("Scene_" + std::to_string(s.id)) : (node.label + "_scene");
         db.addScene(std::move(s));
 
+        world::TilemapMeta tile{};
+        tile.width = std::max(1, config.tilemap.base_extent);
+        tile.height = std::max(1, config.tilemap.base_extent);
+        tile.tileW = std::max(1, config.tilemap.tile_size);
+        tile.tileH = std::max(1, config.tilemap.tile_size);
+        db.setTilemap(mapId, std::move(tile));
+
         mapCenters.emplace(mapId, coordFor(node.local_id));
         nextInteractionId.emplace(mapId, static_cast<world::InteractionId>(mapId * 1000U));
     }
@@ -269,8 +276,9 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 resource.sceneId = sceneId;
                 resource.kind = world::InteractionKind::Resource;
                 resource.resourceType = selectConfigResourceType((static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(index));
-                resource.coord = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
-                                  std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
+                resource.coordLocal = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
+                                       std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
+                resource.coordGlobal = resource.coordLocal;
                 resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
                 resource.capacity = config.worlddb.resources.capacity;
                 resource.regenPerStep = config.worlddb.resources.regen_per_step;
@@ -315,7 +323,8 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         resource.mapId = mapId;
         resource.sceneId = sceneId;
         resource.kind = world::InteractionKind::Resource;
-        resource.coord = coord;
+        resource.coordLocal = coord;
+        resource.coordGlobal = coord;
         resource.name = node.label.empty() ? "Resource" : node.label;
         resource.resourceType = parseResourceTypeTag(node).value_or(config.worlddb.resources.type);
         resource.capacity = config.worlddb.resources.capacity;
@@ -389,11 +398,13 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             portalInter.mapId = entryMap;
             portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
             portalInter.kind = world::InteractionKind::Portal;
-            portalInter.coord = entryCoord;
+            portalInter.coordLocal = entryCoord;
+            portalInter.coordGlobal = entryCoord;
             portalInter.name = node.label.empty() ? ("PortalTo_" + std::to_string(exitMap)) : node.label;
             db.addInteraction(portalInter);
 
             world::Portal p{};
+            p.mapId = entryMap;
             p.interactionId = portalInter.id;
             p.targetMapId = exitMap;
             p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
@@ -428,11 +439,13 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             portalInter.mapId = entryMap;
             portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
             portalInter.kind = world::InteractionKind::Portal;
-            portalInter.coord = entryCoord;
+            portalInter.coordLocal = entryCoord;
+            portalInter.coordGlobal = entryCoord;
             portalInter.name = "PortalTo_" + std::to_string(exitMap);
             db.addInteraction(portalInter);
 
             world::Portal p{};
+            p.mapId = entryMap;
             p.interactionId = portalInter.id;
             p.targetMapId = exitMap;
             p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);

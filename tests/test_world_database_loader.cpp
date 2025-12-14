@@ -32,7 +32,8 @@ TEST(WorldDatabaseLoader, LoadsMinimalDataset) {
     writeFile(tmp / "map_1.json", R"JSON({
   "scenes": [ { "id": 100, "name": "S" } ],
   "interactions": [ { "id": 1000, "sceneId": 100, "kind": "Resource", "resourceType": "Drink", "coord": [2,3], "name": "Fountain" } ],
-  "portals": [ { "interactionId": 1000, "targetMapId": 2 } ]
+  "portals": [ { "interactionId": 1000, "targetMapId": 2 } ],
+  "tilemap": { "width": 64, "height": 48, "tileW": 16, "tileH": 16 }
 })JSON");
 
     const auto result = loadWorldDatabaseFromFolder(tmp);
@@ -46,5 +47,19 @@ TEST(WorldDatabaseLoader, LoadsMinimalDataset) {
     EXPECT_EQ(db.interactions(1).size(), 1U);
     ASSERT_TRUE(db.interactions(1).front().resourceType.has_value());
     EXPECT_EQ(*db.interactions(1).front().resourceType, ResourceType::Drink);
-    EXPECT_EQ(db.portals(2).size(), 1U); // one portal targets map 2
+    ASSERT_EQ(db.portals(1).size(), 1U);
+    EXPECT_EQ(db.portals(1).front().mapId, 1U);
+    EXPECT_EQ(db.portals(1).front().targetMapId, 2U);
+
+    const auto tile = db.tilemap(1);
+    ASSERT_TRUE(tile.has_value());
+    EXPECT_EQ(tile->width, 64);
+    EXPECT_EQ(tile->height, 48);
+    EXPECT_EQ(tile->tileW, 16);
+    EXPECT_EQ(tile->tileH, 16);
+
+    const auto edgesFrom2 = db.mapEdgesFrom(2);
+    ASSERT_EQ(edgesFrom2.size(), 1U);
+    EXPECT_EQ(edgesFrom2.front().from, 2U);
+    EXPECT_EQ(edgesFrom2.front().to, 1U);
 }

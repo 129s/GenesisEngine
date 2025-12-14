@@ -32,6 +32,13 @@ namespace {
         if (sv == "Social") return ResourceType::Social;
         return std::nullopt;
     }
+
+    std::optional<std::pair<int, int>> parseInt2(const json& value) {
+        if (!value.is_array() || value.size() < 2) {
+            return std::nullopt;
+        }
+        return std::make_pair(value.at(0).get<int>(), value.at(1).get<int>());
+    }
 }
 
 WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folder) {
@@ -62,6 +69,9 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
             Map m{};
             m.id = jm.value("id", 0U);
             m.name = jm.value("name", std::string{});
+            if (jm.contains("meta")) {
+                m.meta = jm.at("meta");
+            }
             if (m.id != 0) db->addMap(std::move(m));
         }
     }
@@ -73,6 +83,10 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
             e.from = je.value("from", 0U);
             e.to = je.value("to", 0U);
             e.bidirectional = je.value("bidirectional", true);
+            e.cost = je.value("cost", 1.0);
+            if (je.contains("rules")) {
+                e.rules = je.at("rules");
+            }
             if (e.from != 0 && e.to != 0) db->addMapEdge(std::move(e));
         }
     }
@@ -98,7 +112,22 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
                 Scene s{};
                 s.id = js.value("id", 0U);
                 s.mapId = m.id;
+                if (js.contains("parent")) {
+                    const auto parent = js.value("parent", 0U);
+                    if (parent != 0U) {
+                        s.parent = parent;
+                    }
+                }
                 s.name = js.value("name", std::string{});
+                if (js.contains("origin")) {
+                    s.origin = parseInt2(js.at("origin"));
+                }
+                if (js.contains("transform")) {
+                    s.transform = js.at("transform");
+                }
+                if (js.contains("meta")) {
+                    s.meta = js.at("meta");
+                }
                 if (s.id != 0) db->addScene(std::move(s));
             }
         }
@@ -111,9 +140,23 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
                 i.sceneId = ji.value("sceneId", 0U);
                 i.name = ji.value("name", std::string{});
                 i.kind = parseInteractionKind(ji.value("kind", std::string{"Unknown"}));
-                if (ji.contains("coord") && ji["coord"].is_array() && ji["coord"].size() >= 2) {
-                    i.coord.first = ji["coord"][0].get<int>();
-                    i.coord.second = ji["coord"][1].get<int>();
+                if (ji.contains("coord_local")) {
+                    if (auto parsed = parseInt2(ji.at("coord_local"))) {
+                        i.coordLocal = *parsed;
+                    }
+                } else if (ji.contains("coord")) { // legacy field
+                    if (auto parsed = parseInt2(ji.at("coord"))) {
+                        i.coordLocal = *parsed;
+                        i.coordGlobal = *parsed;
+                    }
+                }
+                if (ji.contains("coord_global")) {
+                    if (auto parsed = parseInt2(ji.at("coord_global"))) {
+                        i.coordGlobal = *parsed;
+                    }
+                }
+                if (ji.contains("meta")) {
+                    i.meta = ji.at("meta");
                 }
                 if (i.kind == InteractionKind::Resource) {
                     if (ji.contains("resourceType") && ji["resourceType"].is_string()) {
@@ -135,13 +178,45 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
         if (jm.contains("portals") && jm["portals"].is_array()) {
             for (const auto& jp : jm["portals"]) {
                 Portal p{};
+                p.mapId = m.id;
                 p.interactionId = jp.value("interactionId", 0U);
                 p.targetMapId = jp.value("targetMapId", 0U);
-                if (jp.contains("targetSceneId")) p.targetSceneId = jp.value("targetSceneId", 0U);
-                if (jp.contains("targetCoord") && jp["targetCoord"].is_array() && jp["targetCoord"].size() >= 2) {
-                    p.targetCoord = std::make_pair(jp["targetCoord"][0].get<int>(), jp["targetCoord"][1].get<int>());
+                if (jp.contains("channelId") && jp["channelId"].is_string()) {
+                    p.channelId = jp["channelId"].get<std::string>();
+                }
+                if (jp.contains("oneWay") && jp["oneWay"].is_boolean()) {
+                    p.oneWay = jp["oneWay"].get<bool>();
+                }
+                if (jp.contains("teleportCost") && jp["teleportCost"].is_number()) {
+                    p.teleportCost = jp["teleportCost"].get<double>();
+                }
+                if (jp.contains("targetSceneId")) {
+                    const auto scene = jp.value("targetSceneId", 0U);
+                    if (scene != 0U) {
+                        p.targetSceneId = scene;
+                    }
+                }
+                if (jp.contains("targetCoord")) {
+                    if (auto parsed = parseInt2(jp.at("targetCoord"))) {
+                        p.targetCoord = *parsed;
+                    }
                 }
                 if (p.interactionId != 0 && p.targetMapId != 0) db->addPortal(std::move(p));
+            }
+        }
+
+        if (jm.contains("tilemap") && jm["tilemap"].is_object()) {
+            const auto& tile = jm["tilemap"];
+            TilemapMeta meta{};
+            meta.width = tile.value("width", 0);
+            meta.height = tile.value("height", 0);
+            meta.tileW = tile.value("tileW", tile.value("tile_size", 1));
+            meta.tileH = tile.value("tileH", tile.value("tile_size", 1));
+            if (tile.contains("meta")) {
+                meta.meta = tile.at("meta");
+            }
+            if (meta.width > 0 && meta.height > 0) {
+                db->setTilemap(m.id, std::move(meta));
             }
         }
     }

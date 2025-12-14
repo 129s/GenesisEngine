@@ -34,11 +34,22 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
         json world;
         world["maps"] = json::array();
         for (const auto& m : db.maps()) {
-            world["maps"].push_back({{"id", m.id}, {"name", m.name}});
+            json jm = {{"id", m.id}, {"name", m.name}};
+            if (m.meta) {
+                jm["meta"] = *m.meta;
+            }
+            world["maps"].push_back(std::move(jm));
         }
         world["map_edges"] = json::array();
         for (const auto& e : db.mapEdges()) {
-            world["map_edges"].push_back({{"from", e.from}, {"to", e.to}, {"bidirectional", e.bidirectional}});
+            json je = {{"from", e.from}, {"to", e.to}, {"cost", e.cost}};
+            if (e.bidirectional) {
+                je["bidirectional"] = true;
+            }
+            if (e.rules) {
+                je["rules"] = *e.rules;
+            }
+            world["map_edges"].push_back(std::move(je));
         }
         if (!writeText(folder / "world.json", world.dump(2))) {
             result.success = false;
@@ -52,18 +63,41 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
             // scenes
             jm["scenes"] = json::array();
             for (const auto& s : db.scenes(m.id)) {
-                jm["scenes"].push_back({{"id", s.id}, {"name", s.name}});
+                json js = {{"id", s.id}, {"name", s.name}};
+                if (s.parent) {
+                    js["parent"] = *s.parent;
+                }
+                if (s.origin) {
+                    js["origin"] = {s.origin->first, s.origin->second};
+                }
+                if (s.transform) {
+                    js["transform"] = *s.transform;
+                }
+                if (s.meta) {
+                    js["meta"] = *s.meta;
+                }
+                jm["scenes"].push_back(std::move(js));
             }
             // interactions
             jm["interactions"] = json::array();
             for (const auto& i : db.interactions(m.id)) {
-                jm["interactions"].push_back({
+                json ji = {
                     {"id", i.id},
                     {"sceneId", i.sceneId},
                     {"kind", (i.kind == InteractionKind::Resource ? "Resource" : (i.kind == InteractionKind::Portal ? "Portal" : (i.kind == InteractionKind::Landmark ? "Landmark" : "Unknown")))},
-                    {"coord", {i.coord.first, i.coord.second}},
+                    {"coord_local", {i.coordLocal.first, i.coordLocal.second}},
                     {"name", i.name}
-                });
+                };
+                if (i.coordGlobal) {
+                    ji["coord_global"] = {i.coordGlobal->first, i.coordGlobal->second};
+                }
+                // legacy alias for compatibility
+                const auto coord = i.worldCoord();
+                ji["coord"] = {coord.first, coord.second};
+                if (i.meta) {
+                    ji["meta"] = *i.meta;
+                }
+                jm["interactions"].push_back(std::move(ji));
                 if (i.kind == InteractionKind::Resource) {
                     if (i.resourceType) {
                         jm["interactions"].back()["resourceType"] = resourceTypeName(*i.resourceType);
@@ -80,9 +114,31 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
             jm["portals"] = json::array();
             for (const auto& p : db.portals(m.id)) {
                 json jp = {{"interactionId", p.interactionId}, {"targetMapId", p.targetMapId}};
+                if (p.channelId) {
+                    jp["channelId"] = *p.channelId;
+                }
+                if (p.oneWay) {
+                    jp["oneWay"] = true;
+                }
+                if (p.teleportCost != 0.0) {
+                    jp["teleportCost"] = p.teleportCost;
+                }
                 if (p.targetSceneId) jp["targetSceneId"] = *p.targetSceneId;
                 if (p.targetCoord) jp["targetCoord"] = {p.targetCoord->first, p.targetCoord->second};
                 jm["portals"].push_back(std::move(jp));
+            }
+
+            if (auto tile = db.tilemap(m.id)) {
+                json jt = {
+                    {"width", tile->width},
+                    {"height", tile->height},
+                    {"tileW", tile->tileW},
+                    {"tileH", tile->tileH}
+                };
+                if (tile->meta) {
+                    jt["meta"] = *tile->meta;
+                }
+                jm["tilemap"] = std::move(jt);
             }
 
             const auto path = folder / (std::string("map_") + std::to_string(m.id) + ".json");

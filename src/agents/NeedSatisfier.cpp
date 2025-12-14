@@ -11,6 +11,7 @@
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/agents/Planner.hpp"
+#include "genesis/world/MapPathfinding.hpp"
 
 namespace genesis::agents {
 
@@ -92,11 +93,21 @@ void NeedSatisfier::update(entt::registry& registry,
         }
 
         const auto costToInteraction = [&](const world::Interaction& inter) -> float {
-            const float dx = static_cast<float>(inter.coord.first) - location.x;
-            const float dy = static_cast<float>(inter.coord.second) - location.y;
-            const float dist2 = dx * dx + dy * dy;
-            const float mapPenalty = (inter.mapId == location.mapId) ? 0.0f : std::max(0.0f, m_config.crossMapPenalty);
-            return mapPenalty + dist2;
+            if (inter.mapId == location.mapId) {
+                const auto coord = inter.worldCoord();
+                const float dx = static_cast<float>(coord.first) - location.x;
+                const float dy = static_cast<float>(coord.second) - location.y;
+                const float dist2 = dx * dx + dy * dy;
+                return dist2;
+            }
+
+            const auto mapPath = world::shortestMapPath(db, location.mapId, inter.mapId);
+            if (!mapPath) {
+                return std::numeric_limits<float>::infinity();
+            }
+
+            const float penalty = std::max(0.0f, m_config.crossMapPenalty);
+            return penalty + static_cast<float>(mapPath->totalCost);
         };
 
         const auto urgency01 = [](const NeedState& state, const NeedDescriptor& descriptor) -> float {

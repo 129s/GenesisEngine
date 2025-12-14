@@ -17,6 +17,7 @@ void InMemoryWorldDatabase::addMapEdge(MapEdge e) { edges_.push_back(std::move(e
 void InMemoryWorldDatabase::addScene(Scene s) { scenes_.push_back(std::move(s)); }
 void InMemoryWorldDatabase::addInteraction(Interaction i) { interactions_.push_back(std::move(i)); }
 void InMemoryWorldDatabase::addPortal(Portal p) { portals_.push_back(std::move(p)); }
+void InMemoryWorldDatabase::setTilemap(MapId mapId, TilemapMeta tilemap) { tilemaps_[mapId] = std::move(tilemap); }
 
 std::vector<Scene> InMemoryWorldDatabase::scenes(MapId mapId) const {
     std::vector<Scene> out;
@@ -40,10 +41,17 @@ std::vector<Portal> InMemoryWorldDatabase::portals(MapId mapId) const {
     std::vector<Portal> out;
     out.reserve(portals_.size());
     for (const auto& p : portals_) {
-        // 通过 interactionId 无法直接确定 mapId，这里简单按目标 Map 过滤，常见查询也会用 targetMapId
-        if (p.targetMapId == mapId) out.push_back(p);
+        if (p.mapId == mapId) out.push_back(p);
     }
     return out;
+}
+
+std::optional<TilemapMeta> InMemoryWorldDatabase::tilemap(MapId mapId) const {
+    auto it = tilemaps_.find(mapId);
+    if (it == tilemaps_.end()) {
+        return std::nullopt;
+    }
+    return it->second;
 }
 
 std::vector<MapEdge> InMemoryWorldDatabase::mapEdgesFrom(MapId from) const {
@@ -52,7 +60,12 @@ std::vector<MapEdge> InMemoryWorldDatabase::mapEdgesFrom(MapId from) const {
     for (const auto& e : edges_) {
         if (e.from == from) out.push_back(e);
         if (e.bidirectional && e.to == from) {
-            MapEdge rev{ e.to, e.from, e.bidirectional };
+            MapEdge rev{};
+            rev.from = e.to;
+            rev.to = e.from;
+            rev.bidirectional = e.bidirectional;
+            rev.cost = e.cost;
+            rev.rules = e.rules;
             out.push_back(rev);
         }
     }
@@ -66,4 +79,3 @@ std::optional<Interaction> InMemoryWorldDatabase::findInteraction(InteractionId 
 }
 
 } // namespace genesis::world
-

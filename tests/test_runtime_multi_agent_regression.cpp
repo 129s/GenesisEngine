@@ -60,22 +60,22 @@ TEST(RuntimeMultiAgentRegression, PlannerSplitsTargetsUnderCrowding) {
         resourceTypeByInteraction.reserve(snapshot->telemetry.resources.size());
 
         std::uint32_t foodResourceCount = 0;
-        std::uint32_t drinkResourceCount = 0;
+        std::uint32_t waterResourceCount = 0;
         for (const auto& resource : snapshot->telemetry.resources) {
             resourceTypeByInteraction[resource.interactionId] = resource.type;
             if (resource.type == genesis::world::ResourceType::Food) {
                 ++foodResourceCount;
-            } else if (resource.type == genesis::world::ResourceType::Drink) {
-                ++drinkResourceCount;
+            } else if (resource.type == genesis::world::ResourceType::Water) {
+                ++waterResourceCount;
             }
         }
 
-        if (foodResourceCount < 2 && drinkResourceCount < 2) {
+        if (foodResourceCount < 2 && waterResourceCount < 2) {
             continue;
         }
 
         std::unordered_set<std::uint32_t> foodTargets;
-        std::unordered_set<std::uint32_t> drinkTargets;
+        std::unordered_set<std::uint32_t> waterTargets;
 
         std::uint32_t decisionCount = 0;
         for (const auto& decision : snapshot->telemetry.plannerDecisions) {
@@ -89,8 +89,8 @@ TEST(RuntimeMultiAgentRegression, PlannerSplitsTargetsUnderCrowding) {
             }
             if (it->second == genesis::world::ResourceType::Food) {
                 foodTargets.insert(decision.target);
-            } else if (it->second == genesis::world::ResourceType::Drink) {
-                drinkTargets.insert(decision.target);
+            } else if (it->second == genesis::world::ResourceType::Water) {
+                waterTargets.insert(decision.target);
             }
         }
 
@@ -98,7 +98,7 @@ TEST(RuntimeMultiAgentRegression, PlannerSplitsTargetsUnderCrowding) {
             continue;
         }
 
-        if ((foodResourceCount >= 2 && foodTargets.size() >= 2) || (drinkResourceCount >= 2 && drinkTargets.size() >= 2)) {
+        if ((foodResourceCount >= 2 && foodTargets.size() >= 2) || (waterResourceCount >= 2 && waterTargets.size() >= 2)) {
             sawSplit = true;
             break;
         }
@@ -106,4 +106,3 @@ TEST(RuntimeMultiAgentRegression, PlannerSplitsTargetsUnderCrowding) {
 
     EXPECT_TRUE(sawSplit);
 }
-

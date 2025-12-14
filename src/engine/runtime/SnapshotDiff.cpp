@@ -68,7 +68,8 @@ std::string resourceKey(const telemetry::ResourceSnapshot& snapshot) {
 }
 
 bool resourceEqual(const telemetry::ResourceSnapshot& lhs, const telemetry::ResourceSnapshot& rhs) {
-    return lhs.name == rhs.name && lhs.mapId == rhs.mapId && lhs.current == rhs.current && lhs.capacity == rhs.capacity;
+    return lhs.name == rhs.name && lhs.mapId == rhs.mapId && lhs.current == rhs.current && lhs.capacity == rhs.capacity &&
+           lhs.consumed == rhs.consumed && lhs.produced == rhs.produced;
 }
 
 std::string needKey(const telemetry::NeedSnapshot& snapshot) {

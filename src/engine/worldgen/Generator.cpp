@@ -25,14 +25,30 @@ bool has_tag(const NodeDraft& node, std::string_view tag)
     return std::find(node.tags.begin(), node.tags.end(), tag) != node.tags.end();
 }
 
+std::uint64_t mix_u64(std::uint64_t x)
+{
+    // splitmix64 finalizer
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+
+double uniform01_from_u64(std::uint64_t x)
+{
+    // Map to [0,1) using top 53 bits
+    const std::uint64_t v = mix_u64(x) >> 11;
+    return static_cast<double>(v) * (1.0 / 9007199254740992.0); // 2^53
+}
+
 std::string resource_type_name(genesis::world::ResourceType type)
 {
     switch (type)
     {
     case genesis::world::ResourceType::Food:
         return "Food";
-    case genesis::world::ResourceType::Drink:
-        return "Drink";
+    case genesis::world::ResourceType::Water:
+        return "Water";
     case genesis::world::ResourceType::Social:
         return "Social";
     }
@@ -91,8 +107,8 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
             return types.front();
         }
 
-        // 不需要 rng：用 ordinal 映射到 [0,sum]，保持确定性，同时尊重权重。
-        const double u = static_cast<double>((ordinal % 100000U) + 0.5) / 100000.0;
+        // 保持确定性：用 ordinal 生成稳定的 [0,1) 伪随机数，再按 weights 取样。
+        const double u = uniform01_from_u64(static_cast<std::uint64_t>(ordinal) ^ 0xA11CEBEEull);
         const double r = u * sum;
         double acc = 0.0;
         for (std::size_t i = 0; i < types.size(); ++i)

@@ -32,7 +32,7 @@
       "coord_local": [5, 8],
       "coord_global": [5, 8],
       "name": "DrinkA",
-      "resourceType": "Drink",
+      "resourceType": "Water",
       "capacity": 50,
       "regen": 2
     },
@@ -43,7 +43,7 @@
       "coord_local": [8, 8],
       "coord_global": [8, 8],
       "name": "DrinkB",
-      "resourceType": "Drink",
+      "resourceType": "Water",
       "capacity": 50,
       "regen": 2
     }

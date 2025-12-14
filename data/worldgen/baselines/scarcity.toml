@@ -1,0 +1,28 @@
+[world]
+name = "baseline_scarcity"
+
+[topology.cluster]
+min_clusters = 1
+max_clusters = 1
+min_nodes_per_cluster = 2
+max_nodes_per_cluster = 2
+
+[topology.corridor]
+enabled = false
+
+[layout.grid]
+cell_width = 6.0
+cell_height = 5.0
+columns = 2
+margin = 2.0
+
+[tilemap]
+tile_size = 32
+base_extent = 24
+
+[worlddb.resources]
+per_map = 1
+type = "Food"
+capacity = 10
+regen_per_step = 0
+

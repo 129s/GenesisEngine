@@ -144,6 +144,23 @@ struct WorldDbResourceSettings
     std::vector<double> weights{};
     std::uint32_t capacity{50};
     std::uint32_t regen_per_step{2};
+
+    struct WorkshopInput
+    {
+        genesis::world::ResourceType type{genesis::world::ResourceType::Food};
+        std::uint32_t units{1};
+    };
+
+    // 让 agent 执行“生产动作”后才产出目标资源；否则资源点不再被动 regen。
+    struct Workshop
+    {
+        genesis::world::ResourceType output{genesis::world::ResourceType::Food};
+        std::uint32_t output_units{1};
+        std::uint32_t initial{0};
+        std::vector<WorkshopInput> inputs{};
+    };
+
+    std::vector<Workshop> workshops{};
 };
 
 struct WorldDbSettings

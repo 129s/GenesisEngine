@@ -44,7 +44,7 @@ TEST(RuntimeEmergenceSmoke, NeedsAreReportedAndActionsEventuallyAppear) {
     EXPECT_TRUE(sawActions);
 }
 
-TEST(RuntimeEmergenceSmoke, PlannerEventuallyTargetsDrinkResource) {
+TEST(RuntimeEmergenceSmoke, PlannerEventuallyTargetsWaterResource) {
     Genesis::Runtime::RuntimeConfig config{};
     config.initialWorldPath = repoPath("data/world_new");
 
@@ -57,7 +57,7 @@ TEST(RuntimeEmergenceSmoke, PlannerEventuallyTargetsDrinkResource) {
 
     std::optional<std::uint32_t> drinkInteraction;
     for (const auto& resource : snapshot1->telemetry.resources) {
-        if (resource.type == genesis::world::ResourceType::Drink && resource.capacity > 0U) {
+        if (resource.type == genesis::world::ResourceType::Water && resource.capacity > 0U) {
             drinkInteraction = resource.interactionId;
             break;
         }

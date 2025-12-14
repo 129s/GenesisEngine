@@ -1,6 +1,11 @@
 # MVP 规划：两种地形的随机地图 + 固定刷新资源点 + NPC 基本生命周期
 
 > 2025-10 更新：噪声网格生成器与 `genesis-noise-generator` CLI 已退役，相关脚本不再维护。本文档保留历史上下文，当前世界生成统一由 Worldgen 管线承担。
+>
+> 说明：本文包含 v1 `LocationGraph/WorldRegistry` 时代的术语与思路；当前主线世界契约以 v2 `WorldDatabase` 为准（Map/Scene/Interaction/Portal，目录结构 `world.json + map_{id}.json`）。请优先参考：
+> - `docs/architecture/world/world-model.md`
+> - `docs/architecture/world/world-generation.md`
+> - `docs/handbook/WORLD_SCHEMA_MIGRATION.md`
 
 ## 目标（Scope）
 - 世界生成：基于噪声生成的地图，包含 2 种地形（例如 `Stone` 与 `Soil`）。

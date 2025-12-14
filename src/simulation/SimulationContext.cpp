@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "genesis/agents/CarriedResources.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/components/ResourceInventory.hpp"
@@ -90,6 +91,8 @@ std::uint32_t SimulationContext::createAgent(const AgentSpawnParams2D& params) {
     agents::NeedComponent needs{};
     m_needSystem.applyDefaults(needs);
     m_registry.emplace<agents::NeedComponent>(entity, std::move(needs));
+
+    m_registry.emplace<agents::components::CarriedResources>(entity);
 
     if (params.initialMovement) {
         agents::components::MovementIntent2D intent{};
@@ -243,8 +246,13 @@ void SimulationContext::collectResourceSnapshots(std::vector<telemetry::Resource
         snapshot.type = spawn.type;
         snapshot.capacity = inventory.capacity;
         snapshot.current = inventory.current;
+        const auto delta = m_resourceSystem->telemetryDelta(spawn.interaction);
+        snapshot.consumed = delta.consumed;
+        snapshot.produced = delta.produced;
         out.push_back(std::move(snapshot));
     });
+
+    m_resourceSystem->clearTelemetryDeltas();
 }
 
 namespace {
@@ -301,6 +309,12 @@ void SimulationContext::collectActionSnapshots(std::vector<telemetry::ActionSnap
                 break;
             case agents::ActionType::ConsumeResource:
                 snap.currentAction = "ConsumeResource";
+                break;
+            case agents::ActionType::TakeResource:
+                snap.currentAction = "TakeResource";
+                break;
+            case agents::ActionType::ProduceResource:
+                snap.currentAction = "ProduceResource";
                 break;
             }
         }

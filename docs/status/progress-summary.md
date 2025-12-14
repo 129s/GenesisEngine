@@ -36,7 +36,7 @@
   - 在 `Runtime` 中初始化 SPDLOG 缺省 logger（最佳努力，不干扰外部设置）。
   - 全部测试通过（33/33）。
 - 世界加载与可达性：
-  - 放宽 WorldLoader 对 `coord_global`/`anchors`/`local_coord` 的强制要求，兼容旧 JSON；存在时解析回填。
+  - 放宽世界载入对部分字段的强制要求，兼容部分历史 JSON；存在时解析回填（当前主线契约以 v2 WorldDatabase 为准）。
   - 修正初始化出生点策略：优先选择“可达的资源所在位置”，避免噪声图孤岛导致长期无法消费。
 - 文档与路线图：
   - 新增 `docs/roadmap/MVP_SCENE_INTERACTIVE.md`（Scene/Interactive 节点树重构的 MVP 范围与验收标准）。
@@ -44,14 +44,14 @@
 
 ## 已完成工作
 - 核心框架：重建 C++20 构建骨架，集成 spdlog、entt、nlohmann::json、gtest，并实现基础的 Engine 循环、离散时间 SimulationClock 以及事件总线。
-- 世界模型：完成 WorldRegistry、JSON 加载器与示例地图，提供资源生成点、路径边和快速查询接口。
+- 世界模型：完成 `WorldDatabase`、加载/保存与示例世界（`world.json + map_{id}.json`），提供 Map/Scene/Interaction/Portal 查询与 Map 图最短路。
 - 资源系统：实现库存与产出调度，支持消耗事件、低库存告警，并新增单元测试保证补货逻辑正确。
 - 需求与行为：实现 NeedSystem、NeedSatisfier，并通过 HungerPlanner 将饥饿需求与资源消耗串联，增加位置与拥挤度感知、最短路径选择及决策记录。
-- 移动系统：新增 MovementSystem，通过 MovementIntent/MovementState 驱动 Agent 沿图搜索路径移动，同时调整 NeedSatisfier 仅在抵达目标后执行资源消耗，并补充对应单元测试。
+- 移动系统：新增 Movement2DSystem，运行时采用 Map 内直线移动语义；Need/Action 在抵达目标后执行资源消耗，并补充对应单元测试。
 - 任务执行：落地 ActionExecutor 及 ActionQueue，将 Planner 决策映射到移动/消耗任务，联动 MovementSystem、ResourceSystem 与 NeedSystem，补充对应单元测试验证任务调度与饥饿恢复。
 - 遥测与日志：引入 TelemetryBuffer 捕获资源快照、需求状态、规划决策，并新增行动队列与代理位置快照；周期性输出资源/饥饿/平均旅行成本等核心指标。
 - 实时沙盒：抽象出 genesis_runtime 动态库，并基于其实现 sandbox_gui，提供实时步进/暂停与可视化调试；参考 `docs/guides/sandbox_gui_smoke.md` 获取操作指引。
-- 测试覆盖：补充 SimulationClock、WorldRegistry/Loader、ResourceSystem、NeedSatisfier、HungerPlanner 以及 TelemetryBuffer 的单元测试，维持自动化构建通过；扩展 ctest 增加 runtime 烟雾测试。
+- 测试覆盖：补充 SimulationClock、WorldDatabaseLoader、ResourceSystem、NeedSatisfier、Planner 以及 TelemetryBuffer 的单元测试，维持自动化构建通过；扩展 runtime smoke/regression 测试。
 - 规划路线：整理 Utility Planner 迭代路线图，明确各阶段目标、风险与依赖。
 - 工具链验证：在 MinGW 环境下确认 `gcc`/`g++` 15.2.0 与 `mingw32-make` 4.4.1 可用，为后续本地构建提供保障。
 

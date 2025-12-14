@@ -22,6 +22,9 @@ struct ResourceSnapshot {
     genesis::world::ResourceType type{genesis::world::ResourceType::Food};
     std::uint32_t current{0};
     std::uint32_t capacity{0};
+    // 本 tick 内的变化量（由运行时写入；用于 Soak/对比，不作为世界状态的唯一来源）。
+    std::uint32_t consumed{0};
+    std::uint32_t produced{0};
 };
 
 struct NeedSnapshot {

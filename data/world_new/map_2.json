@@ -16,7 +16,7 @@
         4
       ],
       "name": "WaterPoint",
-      "resourceType": "Drink",
+      "resourceType": "Water",
       "capacity": 50,
       "regen": 2
     }

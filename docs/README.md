@@ -12,6 +12,7 @@
 - 故障排查（GUI/运行时常见问题）：`docs/troubleshooting/`（GUI：`docs/troubleshooting/sandbox_gui.md`）
 
 - 文档组织与边界：`docs/handbook/DOCS_ORGANIZATION.md`
+- 内核回归闭环（Headless 优先）：`docs/handbook/CORE_REGRESSION.md`
 - 架构概览：`docs/architecture/README.md`
 - 愿景与设计原则：`docs/architecture/meta/vision.md`
 - 世界模型：`docs/architecture/world/world-model.md`
@@ -30,6 +31,7 @@
 ## 使用与构建
 - 沙盒 GUI：参考 `docs/architecture/interface/sandbox/sandbox-gui.md` 与 `docs/troubleshooting/sandbox_gui.md` 获取当前主流程说明。
 - 运行时封装：核心模拟逻辑以 `genesis_runtime` 动态库形式对外提供 API，前端二进制（如 GUI/Game）复用同一接口。
+- Headless 工具：`docs/guides/headless_runtime_cli.md`（用于脚本回放与回归）
 
 ## 文档约定
 - 路线图以 `docs/roadmap/README.md` 为权威来源。历史分篇保留于 `docs/roadmap/history/`。

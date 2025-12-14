@@ -81,6 +81,14 @@ void NeedSatisfier::update(entt::registry& registry,
 
     auto view = registry.view<NeedComponent, components::AgentLocation2D>();
 
+    const auto isWorkshopInteraction = [](const world::Interaction& inter) -> bool {
+        if (!inter.meta) {
+            return false;
+        }
+        const auto& meta = *inter.meta;
+        return meta.contains("workshop") && meta.at("workshop").is_object();
+    };
+
     for (auto entity : view) {
         auto& component = view.get<NeedComponent>(entity);
         const auto& location = view.get<components::AgentLocation2D>(entity);
@@ -155,11 +163,15 @@ void NeedSatisfier::update(entt::registry& registry,
             if (interaction == 0) {
                 return std::nullopt;
             }
-            if (spawnInfo.type != resource || spawnInfo.current == 0U) {
+            if (spawnInfo.type != resource) {
                 return std::nullopt;
             }
             const auto inter = db.findInteraction(interaction);
             if (!inter || inter->kind != world::InteractionKind::Resource) {
+                return std::nullopt;
+            }
+            const bool isWorkshop = isWorkshopInteraction(*inter);
+            if (spawnInfo.current == 0U && !isWorkshop) {
                 return std::nullopt;
             }
 
@@ -230,7 +242,10 @@ void NeedSatisfier::update(entt::registry& registry,
                     return;
                 }
                 if (inventory.current == 0U) {
-                    return;
+                    const auto inter = db.findInteraction(spawn.interaction);
+                    if (!inter || !isWorkshopInteraction(*inter)) {
+                        return;
+                    }
                 }
                 SpawnInfo info{};
                 info.type = spawn.type;
@@ -260,7 +275,7 @@ void NeedSatisfier::update(entt::registry& registry,
                      best);
 
         considerNeed(NeedType::Thirst,
-                     world::ResourceType::Drink,
+                     world::ResourceType::Water,
                      m_config.thirstUnitsPerRequest,
                      m_config.thirstReliefPerUnit,
                      m_config.thirstPrepareMargin,
@@ -278,7 +293,16 @@ void NeedSatisfier::update(entt::registry& registry,
         std::optional<Candidate> keep;
         if (previousTarget != 0) {
             const auto spawnIt = spawnByInteraction.find(previousTarget);
-            if (spawnIt != spawnByInteraction.end() && spawnIt->second.current > 0U) {
+            bool keepAllowed = false;
+            if (spawnIt != spawnByInteraction.end()) {
+                if (spawnIt->second.current > 0U) {
+                    keepAllowed = true;
+                } else {
+                    const auto inter = db.findInteraction(previousTarget);
+                    keepAllowed = inter && isWorkshopInteraction(*inter);
+                }
+            }
+            if (spawnIt != spawnByInteraction.end() && keepAllowed) {
                 const auto& spawn = spawnIt->second;
                 const auto evalKeep = [&](NeedType need,
                                          world::ResourceType resource,
@@ -322,7 +346,7 @@ void NeedSatisfier::update(entt::registry& registry,
                          m_config.hungerPrepareMargin);
 
                 evalKeep(NeedType::Thirst,
-                         world::ResourceType::Drink,
+                         world::ResourceType::Water,
                          m_config.thirstUnitsPerRequest,
                          m_config.thirstReliefPerUnit,
                          m_config.thirstPrepareMargin);
@@ -386,7 +410,7 @@ void NeedSatisfier::update(entt::registry& registry,
             continue;
         }
 
-        const auto consumed = resourceSystem.consume(registry, best->resource, best->units, best->interaction);
+        const auto consumed = resourceSystem.consumeFromInteraction(registry, best->interaction, best->resource, best->units);
         if (consumed == 0U) {
             continue;
         }

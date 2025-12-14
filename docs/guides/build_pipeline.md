@@ -2,11 +2,13 @@
 
 本文档汇总当前主干分支的构建、测试与生成资产的工作流，适用于 Windows/Linux/macOS 开发环境。若后续流程调整，请同步更新此文档并在 PR 中注明。
 
-## 1. 环境与依赖准备\n\n注意：v2 使用 WorldDatabase（world.json + map_{id}.json）作为数据通道，历史 Worldgen 默认不参与构建。
+## 1. 环境与依赖准备
+
+注意：v2 使用 WorldDatabase（`world.json + map_{id}.json`）作为数据通道；GUI 与样式系统默认关闭，可按需启用。
 - CMake ≥ 3.21（推荐与 Ninja 一起使用，加快增量构建）
 - 支持 C++20 的编译器：MSVC 17 系列、Clang 14+ 或 GCC 11+
-- 系统需预装 Freetype 库（`find_package(Freetype REQUIRED)`），可通过 vcpkg、Homebrew、apt 等包管理器安装
-- GPU/桌面环境：运行 `genesis_sandbox_gui` 需要可用的 OpenGL 上下文
+- （可选）Freetype：仅在启用 GUI 且希望 ImGui 使用 Freetype 渲染时需要；未安装也可正常构建（GUI 会退化为默认字体渲染路径）
+- GPU/桌面环境：仅运行 `genesis_sandbox_gui` 需要可用的 OpenGL 上下文
 
 项目依赖通过 `cmake/CPM.cmake` 自动拉取，包含 spdlog、EnTT、nlohmann_json、tomlplusplus、GLFW、Dear ImGui（docking 分支）。首次配置会下载并编译这些第三方库。
 
@@ -32,33 +34,37 @@ cmake -S . -B build -G Ninja ^
 ```bash
 cmake --build build               # 全量构建
 cmake --build build --target genesis_sandbox_gui
-cmake --build build --target genesis_engine
+cmake --build build --target genesis_runtime_cli
 ```
 
 主要产物位于 `build/src`：
 - `genesis-sandbox-gui`：ImGui 驱动的沙盒 GUI，可交互查看世界状态
-- `genesis_runtime`（动态库）、`genesis_engine` / `genesis_worldgen` / `genesis_rendering`（静态库）
+- `genesis-runtime-cli`：Headless 工具，可执行 JSON 命令脚本（用于回归/重放）
+- `genesis_runtime`（动态库）、`genesis_worldgen` / `genesis_world_model` / `genesis_simulation` 等（库目标）
 - Game 客户端（计划）：作为最终用户入口，构建目标与运行脚本将在后续迭代提供
 
 ## 4. 测试与验证
 启用测试选项后，CMake 将注册以下目标：
 - `genesis_worldgen_tests`
-- `genesis_engine_tests`
 - `genesis_runtime_tests`
-- `genesis_sandbox_gui_tests`
+- `genesis_world_model_tests`
+- `genesis_world_tests`
+- （启用 GUI 时）`genesis_sandbox_gui_tests`
 
 执行 GTest 套件与端到端检查：
 
 ```bash
-cmake --build build --target genesis_engine_tests
+cmake --build build --target genesis_runtime_tests
 ctest --test-dir build --output-on-failure
 ```
 
-`ctest` 自动运行上面四个 gtest 二进制及若干 CTest 条目：
-- `GenesisRuntime_Smoke`：保证运行时可加载自身依赖
-- E2E（预留）：CLI 已移除，后续以 Game 客户端或脚本化测试替代
+`ctest` 将自动运行已注册的 gtest 二进制及若干 CTest 条目（以 `tests/CMakeLists.txt` 为准）。
 
-## 5. 世界生成（Worldgen）\n- 历史路径（默认关闭）：v2 运行时不再依赖 `LocationGraph` 与生成流程。\n- 如需参考旧设计与实现，请查阅 `docs/architecture/world/world-generation.md` 与相关历史代码。\n\n## 6. 增量构建与常见目录
+## 5. 世界生成（Worldgen）
+- Worldgen 可独立运行（通过 Runtime 命令 `world.db.generate` 或 headless 脚本），不再依赖旧的 `LocationGraph`。
+- 设计与数据产物约定：见 `docs/architecture/world/world-generation.md`、`docs/handbook/WORLD_SCHEMA_MIGRATION.md`。
+
+## 6. 增量构建与常见目录
 - 源码：`src/`（核心库、工具、GUI）、`include/`（公共头文件）
 - 构建输出：`build/src`（可执行/动态库）、`build/lib`（静态库）、`build/tests`（测试二进制）
 - 测试资产：`tests/` 与 `build/telemetry_*.json`

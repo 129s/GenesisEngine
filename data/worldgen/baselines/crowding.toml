@@ -1,0 +1,28 @@
+[world]
+name = "baseline_crowding"
+
+[topology.cluster]
+min_clusters = 1
+max_clusters = 1
+min_nodes_per_cluster = 1
+max_nodes_per_cluster = 1
+
+[topology.corridor]
+enabled = false
+
+[layout.grid]
+cell_width = 6.0
+cell_height = 5.0
+columns = 1
+margin = 2.0
+
+[tilemap]
+tile_size = 32
+base_extent = 18
+
+[worlddb.resources]
+per_map = 4
+types = ["Food", "Water"]
+weights = [1.0, 1.0]
+capacity = 40
+regen_per_step = 2

@@ -19,7 +19,9 @@ namespace genesis::agents {
 
 enum class ActionType {
     MoveToInteraction,
-    ConsumeResource
+    ConsumeResource,
+    TakeResource,
+    ProduceResource
 };
 
 struct ActionTask {
@@ -29,6 +31,8 @@ struct ActionTask {
     NeedType need{NeedType::Hunger};
     genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
     std::uint32_t amount{0};
+    std::uint32_t batches{0};
+    std::uint32_t retries{0};
     float reliefPerUnit{0.0f};
 };
 
@@ -58,6 +62,8 @@ private:
     bool hasPendingConsume(const ActionQueue& queue, genesis::world::InteractionId interaction, genesis::world::ResourceType type) const;
     void processMove(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
     void processConsume(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
+    void processTake(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
+    void processProduce(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
 
     genesis::world::WorldDatabase& m_db;
     genesis::world::system::ResourceSystem& m_resources;

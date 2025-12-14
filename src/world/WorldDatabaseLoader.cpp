@@ -28,7 +28,7 @@ namespace {
 
     std::optional<ResourceType> parseResourceType(std::string_view sv) {
         if (sv == "Food") return ResourceType::Food;
-        if (sv == "Drink") return ResourceType::Drink;
+        if (sv == "Water" || sv == "Drink") return ResourceType::Water;
         if (sv == "Social") return ResourceType::Social;
         return std::nullopt;
     }

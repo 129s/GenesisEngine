@@ -5,6 +5,7 @@
 ## 背景与更新要点
 - Sandbox CLI 在复杂地图与长时运行下存在频闪与调试效率瓶颈，即日起暂停支持，仅保留源码以备后续评估。
 - Sandbox GUI 已集成 RuntimeBridge、WorldAtlas 等模块，支持持续运行、快照读取与基本调试面板，后续里程碑围绕 GUI 演进展开。
+- 说明：这里的 “CLI 暂停” 指历史的交互式/渲染型 CLI（ASCII/实时渲染等）；用于回归与回放的 Headless 工具 `genesis-runtime-cli` 仍在支持矩阵内。
 - 运行时架构调整为：单线程 Core Runtime 提供确定性模拟；Runtime Facade 暴露控制/查询/Telemetry 契约；前端通过只读快照消费数据，禁止直接操作 ECS。
 - 文档体系同步：GUI 架构、世界模型、运行时 API 均已拆分到 `docs/architecture`，路线图聚焦阶段目标与风险。
 - Runtime Facade 已提供事件命令队列与 `latestSnapshotDiff`，为 GUI Inspector 与自动化回放提供事件注入与断言基线。
@@ -16,7 +17,7 @@
 - 暂停 CLI 发布与支持，后续调试与工具链以 GUI 为唯一入口。
 
 ## 架构基线
-- **Core Runtime**：`WorldRegistry` + 系统集合（Movement/Needs/Planner/ActionExecutor/Resource 等），单线程按 `SimulationClock` 推进。
+- **Simulation Kernel**：`SimulationHost/SimulationContext/Scheduler` + 系统集合（Movement/Needs/Planner/ActionExecutor/Resource 等），单线程按 `SimulationClock` 推进；世界数据以 `WorldDatabase`（`world.json + map_{id}.json`）为输入输出契约。
 - **Runtime Facade**：控制面（`run`/`pause`/`step`/`setSpeed`）、查询面（`latestSnapshot`、`latestSnapshotDiff`、WorldAtlas、TelemetryBuffer）、事件入口（命令队列/事件注入 + 快照对比，支撑回放与断言）。
 - **Presentation 层**：
   - GUI（主力）：GLFW + OpenGL + Dear ImGui，RuntimeBridge 后台线程 + 环形快照缓冲。
@@ -101,6 +102,8 @@
 - 暂停对外发布与支持，仅保留源码与最小编译验证，作为必要时的回退手段。
 - 原有烟雾测试与自动化脚本并入 GUI 流程；CLI 流水线停用，不再执行回归。
 - 文档保留归档版本并标注状态，如需等价操作全部转向 GUI 指南。
+
+补充：Headless 回归工具 `genesis-runtime-cli` 属于 Runtime 自动化入口，不在“暂停”范围；其用法见 `docs/guides/headless_runtime_cli.md`。
 
 ## 里程碑速览
 - P0：Runtime 快照双缓冲 + GUI 里程碑 4（Inspector）+ 24h 回归落地。

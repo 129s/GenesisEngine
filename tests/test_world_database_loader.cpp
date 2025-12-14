@@ -31,7 +31,7 @@ TEST(WorldDatabaseLoader, LoadsMinimalDataset) {
 
     writeFile(tmp / "map_1.json", R"JSON({
   "scenes": [ { "id": 100, "name": "S" } ],
-  "interactions": [ { "id": 1000, "sceneId": 100, "kind": "Resource", "resourceType": "Drink", "coord": [2,3], "name": "Fountain" } ],
+  "interactions": [ { "id": 1000, "sceneId": 100, "kind": "Resource", "resourceType": "Water", "coord": [2,3], "name": "Fountain" } ],
   "portals": [ { "interactionId": 1000, "targetMapId": 2 } ],
   "tilemap": { "width": 64, "height": 48, "tileW": 16, "tileH": 16 }
 })JSON");
@@ -46,7 +46,7 @@ TEST(WorldDatabaseLoader, LoadsMinimalDataset) {
     EXPECT_EQ(db.scenes(1).size(), 1U);
     EXPECT_EQ(db.interactions(1).size(), 1U);
     ASSERT_TRUE(db.interactions(1).front().resourceType.has_value());
-    EXPECT_EQ(*db.interactions(1).front().resourceType, ResourceType::Drink);
+    EXPECT_EQ(*db.interactions(1).front().resourceType, ResourceType::Water);
     ASSERT_EQ(db.portals(1).size(), 1U);
     EXPECT_EQ(db.portals(1).front().mapId, 1U);
     EXPECT_EQ(db.portals(1).front().targetMapId, 2U);

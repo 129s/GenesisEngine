@@ -26,3 +26,23 @@ cmake --build build_headless --target genesis_runtime_cli
 - `--events-out <file>`：把执行过的 `RuntimeEventReport` 列表写到 JSON 文件
 - `--after-steps <n>`：脚本执行完后额外推进 n 步（用于观察非事件驱动的演化）
 
+## 短 Soak 指标报告（软指标，不做硬门禁）
+
+目的：以 “多样性 + 资源经济” 为主做可对比的度量输出，用于版本间对比与调参，不作为 CI 的硬断言。
+
+示例（输出到 stdout）：
+
+```powershell
+.\build_headless\src\genesis-runtime-cli.exe soak data\world_multiagent --root . --steps 5000 --agents 12
+```
+
+示例（写入 JSON 文件）：
+
+```powershell
+.\build_headless\src\genesis-runtime-cli.exe soak data\world_multiagent --root . --steps 5000 --out out\soak_metrics.json
+```
+
+输出字段要点：
+- `diversity.actionTypes`：按 `telemetry.actions[].currentAction` 聚合的计数与熵（bits）
+- `diversity.plannerTargets`：按 `telemetry.plannerDecisions[].target` 聚合的计数与熵（bits）
+- `resourceEconomy`：每个资源点的 min/max/start/end、累计消耗/产出（由运行时统计并写入 `telemetry.resources[].consumed/produced`）、stockout 统计

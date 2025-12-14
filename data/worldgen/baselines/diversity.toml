@@ -1,16 +1,16 @@
 [world]
-name = "sandbox_default"
+name = "baseline_diversity"
 
 [topology.cluster]
 min_clusters = 2
-max_clusters = 3
-min_nodes_per_cluster = 2
-max_nodes_per_cluster = 4
+max_clusters = 2
+min_nodes_per_cluster = 3
+max_nodes_per_cluster = 3
 
 [topology.corridor]
 enabled = true
-min_length = 1
-max_length = 3
+min_length = 2
+max_length = 2
 
 [layout.grid]
 cell_width = 6.0
@@ -28,13 +28,11 @@ step = 7.0
 
 [tilemap]
 tile_size = 32
-base_extent = 28
+base_extent = 32
 
 [worlddb.resources]
-per_map = 1
-type = "Food"
-# 可选：多类型（按 weights 进行抽样；weights 为空则等权）。这里默认仍为 Food（1,0,0）。
+per_map = 3
 types = ["Food", "Water", "Social"]
-weights = [1.0, 0.0, 0.0]
-capacity = 50
-regen_per_step = 2
+weights = [1.0, 1.0, 1.0]
+capacity = 30
+regen_per_step = 1

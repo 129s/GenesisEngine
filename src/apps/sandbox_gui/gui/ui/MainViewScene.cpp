@@ -171,7 +171,7 @@ namespace genesis::sandbox::gui
             if (ctx.state.scene_show_resources)
             {
                 const ImU32 foodColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-                const ImU32 drinkColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
+                const ImU32 waterColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
                 const ImU32 socialColor = ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));
                 for (const auto &resource : state.details->resources)
                 {
@@ -182,8 +182,8 @@ namespace genesis::sandbox::gui
                     const ImVec2 point = toScreen(resource.x + 0.5f, resource.y + 0.5f);
                     const ImU32 color = (resource.type == Genesis::World::ResourceType::Food)
                                             ? foodColor
-                                            : (resource.type == Genesis::World::ResourceType::Drink)
-                                                  ? drinkColor
+                                            : (resource.type == Genesis::World::ResourceType::Water)
+                                                  ? waterColor
                                                   : socialColor;
                     drawList->AddCircleFilled(point, 3.2f, color, 10);
                     drawList->AddCircle(point, 3.2f, ImGui::GetColorU32(ImGuiCol_Border), 10, 1.0f);
@@ -265,8 +265,8 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
             case Genesis::World::ResourceType::Food:
                 return "Food";
-            case Genesis::World::ResourceType::Drink:
-                return "Drink";
+            case Genesis::World::ResourceType::Water:
+                return "Water";
             case Genesis::World::ResourceType::Social:
                 return "Social";
             default:
@@ -1472,7 +1472,7 @@ std::optional<SceneViewportRenderState> MainView::drawSceneViewport(UiContext &c
                 {
                 case Genesis::World::ResourceType::Food:
                     return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Warning));
-                case Genesis::World::ResourceType::Drink:
+                case Genesis::World::ResourceType::Water:
                     return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Accent));
                 case Genesis::World::ResourceType::Social:
                     return ImGui::GetColorU32(Style::DesignTokens::color(Style::ColorToken::Success));

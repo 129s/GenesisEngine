@@ -1,5 +1,9 @@
 # MVP：Scene/Interactive 节点树重构
 
+> 状态：历史资料。该 MVP 基于 v1 `WorldRegistry/LocationGraph` 时代的节点/锚点设想；当前主线世界契约已切换为 v2 `WorldDatabase`（Map/Scene/Interaction/Portal）与 `world.json + map_{id}.json` 目录结构。请优先参考：
+> - `docs/architecture/world/world-model.md`
+> - `docs/handbook/WORLD_SCHEMA_MIGRATION.md`
+
 ## TL;DR
 - 统一运行层 Scene/Interactive Node 树与渲染坐标基线，让交互节点、Portal 锚点与资源分布拥有单一数据源。
 - MVP 交付聚焦资源采集与跨场景传送闭环，为环世界/矮人要塞式玩法的程序化扩展奠定架构。

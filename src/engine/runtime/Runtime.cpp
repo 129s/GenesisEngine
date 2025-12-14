@@ -50,6 +50,20 @@ namespace {
 
 using json = nlohmann::json;
 
+std::uint64_t mix_u64(std::uint64_t x)
+{
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+
+double uniform01_from_u64(std::uint64_t x)
+{
+    const std::uint64_t v = mix_u64(x) >> 11;
+    return static_cast<double>(v) * (1.0 / 9007199254740992.0);
+}
+
 [[nodiscard]] std::optional<std::string> getStringField(const json& obj, const char* key) {
     if (!obj.contains(key)) {
         return std::nullopt;
@@ -265,6 +279,58 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         nextInteractionId.emplace(mapId, static_cast<world::InteractionId>(mapId * 1000U));
     }
 
+    auto resourceTypeName = [](world::ResourceType type) -> const char* {
+        switch (type)
+        {
+        case world::ResourceType::Food:
+            return "Food";
+        case world::ResourceType::Water:
+            return "Water";
+        case world::ResourceType::Social:
+            return "Social";
+        }
+        return "Food";
+    };
+
+    auto workshopSpecFor = [&](world::ResourceType type) -> const genesis::worldgen::WorldDbResourceSettings::Workshop* {
+        for (const auto& spec : config.worlddb.resources.workshops)
+        {
+            if (spec.output == type)
+            {
+                return &spec;
+            }
+        }
+        return nullptr;
+    };
+
+    auto applyWorkshopMetaIfNeeded = [&](world::Interaction& resource) {
+        if (!resource.resourceType)
+        {
+            return;
+        }
+        const auto* spec = workshopSpecFor(*resource.resourceType);
+        if (!spec)
+        {
+            return;
+        }
+
+        json workshop{};
+        workshop["outputUnits"] = spec->output_units;
+        workshop["initial"] = spec->initial;
+        workshop["inputs"] = json::array();
+        for (const auto& input : spec->inputs)
+        {
+            workshop["inputs"].push_back({{"type", resourceTypeName(input.type)}, {"units", input.units}});
+        }
+
+        json meta{};
+        meta["workshop"] = std::move(workshop);
+        resource.meta = std::move(meta);
+
+        // 工坊不再被动 regen；产出由 agent 的生产动作驱动。
+        resource.regenPerStep = 0;
+    };
+
     if (!hasExplicitResources) {
         const auto selectConfigResourceType = [&](std::uint64_t ordinal) -> world::ResourceType {
             if (config.worlddb.resources.types.empty())
@@ -286,7 +352,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             {
                 return types.front();
             }
-            const double u = static_cast<double>((ordinal % 100000ULL) + 0.5) / 100000.0;
+            const double u = uniform01_from_u64(ordinal ^ 0xC0FFEEull);
             const double r = u * sum;
             double acc = 0.0;
             for (std::size_t i = 0; i < types.size(); ++i)
@@ -346,6 +412,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
                 resource.capacity = config.worlddb.resources.capacity;
                 resource.regenPerStep = config.worlddb.resources.regen_per_step;
+                applyWorkshopMetaIfNeeded(resource);
                 db.addInteraction(std::move(resource));
             }
         }
@@ -357,7 +424,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             if (t.size() >= prefix.size() && t.compare(0, prefix.size(), prefix.data(), prefix.size()) == 0) {
                 const auto value = t.substr(prefix.size());
                 if (value == "Food" || value == "food") return world::ResourceType::Food;
-                if (value == "Drink" || value == "drink" || value == "Water" || value == "water") return world::ResourceType::Drink;
+                if (value == "Water" || value == "water" || value == "Drink" || value == "drink") return world::ResourceType::Water;
                 if (value == "Social" || value == "social") return world::ResourceType::Social;
                 return std::nullopt;
             }
@@ -393,6 +460,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         resource.resourceType = parseResourceTypeTag(node).value_or(config.worlddb.resources.type);
         resource.capacity = config.worlddb.resources.capacity;
         resource.regenPerStep = config.worlddb.resources.regen_per_step;
+        applyWorkshopMetaIfNeeded(resource);
         db.addInteraction(std::move(resource));
     }
 
@@ -429,6 +497,57 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         return std::nullopt;
     };
 
+    std::set<std::pair<world::MapId, world::MapId>> portalTargets;
+
+    auto hasMapLink = [&](world::MapId from, world::MapId to) -> bool {
+        for (const auto& edge : db.mapEdgesFrom(from)) {
+            if (edge.to == to) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto addPortalIfMissing = [&](world::MapId entryMap,
+                                 const std::pair<int, int>& entryCoord,
+                                 world::MapId exitMap,
+                                 const std::pair<int, int>& exitCoord,
+                                 std::string name) -> bool {
+        if (entryMap == 0U || exitMap == 0U || entryMap == exitMap) {
+            return false;
+        }
+        const auto key = std::make_pair(entryMap, exitMap);
+        if (portalTargets.contains(key)) {
+            return false;
+        }
+
+        auto idOpt = allocateInteractionId(entryMap);
+        if (!idOpt) {
+            return false;
+        }
+
+        world::Interaction portalInter{};
+        portalInter.id = *idOpt;
+        portalInter.mapId = entryMap;
+        portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
+        portalInter.kind = world::InteractionKind::Portal;
+        portalInter.coordLocal = entryCoord;
+        portalInter.coordGlobal = entryCoord;
+        portalInter.name = std::move(name);
+        db.addInteraction(portalInter);
+
+        world::Portal p{};
+        p.mapId = entryMap;
+        p.interactionId = portalInter.id;
+        p.targetMapId = exitMap;
+        p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
+        p.targetCoord = exitCoord;
+        db.addPortal(std::move(p));
+
+        portalTargets.insert(key);
+        return true;
+    };
+
     bool builtPortalFromNodes = false;
     if (hasInteractivePortals) {
         for (const auto& node : topology.nodes) {
@@ -449,31 +568,15 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 continue;
             }
 
-            auto idOpt = allocateInteractionId(entryMap);
-            if (!idOpt) {
-                continue;
-            }
-
             const auto entryCoord = coordFor(node.local_id);
-            const auto exitCoord = coordFor(*targetLocal);
+            const auto entryCenter = coordFor(*node.parent);
+            const auto exitCenter = coordFor(*targetLocal);
 
-            world::Interaction portalInter{};
-            portalInter.id = *idOpt;
-            portalInter.mapId = entryMap;
-            portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
-            portalInter.kind = world::InteractionKind::Portal;
-            portalInter.coordLocal = entryCoord;
-            portalInter.coordGlobal = entryCoord;
-            portalInter.name = node.label.empty() ? ("PortalTo_" + std::to_string(exitMap)) : node.label;
-            db.addInteraction(portalInter);
-
-            world::Portal p{};
-            p.mapId = entryMap;
-            p.interactionId = portalInter.id;
-            p.targetMapId = exitMap;
-            p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
-            p.targetCoord = exitCoord;
-            db.addPortal(std::move(p));
+            const auto label = node.label.empty() ? ("PortalTo_" + std::to_string(exitMap)) : node.label;
+            const bool created = addPortalIfMissing(entryMap, entryCoord, exitMap, exitCenter, label);
+            if (created && hasMapLink(exitMap, entryMap)) {
+                (void)addPortalIfMissing(exitMap, exitCenter, entryMap, entryCenter, "PortalTo_" + std::to_string(entryMap));
+            }
             builtPortalFromNodes = true;
         }
     }
@@ -492,29 +595,10 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
 
             const auto entryCoord = coordFor(portal.entry);
             const auto exitCoord = coordFor(portal.exit);
-
-            auto idOpt = allocateInteractionId(entryMap);
-            if (!idOpt) {
-                continue;
+            const bool created = addPortalIfMissing(entryMap, entryCoord, exitMap, exitCoord, "PortalTo_" + std::to_string(exitMap));
+            if (created && hasMapLink(exitMap, entryMap)) {
+                (void)addPortalIfMissing(exitMap, exitCoord, entryMap, entryCoord, "PortalTo_" + std::to_string(entryMap));
             }
-
-            world::Interaction portalInter{};
-            portalInter.id = *idOpt;
-            portalInter.mapId = entryMap;
-            portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
-            portalInter.kind = world::InteractionKind::Portal;
-            portalInter.coordLocal = entryCoord;
-            portalInter.coordGlobal = entryCoord;
-            portalInter.name = "PortalTo_" + std::to_string(exitMap);
-            db.addInteraction(portalInter);
-
-            world::Portal p{};
-            p.mapId = entryMap;
-            p.interactionId = portalInter.id;
-            p.targetMapId = exitMap;
-            p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
-            p.targetCoord = exitCoord;
-            db.addPortal(std::move(p));
         }
     }
 

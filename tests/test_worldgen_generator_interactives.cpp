@@ -141,7 +141,7 @@ TEST(WorldgenGenerator, WeightedResourceTypesCanForceSingleType) {
 
         [worlddb.resources]
         per_map = 2
-        types = ["Food", "Drink"]
+        types = ["Food", "Water"]
         weights = [1.0, 0.0]
         capacity = 10
         regen_per_step = 1

@@ -5,6 +5,8 @@
 - 里程碑 2（RuntimeBridge）：后台推进 Runtime、静态世界视图与首批面板。
 - UI 文案已统一为英文（后续计划引入 i18n 切换）。
 
+注意：本指南面向 GUI 使用；项目世界契约已迁移到 v2（`WorldDatabase` / `world.json + map_{id}.json`），个别历史描述可能仍沿用旧术语（如 `WorldRegistry/LocationId`）。以 `docs/architecture/world/world-model.md` 与 `docs/architecture/foundation/runtime-api.md` 为准。
+
 ## 环境准备
 - CMake ≥ 3.21
 - 支持 C++20 的编译器（MSVC / Clang / GCC）

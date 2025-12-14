@@ -12,7 +12,7 @@
 - 引入“代理位置插值”后，`RuntimeBridge::resolveAgentPosition` 在 GUI 后台线程读取了 ECS (`entt::registry`) 中的 `MovementState`，该访问与模拟线程并发，存在数据竞争与生命周期问题，触发 `std::vector<MovementState*>` 越界断言或段错误。
 
 修复：
-- 移除 GUI 线程对 `registry` 的直接读取，改为仅依据 `TickTelemetry` 的离散 `LocationId` 通过 `WorldAtlas` 映射静态坐标渲染。
+- 移除 GUI 线程对 `registry` 的直接读取，改为仅依据 `TickTelemetry` 的只读 DTO（例如 `mapId + position`）配合 `WorldAtlas`/数据库静态信息渲染。
 - 变更点：
   - 删除 `RuntimeBridge::resolveAgentPosition`，在 `captureSnapshot` 中不再查询 ECS，改为 `atlas.nodePosition(agent.location)`。
   - 后续若需平滑插值，应在 Runtime 侧产出稳定的插值所需数据（如 segment 进度）并写入 `Telemetry`，由 GUI 只读消费。

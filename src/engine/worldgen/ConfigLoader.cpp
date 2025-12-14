@@ -35,9 +35,9 @@ std::optional<genesis::world::ResourceType> parse_resource_type(std::string_view
     {
         return genesis::world::ResourceType::Food;
     }
-    if (sv == "Drink" || sv == "drink" || sv == "Water" || sv == "water")
+    if (sv == "Water" || sv == "water" || sv == "Drink" || sv == "drink")
     {
-        return genesis::world::ResourceType::Drink;
+        return genesis::world::ResourceType::Water;
     }
     if (sv == "Social" || sv == "social")
     {
@@ -336,6 +336,107 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
             if (auto regen = read_size_t(*res_table, "regen_per_step"))
             {
                 settings.resources.regen_per_step = static_cast<std::uint32_t>(*regen);
+            }
+
+            if (const auto* workshop_node = res_table->get("workshop"))
+            {
+                if (!workshop_node->is_array())
+                {
+                    throw std::runtime_error("worlddb.resources.workshop 必须为数组");
+                }
+
+                const auto& arr = *workshop_node->as_array();
+                settings.resources.workshops.reserve(arr.size());
+
+                for (const auto& item : arr)
+                {
+                    if (!item.is_table())
+                    {
+                        throw std::runtime_error("worlddb.resources.workshop 数组元素必须为 table");
+                    }
+                    const auto& w = *item.as_table();
+
+                    WorldDbResourceSettings::Workshop spec{};
+
+                    const auto* output = w.get_as<std::string>("output");
+                    if (!output)
+                    {
+                        throw std::runtime_error("worlddb.resources.workshop.output 必须存在且为字符串");
+                    }
+                    const auto parsedOutput = parse_resource_type(output->get());
+                    if (!parsedOutput)
+                    {
+                        throw std::runtime_error(std::string("未知资源类型: ") + output->get());
+                    }
+                    spec.output = *parsedOutput;
+
+                    if (auto out_units = read_size_t(w, "output_units"))
+                    {
+                        if (*out_units == 0)
+                        {
+                            throw std::runtime_error("worlddb.resources.workshop.output_units 必须大于 0");
+                        }
+                        spec.output_units = static_cast<std::uint32_t>(*out_units);
+                    }
+
+                    if (auto initial = read_size_t(w, "initial"))
+                    {
+                        spec.initial = static_cast<std::uint32_t>(*initial);
+                    }
+
+                    const auto* inputs_node = w.get("inputs");
+                    if (!inputs_node || !inputs_node->is_array())
+                    {
+                        throw std::runtime_error("worlddb.resources.workshop.inputs 必须存在且为数组");
+                    }
+
+                    const auto& inputs_arr = *inputs_node->as_array();
+                    if (inputs_arr.empty())
+                    {
+                        throw std::runtime_error("worlddb.resources.workshop.inputs 不能为空");
+                    }
+                    spec.inputs.reserve(inputs_arr.size());
+
+                    for (const auto& input_item : inputs_arr)
+                    {
+                        if (!input_item.is_table())
+                        {
+                            throw std::runtime_error("worlddb.resources.workshop.inputs 数组元素必须为 table");
+                        }
+                        const auto& in_table = *input_item.as_table();
+
+                        WorldDbResourceSettings::WorkshopInput in{};
+
+                        const auto* in_type = in_table.get_as<std::string>("type");
+                        if (!in_type)
+                        {
+                            throw std::runtime_error("worlddb.resources.workshop.inputs.type 必须存在且为字符串");
+                        }
+                        const auto parsedIn = parse_resource_type(in_type->get());
+                        if (!parsedIn)
+                        {
+                            throw std::runtime_error(std::string("未知资源类型: ") + in_type->get());
+                        }
+                        in.type = *parsedIn;
+
+                        if (auto units = read_size_t(in_table, "units"))
+                        {
+                            if (*units == 0)
+                            {
+                                throw std::runtime_error("worlddb.resources.workshop.inputs.units 必须大于 0");
+                            }
+                            in.units = static_cast<std::uint32_t>(*units);
+                        }
+                        else
+                        {
+                            throw std::runtime_error("worlddb.resources.workshop.inputs.units 必须存在且为整数");
+                        }
+
+                        spec.inputs.push_back(in);
+                    }
+
+                    settings.resources.workshops.push_back(std::move(spec));
+                }
             }
 
             if (!settings.resources.types.empty())

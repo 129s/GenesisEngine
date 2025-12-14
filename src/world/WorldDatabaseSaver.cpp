@@ -11,8 +11,8 @@ static const char* resourceTypeName(ResourceType type) {
     switch (type) {
     case ResourceType::Food:
         return "Food";
-    case ResourceType::Drink:
-        return "Drink";
+    case ResourceType::Water:
+        return "Water";
     case ResourceType::Social:
         return "Social";
     }

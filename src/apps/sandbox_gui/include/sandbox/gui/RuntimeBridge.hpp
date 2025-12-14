@@ -156,11 +156,9 @@ namespace genesis::sandbox::gui
     Genesis::World::WorldDbSaveResult saveWorld(const std::filesystem::path& path);
     [[nodiscard]] std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> lastGeneration() const noexcept;
 
-    [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;
+        [[nodiscard]] std::optional<Snapshot> latestSnapshot() const;
 
         [[nodiscard]] const WorldAtlas& atlas() const noexcept { return atlas_; }
-        // 试验性：加载新世界数据（world.json + map_#.json 文件夹），仅影响 GUI 的 Atlas 构建
-        bool loadWorldDatabaseFolder(const std::filesystem::path& folder, std::string& errorMessage);
 
     std::uint64_t enqueueRuntimeEvent(Genesis::Runtime::RuntimeEvent event, std::string source = "direct");
     std::optional<std::uint64_t> enqueueCommandFromJson(const nlohmann::json& descriptor, std::string source, std::string& errorMessage);
@@ -194,7 +192,6 @@ namespace genesis::sandbox::gui
     std::thread worker_;
 
         WorldAtlas atlas_;
-        std::shared_ptr<Genesis::World::WorldDatabase> worldDb_;
     mutable std::mutex lastGenerationMutex_;
     std::optional<Genesis::Runtime::Runtime::WorldGenerationResult> lastGeneration_;
 

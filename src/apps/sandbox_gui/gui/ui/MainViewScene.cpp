@@ -302,7 +302,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 for (const auto &node : atlasPtr->nodes)
                 {
-                    if (node.id.value == agent->location.value)
+                    if (node.id == agent->mapId)
                     {
                         nodeName = node.name;
                         nodeInfo = &node;
@@ -325,9 +325,9 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                 ctx.state.scene_tile_selection.reset();
-                ctx.state.inspector_highlight_node = agent->location.value;
-                ctx.state.map_selected_node = agent->location.value;
-                ctx.state.scene_focus_node_request = agent->location.value;
+                ctx.state.inspector_highlight_node = agent->mapId;
+                ctx.state.map_selected_node = agent->mapId;
+                ctx.state.scene_focus_node_request = agent->mapId;
             }
             Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
@@ -335,10 +335,10 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Tile;
-                ctx.state.scene_selected_node = agent->location.value;
-                ctx.state.map_selected_node = agent->location.value;
+                ctx.state.scene_selected_node = agent->mapId;
+                ctx.state.map_selected_node = agent->mapId;
                 ctx.state.scene_tile_selection.reset();
-                ctx.state.scene_focus_node_request = agent->location.value;
+                ctx.state.scene_focus_node_request = agent->mapId;
             }
             Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
@@ -346,8 +346,8 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             Ui::applyClickableCursorToLastItem();
             if (followChanged && ctx.state.inspector_follow_selection)
             {
-                ctx.state.scene_selected_node = agent->location.value;
-                ctx.state.map_selected_node = agent->location.value;
+                ctx.state.scene_selected_node = agent->mapId;
+                ctx.state.map_selected_node = agent->mapId;
                 ctx.state.scene_tile_selection.reset();
             }
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
@@ -365,14 +365,16 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                     agentNode["name"] = agent->name;
                 }
                 auto &locationJson = agentNode["location"];
-                locationJson["id"] = agent->location.value;
-                locationJson["name"] = nodeName;
+                locationJson["mapId"] = agent->mapId;
+                locationJson["mapName"] = nodeName;
+                locationJson["position"] = {{"x", agent->position.x}, {"y", agent->position.y}};
                 if (nodeInfo)
                 {
-                    locationJson["parent"] = nodeInfo->parent.value;
-                    locationJson["kind"] = static_cast<unsigned int>(nodeInfo->kind);
-                    locationJson["position"] = {{"x", nodeInfo->position.x}, {"y", nodeInfo->position.y}};
-                        }
+                    if (nodeInfo->parent)
+                    {
+                        locationJson["parent"] = *nodeInfo->parent;
+                    }
+                }
 
                 json needsJson = json::array();
                 for (const auto &need : tick.needs)
@@ -403,7 +405,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                     json actionJson{
                         {"label", actionPtr->currentAction},
                         {"queueLength", actionPtr->queueLength},
-                        {"target", actionPtr->target.value},
+                        {"target", actionPtr->target},
                         {"speed", actionPtr->speed},
                         {"resourceType", resourceTypeName(actionPtr->resource)},
                         {"amount", actionPtr->amount},
@@ -423,32 +425,15 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 if (plannerPtr)
                 {
                     agentJson["planner"] = {
-                        {"target", plannerPtr->target.value},
+                        {"target", plannerPtr->target},
                         {"travelCost", plannerPtr->travelCost},
                         {"score", plannerPtr->score}};
-                }
-
-                const genesis::telemetry::MovementProgressSnapshot *movementPtr = nullptr;
-                for (const auto &entry : tick.movementProgress)
-                {
-                    if (entry.entityId == agent->entityId)
-                    {
-                        movementPtr = &entry;
-                        break;
-                    }
-                }
-                if (movementPtr)
-                {
-                    agentJson["movement"] = {
-                        {"from", movementPtr->from.value},
-                        {"to", movementPtr->to.value},
-                        {"progress", movementPtr->t01}};
                 }
 
                 json resourcesJson = json::array();
                 for (const auto &res : tick.resources)
                 {
-                    if (res.location.value == agent->location.value)
+                    if (res.mapId == agent->mapId)
                     {
                         resourcesJson.push_back({{"name", res.name},
                                                  {"type", resourceTypeName(res.type)},
@@ -464,7 +449,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 std::vector<std::uint32_t> peers;
                 for (const auto &other : tick.agents)
                 {
-                    if (other.entityId != agent->entityId && other.location.value == agent->location.value)
+                    if (other.entityId != agent->entityId && other.mapId == agent->mapId)
                     {
                         peers.push_back(other.entityId);
                     }
@@ -481,7 +466,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             Ui::applyClickableCursorToLastItem();
             ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
             ImGui::Text("ID：%u", agent->entityId);
-            ImGui::Text("位置：#%u %s", agent->location.value, nodeName.c_str());
+            ImGui::Text("位置：#%u %s", agent->mapId, nodeName.c_str());
 
             bool firstSection = true;
             CardSectionHeader(inspectorCardLayout, "需求概览", firstSection);
@@ -536,7 +521,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 CardSectionHeader(inspectorCardLayout, "当前行动", firstSection);
                 ImGui::Text("行动：%s", action->currentAction.c_str());
-                ImGui::Text("目标节点：#%u", action->target.value);
+                ImGui::Text("目标：#%u", action->target);
                 ImGui::Text("队列长度：%u", action->queueLength);
                 ImGui::Text("速度：%.2f", action->speed);
                 ImGui::Text("资源：%s · 数量 %u", resourceTypeName(action->resource), action->amount);
@@ -554,25 +539,9 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             if (planner)
             {
                 CardSectionHeader(inspectorCardLayout, "Planner 决策", firstSection);
-                ImGui::Text("目标：#%u", planner->target.value);
+                ImGui::Text("目标：#%u", planner->target);
                 ImGui::Text("旅行成本：%.2f", planner->travelCost);
                 ImGui::Text("评分：%.2f", planner->score);
-            }
-
-            const genesis::telemetry::MovementProgressSnapshot *movement = nullptr;
-            for (const auto &entry : tick.movementProgress)
-            {
-                if (entry.entityId == agent->entityId)
-                {
-                    movement = &entry;
-                    break;
-                }
-            }
-            if (movement)
-            {
-                CardSectionHeader(inspectorCardLayout, "移动进度", firstSection);
-                ImGui::Text("路径：%u → %u", movement->from.value, movement->to.value);
-                ImGui::Text("进度：%.2f", movement->t01);
             }
 
             if (snapshot.diff)
@@ -623,7 +592,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 for (const auto &node : atlasPtr->nodes)
                 {
-                    if (node.id.value == resource.location.value)
+                    if (node.id == resource.mapId)
                     {
                         nodeName = node.name;
                         nodeInfo = &node;
@@ -637,7 +606,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 for (const auto &spawn : atlasPtr->spawns)
                 {
-                    if (spawn.resource.location.value == resource.location.value && spawn.resource.name == resource.name)
+                    if (spawn.interactionId == resource.interactionId)
                     {
                         resourceSpawns.push_back(&spawn);
                     }
@@ -647,7 +616,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             std::vector<const genesis::telemetry::ActionSnapshot *> activeConsumers;
             for (const auto &action : tick.actions)
             {
-                if (action.target.value == resource.location.value)
+                if (action.target == resource.interactionId)
                 {
                     activeConsumers.push_back(&action);
                 }
@@ -659,9 +628,9 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                 ctx.state.scene_tile_selection.reset();
-                ctx.state.inspector_highlight_node = resource.location.value;
-                ctx.state.map_selected_node = resource.location.value;
-                ctx.state.scene_focus_node_request = resource.location.value;
+                ctx.state.inspector_highlight_node = resource.mapId;
+                ctx.state.map_selected_node = resource.mapId;
+                ctx.state.scene_focus_node_request = resource.mapId;
             }
             Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
@@ -669,10 +638,10 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Tile;
-                ctx.state.scene_selected_node = resource.location.value;
-                ctx.state.map_selected_node = resource.location.value;
+                ctx.state.scene_selected_node = resource.mapId;
+                ctx.state.map_selected_node = resource.mapId;
                 ctx.state.scene_tile_selection.reset();
-                ctx.state.scene_focus_node_request = resource.location.value;
+                ctx.state.scene_focus_node_request = resource.mapId;
             }
             Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
@@ -688,14 +657,17 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 resourceNode["type"] = resourceTypeName(resource.type);
                 resourceNode["current"] = resource.current;
                 resourceNode["capacity"] = resource.capacity;
+                resourceNode["interactionId"] = resource.interactionId;
 
                 auto &locationJson = resourceNode["location"];
-                locationJson["id"] = resource.location.value;
-                locationJson["name"] = nodeName;
+                locationJson["mapId"] = resource.mapId;
+                locationJson["mapName"] = nodeName;
                 if (nodeInfo)
                 {
-                    locationJson["parent"] = nodeInfo->parent.value;
-                    locationJson["kind"] = static_cast<unsigned int>(nodeInfo->kind);
+                    if (nodeInfo->parent)
+                    {
+                        locationJson["parent"] = *nodeInfo->parent;
+                    }
                     locationJson["position"] = {{"x", nodeInfo->position.x}, {"y", nodeInfo->position.y}};
                 }
 
@@ -703,15 +675,10 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 for (const auto *spawn : resourceSpawns)
                 {
                     json spawnJson{
+                        {"interactionId", spawn->interactionId},
+                        {"mapId", spawn->mapId},
                         {"position", {{"x", spawn->position.x}, {"y", spawn->position.y}}},
-                        {"capacity", spawn->resource.capacity},
-                        {"ratePerStep", spawn->resource.ratePerStep}};
-                    if (spawn->resource.local_coord.has_value())
-                    {
-                        spawnJson["localCoord"] = {
-                            {"x", spawn->resource.local_coord->first},
-                            {"y", spawn->resource.local_coord->second}};
-                    }
+                    };
                     spawnsJson.push_back(std::move(spawnJson));
                 }
                 if (!spawnsJson.empty())
@@ -738,7 +705,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
             bool firstSection = true;
             CardSectionHeader(inspectorCardLayout, "资源概览", firstSection);
-            ImGui::Text("节点：#%u %s", resource.location.value, nodeName.c_str());
+            ImGui::Text("节点：#%u %s", resource.mapId, nodeName.c_str());
             ImGui::Text("类型：%s", resourceTypeName(resource.type));
             ImGui::Text("库存：%u / %u", resource.current, resource.capacity);
 
@@ -747,24 +714,11 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 CardSectionHeader(inspectorCardLayout, "关联生成点", firstSection);
                 for (const auto *spawn : resourceSpawns)
                 {
-                    if (spawn->resource.local_coord.has_value())
-                    {
-                        ImGui::BulletText("坐标：(%g, %g) · 本地(%d, %d) · 速率 %.2f / 容量 %u",
-                                          spawn->position.x,
-                                          spawn->position.y,
-                                          spawn->resource.local_coord->first,
-                                          spawn->resource.local_coord->second,
-                                          spawn->resource.ratePerStep,
-                                          spawn->resource.capacity);
-                    }
-                    else
-                    {
-                        ImGui::BulletText("坐标：(%g, %g) · 速率 %.2f / 容量 %u",
-                                          spawn->position.x,
-                                          spawn->position.y,
-                                          spawn->resource.ratePerStep,
-                                          spawn->resource.capacity);
-                    }
+                    ImGui::BulletText("interactionId=%u · mapId=%u · position=(%g,%g)",
+                                      spawn->interactionId,
+                                      spawn->mapId,
+                                      spawn->position.x,
+                                      spawn->position.y);
                 }
             }
 
@@ -789,7 +743,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             const RuntimeBridge::WorldAtlas::Node *selectedNode = nullptr;
             for (const auto &node : atlasPtr->nodes)
             {
-                if (node.id.value == ctx.state.inspector_selected_primary)
+                if (node.id == ctx.state.inspector_selected_primary)
                 {
                     selectedNode = &node;
                     break;
@@ -807,7 +761,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 for (const auto &node : atlasPtr->nodes)
                 {
-                    if (node.parent.value == selectedNode->id.value && node.id.value != selectedNode->id.value)
+                    if (node.parent && *node.parent == selectedNode->id && node.id != selectedNode->id)
                     {
                         childNodes.push_back(&node);
                     }
@@ -819,7 +773,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             {
                 for (const auto &edge : atlasPtr->edges)
                 {
-                    if (edge.from.value == selectedNode->id.value || edge.to.value == selectedNode->id.value)
+                    if (edge.from == selectedNode->id || edge.to == selectedNode->id)
                     {
                         connectedEdges.push_back(&edge);
                     }
@@ -829,7 +783,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             std::vector<const genesis::telemetry::ResourceSnapshot *> resourcesAtNode;
             for (const auto &res : tick.resources)
             {
-                if (res.location.value == selectedNode->id.value)
+                if (res.mapId == selectedNode->id)
                 {
                     resourcesAtNode.push_back(&res);
                 }
@@ -838,7 +792,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             std::vector<const genesis::telemetry::AgentSnapshot *> agentsAtNode;
             for (const auto &agentSnapshot : tick.agents)
             {
-                if (agentSnapshot.location.value == selectedNode->id.value)
+                if (agentSnapshot.mapId == selectedNode->id)
                 {
                     agentsAtNode.push_back(&agentSnapshot);
                 }
@@ -851,9 +805,9 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 ctx.state.main_view_active_tab = MainViewTab::Scene;
                 ctx.state.scene_selection_tool = SceneSelectionTool::Node;
                 ctx.state.scene_tile_selection.reset();
-                ctx.state.inspector_highlight_node = selectedNode->id.value;
-                ctx.state.map_selected_node = selectedNode->id.value;
-                ctx.state.scene_focus_node_request = selectedNode->id.value;
+                ctx.state.inspector_highlight_node = selectedNode->id;
+                ctx.state.map_selected_node = selectedNode->id;
+                ctx.state.scene_focus_node_request = selectedNode->id;
             }
             Ui::applyClickableCursorToLastItem();
             ImGui::SameLine(0.0f, Style::DesignTokens::spacing(Style::SpacingToken::Sm));
@@ -865,16 +819,18 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 nodeJson["snapshotVersion"] = snapshot.version;
 
                 auto &nodeObj = nodeJson["node"];
-                nodeObj["id"] = selectedNode->id.value;
+                nodeObj["id"] = selectedNode->id;
                 nodeObj["name"] = selectedNode->name;
-                nodeObj["parent"] = selectedNode->parent.value;
-                nodeObj["kind"] = static_cast<unsigned int>(selectedNode->kind);
+                if (selectedNode->parent)
+                {
+                    nodeObj["parent"] = *selectedNode->parent;
+                }
                 nodeObj["position"] = {{"x", selectedNode->position.x}, {"y", selectedNode->position.y}};
 
                 json children = json::array();
                 for (const auto *child : childNodes)
                 {
-                    children.push_back({{"id", child->id.value}, {"name", child->name}});
+                    children.push_back({{"id", child->id}, {"name", child->name}});
                 }
                 if (!children.empty())
                 {
@@ -884,8 +840,8 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 json edges = json::array();
                 for (const auto *edge : connectedEdges)
                 {
-                    edges.push_back({{"from", edge->from.value},
-                                     {"to", edge->to.value},
+                    edges.push_back({{"from", edge->from},
+                                     {"to", edge->to},
                                      {"bidirectional", edge->bidirectional}});
                 }
                 if (!edges.empty())
@@ -925,16 +881,22 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
             ImGui::Dummy(ImVec2(0.0f, inspectorCardLayout.lineGap));
             bool firstSection = true;
             CardSectionHeader(inspectorCardLayout, "节点信息", firstSection);
-            ImGui::Text("ID：%u", selectedNode->id.value);
-            ImGui::Text("父节点：%u", selectedNode->parent.value);
-            ImGui::Text("类型：%u", static_cast<unsigned int>(selectedNode->kind));
+            ImGui::Text("ID：%u", selectedNode->id);
+            if (selectedNode->parent)
+            {
+                ImGui::Text("父节点：%u", *selectedNode->parent);
+            }
+            else
+            {
+                ImGui::TextUnformatted("父节点：<none>");
+            }
 
             if (!childNodes.empty())
             {
                 CardSectionHeader(inspectorCardLayout, "子节点", firstSection);
                 for (const auto *child : childNodes)
                 {
-                    ImGui::BulletText("#%u %s", child->id.value, child->name.c_str());
+                    ImGui::BulletText("#%u %s", child->id, child->name.c_str());
                 }
             }
 
@@ -944,9 +906,9 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
                 for (const auto *edge : connectedEdges)
                 {
                     ImGui::BulletText("%u %s %u",
-                                      edge->from.value,
+                                      edge->from,
                                       edge->bidirectional ? "↔" : "→",
-                                      edge->to.value);
+                                      edge->to);
                 }
             }
 
@@ -1016,7 +978,7 @@ void MainView::drawSceneUnified(UiContext &ctx, InspectorView &inspector)
 
     if (ctx.state.scene_selected_node == 0 && atlasPtr && !atlasPtr->nodes.empty())
     {
-        ctx.state.scene_selected_node = atlasPtr->nodes.front().id.value;
+        ctx.state.scene_selected_node = atlasPtr->nodes.front().id;
         if (ctx.state.inspector_selection_type == UiState::InspectorSelectionType::None)
         {
             ctx.state.inspector_selection_type = UiState::InspectorSelectionType::Node;
@@ -1427,9 +1389,9 @@ std::optional<SceneViewportRenderState> MainView::drawSceneViewport(UiContext &c
             }
             for (const auto &node : atlasPtr->nodes)
             {
-                if (node.id.value == id)
+                if (node.id == id)
                 {
-                    return node.name.empty() ? ("节点 " + std::to_string(node.id.value)) : node.name;
+                    return node.name.empty() ? ("节点 " + std::to_string(node.id)) : node.name;
                 }
             }
             return "#" + std::to_string(id);

@@ -31,6 +31,7 @@ endif()
 if(GENESIS_BUILD_GUI)
     add_executable(genesis_sandbox_gui_tests
         test_sandbox_gui_presenters.cpp
+        test_sandbox_gui_command_queue_e2e.cpp
     )
 
     target_include_directories(genesis_sandbox_gui_tests
@@ -47,6 +48,13 @@ if(GENESIS_BUILD_GUI)
             Genesis::SandboxGui
     )
 
+    set(GENESIS_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+    file(TO_CMAKE_PATH "${GENESIS_TEST_SOURCE_DIR}" GENESIS_TEST_SOURCE_DIR)
+    target_compile_definitions(genesis_sandbox_gui_tests
+        PRIVATE
+            GENESIS_TEST_SOURCE_DIR="${GENESIS_TEST_SOURCE_DIR}"
+    )
+
     gtest_discover_tests(genesis_sandbox_gui_tests)
 endif()
 
@@ -56,12 +64,20 @@ endif()
 add_executable(genesis_runtime_tests
     test_runtime_events.cpp
     test_runtime_simulation_service.cpp
+    test_runtime_e2e_smoke.cpp
 )
 
 target_link_libraries(genesis_runtime_tests
     PRIVATE
         Genesis::Runtime
         GTest::gtest_main
+)
+
+set(GENESIS_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+file(TO_CMAKE_PATH "${GENESIS_TEST_SOURCE_DIR}" GENESIS_TEST_SOURCE_DIR)
+target_compile_definitions(genesis_runtime_tests
+    PRIVATE
+        GENESIS_TEST_SOURCE_DIR="${GENESIS_TEST_SOURCE_DIR}"
 )
 
 add_custom_command(TARGET genesis_runtime_tests POST_BUILD

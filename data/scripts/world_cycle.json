@@ -1,22 +1,23 @@
 {
-  "name": "world-cycle-demo",
+  "name": "world-db-cycle-demo",
   "commands": [
     {
-      "label": "generate-default",
-      "action": "world.generate",
-      "configPath": "data/worldgen/default.toml",
+      "label": "load-demo-world",
+      "action": "world.db.load",
+      "folder": "data/world_new",
       "waitForSuccess": true
     },
     {
-      "label": "reload-generated",
-      "action": "world.load",
-      "path": "data/world/generated/generated_world.json",
+      "label": "consume-food",
+      "action": "resource.consume",
+      "interactionId": 1000,
+      "amount": 10,
       "waitForSuccess": true
     },
     {
-      "label": "backup-world",
-      "action": "world.save",
-      "path": "data/world/generated/generated_world.backup.json"
+      "label": "save-backup",
+      "action": "world.db.save",
+      "folder": "out/world_new_backup"
     }
   ]
 }

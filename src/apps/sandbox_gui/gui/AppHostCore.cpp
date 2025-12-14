@@ -386,11 +386,11 @@ namespace genesis::sandbox::gui
                     {
                         if (agent.entityId == trackedId)
                         {
-                            ui_state_.inspector_highlight_node = agent.location.value;
-                            ui_state_.map_selected_node = agent.location.value;
+                            ui_state_.inspector_highlight_node = agent.mapId;
+                            ui_state_.map_selected_node = agent.mapId;
                             if (ui_state_.inspector_follow_selection)
                             {
-                                ui_state_.scene_selected_node = agent.location.value;
+                                ui_state_.scene_selected_node = agent.mapId;
                             }
                             foundAgent = true;
                             break;
@@ -406,7 +406,7 @@ namespace genesis::sandbox::gui
                     if (ui_state_.inspector_selected_primary < latest_snapshot_->telemetry.resources.size())
                     {
                         ui_state_.inspector_highlight_node =
-                            latest_snapshot_->telemetry.resources[ui_state_.inspector_selected_primary].location.value;
+                            latest_snapshot_->telemetry.resources[ui_state_.inspector_selected_primary].mapId;
                         ui_state_.map_selected_node = ui_state_.inspector_highlight_node;
                     }
                     else
@@ -440,7 +440,7 @@ namespace genesis::sandbox::gui
         {
             const auto &agent = snapshot.telemetry.agents[i];
             observed.insert(agent.entityId);
-            RuntimeBridge::Vector2 position = atlas.nodePosition(agent.location).value_or(RuntimeBridge::Vector2{});
+            RuntimeBridge::Vector2 position = atlas.nodePosition(agent.mapId).value_or(RuntimeBridge::Vector2{});
             if (agentPositionsPtr && i < agentPositionsPtr->size())
             {
                 position = (*agentPositionsPtr)[i];

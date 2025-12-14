@@ -29,25 +29,6 @@ namespace
 constexpr std::size_t kDefaultCommandHistory = 128;
 } // namespace
 
-
-bool RuntimeBridge::loadWorldDatabaseFolder(const std::filesystem::path& folder, std::string& errorMessage)
-{
-    errorMessage.clear();
-    auto res = Genesis::World::loadWorldDatabaseFromFolder(folder);
-    if (!res.success || !res.database)
-    {
-        errorMessage = res.error.empty() ? std::string("加载 world.json/map_#.json 失败") : res.error;
-        return false;
-    }
-
-    {
-        std::lock_guard lock(controlMutex_);
-        worldDb_ = res.database;
-    }
-    rebuildAtlasOnRuntimeThread();
-    return true;
-}
-
 RuntimeBridge::RuntimeBridge(Genesis::Runtime::RuntimeConfig config, std::size_t maxSnapshots)
     : runtime_(std::move(config))
     , maxSnapshots_(std::max<std::size_t>(1, maxSnapshots))

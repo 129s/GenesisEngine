@@ -419,11 +419,36 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     }
     if (action == "world.load" || action == "world.reload")
     {
-        return enqueueWorldReloadCommand(command, std::move(source), errorMessage);
+        json normalized = command;
+        if (normalized.contains("path") && normalized.at("path").is_string())
+        {
+            const auto target = std::filesystem::path(normalized.at("path").get<std::string>());
+            if (target.has_extension() && target.extension() == ".json")
+            {
+                if (target.filename() == "world.json")
+                {
+                    normalized["folder"] = target.parent_path().string();
+                }
+            }
+            else
+            {
+                normalized["folder"] = target.string();
+            }
+        }
+        return enqueueWorldReloadCommand(normalized, std::move(source), errorMessage);
     }
     if (action == "world.save")
     {
-        return enqueueWorldSaveCommand(command, std::move(source), errorMessage);
+        json normalized = command;
+        if (normalized.contains("path") && normalized.at("path").is_string())
+        {
+            const auto target = std::filesystem::path(normalized.at("path").get<std::string>());
+            if (!target.has_extension() || target.extension() != ".json")
+            {
+                normalized["folder"] = target.string();
+            }
+        }
+        return enqueueWorldSaveCommand(normalized, std::move(source), errorMessage);
     }
     if (action == "agent.create2d")
     {
@@ -479,7 +504,8 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     if (action == "agent.move2d")
     {
         errorMessage.clear();
-        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+        if (!command.contains("entityId") || !(command.at("entityId").is_number_unsigned() ||
+            (command.at("entityId").is_number_integer() && command.at("entityId").get<std::int64_t>() >= 0))) {
             errorMessage = "'agent.move2d' requires entityId";
             return std::nullopt;
         }
@@ -533,7 +559,8 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     if (action == "agent.delete2d")
     {
         errorMessage.clear();
-        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+        if (!command.contains("entityId") || !(command.at("entityId").is_number_unsigned() ||
+            (command.at("entityId").is_number_integer() && command.at("entityId").get<std::int64_t>() >= 0))) {
             errorMessage = "'agent.delete2d' requires entityId";
             return std::nullopt;
         }
@@ -570,107 +597,51 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     if (action == "resource.consume")
     {
         errorMessage.clear();
-        if (!command.contains("interactionId") || !command.at("interactionId").is_number_unsigned()) {
+        if (!command.contains("interactionId") || !(command.at("interactionId").is_number_unsigned() ||
+            (command.at("interactionId").is_number_integer() && command.at("interactionId").get<std::int64_t>() >= 0))) {
             errorMessage = "'resource.consume' requires interactionId";
             return std::nullopt;
         }
-        if (!command.contains("amount") || !command.at("amount").is_number_unsigned()) {
+        if (!command.contains("amount") || !(command.at("amount").is_number_unsigned() ||
+            (command.at("amount").is_number_integer() && command.at("amount").get<std::int64_t>() >= 0))) {
             errorMessage = "'resource.consume' requires amount";
             return std::nullopt;
         }
-        const auto payload = command.dump();
-        const auto label = command.value("label", std::string{"resource.consume"});
-        const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
-        purgeFinishedTasks();
-        auto task = std::async(std::launch::async, [this, id, command]() {
-            bool success = false; std::string message;
-            try {
-                const auto interId = command.at("interactionId").get<std::uint32_t>();
-                const auto amount = command.at("amount").get<std::uint32_t>();
-                Genesis::Runtime::RuntimeEvent ev;
-                ev.kind = Genesis::Runtime::RuntimeEventKind::Command;
-                ev.label = "resource.consume";
-                ev.payloadJson = command.dump();
-                ev.simulationHandler = [interId, amount, &success, &message](Genesis::Runtime::SimulationService& simulation) {
-                    const auto taken = simulation.consumeResource(interId, amount);
-                    success = (taken > 0);
-                    message = std::string("consumed ") + std::to_string(taken) + "/" + std::to_string(amount);
-                };
-                (void)runtime_.enqueueEvent(std::move(ev));
-            } catch (const std::exception& ex) { message = ex.what(); }
-            catch (...) { message = "resource.consume unknown error"; }
-            completeCommand(id, success, std::move(message));
-        });
-        {
-            std::lock_guard lock(asyncMutex_);
-            asyncTasks_.push_back(std::move(task));
-        }
-        return id;
+        const auto interId = command.at("interactionId").get<std::uint32_t>();
+        const auto amount = command.at("amount").get<std::uint32_t>();
+
+        auto taken = std::make_shared<std::uint32_t>(0);
+        Genesis::Runtime::RuntimeEvent event{};
+        event.kind = Genesis::Runtime::RuntimeEventKind::Command;
+        event.label = command.value("label", std::string{"resource.consume"});
+        event.payloadJson = command.dump();
+        event.simulationHandler = [interId, amount, taken](Genesis::Runtime::SimulationService& simulation) {
+            *taken = simulation.consumeResource(interId, amount);
+            if (*taken == 0U) {
+                throw std::runtime_error("consumed 0");
+            }
+        };
+        event.onComplete = [taken, amount](Genesis::Runtime::RuntimeEventReport& report) {
+            if (!report.success) {
+                return;
+            }
+            report.message = std::string("consumed ") + std::to_string(*taken) + "/" + std::to_string(amount);
+        };
+        return enqueueRuntimeEvent(std::move(event), std::move(source));
     }
     if (action == "world.db.save")
     {
-        errorMessage.clear();
-        if (!command.contains("folder") || !command.at("folder").is_string()) {
-            errorMessage = "'world.db.save' requires folder";
-            return std::nullopt;
-        }
-        const auto folder = std::filesystem::path(command.at("folder").get<std::string>());
-        const auto payload = command.dump();
-        const auto label = command.value("label", std::string{"world.db.save"});
-        const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
-        purgeFinishedTasks();
-        auto task = std::async(std::launch::async, [this, id, folder]() {
-            bool success = false; std::string message;
-            try {
-                auto db = runtime_.worldDatabase();
-                if (!db) throw std::runtime_error("no world database loaded");
-                auto r = Genesis::World::saveWorldDatabaseToFolder(folder, *db);
-                success = r.success; message = r.success ? std::string("saved to ")+folder.string() : r.error;
-            } catch (const std::exception& ex) { message = ex.what(); }
-            catch (...) { message = "world.db.save unknown error"; }
-            completeCommand(id, success, std::move(message));
-        });
-        {
-            std::lock_guard lock(asyncMutex_);
-            asyncTasks_.push_back(std::move(task));
-        }
-        return id;
+        return enqueueWorldSaveCommand(command, std::move(source), errorMessage);
     }
     if (action == "world.db.reload")
     {
-        errorMessage.clear();
-        if (!command.contains("folder") || !command.at("folder").is_string()) {
-            errorMessage = "'world.db.reload' requires folder";
-            return std::nullopt;
-        }
-        const auto folder = std::filesystem::path(command.at("folder").get<std::string>());
-        const auto payload = command.dump();
-        const auto label = command.value("label", std::string{"world.db.reload"});
-        const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
-        purgeFinishedTasks();
-        auto task = std::async(std::launch::async, [this, id, folder]() {
-            bool success = false; std::string message;
-            try {
-                auto r = runtime_.loadWorldFromFile(folder);
-                success = r.success; message = r.success ? std::string("reloaded from ")+folder.string() : r.error;
-                if (success) rebuildAtlasOnRuntimeThread();
-            } catch (const std::exception& ex) { message = ex.what(); }
-            catch (...) { message = "world.db.reload unknown error"; }
-            completeCommand(id, success, std::move(message));
-        });
-        {
-            std::lock_guard lock(asyncMutex_);
-            asyncTasks_.push_back(std::move(task));
-        }
-        return id;
+        return enqueueWorldReloadCommand(command, std::move(source), errorMessage);
     }
     if (action == "agent.stop2d")
     {
         errorMessage.clear();
-        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+        if (!command.contains("entityId") || !(command.at("entityId").is_number_unsigned() ||
+            (command.at("entityId").is_number_integer() && command.at("entityId").get<std::int64_t>() >= 0))) {
             errorMessage = "'agent.stop2d' requires entityId";
             return std::nullopt;
         }
@@ -708,7 +679,8 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     if (action == "agent.teleport2d")
     {
         errorMessage.clear();
-        if (!command.contains("entityId") || !command.at("entityId").is_number_unsigned()) {
+        if (!command.contains("entityId") || !(command.at("entityId").is_number_unsigned() ||
+            (command.at("entityId").is_number_integer() && command.at("entityId").get<std::int64_t>() >= 0))) {
             errorMessage = "'agent.teleport2d' requires entityId";
             return std::nullopt;
         }
@@ -754,51 +726,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     }
     if (action == "world.db.load")
     {
-        // Experimental: load new world database (GUI-side only)
-        errorMessage.clear();
-        if (!command.contains("folder") || !command.at("folder").is_string())
-        {
-            errorMessage = "'world.db.load' requires folder field";
-            return std::nullopt;
-        }
-        const auto folder = std::filesystem::path(command.at("folder").get<std::string>());
-
-        const auto payload = command.dump();
-        const auto label = command.value("label", std::string{"world.db.load"});
-        const auto enqueuedAt = std::chrono::steady_clock::now();
-        const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
-
-        purgeFinishedTasks();
-        auto task = std::async(std::launch::async, [this, id, folder]() {
-            std::string message;
-            bool success = false;
-            try
-            {
-                if (this->loadWorldDatabaseFolder(folder, message))
-                {
-                    if (message.empty()) message = "world.db.load succeeded";
-                    success = true;
-                }
-                else
-                {
-                    if (message.empty()) message = "world.db.load failed";
-                }
-            }
-            catch (const std::exception& ex)
-            {
-                message = ex.what();
-            }
-            catch (...)
-            {
-                message = "world.db.load unknown error";
-            }
-            completeCommand(id, success, std::move(message));
-        });
-        {
-            std::lock_guard lock(asyncMutex_);
-            asyncTasks_.push_back(std::move(task));
-        }
-        return id;
+        return enqueueWorldReloadCommand(command, std::move(source), errorMessage);
     }
 
     errorMessage = "Unsupported command action: " + action;
@@ -826,7 +754,8 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
     std::optional<std::uint64_t> seedOverride;
     if (descriptor.contains("seed"))
     {
-        if (!descriptor.at("seed").is_number_unsigned())
+        if (!(descriptor.at("seed").is_number_unsigned() ||
+            (descriptor.at("seed").is_number_integer() && descriptor.at("seed").get<std::int64_t>() >= 0)))
         {
             errorMessage = "'seed' field must be an unsigned integer";
             return std::nullopt;
@@ -903,27 +832,73 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
 std::optional<std::uint64_t> RuntimeBridge::enqueueWorldReloadCommand(const json& descriptor, std::string source, std::string& errorMessage)
 {
     errorMessage.clear();
-    if (!descriptor.contains("path") || !descriptor.at("path").is_string())
+    const std::string action = descriptor.value("action", std::string{"world.load"});
+
+    std::filesystem::path folder;
+    if (descriptor.contains("folder") && descriptor.at("folder").is_string())
     {
-        errorMessage = "'world.load' requires path field";
-        return std::nullopt;
+        folder = std::filesystem::path(descriptor.at("folder").get<std::string>());
     }
-    const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
+    else if (action == "world.db.load" || action == "world.db.reload")
+    {
+        if (!descriptor.contains("folder") || !descriptor.at("folder").is_string())
+        {
+            errorMessage = "'" + action + "' requires folder field";
+            return std::nullopt;
+        }
+        folder = std::filesystem::path(descriptor.at("folder").get<std::string>());
+    }
+    else
+    {
+        if (!descriptor.contains("path") || !descriptor.at("path").is_string())
+        {
+            errorMessage = "'world.load' requires path field";
+            return std::nullopt;
+        }
+        const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
+        if (target.has_extension() && target.extension() == ".json")
+        {
+            if (target.filename() == "world.json")
+            {
+                folder = target.parent_path();
+            }
+            else
+            {
+                errorMessage = "v2 世界加载仅支持目录（world.json + map_#.json）；请改用 world.db.load { folder }";
+                return std::nullopt;
+            }
+        }
+        else
+        {
+            folder = target;
+        }
+    }
 
     auto feedback = std::make_shared<CommandFeedback>();
     const auto payload = descriptor.dump();
     Genesis::Runtime::RuntimeEvent event;
     event.kind = Genesis::Runtime::RuntimeEventKind::Command;
-    event.label = descriptor.value("label", std::string{"world.load"});
+    event.label = descriptor.value("label", action);
     event.payloadJson = payload;
-    event.runtimeHandler = [target, feedback](Genesis::Runtime::Runtime& runtime) {
-        auto result = runtime.loadWorldFromFile(target);
+    event.runtimeHandler = [folder, feedback, action](Genesis::Runtime::Runtime& runtime) {
+        auto result = runtime.loadWorldFromFile(folder);
         if (!result.success)
         {
             feedback->message = result.error.empty() ? "World load failed" : result.error;
             throw std::runtime_error(feedback->message);
         }
-        feedback->message = "world.load succeeded";
+        if (action == "world.load" || action == "world.reload")
+        {
+            feedback->message = "world.load succeeded (deprecated; use world.db.load)";
+        }
+        else if (action == "world.db.reload")
+        {
+            feedback->message = "world.db.reload succeeded";
+        }
+        else
+        {
+            feedback->message = "world.db.load succeeded";
+        }
     };
     event.onComplete = [this, feedback](Genesis::Runtime::RuntimeEventReport& report) {
         if (!feedback->message.empty())
@@ -943,27 +918,58 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldReloadCommand(const json
 std::optional<std::uint64_t> RuntimeBridge::enqueueWorldSaveCommand(const json& descriptor, std::string source, std::string& errorMessage)
 {
     errorMessage.clear();
-    if (!descriptor.contains("path") || !descriptor.at("path").is_string())
+    const std::string action = descriptor.value("action", std::string{"world.save"});
+    std::filesystem::path folder;
+    if (descriptor.contains("folder") && descriptor.at("folder").is_string())
     {
-        errorMessage = "'world.save' requires path field";
-        return std::nullopt;
+        folder = std::filesystem::path(descriptor.at("folder").get<std::string>());
     }
-    const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
+    else if (action == "world.db.save")
+    {
+        if (!descriptor.contains("folder") || !descriptor.at("folder").is_string())
+        {
+            errorMessage = "'world.db.save' requires folder field";
+            return std::nullopt;
+        }
+        folder = std::filesystem::path(descriptor.at("folder").get<std::string>());
+    }
+    else
+    {
+        if (!descriptor.contains("path") || !descriptor.at("path").is_string())
+        {
+            errorMessage = "'world.save' requires path field";
+            return std::nullopt;
+        }
+        const auto target = std::filesystem::path(descriptor.at("path").get<std::string>());
+        if (target.has_extension() && target.extension() == ".json")
+        {
+            errorMessage = "v2 世界保存仅支持目录（world.json + map_#.json）；请改用 world.db.save { folder }";
+            return std::nullopt;
+        }
+        folder = target;
+    }
 
     auto feedback = std::make_shared<CommandFeedback>();
     const auto payload = descriptor.dump();
     Genesis::Runtime::RuntimeEvent event;
     event.kind = Genesis::Runtime::RuntimeEventKind::Command;
-    event.label = descriptor.value("label", std::string{"world.save"});
+    event.label = descriptor.value("label", action);
     event.payloadJson = payload;
-    event.runtimeHandler = [target, feedback](Genesis::Runtime::Runtime& runtime) {
-        auto result = runtime.saveWorldToFile(target);
+    event.runtimeHandler = [folder, feedback, action](Genesis::Runtime::Runtime& runtime) {
+        auto result = runtime.saveWorldToFile(folder);
         if (!result.success)
         {
             feedback->message = result.error.empty() ? "World save failed" : result.error;
             throw std::runtime_error(feedback->message);
         }
-        feedback->message = "world.save succeeded";
+        if (action == "world.save")
+        {
+            feedback->message = "world.save succeeded (deprecated; use world.db.save)";
+        }
+        else
+        {
+            feedback->message = "world.db.save succeeded";
+        }
     };
     event.onComplete = [feedback](Genesis::Runtime::RuntimeEventReport& report) {
         if (!feedback->message.empty())

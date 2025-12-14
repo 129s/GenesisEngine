@@ -18,6 +18,7 @@
     - `world.db.load { folder }`：从目录加载 `world.json + map_{id}.json`
     - `world.db.save { folder }`：保存当前 DB 到目录
     - `world.db.reload { folder }`：重载并刷新 Atlas
+    - 兼容别名（已弃用）：`world.load { path }` / `world.save { path }` / `world.reload { path }`（仅保留过渡期；v2 推荐统一使用 `world.db.*`）
   - 实体（v2 2D）：
     - `agent.create2d { mapId, x, y, move?{ mapId,x,y,speed } }`
     - `agent.move2d   { entityId, mapId, x, y, speed }`

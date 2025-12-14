@@ -266,10 +266,10 @@ namespace genesis::sandbox::gui
             if (card.isOpen())
             {
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
-                drawCardHeader("世界加载 / 保存");
+                drawCardHeader("世界 DB（v2）加载 / 保存");
 
                 // Load section
-                ImGui::TextUnformatted("加载路径");
+                ImGui::TextUnformatted("世界目录（包含 world.json 与 map_#.json）");
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ImGui::InputText("##WorldLoadPath", ctx.state.world_load_buffer.data(), ctx.state.world_load_buffer.size());
 
@@ -288,8 +288,8 @@ namespace genesis::sandbox::gui
                     if (runtimeReady)
                     {
                         json command = {
-                            {"action", "world.load"},
-                            {"path", loadInput},
+                            {"action", "world.db.load"},
+                            {"folder", loadInput},
                         };
                         std::string error;
                         if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
@@ -318,7 +318,7 @@ namespace genesis::sandbox::gui
                 ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
 
                 // Save section
-                ImGui::TextUnformatted("保存路径");
+                ImGui::TextUnformatted("保存目录（写出 world.json 与 map_#.json）");
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ImGui::InputText("##WorldSavePath", ctx.state.world_save_buffer.data(), ctx.state.world_save_buffer.size());
 
@@ -337,8 +337,8 @@ namespace genesis::sandbox::gui
                     if (runtimeReady)
                     {
                         json command = {
-                            {"action", "world.save"},
-                            {"path", saveInput},
+                            {"action", "world.db.save"},
+                            {"folder", saveInput},
                         };
                         std::string error;
                         if (auto id = ctx.runtime_bridge->enqueueCommandFromJson(command, "ui", error))
@@ -360,84 +360,6 @@ namespace genesis::sandbox::gui
                 if (!ctx.state.world_save_status.empty())
                 {
                     ImGui::TextWrapped("%s", ctx.state.world_save_status.c_str());
-                }
-
-                // Experimental: load new world database (world.json + map_#.json)
-                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
-                ImGui::Separator();
-                ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
-                drawCardHeader("新世界模型（实验）");
-
-                ImGui::TextUnformatted("文件夹（包含 world.json 与 map_#.json）");
-                ImGui::SetNextItemWidth(-FLT_MIN);
-                ImGui::InputText("##WorldDbFolder", ctx.state.world_db_folder_buffer.data(), ctx.state.world_db_folder_buffer.size());
-
-                const std::string dbFolder = ctx.state.world_db_folder_buffer.data();
-                const bool dbFolderEmpty = dbFolder.empty();
-                if (dbFolderEmpty)
-                {
-                    ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写目录路径");
-                }
-
-                if (dbFolderEmpty)
-                {
-                    ImGui::BeginDisabled();
-                }
-                if (ImGui::Button("加载新模型（仅影响图谱）"))
-                {
-                    std::string error;
-                    if (ctx.runtime_bridge->loadWorldDatabaseFolder(dbFolder, error))
-                    {
-                        ctx.state.world_db_load_status = "已加载新世界模型（仅影响 GUI Atlas）";
-                        ctx.state.pushToast("World DB loaded", ImVec4(0.62f, 0.84f, 0.58f, 1.0f), 3.0);
-                    }
-                    else
-                    {
-                        ctx.state.world_db_load_status = "加载失败：" + error;
-                        ctx.state.pushToast("World DB load failed", ImVec4(0.95f, 0.45f, 0.45f, 1.0f), 3.0);
-                    }
-                }
-                Ui::applyClickableCursorToLastItem();
-                if (dbFolderEmpty)
-                {
-                    ImGui::EndDisabled();
-                }
-                if (!ctx.state.world_db_load_status.empty())
-                {
-                    ImGui::TextWrapped("%s", ctx.state.world_db_load_status.c_str());
-                }
-
-                // Save v2 section
-                ImGui::Dummy(ImVec2(0.0f, cardLayout.sectionGap));
-                ImGui::Separator();
-                ImGui::Dummy(ImVec2(0.0f, cardLayout.headerGap));
-                ImGui::TextUnformatted("保存为（world.json + map_#.json 目录）");
-                ImGui::SetNextItemWidth(-FLT_MIN);
-                ImGui::InputText("##WorldDbSaveFolder", ctx.state.world_db_save_folder_buffer.data(), ctx.state.world_db_save_folder_buffer.size());
-                const std::string dbSaveFolder = ctx.state.world_db_save_folder_buffer.data();
-                const bool dbSaveEmpty = dbSaveFolder.empty();
-                if (dbSaveEmpty) ImGui::TextColored(Style::DesignTokens::color(Style::ColorToken::Warning), "请填写保存目录");
-                if (dbSaveEmpty) ImGui::BeginDisabled();
-                if (ImGui::Button("保存新模型（仅保存 DB）"))
-                {
-                    nlohmann::json cmd = { {"action","world.db.save"}, {"folder", dbSaveFolder} };
-                    std::string err;
-                    if (ctx.runtime_bridge->enqueueCommandFromJson(cmd, "ui", err))
-                    {
-                        ctx.state.world_db_save_status = std::string("已提交保存任务 → ") + dbSaveFolder;
-                        ctx.state.pushToast("World DB save queued", ImVec4(0.62f, 0.84f, 0.58f, 1.0f), 3.0);
-                    }
-                    else
-                    {
-                        ctx.state.world_db_save_status = std::string("保存失败：") + err;
-                        ctx.state.pushToast("World DB save failed", ImVec4(0.95f, 0.45f, 0.45f, 1.0f), 3.0);
-                    }
-                }
-                Ui::applyClickableCursorToLastItem();
-                if (dbSaveEmpty) ImGui::EndDisabled();
-                if (!ctx.state.world_db_save_status.empty())
-                {
-                    ImGui::TextWrapped("%s", ctx.state.world_db_save_status.c_str());
                 }
 
                 ImGui::PopTextWrapPos();
@@ -562,7 +484,7 @@ namespace genesis::sandbox::gui
                 Ui::applyClickableCursorToLastItem();
                 if (!runtimeReady2) ImGui::EndDisabled();
 
-                if (ctx.latest_snapshot && !ctx.latest_snapshot->telemetry.resourcesV2.empty())
+                if (ctx.latest_snapshot && !ctx.latest_snapshot->telemetry.resources.empty())
                 {
                     if (ImGui::BeginTable("ResourcesV2Table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
                     {
@@ -571,7 +493,7 @@ namespace genesis::sandbox::gui
                         ImGui::TableSetupColumn("Current");
                         ImGui::TableSetupColumn("Capacity");
                         ImGui::TableHeadersRow();
-                        for (const auto &r : ctx.latest_snapshot->telemetry.resourcesV2)
+                        for (const auto &r : ctx.latest_snapshot->telemetry.resources)
                         {
                             ImGui::TableNextRow();
                             ImGui::TableSetColumnIndex(0); ImGui::Text("%u", r.interactionId);

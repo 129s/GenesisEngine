@@ -47,8 +47,9 @@ cmake --build build --target genesis_sandbox_gui
 - 控件说明：
   - `配置路径` / `输出路径` / `随机种子`：作为 `world.generate` 命令的 JSON 负载提交。
   - `生成世界`：向命令队列提交 `world.generate`，返回事件 ID；命令成功后自动刷新最新种子，并在状态栏显示 `完成 (#id) · seed=...`。
-  - `加载世界`：提交 `world.load`；成功后自动调用 `resetSceneForNewWorld()`，清空轨迹与 Inspector 选择。
-  - `保存当前世界`：提交 `world.save`；成功信息写入 `RuntimeEventReport.message` 并显示在状态栏。
+  - 说明：当前 v2 Runtime 对 `world.generate` 仍为占位实现（可能返回失败），建议优先使用 `world.db.load/save` 验证加载/回归链路。
+  - `加载世界`：提交 `world.db.load { folder }`（目录包含 `world.json + map_#.json`）；成功后自动调用 `resetSceneForNewWorld()`，清空轨迹与 Inspector 选择。
+  - `保存当前世界`：提交 `world.db.save { folder }`；成功信息写入 `RuntimeEventReport.message` 并显示在状态栏。
   - `命令脚本`：输入 JSON 文件路径（参考 `data/scripts/world_cycle.json`），点击 `执行脚本` 即可批量提交多条命令。脚本内命令支持 `waitForSuccess` 串联依赖。
 - 面板底部展示命令队列状态表：
   - 列包含 `ID` / `标签` / `来源` / `状态` / `备注`。
@@ -64,11 +65,11 @@ cmake --build build --target genesis_sandbox_gui
 
 ```json
 {
-  "name": "world-cycle-demo",
+  "name": "world-db-cycle-demo",
   "commands": [
-    { "action": "world.generate", "configPath": "...", "waitForSuccess": true },
-    { "action": "world.load", "path": "...", "waitForSuccess": true },
-    { "action": "world.save", "path": "..." }
+    { "action": "world.db.load", "folder": "data/world_new", "waitForSuccess": true },
+    { "action": "resource.consume", "interactionId": 1000, "amount": 10, "waitForSuccess": true },
+    { "action": "world.db.save", "folder": "out/world_new_backup" }
   ]
 }
 ```

@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(GENESISENGINE_ENABLE_TESTS "Build GenesisEngine tests" ON)
+option(GENESIS_BUILD_GUI "Build sandbox GUI application" OFF)
+option(GENESIS_WITH_STYLE "Build style/palette system" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CPM.cmake)
@@ -40,57 +42,68 @@ CPMAddPackage(
     OPTIONS "TOMLPP_BUILD_EXAMPLES OFF" "TOMLPP_BUILD_TESTS OFF"
 )
 
-CPMAddPackage(
-    NAME glfw
-    GITHUB_REPOSITORY glfw/glfw
-    GIT_TAG 3.3.8
-    OPTIONS
-        "GLFW_BUILD_EXAMPLES OFF"
-        "GLFW_BUILD_TESTS OFF"
-        "GLFW_BUILD_DOCS OFF"
-        "GLFW_INSTALL OFF"
-)
-
-CPMAddPackage(
-    NAME imgui
-    GITHUB_REPOSITORY ocornut/imgui
-    GIT_TAG v1.91.0-docking
-)
-
-find_package(Freetype REQUIRED)
-
-if(imgui_ADDED)
-    add_library(imgui STATIC
-        ${imgui_SOURCE_DIR}/imgui.cpp
-        ${imgui_SOURCE_DIR}/imgui_demo.cpp
-        ${imgui_SOURCE_DIR}/imgui_draw.cpp
-        ${imgui_SOURCE_DIR}/imgui_tables.cpp
-        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-        ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
-        ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp
-    )
-    add_library(imgui::imgui ALIAS imgui)
-
-    target_include_directories(imgui
-        PUBLIC
-            ${imgui_SOURCE_DIR}
-            ${imgui_SOURCE_DIR}/backends
-            ${imgui_SOURCE_DIR}/misc/cpp
-            ${imgui_SOURCE_DIR}/misc/freetype
+if(GENESIS_BUILD_GUI)
+    CPMAddPackage(
+        NAME glfw
+        GITHUB_REPOSITORY glfw/glfw
+        GIT_TAG 3.3.8
+        OPTIONS
+            "GLFW_BUILD_EXAMPLES OFF"
+            "GLFW_BUILD_TESTS OFF"
+            "GLFW_BUILD_DOCS OFF"
+            "GLFW_INSTALL OFF"
     )
 
-    target_link_libraries(imgui
-        PUBLIC
-            glfw
-            Freetype::Freetype
+    CPMAddPackage(
+        NAME imgui
+        GITHUB_REPOSITORY ocornut/imgui
+        GIT_TAG v1.91.0-docking
     )
 
-    target_compile_definitions(imgui
-        PUBLIC
-            IMGUI_ENABLE_FREETYPE
-    )
+    find_package(Freetype QUIET)
+
+    if(imgui_ADDED)
+        set(IMGUI_SOURCES
+            ${imgui_SOURCE_DIR}/imgui.cpp
+            ${imgui_SOURCE_DIR}/imgui_demo.cpp
+            ${imgui_SOURCE_DIR}/imgui_draw.cpp
+            ${imgui_SOURCE_DIR}/imgui_tables.cpp
+            ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+            ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+            ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+            ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+        )
+
+        if(Freetype_FOUND)
+            list(APPEND IMGUI_SOURCES
+                ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp
+            )
+        endif()
+
+        add_library(imgui STATIC ${IMGUI_SOURCES})
+        add_library(imgui::imgui ALIAS imgui)
+
+        target_include_directories(imgui
+            PUBLIC
+                ${imgui_SOURCE_DIR}
+                ${imgui_SOURCE_DIR}/backends
+                ${imgui_SOURCE_DIR}/misc/cpp
+        )
+
+        if(Freetype_FOUND)
+            target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR}/misc/freetype)
+        endif()
+
+        target_link_libraries(imgui
+            PUBLIC
+                glfw
+        )
+
+        if(Freetype_FOUND)
+            target_link_libraries(imgui PUBLIC Freetype::Freetype)
+            target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_FREETYPE)
+        endif()
+    endif()
 endif()
 
 if(GENESISENGINE_ENABLE_TESTS)

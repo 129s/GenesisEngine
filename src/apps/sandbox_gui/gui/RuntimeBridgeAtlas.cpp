@@ -19,10 +19,8 @@ RuntimeBridge::Vector2 computeExtent(std::size_t maxPerLevel, std::size_t levelC
     return RuntimeBridge::Vector2{std::max(width, kMinExtent), std::max(height, kMinExtent)};
 }
 
-// 注：buildWorldAtlas(WorldDatabase) 与 loadWorldDatabaseFolder 的定义移至匿名命名空间外部
-
 } // namespace
-RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const Genesis::World::WorldDatabase& db)
+    RuntimeBridge::WorldAtlas RuntimeBridge::buildWorldAtlas(const Genesis::World::WorldDatabase& db)
 {
     WorldAtlas atlas;
 
@@ -80,8 +78,6 @@ void RuntimeBridge::rebuildAtlasOnRuntimeThread()
     WorldAtlas nextAtlas{};
     if (auto db = runtime_.worldDatabase()) {
         nextAtlas = buildWorldAtlas(*db);
-    } else if (worldDb_) {
-        nextAtlas = buildWorldAtlas(*worldDb_);
     } else {
         nextAtlas = {};
     }

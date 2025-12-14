@@ -14,6 +14,7 @@
   - [world/world-model.md](world/world-model.md)：Map 图（有向）+ Scene 分组 + Interaction/Portal 与坐标契约。
   - [world/world-generation.md](world/world-generation.md)：生成流程（maps/map_edges 与每图 scenes/interactions/portals）、校验与产出。
   - [world/world-representation.md](world/world-representation.md)：渲染表示（Atlas/Tilemap 仅表现）、与运行时解耦的消费准则。
+  - [world/resource-economy-workshops.md](world/resource-economy-workshops.md)：资源经济 v1（工坊配方、Agent 驱动生产链）的数据契约与语义。
   - [world/chunked-tile-graph.md](world/chunked-tile-graph.md)：大地图/分块加载探索笔记。
 - **Agents / Behavior Layer**
   - [agents/agent-personality-big5.md](agents/agent-personality-big5.md)：属性→需求→动机→行动链路与人格/Traits 调制。

@@ -27,6 +27,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "genesis/world/ResourceTypeStrings.hpp"
+
 namespace genesis::sandbox::gui
 {
     using json = nlohmann::json;
@@ -261,17 +263,7 @@ void InspectorView::render(UiContext &ctx, const std::optional<SceneViewportRend
 
         const auto resourceTypeName = [](Genesis::World::ResourceType type) -> const char *
         {
-            switch (type)
-            {
-            case Genesis::World::ResourceType::Food:
-                return "Food";
-            case Genesis::World::ResourceType::Water:
-                return "Water";
-            case Genesis::World::ResourceType::Social:
-                return "Social";
-            default:
-                return "Unknown";
-            }
+            return genesis::world::resourceTypeName(type);
         };
         switch (ctx.state.inspector_selection_type)
         {

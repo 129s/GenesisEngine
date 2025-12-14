@@ -13,6 +13,7 @@
 
 #include "genesis/agents/CarriedResources.hpp"
 #include "genesis/agents/Needs.hpp"
+#include "genesis/world/ResourceTypeStrings.hpp"
 #include "genesis/world/MapPathfinding.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
 
@@ -25,14 +26,6 @@ constexpr std::uint32_t kMaxPlanningRetries = 2;
 constexpr int kMaxAcquireDepth = 4;
 
 using json = nlohmann::json;
-
-std::optional<genesis::world::ResourceType> parseResourceTypeString(std::string_view sv) {
-    using genesis::world::ResourceType;
-    if (sv == "Food" || sv == "food") return ResourceType::Food;
-    if (sv == "Water" || sv == "water" || sv == "Drink" || sv == "drink") return ResourceType::Water;
-    if (sv == "Social" || sv == "social") return ResourceType::Social;
-    return std::nullopt;
-}
 
 struct WorkshopInput {
     genesis::world::ResourceType type{genesis::world::ResourceType::Food};
@@ -77,7 +70,7 @@ std::optional<WorkshopRecipe> parseWorkshopRecipe(const genesis::world::Interact
         if (!item.contains("units") || !item.at("units").is_number_unsigned()) {
             continue;
         }
-        const auto type = parseResourceTypeString(item.at("type").get<std::string>());
+        const auto type = genesis::world::parseResourceType(item.at("type").get<std::string>());
         if (!type) {
             continue;
         }

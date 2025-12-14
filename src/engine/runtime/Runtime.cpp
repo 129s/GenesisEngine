@@ -33,6 +33,7 @@
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/simulation/Namespace.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
+#include "genesis/world/ResourceTypeStrings.hpp"
 #include "genesis/worldgen/ConfigLoader.hpp"
 #include "genesis/worldgen/Generator.hpp"
 
@@ -279,19 +280,6 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         nextInteractionId.emplace(mapId, static_cast<world::InteractionId>(mapId * 1000U));
     }
 
-    auto resourceTypeName = [](world::ResourceType type) -> const char* {
-        switch (type)
-        {
-        case world::ResourceType::Food:
-            return "Food";
-        case world::ResourceType::Water:
-            return "Water";
-        case world::ResourceType::Social:
-            return "Social";
-        }
-        return "Food";
-    };
-
     auto workshopSpecFor = [&](world::ResourceType type) -> const genesis::worldgen::WorldDbResourceSettings::Workshop* {
         for (const auto& spec : config.worlddb.resources.workshops)
         {
@@ -320,7 +308,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         workshop["inputs"] = json::array();
         for (const auto& input : spec->inputs)
         {
-            workshop["inputs"].push_back({{"type", resourceTypeName(input.type)}, {"units", input.units}});
+            workshop["inputs"].push_back({{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}});
         }
 
         json meta{};
@@ -423,10 +411,11 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         for (const auto& t : node.tags) {
             if (t.size() >= prefix.size() && t.compare(0, prefix.size(), prefix.data(), prefix.size()) == 0) {
                 const auto value = t.substr(prefix.size());
-                if (value == "Food" || value == "food") return world::ResourceType::Food;
-                if (value == "Water" || value == "water" || value == "Drink" || value == "drink") return world::ResourceType::Water;
-                if (value == "Social" || value == "social") return world::ResourceType::Social;
-                return std::nullopt;
+                const auto parsed = genesis::world::parseResourceType(value);
+                if (!parsed) {
+                    return std::nullopt;
+                }
+                return *parsed;
             }
         }
         return std::nullopt;

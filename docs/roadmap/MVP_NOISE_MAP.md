@@ -60,7 +60,7 @@
 ## 后续演进钩子
 - 将 `terrain` 正式化为 `LocationNode` 扩展字段或标签集合（Loader/JSON 同步）。
 - 引入 `Area/Portal` 与 Tile 层（参考 `CHUNKED_TILE_GRAPH.md` 与 `TILEMAP_INTEGRATION.md`）。
-- 扩展资源类型（Drink/Social）与地形约束的资源分布规则。
+- 扩展资源类型（Water/Social；legacy: Drink -> Water）与地形约束的资源分布规则。
 
 ## 执行计划（Action Plan）
 - **Phase 1 · 生成器基础**（已完成）：实现 `NoiseGridGenerator`，构建 `LocationGraph`、资源采样与 JSON 导出，并补齐单元测试。

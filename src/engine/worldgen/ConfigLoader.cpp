@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "genesis/world/WorldTypes.hpp"
+#include "genesis/world/ResourceTypeStrings.hpp"
 
 namespace genesis::worldgen
 {
@@ -31,19 +32,7 @@ std::optional<std::size_t> read_size_t(const toml::table& table, std::string_vie
 
 std::optional<genesis::world::ResourceType> parse_resource_type(std::string_view sv)
 {
-    if (sv == "Food" || sv == "food")
-    {
-        return genesis::world::ResourceType::Food;
-    }
-    if (sv == "Water" || sv == "water" || sv == "Drink" || sv == "drink")
-    {
-        return genesis::world::ResourceType::Water;
-    }
-    if (sv == "Social" || sv == "social")
-    {
-        return genesis::world::ResourceType::Social;
-    }
-    return std::nullopt;
+    return genesis::world::parseResourceType(sv);
 }
 
 std::vector<genesis::world::ResourceType> parse_resource_types(const toml::table& table, std::string_view key)

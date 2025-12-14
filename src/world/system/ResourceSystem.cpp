@@ -34,6 +34,8 @@ void ResourceSystem::initialize(entt::registry& registry) {
         return;
     }
 
+    m_spawnByInteraction.clear();
+
     auto isWorkshop = [](const genesis::world::Interaction& it) -> bool {
         if (!it.meta) {
             return false;
@@ -96,14 +98,6 @@ void ResourceSystem::initialize(entt::registry& registry) {
 
     spdlog::info("ResourceSystem initialized {} spawns", total);
     m_telemetryDeltas.clear();
-    m_spawnByInteraction.clear();
-    for (const auto entity : m_spawnEntities) {
-        if (!registry.valid(entity)) {
-            continue;
-        }
-        const auto& spawn = registry.get<components::ResourceSpawn>(entity);
-        m_spawnByInteraction[spawn.interaction] = entity;
-    }
     m_initialized = true;
 }
 

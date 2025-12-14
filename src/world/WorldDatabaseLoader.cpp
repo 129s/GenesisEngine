@@ -3,6 +3,8 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+#include "genesis/world/ResourceTypeStrings.hpp"
+
 namespace genesis::world {
 
 using nlohmann::json;
@@ -24,13 +26,6 @@ namespace {
         if (sv == "Portal") return InteractionKind::Portal;
         if (sv == "Landmark") return InteractionKind::Landmark;
         return InteractionKind::Unknown;
-    }
-
-    std::optional<ResourceType> parseResourceType(std::string_view sv) {
-        if (sv == "Food") return ResourceType::Food;
-        if (sv == "Water" || sv == "Drink") return ResourceType::Water;
-        if (sv == "Social") return ResourceType::Social;
-        return std::nullopt;
     }
 
     std::optional<std::pair<int, int>> parseInt2(const json& value) {
@@ -160,9 +155,9 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
                 }
                 if (i.kind == InteractionKind::Resource) {
                     if (ji.contains("resourceType") && ji["resourceType"].is_string()) {
-                        i.resourceType = parseResourceType(ji["resourceType"].get<std::string>());
+                        i.resourceType = genesis::world::parseResourceType(ji["resourceType"].get<std::string>());
                     } else if (ji.contains("type") && ji["type"].is_string()) {
-                        i.resourceType = parseResourceType(ji["type"].get<std::string>());
+                        i.resourceType = genesis::world::parseResourceType(ji["type"].get<std::string>());
                     }
                 }
                 if (ji.contains("capacity") && ji["capacity"].is_number_unsigned()) {

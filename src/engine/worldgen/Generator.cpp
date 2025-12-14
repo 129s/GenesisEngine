@@ -15,6 +15,8 @@
 #include "genesis/worldgen/TopologyModule.hpp"
 #include "genesis/worldgen/ValidationModule.hpp"
 
+#include "genesis/world/ResourceTypeStrings.hpp"
+
 namespace genesis::worldgen
 {
 
@@ -43,16 +45,7 @@ double uniform01_from_u64(std::uint64_t x)
 
 std::string resource_type_name(genesis::world::ResourceType type)
 {
-    switch (type)
-    {
-    case genesis::world::ResourceType::Food:
-        return "Food";
-    case genesis::world::ResourceType::Water:
-        return "Water";
-    case genesis::world::ResourceType::Social:
-        return "Social";
-    }
-    return "Food";
+    return genesis::world::resourceTypeName(type);
 }
 
 std::unordered_map<std::size_t, NodePlacement> build_placement_map(const LayoutDraft& layout)

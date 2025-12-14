@@ -67,7 +67,7 @@
   - `from, to, cost, bidirectional`
   - 可选：`anchors{ at_from:[x,y], at_to:[x,y] }`（场景局部锚点/Portal 锚点）
 - `spawns[]`（resource）
-  - `name, type(Food/Drink/Social), location, capacity, rate_per_step`
+  - `name, type(Food/Water/Social), location, capacity, rate_per_step`（legacy: Drink -> Water）
   - 可选：`local_coord:[x,y]`（交互点站位）
 - `tilemaps[]`（可选）
   - `node, width, height, tileSize`

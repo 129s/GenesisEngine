@@ -3,21 +3,11 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+#include "genesis/world/ResourceTypeStrings.hpp"
+
 namespace genesis::world {
 
 using nlohmann::json;
-
-static const char* resourceTypeName(ResourceType type) {
-    switch (type) {
-    case ResourceType::Food:
-        return "Food";
-    case ResourceType::Water:
-        return "Water";
-    case ResourceType::Social:
-        return "Social";
-    }
-    return "Food";
-}
 
 static bool writeText(const std::filesystem::path& p, const std::string& s) {
     std::filesystem::create_directories(p.parent_path());
@@ -100,7 +90,7 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
                 jm["interactions"].push_back(std::move(ji));
                 if (i.kind == InteractionKind::Resource) {
                     if (i.resourceType) {
-                        jm["interactions"].back()["resourceType"] = resourceTypeName(*i.resourceType);
+                        jm["interactions"].back()["resourceType"] = genesis::world::resourceTypeName(*i.resourceType);
                     }
                     if (i.capacity) {
                         jm["interactions"].back()["capacity"] = *i.capacity;

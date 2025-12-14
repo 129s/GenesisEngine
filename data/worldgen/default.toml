@@ -33,5 +33,8 @@ base_extent = 28
 [worlddb.resources]
 per_map = 1
 type = "Food"
+# 可选：多类型（按 weights 进行抽样；weights 为空则等权）。这里默认仍为 Food（1,0,0）。
+types = ["Food", "Drink", "Social"]
+weights = [1.0, 0.0, 0.0]
 capacity = 50
 regen_per_step = 2

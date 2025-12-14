@@ -172,7 +172,7 @@ namespace genesis::sandbox::gui
                     if (runtimeReady)
                     {
                         json command = {
-                            {"action", "world.generate"},
+                            {"action", "world.db.generate"},
                             {"configPath", configInput},
                         };
                         if (!ctx.state.worldgen_use_random_seed)
@@ -181,7 +181,7 @@ namespace genesis::sandbox::gui
                         }
                         if (!outputInput.empty())
                         {
-                            command["outputPath"] = outputInput;
+                            command["folder"] = outputInput;
                         }
 
                         std::string error;

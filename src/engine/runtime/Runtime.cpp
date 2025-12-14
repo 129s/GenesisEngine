@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <exception>
 #include <filesystem>
 #include <iterator>
@@ -11,7 +12,10 @@
 #include <optional>
 #include <queue>
 #include <random>
+#include <set>
 #include <stdexcept>
+#include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -20,9 +24,12 @@
 
 #include "EngineSimulationService.hpp"
 
+#include "genesis/world/WorldDatabase.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/simulation/Namespace.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
+#include "genesis/worldgen/ConfigLoader.hpp"
+#include "genesis/worldgen/Generator.hpp"
 
 namespace Genesis::Runtime {
 
@@ -66,6 +73,141 @@ simulation::AgentPose2D toPose(const agent_components::AgentLocation2D& target) 
     pose.x = target.x;
     pose.y = target.y;
     return pose;
+}
+
+struct CoordNormalization {
+    std::unordered_map<std::size_t, std::pair<int, int>> coordsByLocalId;
+};
+
+CoordNormalization normalizeNodePlacements(const genesis::worldgen::LayoutDraft& layout, int baseExtent) {
+    CoordNormalization result{};
+    if (baseExtent < 4) {
+        baseExtent = 4;
+    }
+
+    if (layout.placements.empty()) {
+        return result;
+    }
+
+    double minX = layout.placements.front().x;
+    double maxX = layout.placements.front().x;
+    double minY = layout.placements.front().y;
+    double maxY = layout.placements.front().y;
+    for (const auto& p : layout.placements) {
+        minX = std::min(minX, p.x);
+        maxX = std::max(maxX, p.x);
+        minY = std::min(minY, p.y);
+        maxY = std::max(maxY, p.y);
+    }
+
+    const double spanX = std::max(1e-6, maxX - minX);
+    const double spanY = std::max(1e-6, maxY - minY);
+
+    constexpr int padding = 2;
+    const int minCoord = padding;
+    const int maxCoord = std::max(minCoord, baseExtent - 1 - padding);
+
+    result.coordsByLocalId.reserve(layout.placements.size());
+    for (const auto& p : layout.placements) {
+        const double ux = (p.x - minX) / spanX;
+        const double uy = (p.y - minY) / spanY;
+        const int x = static_cast<int>(std::lround(minCoord + ux * (maxCoord - minCoord)));
+        const int y = static_cast<int>(std::lround(minCoord + uy * (maxCoord - minCoord)));
+        result.coordsByLocalId.emplace(p.local_id, std::make_pair(x, y));
+    }
+    return result;
+}
+
+world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::GeneratorConfig& config,
+                                                    const genesis::worldgen::TopologyDraft& topology,
+                                                    const genesis::worldgen::LayoutDraft& layout) {
+    world::InMemoryWorldDatabase db;
+    db.clear();
+
+    const auto normalized = normalizeNodePlacements(layout, config.tilemap.base_extent);
+
+    auto coordFor = [&](std::size_t localId) -> std::pair<int, int> {
+        if (auto it = normalized.coordsByLocalId.find(localId); it != normalized.coordsByLocalId.end()) {
+            return it->second;
+        }
+        const int mid = std::max(0, config.tilemap.base_extent / 2);
+        return {mid, mid};
+    };
+
+    for (const auto& node : topology.nodes) {
+        const auto mapId = static_cast<world::MapId>(node.local_id + 1);
+        world::Map m{};
+        m.id = mapId;
+        m.name = node.label.empty() ? ("Map_" + std::to_string(mapId)) : (node.label + "_" + std::to_string(mapId));
+        db.addMap(std::move(m));
+
+        world::Scene s{};
+        s.id = static_cast<world::SceneId>(mapId * 100U);
+        s.mapId = mapId;
+        s.name = node.label.empty() ? ("Scene_" + std::to_string(s.id)) : (node.label + "_scene");
+        db.addScene(std::move(s));
+
+        const auto baseCoord = coordFor(node.local_id);
+        const auto resourceId = static_cast<world::InteractionId>(mapId * 1000U);
+
+        world::Interaction resource{};
+        resource.id = resourceId;
+        resource.mapId = mapId;
+        resource.sceneId = static_cast<world::SceneId>(mapId * 100U);
+        resource.kind = world::InteractionKind::Resource;
+        resource.coord = {std::min(baseCoord.first + 1, config.tilemap.base_extent - 1),
+                          std::min(baseCoord.second + 1, config.tilemap.base_extent - 1)};
+        resource.name = "Resource";
+        resource.capacity = 50U;
+        resource.regenPerStep = 2U;
+        db.addInteraction(std::move(resource));
+    }
+
+    {
+        std::set<std::tuple<world::MapId, world::MapId, bool>> seen;
+        for (const auto& e : topology.edges) {
+            const auto from = static_cast<world::MapId>(e.from + 1);
+            const auto to = static_cast<world::MapId>(e.to + 1);
+            if (from == 0U || to == 0U || from == to) {
+                continue;
+            }
+            const auto key = std::make_tuple(from, to, e.bidirectional);
+            if (!seen.emplace(key).second) {
+                continue;
+            }
+            db.addMapEdge(world::MapEdge{from, to, e.bidirectional});
+        }
+    }
+
+    for (std::size_t index = 0; index < topology.portals.size(); ++index) {
+        const auto& portal = topology.portals[index];
+        const auto entryMap = static_cast<world::MapId>(portal.entry + 1);
+        const auto exitMap = static_cast<world::MapId>(portal.exit + 1);
+        if (entryMap == 0U || exitMap == 0U || entryMap == exitMap) {
+            continue;
+        }
+
+        const auto entryCoord = coordFor(portal.entry);
+        const auto exitCoord = coordFor(portal.exit);
+
+        world::Interaction portalInter{};
+        portalInter.id = static_cast<world::InteractionId>(entryMap * 1000U + 500U + static_cast<world::InteractionId>(index));
+        portalInter.mapId = entryMap;
+        portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
+        portalInter.kind = world::InteractionKind::Portal;
+        portalInter.coord = entryCoord;
+        portalInter.name = "PortalTo_" + std::to_string(exitMap);
+        db.addInteraction(portalInter);
+
+        world::Portal p{};
+        p.interactionId = portalInter.id;
+        p.targetMapId = exitMap;
+        p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
+        p.targetCoord = exitCoord;
+        db.addPortal(std::move(p));
+    }
+
+    return db;
 }
 
 } // namespace
@@ -192,12 +334,63 @@ std::optional<SimulationSnapshotDiff> Runtime::Impl::latestSnapshotDiff() const 
 }
 
 Runtime::WorldGenerationResult Runtime::Impl::generateWorldFromConfig(const std::filesystem::path& configPath,
-                                                                      std::optional<std::uint64_t>,
-                                                                      std::optional<std::filesystem::path>) {
+                                                                      std::optional<std::uint64_t> seedOverride,
+                                                                      std::optional<std::filesystem::path> outputPath) {
     WorldGenerationResult result{};
     result.configPath = std::filesystem::absolute(configPath);
-    result.success = false;
-    result.error = "world generation is not supported in v2 runtime";
+
+    const auto start = std::chrono::steady_clock::now();
+
+    try {
+        std::uint64_t seedValue = 0;
+        if (seedOverride) {
+            seedValue = *seedOverride;
+        } else {
+            seedValue = std::random_device{}();
+        }
+        result.seed.value = seedValue;
+        m_lastSeed = seedValue;
+
+        auto config = genesis::worldgen::load_config(result.configPath);
+
+        std::filesystem::path folder;
+        if (outputPath) {
+            folder = std::filesystem::absolute(*outputPath);
+        } else {
+            folder = result.configPath.parent_path() / "worldgen_output" / ("world_" + std::to_string(seedValue));
+            folder = std::filesystem::absolute(folder);
+        }
+        result.outputPath = folder;
+
+        const auto generated = genesis::worldgen::generate_world(config, genesis::worldgen::Seed{seedValue});
+
+        result.locationCount = generated.location_count;
+        result.edgeCount = generated.edge_count;
+        result.logs.clear();
+        result.logs.reserve(generated.logs.size());
+        for (const auto& entry : generated.logs) {
+            result.logs.push_back(entry.message);
+        }
+
+        auto db = buildWorldDbFromDrafts(config, generated.topology, generated.layout);
+        auto save = world::saveWorldDatabaseToFolder(folder, db);
+        if (!save.success) {
+            result.success = false;
+            result.error = save.error.empty() ? "world database save failed" : save.error;
+        } else {
+            result.success = true;
+        }
+    } catch (const std::exception& ex) {
+        result.success = false;
+        result.error = ex.what();
+    } catch (...) {
+        result.success = false;
+        result.error = "world generation failed (unknown error)";
+    }
+
+    const auto end = std::chrono::steady_clock::now();
+    result.durationMs = std::chrono::duration<double, std::milli>(end - start).count();
+
     m_lastWorldGen = result;
     return *m_lastWorldGen;
 }

@@ -113,3 +113,57 @@ TEST(SandboxGuiCommandQueueE2E, WorldDbLoadConsumeAndSaveSequenceSucceeds) {
 
     bridge.stop();
 }
+
+TEST(SandboxGuiCommandQueueE2E, WorldDbGenerateAutoLoadsAndAllowsConsume) {
+    using namespace std::chrono_literals;
+    using genesis::sandbox::gui::RuntimeBridge;
+
+    RuntimeBridge bridge({});
+    ASSERT_TRUE(bridge.start());
+    bridge.setPaused(true);
+
+    const auto configPath = repoPath("data/worldgen/default.toml");
+    const auto generatedFolder = uniqueTempFolder("genesis-world-db-gen");
+    const auto saveFolder = uniqueTempFolder("genesis-world-db-gen-save");
+
+    nlohmann::json script = {
+        {"name", "command-queue-worldgen-e2e"},
+        {"commands",
+         nlohmann::json::array(
+             {nlohmann::json{{"label", "generate"}, {"action", "world.db.generate"}, {"configPath", configPath.string()}, {"seed", 123U}, {"folder", generatedFolder.string()}, {"waitForSuccess", true}},
+              nlohmann::json{{"label", "consume"}, {"action", "resource.consume"}, {"interactionId", 1000}, {"amount", 1}, {"waitForSuccess", true}},
+              nlohmann::json{{"label", "save"}, {"action", "world.db.save"}, {"folder", saveFolder.string()}, {"waitForSuccess", true}}})},
+    };
+
+    std::string error;
+    ASSERT_TRUE(bridge.enqueueCommandSequence(script, "test", error)) << error;
+
+    const auto deadline = std::chrono::steady_clock::now() + 20s;
+    for (;;) {
+        bridge.requestStep(1);
+        std::this_thread::sleep_for(5ms);
+
+        const auto commands = bridge.commandStatusSnapshot();
+        const auto generate = findCommand(commands, "generate");
+        const auto consume = findCommand(commands, "consume");
+        const auto save = findCommand(commands, "save");
+
+        if (generate && consume && save && generate->state != RuntimeBridge::CommandState::Pending &&
+            consume->state != RuntimeBridge::CommandState::Pending && save->state != RuntimeBridge::CommandState::Pending) {
+            EXPECT_EQ(generate->state, RuntimeBridge::CommandState::Succeeded) << generate->message;
+            EXPECT_EQ(consume->state, RuntimeBridge::CommandState::Succeeded) << consume->message;
+            EXPECT_EQ(save->state, RuntimeBridge::CommandState::Succeeded) << save->message;
+            break;
+        }
+
+        if (std::chrono::steady_clock::now() >= deadline) {
+            FAIL() << "Timeout waiting for command sequence to finish\n" << dumpCommands(commands);
+        }
+    }
+
+    EXPECT_TRUE(std::filesystem::exists(generatedFolder / "world.json"));
+    EXPECT_TRUE(std::filesystem::exists(generatedFolder / "map_1.json"));
+    EXPECT_TRUE(std::filesystem::exists(saveFolder / "world.json"));
+
+    bridge.stop();
+}

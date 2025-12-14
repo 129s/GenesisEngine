@@ -413,7 +413,7 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueCommandInternal(const json& c
     }
 
     const auto action = command.at("action").get<std::string>();
-    if (action == "world.generate")
+    if (action == "world.generate" || action == "world.db.generate")
     {
         return enqueueWorldGenerationCommand(command, std::move(source), errorMessage);
     }
@@ -744,9 +744,10 @@ struct CommandFeedback
 std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const json& descriptor, std::string source, std::string& errorMessage)
 {
     errorMessage.clear();
+    const std::string action = descriptor.value("action", std::string{"world.generate"});
     if (!descriptor.contains("configPath") || !descriptor.at("configPath").is_string())
     {
-        errorMessage = "'world.generate' requires configPath field";
+        errorMessage = "'" + action + "' requires configPath field";
         return std::nullopt;
     }
 
@@ -764,7 +765,15 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
     }
 
     std::optional<std::filesystem::path> outputPath;
-    if (descriptor.contains("outputPath"))
+    if (descriptor.contains("folder") && descriptor.at("folder").is_string())
+    {
+        outputPath = std::filesystem::path(descriptor.at("folder").get<std::string>());
+    }
+    else if (descriptor.contains("outputFolder") && descriptor.at("outputFolder").is_string())
+    {
+        outputPath = std::filesystem::path(descriptor.at("outputFolder").get<std::string>());
+    }
+    else if (descriptor.contains("outputPath"))
     {
         if (!descriptor.at("outputPath").is_string())
         {
@@ -774,58 +783,61 @@ std::optional<std::uint64_t> RuntimeBridge::enqueueWorldGenerationCommand(const 
         outputPath = std::filesystem::path(descriptor.at("outputPath").get<std::string>());
     }
 
+    auto feedback = std::make_shared<CommandFeedback>();
     const auto payload = descriptor.dump();
-    const auto label = descriptor.value("label", std::string{"world.generate"});
-    const auto enqueuedAt = std::chrono::steady_clock::now();
-    const auto id = recordPending(nextManualCommandId_.fetch_add(1), Genesis::Runtime::RuntimeEventKind::Command, label, payload, std::move(source), enqueuedAt);
-
-    purgeFinishedTasks();
-
-    auto task = std::async(std::launch::async, [this, id, configPath, seedOverride, outputPath]() {
-        bool success = false;
-        std::string message;
-        try
+    Genesis::Runtime::RuntimeEvent event;
+    event.kind = Genesis::Runtime::RuntimeEventKind::Command;
+    event.label = descriptor.value("label", action);
+    event.payloadJson = payload;
+    event.runtimeHandler = [configPath, seedOverride, outputPath, feedback, action](Genesis::Runtime::Runtime& runtime) {
+        auto result = runtime.generateWorldFromConfig(configPath, seedOverride, outputPath);
+        if (!result.success)
         {
-            auto result = generateWorld(configPath, seedOverride, outputPath);
-            if (result && result->success)
+            feedback->message = result.error.empty() ? "World generation failed" : result.error;
+            throw std::runtime_error(feedback->message);
+        }
+
+        if (result.outputPath)
+        {
+            auto load = runtime.loadWorldFromFile(*result.outputPath);
+            if (!load.success)
             {
-                std::ostringstream oss;
-                oss << "seed=" << result->seed.value << " locations=" << result->locationCount << " edges=" << result->edgeCount;
-                message = oss.str();
-                success = true;
-                rebuildAtlasOnRuntimeThread();
-            }
-            else if (result)
-            {
-                message = result->error.empty() ? "World generation failed" : result->error;
-            }
-            else
-            {
-                message = "World generation failed";
+                feedback->message = load.error.empty() ? "World load failed" : load.error;
+                throw std::runtime_error(feedback->message);
             }
         }
-        catch (const std::exception& ex)
+
+        std::ostringstream oss;
+        if (action == "world.generate")
         {
-            message = ex.what();
+            oss << "world.generate succeeded (deprecated; use world.db.generate)";
         }
-        catch (...)
+        else
         {
-            message = "world.generate unknown error";
+            oss << "world.db.generate succeeded";
         }
-
-        if (message.empty())
+        oss << " seed=" << result.seed.value << " nodes=" << result.locationCount << " edges=" << result.edgeCount;
+        if (result.outputPath) {
+            oss << " folder=" << result.outputPath->string();
+        }
+        feedback->message = oss.str();
+    };
+    event.onComplete = [this, feedback](Genesis::Runtime::RuntimeEventReport& report) {
+        if (!feedback->message.empty())
         {
-            message = success ? "world.generate succeeded" : "world.generate failed";
+            report.message = feedback->message;
         }
+        {
+            std::lock_guard lock(lastGenerationMutex_);
+            lastGeneration_ = runtime_.lastWorldGeneration();
+        }
+        if (report.success)
+        {
+            rebuildAtlasOnRuntimeThread();
+        }
+    };
 
-        completeCommand(id, success, std::move(message));
-    });
-
-    {
-        std::lock_guard lock(asyncMutex_);
-        asyncTasks_.push_back(std::move(task));
-    }
-
+    const auto id = enqueueRuntimeEvent(std::move(event), std::move(source));
     return id;
 }
 

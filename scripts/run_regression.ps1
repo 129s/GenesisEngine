@@ -1,11 +1,11 @@
-$ErrorActionPreference = "Stop"
-
 param(
   [string]$Generator = "Ninja",
   [string]$Config = "Release",
   [string]$CoreBuildDir = "build_regression_core",
   [string]$GuiBuildDir = "build_regression_gui"
 )
+
+$ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 
@@ -36,4 +36,3 @@ Invoke-BuildAndTest -BuildDir $GuiBuildDir -Definitions @{
   "GENESIS_BUILD_GUI" = "ON"
   "GENESIS_WITH_STYLE" = "OFF"
 }
-

@@ -310,6 +310,7 @@ target_link_libraries(genesis_runtime
         Genesis::WorldModel
     PRIVATE
         Genesis::Engine
+        Genesis::Worldgen
 )
 
 set_target_properties(genesis_runtime PROPERTIES

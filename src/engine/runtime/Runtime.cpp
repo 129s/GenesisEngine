@@ -124,7 +124,8 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
     world::InMemoryWorldDatabase db;
     db.clear();
 
-    const auto normalized = normalizeNodePlacements(layout, config.tilemap.base_extent);
+    const int extent = std::max(4, config.tilemap.base_extent);
+    const auto normalized = normalizeNodePlacements(layout, extent);
 
     auto coordFor = [&](std::size_t localId) -> std::pair<int, int> {
         if (auto it = normalized.coordsByLocalId.find(localId); it != normalized.coordsByLocalId.end()) {
@@ -155,8 +156,8 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         resource.mapId = mapId;
         resource.sceneId = static_cast<world::SceneId>(mapId * 100U);
         resource.kind = world::InteractionKind::Resource;
-        resource.coord = {std::min(baseCoord.first + 1, config.tilemap.base_extent - 1),
-                          std::min(baseCoord.second + 1, config.tilemap.base_extent - 1)};
+        resource.coord = {std::clamp(baseCoord.first + 1, 0, extent - 1),
+                          std::clamp(baseCoord.second + 1, 0, extent - 1)};
         resource.name = "Resource";
         resource.capacity = 50U;
         resource.regenPerStep = 2U;

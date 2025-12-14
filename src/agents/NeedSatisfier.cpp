@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <utility>
 
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/Needs.hpp"
@@ -35,62 +36,131 @@ NeedSatisfier::NeedSatisfier(NeedSatisfierConfig config)
     if (m_config.hungerPrepareMargin < 0.0f) {
         m_config.hungerPrepareMargin = 0.0f;
     }
-    if (!m_config.hungerPreferredLocator) {
-        m_config.hungerPreferredLocator = [](entt::entity) {
-            return genesis::world::InteractionId{0};
-        };
+    if (m_config.thirstPrepareMargin < 0.0f) {
+        m_config.thirstPrepareMargin = 0.0f;
+    }
+    if (m_config.socialPrepareMargin < 0.0f) {
+        m_config.socialPrepareMargin = 0.0f;
     }
 }
 
 void NeedSatisfier::update(entt::registry& registry,
+                           world::WorldDatabase& db,
                            world::system::ResourceSystem& resourceSystem,
                            ActionExecutor* actionExecutor) const {
-    auto view = registry.view<NeedComponent>();
+    auto view = registry.view<NeedComponent, components::AgentLocation2D>();
 
     for (auto entity : view) {
         auto& component = view.get<NeedComponent>(entity);
-        auto* hungerState = component.needs.state(NeedType::Hunger);
-        const auto* hungerDescriptor = component.needs.descriptor(NeedType::Hunger);
-        if (!hungerState || !hungerDescriptor) {
+        const auto& location = view.get<components::AgentLocation2D>(entity);
+
+        if (actionExecutor && actionExecutor->hasPendingActions(entity, registry)) {
+            continue;
+        }
+        if (registry.any_of<components::MovementIntent2D>(entity)) {
             continue;
         }
 
-        const auto hungerSample = ensureSample(component, NeedType::Hunger, *hungerDescriptor, *hungerState);
-        const float prepareThreshold = hungerDescriptor->satisfiedThreshold + m_config.hungerPrepareMargin;
-        if (hungerState->value < prepareThreshold && !hungerSample.critical) {
-            continue;
-        }
+        const auto findNearest = [&](world::ResourceType type) -> world::InteractionId {
+            struct Candidate {
+                world::InteractionId id{0};
+                float cost{0.0f};
+            };
+            std::optional<Candidate> best;
 
-        const auto preferredInteraction = m_config.hungerPreferredLocator(entity);
-        if (preferredInteraction == 0) {
-            continue;
-        }
+            resourceSystem.forEachSpawn(registry, [&](const auto& spawn, const auto& inventory) {
+                if (spawn.type != type) {
+                    return;
+                }
+                if (inventory.current == 0U) {
+                    return;
+                }
+                const auto inter = db.findInteraction(spawn.interaction);
+                if (!inter) {
+                    return;
+                }
 
-        if (actionExecutor) {
-            actionExecutor->requestConsume(entity,
-                                           preferredInteraction,
-                                           world::ResourceType::Food,
-                                           m_config.hungerUnitsPerRequest,
-                                           m_config.hungerReliefPerUnit,
-                                           registry);
-            continue;
-        }
+                const float dx = static_cast<float>(inter->coord.first) - location.x;
+                const float dy = static_cast<float>(inter->coord.second) - location.y;
+                const float dist2 = dx * dx + dy * dy;
+                const float mapPenalty = (inter->mapId == location.mapId) ? 0.0f : 1000.0f;
+                const float cost = mapPenalty + dist2;
 
-        const auto consumed = resourceSystem.consume(registry,
-                                                     world::ResourceType::Food,
-                                                     m_config.hungerUnitsPerRequest,
-                                                     preferredInteraction);
-        if (consumed == 0U) {
-            continue;
-        }
+                if (!best || cost < best->cost) {
+                    best = Candidate{spawn.interaction, cost};
+                }
+            });
 
-        const float relief = static_cast<float>(consumed) * m_config.hungerReliefPerUnit;
-        hungerState->value = std::max(hungerDescriptor->minValue, hungerState->value - relief);
-        hungerState->clamp(*hungerDescriptor);
+            return best ? best->id : world::InteractionId{0};
+        };
 
-        component.lastSamples[needIndex(NeedType::Hunger)] = std::nullopt;
+        const auto trySatisfy = [&](NeedType need,
+                                   world::ResourceType resource,
+                                   std::uint32_t unitsPerRequest,
+                                   float reliefPerUnit,
+                                   float prepareMargin,
+                                   const std::function<world::InteractionId(entt::entity)>& preferredLocator) {
+            auto* state = component.needs.state(need);
+            const auto* descriptor = component.needs.descriptor(need);
+            if (!state || !descriptor) {
+                return;
+            }
+
+            const auto sample = ensureSample(component, need, *descriptor, *state);
+            const float prepareThreshold = descriptor->satisfiedThreshold + prepareMargin;
+            if (state->value < prepareThreshold && !sample.critical) {
+                return;
+            }
+
+            world::InteractionId interaction{0};
+            if (preferredLocator) {
+                interaction = preferredLocator(entity);
+            }
+            if (interaction == 0) {
+                interaction = findNearest(resource);
+            }
+            if (interaction == 0) {
+                return;
+            }
+
+            if (actionExecutor) {
+                actionExecutor->requestConsume(entity, interaction, need, resource, unitsPerRequest, reliefPerUnit, registry);
+                return;
+            }
+
+            const auto consumed = resourceSystem.consume(registry, resource, unitsPerRequest, interaction);
+            if (consumed == 0U) {
+                return;
+            }
+
+            const float relief = static_cast<float>(consumed) * reliefPerUnit;
+            state->value = std::max(descriptor->minValue, state->value - relief);
+            state->clamp(*descriptor);
+            component.lastSamples[needIndex(need)] = std::nullopt;
+        };
+
+        trySatisfy(NeedType::Hunger,
+                   world::ResourceType::Food,
+                   m_config.hungerUnitsPerRequest,
+                   m_config.hungerReliefPerUnit,
+                   m_config.hungerPrepareMargin,
+                   m_config.hungerPreferredLocator);
+
+        trySatisfy(NeedType::Thirst,
+                   world::ResourceType::Drink,
+                   m_config.thirstUnitsPerRequest,
+                   m_config.thirstReliefPerUnit,
+                   m_config.thirstPrepareMargin,
+                   m_config.thirstPreferredLocator);
+
+        trySatisfy(NeedType::Social,
+                   world::ResourceType::Social,
+                   m_config.socialUnitsPerRequest,
+                   m_config.socialReliefPerUnit,
+                   m_config.socialPrepareMargin,
+                   m_config.socialPreferredLocator);
+
     }
 }
 
 } // namespace genesis::agents
-

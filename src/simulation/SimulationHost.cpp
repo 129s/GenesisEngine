@@ -12,12 +12,16 @@ SimulationHost::SimulationHost()
     : m_context()
     , m_telemetryCollector()
     , m_agentScratch()
-    , m_resourceScratch() {}
+    , m_resourceScratch()
+    , m_needScratch()
+    , m_actionScratch() {}
 
 void SimulationHost::reset() {
     m_context.reset();
     m_agentScratch.clear();
     m_resourceScratch.clear();
+    m_needScratch.clear();
+    m_actionScratch.clear();
     m_worldDb.reset();
 }
 
@@ -30,6 +34,8 @@ void SimulationHost::setWorldDatabase(std::shared_ptr<world::WorldDatabase> data
     m_context.setWorldDatabase(m_worldDb);
     m_agentScratch.clear();
     m_resourceScratch.clear();
+    m_needScratch.clear();
+    m_actionScratch.clear();
 }
 
 std::shared_ptr<world::WorldDatabase> SimulationHost::worldDatabase() const noexcept {
@@ -43,10 +49,14 @@ void SimulationHost::tick(float deltaSeconds, std::uint64_t stepIndex) {
 telemetry::TickTelemetry SimulationHost::captureTelemetry(std::uint64_t stepIndex, float stepSeconds) {
     m_context.collectAgentSnapshots(m_agentScratch);
     m_context.collectResourceSnapshots(m_resourceScratch);
+    m_context.collectNeedSnapshots(m_needScratch);
+    m_context.collectActionSnapshots(m_actionScratch);
     return m_telemetryCollector.collect(
         std::span<const telemetry::AgentSnapshot>(m_agentScratch),
         m_worldDb ? m_worldDb.get() : nullptr,
         std::span<const telemetry::ResourceSnapshot>(m_resourceScratch),
+        std::span<const telemetry::NeedSnapshot>(m_needScratch),
+        std::span<const telemetry::ActionSnapshot>(m_actionScratch),
         stepIndex,
         stepSeconds);
 }

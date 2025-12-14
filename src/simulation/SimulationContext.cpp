@@ -12,6 +12,33 @@ namespace genesis::simulation {
 SimulationContext::SimulationContext()
     : m_needSatisfier({})
     , m_scheduler() {
+    agents::NeedDescriptor hunger{};
+    hunger.type = agents::NeedType::Hunger;
+    hunger.minValue = 0.0f;
+    hunger.maxValue = 100.0f;
+    hunger.decayPerSecond = 8.0f;
+    hunger.satisfiedThreshold = 30.0f;
+    hunger.criticalThreshold = 80.0f;
+    m_needSystem.setDefaultDescriptor(hunger);
+
+    agents::NeedDescriptor thirst{};
+    thirst.type = agents::NeedType::Thirst;
+    thirst.minValue = 0.0f;
+    thirst.maxValue = 100.0f;
+    thirst.decayPerSecond = 10.0f;
+    thirst.satisfiedThreshold = 30.0f;
+    thirst.criticalThreshold = 80.0f;
+    m_needSystem.setDefaultDescriptor(thirst);
+
+    agents::NeedDescriptor social{};
+    social.type = agents::NeedType::Social;
+    social.minValue = 0.0f;
+    social.maxValue = 100.0f;
+    social.decayPerSecond = 4.0f;
+    social.satisfiedThreshold = 30.0f;
+    social.criticalThreshold = 80.0f;
+    m_needSystem.setDefaultDescriptor(social);
+
     bindScheduler();
 }
 
@@ -21,6 +48,7 @@ void SimulationContext::bindScheduler() {
     m_scheduler.setMovementSystem(&m_movementSystem);
     m_scheduler.setActionExecutor(m_actionExecutor.get());
     m_scheduler.setResourceSystem(m_resourceSystem.get());
+    m_scheduler.setWorldDatabase(m_worldDatabase.get());
 }
 
 void SimulationContext::setWorldDatabase(std::shared_ptr<world::WorldDatabase> database) {
@@ -58,6 +86,10 @@ std::uint32_t SimulationContext::createAgent(const AgentSpawnParams2D& params) {
     location.x = params.location.x;
     location.y = params.location.y;
     m_registry.emplace<agents::components::AgentLocation2D>(entity, location);
+
+    agents::NeedComponent needs{};
+    m_needSystem.applyDefaults(needs);
+    m_registry.emplace<agents::NeedComponent>(entity, std::move(needs));
 
     if (params.initialMovement) {
         agents::components::MovementIntent2D intent{};
@@ -212,6 +244,67 @@ void SimulationContext::collectResourceSnapshots(std::vector<telemetry::Resource
         snapshot.capacity = inventory.capacity;
         snapshot.current = inventory.current;
         out.push_back(std::move(snapshot));
+    });
+}
+
+namespace {
+const char* needName(genesis::agents::NeedType type) {
+    using genesis::agents::NeedType;
+    switch (type) {
+    case NeedType::Hunger:
+        return "Hunger";
+    case NeedType::Thirst:
+        return "Thirst";
+    case NeedType::Energy:
+        return "Energy";
+    case NeedType::Social:
+        return "Social";
+    case NeedType::Count:
+        break;
+    }
+    return "Unknown";
+}
+} // namespace
+
+void SimulationContext::collectNeedSnapshots(std::vector<telemetry::NeedSnapshot>& out) const {
+    out.clear();
+    auto view = m_registry.view<agents::NeedComponent>();
+    view.each([&](auto entity, const agents::NeedComponent& needs) {
+        needs.needs.forEach([&](const agents::NeedState& state, const agents::NeedDescriptor& descriptor) {
+            telemetry::NeedSnapshot snap{};
+            snap.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+            snap.needName = needName(state.type);
+            snap.value = state.value;
+            snap.critical = state.value >= descriptor.criticalThreshold;
+            out.push_back(std::move(snap));
+        });
+    });
+}
+
+void SimulationContext::collectActionSnapshots(std::vector<telemetry::ActionSnapshot>& out) const {
+    out.clear();
+    auto view = m_registry.view<agents::ActionQueue>();
+    view.each([&](auto entity, const agents::ActionQueue& queue) {
+        telemetry::ActionSnapshot snap{};
+        snap.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        snap.queueLength = static_cast<std::uint32_t>(queue.tasks.size());
+        if (!queue.tasks.empty()) {
+            const auto& task = queue.tasks.front();
+            snap.target = task.interaction;
+            snap.speed = task.speed;
+            snap.resource = task.resource;
+            snap.amount = task.amount;
+            snap.reliefPerUnit = task.reliefPerUnit;
+            switch (task.type) {
+            case agents::ActionType::MoveToInteraction:
+                snap.currentAction = "MoveToInteraction";
+                break;
+            case agents::ActionType::ConsumeResource:
+                snap.currentAction = "ConsumeResource";
+                break;
+            }
+        }
+        out.push_back(std::move(snap));
     });
 }
 

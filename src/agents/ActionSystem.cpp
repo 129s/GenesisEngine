@@ -36,6 +36,7 @@ void ActionExecutor::requestMoveToInteraction(entt::entity entity,
 
 void ActionExecutor::requestConsume(entt::entity entity,
                                     genesis::world::InteractionId interaction,
+                                    NeedType need,
                                     genesis::world::ResourceType type,
                                     std::uint32_t amount,
                                     float reliefPerUnit,
@@ -72,6 +73,7 @@ void ActionExecutor::requestConsume(entt::entity entity,
     ActionTask consume{};
     consume.type = ActionType::ConsumeResource;
     consume.interaction = interaction;
+    consume.need = need;
     consume.resource = type;
     consume.amount = amount;
     consume.reliefPerUnit = reliefPerUnit;
@@ -201,9 +203,9 @@ void ActionExecutor::processConsume(entt::entity entity,
         return;
     }
 
-    auto* hungerState = needs->needs.state(NeedType::Hunger);
-    const auto* hungerDescriptor = needs->needs.descriptor(NeedType::Hunger);
-    if (!hungerState || !hungerDescriptor) {
+    auto* state = needs->needs.state(task.need);
+    const auto* descriptor = needs->needs.descriptor(task.need);
+    if (!state || !descriptor) {
         queue.tasks.pop_front();
         return;
     }
@@ -211,13 +213,12 @@ void ActionExecutor::processConsume(entt::entity entity,
     const auto consumed = m_resources.consume(registry, task.resource, task.amount, task.interaction);
     if (consumed > 0U) {
         const float relief = static_cast<float>(consumed) * task.reliefPerUnit;
-        hungerState->value = std::max(hungerDescriptor->minValue, hungerState->value - relief);
-        hungerState->clamp(*hungerDescriptor);
-        needs->lastSamples[needIndex(NeedType::Hunger)] = std::nullopt;
+        state->value = std::max(descriptor->minValue, state->value - relief);
+        state->clamp(*descriptor);
+        needs->lastSamples[needIndex(task.need)] = std::nullopt;
     }
 
     queue.tasks.pop_front();
 }
 
 } // namespace genesis::agents
-

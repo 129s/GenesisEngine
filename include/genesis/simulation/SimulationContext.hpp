@@ -48,6 +48,8 @@ public:
 
     void collectAgentSnapshots(std::vector<telemetry::AgentSnapshot>& out) const;
     void collectResourceSnapshots(std::vector<telemetry::ResourceSnapshot>& out) const;
+    void collectNeedSnapshots(std::vector<telemetry::NeedSnapshot>& out) const;
+    void collectActionSnapshots(std::vector<telemetry::ActionSnapshot>& out) const;
 
     messaging::EventBus& eventBus() noexcept { return m_eventBus; }
     const messaging::EventBus& eventBus() const noexcept { return m_eventBus; }

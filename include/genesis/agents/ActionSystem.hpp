@@ -26,6 +26,7 @@ struct ActionTask {
     ActionType type{ActionType::MoveToInteraction};
     genesis::world::InteractionId interaction{0};
     float speed{1.0f};
+    NeedType need{NeedType::Hunger};
     genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
     std::uint32_t amount{0};
     float reliefPerUnit{0.0f};
@@ -40,7 +41,13 @@ public:
     ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources);
 
     void requestMoveToInteraction(entt::entity entity, genesis::world::InteractionId target, float speed, entt::registry& registry);
-    void requestConsume(entt::entity entity, genesis::world::InteractionId interaction, genesis::world::ResourceType type, std::uint32_t amount, float reliefPerUnit, entt::registry& registry);
+    void requestConsume(entt::entity entity,
+                        genesis::world::InteractionId interaction,
+                        NeedType need,
+                        genesis::world::ResourceType type,
+                        std::uint32_t amount,
+                        float reliefPerUnit,
+                        entt::registry& registry);
 
     void update(entt::registry& registry, float deltaSeconds);
 

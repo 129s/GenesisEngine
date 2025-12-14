@@ -13,6 +13,8 @@ public:
     telemetry::TickTelemetry collect(std::span<const telemetry::AgentSnapshot> agents,
                                      const genesis::world::WorldDatabase* db,
                                      std::span<const telemetry::ResourceSnapshot> resources,
+                                     std::span<const telemetry::NeedSnapshot> needs,
+                                     std::span<const telemetry::ActionSnapshot> actions,
                                      std::uint64_t stepIndex,
                                      float stepSeconds) const;
 };

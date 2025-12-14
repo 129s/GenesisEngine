@@ -88,6 +88,7 @@ add_executable(genesis_runtime_tests
     test_runtime_events.cpp
     test_runtime_simulation_service.cpp
     test_runtime_e2e_smoke.cpp
+    test_runtime_emergence_smoke.cpp
 )
 
 target_link_libraries(genesis_runtime_tests

@@ -7,6 +7,8 @@ namespace genesis::simulation {
 telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::AgentSnapshot> agents,
                                                      const genesis::world::WorldDatabase* db,
                                                      std::span<const telemetry::ResourceSnapshot> resources,
+                                                     std::span<const telemetry::NeedSnapshot> needs,
+                                                     std::span<const telemetry::ActionSnapshot> actions,
                                                      std::uint64_t stepIndex,
                                                      float stepSeconds) const {
     telemetry::TickTelemetry tick{};
@@ -30,6 +32,20 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
                 }
             }
             tick.resources.push_back(std::move(resource));
+        }
+    }
+
+    if (!needs.empty()) {
+        tick.needs.reserve(needs.size());
+        for (const auto& need : needs) {
+            tick.needs.push_back(need);
+        }
+    }
+
+    if (!actions.empty()) {
+        tick.actions.reserve(actions.size());
+        for (const auto& action : actions) {
+            tick.actions.push_back(action);
         }
     }
 

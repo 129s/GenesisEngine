@@ -9,8 +9,9 @@ namespace genesis::agents {
 
 enum class NeedType : std::uint8_t {
     Hunger = 0,
-    Energy = 1,
-    Social = 2,
+    Thirst = 1,
+    Energy = 2,
+    Social = 3,
     Count
 };
 

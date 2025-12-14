@@ -12,8 +12,8 @@ void Scheduler::update(entt::registry& registry, float deltaSeconds, std::uint64
     if (m_needSystem) {
         m_needSystem->update(registry, deltaSeconds);
     }
-    if (m_needSatisfier && m_resourceSystem) {
-        m_needSatisfier->update(registry, *m_resourceSystem, m_actionExecutor);
+    if (m_needSatisfier && m_resourceSystem && m_worldDatabase) {
+        m_needSatisfier->update(registry, *m_worldDatabase, *m_resourceSystem, m_actionExecutor);
     }
     if (m_actionExecutor) {
         m_actionExecutor->update(registry, deltaSeconds);
@@ -27,4 +27,3 @@ void Scheduler::update(entt::registry& registry, float deltaSeconds, std::uint64
 }
 
 } // namespace genesis::simulation
-

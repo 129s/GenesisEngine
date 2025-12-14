@@ -68,10 +68,47 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
     }
 
     std::size_t id = next_local_id(topology);
-    const auto typeTag = std::string("resource_type=") + resource_type_name(config.worlddb.resources.type);
+
+    const auto pickType = [&](std::size_t ordinal) -> genesis::world::ResourceType {
+        if (config.worlddb.resources.types.empty())
+        {
+            return config.worlddb.resources.type;
+        }
+
+        const auto& types = config.worlddb.resources.types;
+        const auto& weights = config.worlddb.resources.weights;
+        double sum = 0.0;
+        if (weights.empty())
+        {
+            sum = static_cast<double>(types.size());
+        }
+        else
+        {
+            for (double w : weights) sum += w;
+        }
+        if (sum <= 0.0)
+        {
+            return types.front();
+        }
+
+        // 不需要 rng：用 ordinal 映射到 [0,sum]，保持确定性，同时尊重权重。
+        const double u = static_cast<double>((ordinal % 100000U) + 0.5) / 100000.0;
+        const double r = u * sum;
+        double acc = 0.0;
+        for (std::size_t i = 0; i < types.size(); ++i)
+        {
+            acc += weights.empty() ? 1.0 : weights[i];
+            if (r <= acc)
+            {
+                return types[i];
+            }
+        }
+        return types.back();
+    };
 
     // 注意：只给 Scene 生成子资源节点
     const auto original_count = topology.nodes.size();
+    std::size_t ordinal = 0;
     for (std::size_t i = 0; i < original_count; ++i)
     {
         const auto& node = topology.nodes[i];
@@ -83,6 +120,9 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
         const auto count = config.worlddb.resources.per_map;
         for (std::size_t j = 0; j < count; ++j)
         {
+            const auto type = pickType(ordinal++);
+            const auto typeTag = std::string("resource_type=") + resource_type_name(type);
+
             NodeDraft resource{};
             resource.local_id = id++;
             resource.kind = DraftNodeKind::InteractiveResource;

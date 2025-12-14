@@ -195,6 +195,40 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
     }
 
     if (!hasExplicitResources) {
+        const auto selectConfigResourceType = [&](std::uint64_t ordinal) -> world::ResourceType {
+            if (config.worlddb.resources.types.empty())
+            {
+                return config.worlddb.resources.type;
+            }
+            const auto& types = config.worlddb.resources.types;
+            const auto& weights = config.worlddb.resources.weights;
+            double sum = 0.0;
+            if (weights.empty())
+            {
+                sum = static_cast<double>(types.size());
+            }
+            else
+            {
+                for (double w : weights) sum += w;
+            }
+            if (sum <= 0.0)
+            {
+                return types.front();
+            }
+            const double u = static_cast<double>((ordinal % 100000ULL) + 0.5) / 100000.0;
+            const double r = u * sum;
+            double acc = 0.0;
+            for (std::size_t i = 0; i < types.size(); ++i)
+            {
+                acc += weights.empty() ? 1.0 : weights[i];
+                if (r <= acc)
+                {
+                    return types[i];
+                }
+            }
+            return types.back();
+        };
+
         for (const auto& node : topology.nodes) {
             if (node.kind != genesis::worldgen::DraftNodeKind::Scene) {
                 continue;
@@ -234,7 +268,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 resource.mapId = mapId;
                 resource.sceneId = sceneId;
                 resource.kind = world::InteractionKind::Resource;
-                resource.resourceType = config.worlddb.resources.type;
+                resource.resourceType = selectConfigResourceType((static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(index));
                 resource.coord = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
                                   std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
                 resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));

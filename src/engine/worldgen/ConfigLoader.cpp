@@ -5,6 +5,7 @@
 #include <optional>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 #include "genesis/world/WorldTypes.hpp"
 
@@ -43,6 +44,80 @@ std::optional<genesis::world::ResourceType> parse_resource_type(std::string_view
         return genesis::world::ResourceType::Social;
     }
     return std::nullopt;
+}
+
+std::vector<genesis::world::ResourceType> parse_resource_types(const toml::table& table, std::string_view key)
+{
+    std::vector<genesis::world::ResourceType> out;
+    const auto* node = table.get(key);
+    if (!node)
+    {
+        return out;
+    }
+    if (!node->is_array())
+    {
+        std::ostringstream oss;
+        oss << "`" << key << "` 必须为数组";
+        throw std::runtime_error(oss.str());
+    }
+
+    const auto& arr = *node->as_array();
+    out.reserve(arr.size());
+    for (const auto& item : arr)
+    {
+        const auto sv = item.value<std::string>();
+        if (!sv)
+        {
+            std::ostringstream oss;
+            oss << "`" << key << "` 数组元素必须为字符串";
+            throw std::runtime_error(oss.str());
+        }
+        const auto parsed = parse_resource_type(*sv);
+        if (!parsed)
+        {
+            std::ostringstream oss;
+            oss << "未知资源类型: " << *sv;
+            throw std::runtime_error(oss.str());
+        }
+        out.push_back(*parsed);
+    }
+    return out;
+}
+
+std::vector<double> parse_weights(const toml::table& table, std::string_view key)
+{
+    std::vector<double> out;
+    const auto* node = table.get(key);
+    if (!node)
+    {
+        return out;
+    }
+    if (!node->is_array())
+    {
+        std::ostringstream oss;
+        oss << "`" << key << "` 必须为数组";
+        throw std::runtime_error(oss.str());
+    }
+
+    const auto& arr = *node->as_array();
+    out.reserve(arr.size());
+    for (const auto& item : arr)
+    {
+        if (auto dv = item.value<double>())
+        {
+            out.push_back(*dv);
+            continue;
+        }
+        if (auto iv = item.value<std::int64_t>())
+        {
+            out.push_back(static_cast<double>(*iv));
+            continue;
+        }
+        std::ostringstream oss;
+        oss << "`" << key << "` 数组元素必须为数字";
+        throw std::runtime_error(oss.str());
+    }
+    return out;
 }
 
 std::optional<double> read_double(const toml::table& table, std::string_view key)
@@ -243,6 +318,10 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
             {
                 settings.resources.per_map = *per_map;
             }
+
+            settings.resources.types = parse_resource_types(*res_table, "types");
+            settings.resources.weights = parse_weights(*res_table, "weights");
+
             if (const auto* type = res_table->get_as<std::string>("type"))
             {
                 if (auto parsed = parse_resource_type(type->get()))
@@ -257,6 +336,33 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
             if (auto regen = read_size_t(*res_table, "regen_per_step"))
             {
                 settings.resources.regen_per_step = static_cast<std::uint32_t>(*regen);
+            }
+
+            if (!settings.resources.types.empty())
+            {
+                if (!settings.resources.weights.empty() && settings.resources.weights.size() != settings.resources.types.size())
+                {
+                    throw std::runtime_error("worlddb.resources.weights 长度必须与 types 一致");
+                }
+
+                if (settings.resources.weights.empty())
+                {
+                    settings.resources.weights.assign(settings.resources.types.size(), 1.0);
+                }
+
+                double sum = 0.0;
+                for (const auto w : settings.resources.weights)
+                {
+                    if (w < 0.0)
+                    {
+                        throw std::runtime_error("worlddb.resources.weights 不能为负数");
+                    }
+                    sum += w;
+                }
+                if (sum <= 0.0)
+                {
+                    throw std::runtime_error("worlddb.resources.weights 总和必须大于 0");
+                }
             }
         }
     }

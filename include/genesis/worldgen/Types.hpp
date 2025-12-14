@@ -139,6 +139,9 @@ struct WorldDbResourceSettings
 {
     std::size_t per_map{1};
     genesis::world::ResourceType type{genesis::world::ResourceType::Food};
+    // 可选：多类型配置。若非空，则按 weights 进行抽样（weights 为空则视为等权）。
+    std::vector<genesis::world::ResourceType> types{};
+    std::vector<double> weights{};
     std::uint32_t capacity{50};
     std::uint32_t regen_per_step{2};
 };

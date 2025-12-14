@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string_view>
 
@@ -14,6 +16,28 @@ std::filesystem::path repoPath(std::string_view relative) {
     const std::filesystem::path root{GENESIS_TEST_SOURCE_DIR};
     return root / std::filesystem::path(relative);
 }
+
+struct TempTomlFile
+{
+    std::filesystem::path path;
+
+    explicit TempTomlFile(std::string_view content)
+    {
+        const auto base = std::filesystem::temp_directory_path();
+        const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+        path = base / ("genesis_worldgen_generator_test_" + std::to_string(now) + ".toml");
+
+        std::ofstream out(path, std::ios::trunc);
+        out << content;
+        out.flush();
+    }
+
+    ~TempTomlFile()
+    {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+    }
+};
 
 std::optional<genesis::worldgen::NodePlacement> findPlacement(const genesis::worldgen::LayoutDraft& layout,
                                                               std::size_t localId) {
@@ -87,4 +111,56 @@ TEST(WorldgenGenerator, ProducesInteractiveNodesAndPlacesNearParent) {
 
     EXPECT_TRUE(sawResource);
     EXPECT_TRUE(sawPortal);
+}
+
+TEST(WorldgenGenerator, WeightedResourceTypesCanForceSingleType) {
+    using namespace genesis::worldgen;
+
+    TempTomlFile file(R"(
+        [world]
+        name = "demo"
+
+        [topology.cluster]
+        min_clusters = 1
+        max_clusters = 1
+        min_nodes_per_cluster = 3
+        max_nodes_per_cluster = 3
+
+        [topology.corridor]
+        enabled = false
+
+        [layout.grid]
+        cell_width = 6.0
+        cell_height = 5.0
+        columns = 3
+        margin = 2.0
+
+        [tilemap]
+        tile_size = 32
+        base_extent = 28
+
+        [worlddb.resources]
+        per_map = 2
+        types = ["Food", "Drink"]
+        weights = [1.0, 0.0]
+        capacity = 10
+        regen_per_step = 1
+    )");
+
+    auto config = load_config(file.path);
+    auto generated = generate_world(config, Seed{1});
+
+    for (const auto& node : generated.topology.nodes) {
+        if (node.kind != DraftNodeKind::InteractiveResource) {
+            continue;
+        }
+        bool isFood = false;
+        for (const auto& tag : node.tags) {
+            if (tag == "resource_type=Food") {
+                isFood = true;
+                break;
+            }
+        }
+        EXPECT_TRUE(isFood);
+    }
 }

@@ -24,7 +24,30 @@ if(TARGET genesis_palette_compiler)
     )
 endif()
 
-## v2 重构：移除 worldgen 相关测试（依赖旧引擎图模型）
+## --- Worldgen tests ---
+add_executable(genesis_worldgen_tests
+    test_worldgen_config.cpp
+    test_worldgen_rng.cpp
+    test_worldgen_topology.cpp
+    test_worldgen_layout.cpp
+    test_worldgen_validation.cpp
+    test_worldgen_generator_interactives.cpp
+)
+
+target_link_libraries(genesis_worldgen_tests
+    PRIVATE
+        Genesis::Worldgen
+        GTest::gtest_main
+)
+
+set(GENESIS_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+file(TO_CMAKE_PATH "${GENESIS_TEST_SOURCE_DIR}" GENESIS_TEST_SOURCE_DIR)
+target_compile_definitions(genesis_worldgen_tests
+    PRIVATE
+        GENESIS_TEST_SOURCE_DIR="${GENESIS_TEST_SOURCE_DIR}"
+)
+
+gtest_discover_tests(genesis_worldgen_tests)
 
 ## v2 重构：暂时移除旧引擎/运行时测试
 

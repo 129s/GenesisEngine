@@ -138,9 +138,15 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
 
     std::unordered_set<std::size_t> sceneLocalIds;
     sceneLocalIds.reserve(topology.nodes.size());
+    bool hasExplicitResources = false;
+    bool hasInteractivePortals = false;
     for (const auto& node : topology.nodes) {
         if (node.kind == genesis::worldgen::DraftNodeKind::Scene) {
             sceneLocalIds.insert(node.local_id);
+        } else if (node.kind == genesis::worldgen::DraftNodeKind::InteractiveResource) {
+            hasExplicitResources = true;
+        } else if (node.kind == genesis::worldgen::DraftNodeKind::InteractivePortal) {
+            hasInteractivePortals = true;
         }
     }
 
@@ -188,48 +194,53 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         nextInteractionId.emplace(mapId, static_cast<world::InteractionId>(mapId * 1000U));
     }
 
-    for (const auto& node : topology.nodes) {
-        if (node.kind != genesis::worldgen::DraftNodeKind::Scene) {
-            continue;
-        }
-
-        const auto mapId = static_cast<world::MapId>(node.local_id + 1);
-        const auto sceneId = static_cast<world::SceneId>(mapId * 100U);
-        const auto baseCoord = [&]() {
-            if (auto it = mapCenters.find(mapId); it != mapCenters.end()) {
-                return it->second;
-            }
-            return coordFor(node.local_id);
-        }();
-
-        std::size_t resourcesPerMap = std::max<std::size_t>(1, config.worlddb.resources.per_map);
-        if (std::find(node.tags.begin(), node.tags.end(), "hub") != node.tags.end()) {
-            resourcesPerMap += 1;
-        }
-        if (std::find(node.tags.begin(), node.tags.end(), "corridor") != node.tags.end() && resourcesPerMap > 1) {
-            resourcesPerMap -= 1;
-        }
-
-        for (std::size_t index = 0; index < resourcesPerMap; ++index) {
-            const int dx = static_cast<int>((index % 3) - 1);
-            const int dy = static_cast<int>((index / 3) - 1);
-
-            auto idOpt = allocateInteractionId(mapId);
-            if (!idOpt) {
-                break;
+    if (!hasExplicitResources) {
+        for (const auto& node : topology.nodes) {
+            if (node.kind != genesis::worldgen::DraftNodeKind::Scene) {
+                continue;
             }
 
-            world::Interaction resource{};
-            resource.id = *idOpt;
-            resource.mapId = mapId;
-            resource.sceneId = sceneId;
-            resource.kind = world::InteractionKind::Resource;
-            resource.coord = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
-                              std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
-            resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
-            resource.capacity = config.worlddb.resources.capacity;
-            resource.regenPerStep = config.worlddb.resources.regen_per_step;
-            db.addInteraction(std::move(resource));
+            const auto mapId = static_cast<world::MapId>(node.local_id + 1);
+            const auto sceneId = static_cast<world::SceneId>(mapId * 100U);
+            const auto baseCoord = [&]() {
+                if (auto it = mapCenters.find(mapId); it != mapCenters.end()) {
+                    return it->second;
+                }
+                return coordFor(node.local_id);
+            }();
+
+            std::size_t resourcesPerMap = config.worlddb.resources.per_map;
+            if (resourcesPerMap == 0) {
+                continue;
+            }
+            if (std::find(node.tags.begin(), node.tags.end(), "hub") != node.tags.end()) {
+                resourcesPerMap += 1;
+            }
+            if (std::find(node.tags.begin(), node.tags.end(), "corridor") != node.tags.end() && resourcesPerMap > 1) {
+                resourcesPerMap -= 1;
+            }
+
+            for (std::size_t index = 0; index < resourcesPerMap; ++index) {
+                const int dx = static_cast<int>((index % 3) - 1);
+                const int dy = static_cast<int>((index / 3) - 1);
+
+                auto idOpt = allocateInteractionId(mapId);
+                if (!idOpt) {
+                    break;
+                }
+
+                world::Interaction resource{};
+                resource.id = *idOpt;
+                resource.mapId = mapId;
+                resource.sceneId = sceneId;
+                resource.kind = world::InteractionKind::Resource;
+                resource.coord = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
+                                  std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
+                resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
+                resource.capacity = config.worlddb.resources.capacity;
+                resource.regenPerStep = config.worlddb.resources.regen_per_step;
+                db.addInteraction(std::move(resource));
+            }
         }
     }
 
@@ -281,35 +292,103 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         }
     }
 
-    for (std::size_t index = 0; index < topology.portals.size(); ++index) {
-        const auto& portal = topology.portals[index];
-        const auto entryMap = static_cast<world::MapId>(portal.entry + 1);
-        const auto exitMap = static_cast<world::MapId>(portal.exit + 1);
-        if (!isSceneLocalId(portal.entry) || !isSceneLocalId(portal.exit)) {
-            continue;
+    auto parsePortalTarget = [](const genesis::worldgen::NodeDraft& node) -> std::optional<std::size_t> {
+        constexpr std::string_view prefix = "portal_target=";
+        for (const auto& t : node.tags) {
+            if (t.size() >= prefix.size() && t.compare(0, prefix.size(), prefix.data(), prefix.size()) == 0) {
+                try {
+                    return static_cast<std::size_t>(std::stoull(t.substr(prefix.size())));
+                } catch (...) {
+                    return std::nullopt;
+                }
+            }
         }
-        if (entryMap == 0U || exitMap == 0U || entryMap == exitMap) {
-            continue;
+        return std::nullopt;
+    };
+
+    bool builtPortalFromNodes = false;
+    if (hasInteractivePortals) {
+        for (const auto& node : topology.nodes) {
+            if (node.kind != genesis::worldgen::DraftNodeKind::InteractivePortal || !node.parent) {
+                continue;
+            }
+            if (!isSceneLocalId(*node.parent)) {
+                continue;
+            }
+            const auto targetLocal = parsePortalTarget(node);
+            if (!targetLocal || !isSceneLocalId(*targetLocal)) {
+                continue;
+            }
+
+            const auto entryMap = static_cast<world::MapId>(*node.parent + 1);
+            const auto exitMap = static_cast<world::MapId>(*targetLocal + 1);
+            if (entryMap == 0U || exitMap == 0U || entryMap == exitMap) {
+                continue;
+            }
+
+            auto idOpt = allocateInteractionId(entryMap);
+            if (!idOpt) {
+                continue;
+            }
+
+            const auto entryCoord = coordFor(node.local_id);
+            const auto exitCoord = coordFor(*targetLocal);
+
+            world::Interaction portalInter{};
+            portalInter.id = *idOpt;
+            portalInter.mapId = entryMap;
+            portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
+            portalInter.kind = world::InteractionKind::Portal;
+            portalInter.coord = entryCoord;
+            portalInter.name = node.label.empty() ? ("PortalTo_" + std::to_string(exitMap)) : node.label;
+            db.addInteraction(portalInter);
+
+            world::Portal p{};
+            p.interactionId = portalInter.id;
+            p.targetMapId = exitMap;
+            p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
+            p.targetCoord = exitCoord;
+            db.addPortal(std::move(p));
+            builtPortalFromNodes = true;
         }
+    }
 
-        const auto entryCoord = coordFor(portal.entry);
-        const auto exitCoord = coordFor(portal.exit);
+    if (!builtPortalFromNodes) {
+        for (std::size_t index = 0; index < topology.portals.size(); ++index) {
+            const auto& portal = topology.portals[index];
+            const auto entryMap = static_cast<world::MapId>(portal.entry + 1);
+            const auto exitMap = static_cast<world::MapId>(portal.exit + 1);
+            if (!isSceneLocalId(portal.entry) || !isSceneLocalId(portal.exit)) {
+                continue;
+            }
+            if (entryMap == 0U || exitMap == 0U || entryMap == exitMap) {
+                continue;
+            }
 
-        world::Interaction portalInter{};
-        portalInter.id = static_cast<world::InteractionId>(entryMap * 1000U + 900U + static_cast<world::InteractionId>(index));
-        portalInter.mapId = entryMap;
-        portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
-        portalInter.kind = world::InteractionKind::Portal;
-        portalInter.coord = entryCoord;
-        portalInter.name = "PortalTo_" + std::to_string(exitMap);
-        db.addInteraction(portalInter);
+            const auto entryCoord = coordFor(portal.entry);
+            const auto exitCoord = coordFor(portal.exit);
 
-        world::Portal p{};
-        p.interactionId = portalInter.id;
-        p.targetMapId = exitMap;
-        p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
-        p.targetCoord = exitCoord;
-        db.addPortal(std::move(p));
+            auto idOpt = allocateInteractionId(entryMap);
+            if (!idOpt) {
+                continue;
+            }
+
+            world::Interaction portalInter{};
+            portalInter.id = *idOpt;
+            portalInter.mapId = entryMap;
+            portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
+            portalInter.kind = world::InteractionKind::Portal;
+            portalInter.coord = entryCoord;
+            portalInter.name = "PortalTo_" + std::to_string(exitMap);
+            db.addInteraction(portalInter);
+
+            world::Portal p{};
+            p.interactionId = portalInter.id;
+            p.targetMapId = exitMap;
+            p.targetSceneId = static_cast<world::SceneId>(exitMap * 100U);
+            p.targetCoord = exitCoord;
+            db.addPortal(std::move(p));
+        }
     }
 
     return db;

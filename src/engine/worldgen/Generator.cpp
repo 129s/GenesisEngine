@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
@@ -35,6 +36,71 @@ std::unordered_map<std::size_t, NodePlacement> build_placement_map(const LayoutD
     return map;
 }
 
+std::size_t next_local_id(const TopologyDraft& topology)
+{
+    std::size_t next = 0;
+    for (const auto& node : topology.nodes)
+    {
+        next = std::max(next, node.local_id + 1);
+    }
+    return next;
+}
+
+void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& config)
+{
+    if (config.worlddb.resources.per_map == 0)
+    {
+        return;
+    }
+
+    std::size_t id = next_local_id(topology);
+
+    // 注意：只给 Scene 生成子资源节点
+    const auto original_count = topology.nodes.size();
+    for (std::size_t i = 0; i < original_count; ++i)
+    {
+        const auto& node = topology.nodes[i];
+        if (node.kind != DraftNodeKind::Scene)
+        {
+            continue;
+        }
+
+        const auto count = config.worlddb.resources.per_map;
+        for (std::size_t j = 0; j < count; ++j)
+        {
+            NodeDraft resource{};
+            resource.local_id = id++;
+            resource.kind = DraftNodeKind::InteractiveResource;
+            resource.label = (count == 1) ? "resource" : ("resource_" + std::to_string(j));
+            resource.parent = node.local_id;
+            resource.tags = {"resource"};
+            topology.nodes.push_back(std::move(resource));
+        }
+    }
+}
+
+void add_interactive_portals(TopologyDraft& topology)
+{
+    std::size_t id = next_local_id(topology);
+
+    for (std::size_t index = 0; index < topology.portals.size(); ++index)
+    {
+        const auto& portal = topology.portals[index];
+        if (portal.entry == portal.exit)
+        {
+            continue;
+        }
+
+        NodeDraft portal_node{};
+        portal_node.local_id = id++;
+        portal_node.kind = DraftNodeKind::InteractivePortal;
+        portal_node.label = "portal";
+        portal_node.parent = portal.entry;
+        portal_node.tags = {"portal", "portal_target=" + std::to_string(portal.exit)};
+        topology.nodes.push_back(std::move(portal_node));
+    }
+}
+
 } // namespace
 
 GeneratedWorld generate_world(const GeneratorConfig& config, Seed seed)
@@ -45,6 +111,10 @@ GeneratedWorld generate_world(const GeneratorConfig& config, Seed seed)
     TopologyModule topology(context.config.topology);
     auto topology_rng = context.root_rng.fork(0x7A7A7A7Aull);
     auto draft = topology.generate(topology_rng);
+
+    // v2: 互动节点也作为拓扑的一部分，供 Layout/WorldDB 使用（不再生成旧 LocationGraph）。
+    add_interactive_resources(draft, config);
+    add_interactive_portals(draft);
 
     LayoutModule layout(context.config.layout);
     auto layout_rng = context.root_rng.fork(0x13579BDFull);

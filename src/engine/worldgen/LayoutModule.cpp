@@ -5,6 +5,7 @@
 #include <cmath>
 #include <queue>
 #include <stdexcept>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace genesis::worldgen
@@ -187,6 +188,40 @@ LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicR
     std::unordered_set<std::size_t> placed;
     placed.reserve(topology.nodes.size());
 
+    auto placement_index = [&]() {
+        std::unordered_map<std::size_t, NodePlacement*> index;
+        index.reserve(layout.placements.size());
+        for (auto& p : layout.placements) {
+            index.emplace(p.local_id, &p);
+        }
+        return index;
+    };
+
+    auto child_offset = [](DraftNodeKind kind, std::size_t index) -> std::pair<double, double> {
+        if (kind == DraftNodeKind::InteractivePortal) {
+            constexpr std::array<std::pair<double, double>, 4> offsets = {
+                std::pair<double, double>{3.0, -3.0},
+                {-3.0, -3.0},
+                {3.0, 3.0},
+                {-3.0, 3.0},
+            };
+            return offsets[index % offsets.size()];
+        }
+
+        constexpr std::array<std::pair<double, double>, 9> offsets = {
+            std::pair<double, double>{2.0, 0.0},
+            {-2.0, 0.0},
+            {0.0, 2.0},
+            {0.0, -2.0},
+            {2.0, 2.0},
+            {-2.0, 2.0},
+            {2.0, -2.0},
+            {-2.0, -2.0},
+            {0.0, 0.0},
+        };
+        return offsets[index % offsets.size()];
+    };
+
     // 1. Root/hub
     for (const auto& node : topology.nodes)
     {
@@ -302,6 +337,38 @@ LayoutDraft LayoutModule::generate(const TopologyDraft& topology, DeterministicR
             const auto offset = noise_offsets[i];
             layout.placements.push_back(NodePlacement{node->local_id, offset.first, offset.second, 0.0});
             placed.insert(node->local_id);
+        }
+    }
+
+    // 4b. Child nodes (place near parent)
+    {
+        auto index = placement_index();
+        std::unordered_map<std::size_t, std::size_t> child_count;
+        child_count.reserve(topology.nodes.size());
+
+        for (const auto& node : topology.nodes)
+        {
+            if (placed.contains(node.local_id) || !node.parent)
+            {
+                continue;
+            }
+
+            const auto parent_id = *node.parent;
+            auto it = index.find(parent_id);
+            if (it == index.end())
+            {
+                continue;
+            }
+
+            const std::size_t order = child_count[parent_id]++;
+            const auto offset = child_offset(node.kind, order);
+            layout.placements.push_back(NodePlacement{
+                node.local_id,
+                it->second->x + offset.first,
+                it->second->y + offset.second,
+                0.0});
+            placed.insert(node.local_id);
+            index.emplace(node.local_id, &layout.placements.back());
         }
     }
 

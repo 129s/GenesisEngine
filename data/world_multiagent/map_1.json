@@ -1,0 +1,49 @@
+{
+  "scenes": [
+    { "id": 100, "name": "MultiAgentScene" }
+  ],
+  "interactions": [
+    {
+      "id": 1100,
+      "sceneId": 100,
+      "kind": "Resource",
+      "coord": [5, 5],
+      "name": "FoodA",
+      "resourceType": "Food",
+      "capacity": 50,
+      "regen": 2
+    },
+    {
+      "id": 1101,
+      "sceneId": 100,
+      "kind": "Resource",
+      "coord": [8, 5],
+      "name": "FoodB",
+      "resourceType": "Food",
+      "capacity": 50,
+      "regen": 2
+    },
+    {
+      "id": 1200,
+      "sceneId": 100,
+      "kind": "Resource",
+      "coord": [5, 8],
+      "name": "DrinkA",
+      "resourceType": "Drink",
+      "capacity": 50,
+      "regen": 2
+    },
+    {
+      "id": 1201,
+      "sceneId": 100,
+      "kind": "Resource",
+      "coord": [8, 8],
+      "name": "DrinkB",
+      "resourceType": "Drink",
+      "capacity": 50,
+      "regen": 2
+    }
+  ],
+  "portals": []
+}
+

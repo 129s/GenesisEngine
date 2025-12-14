@@ -321,6 +321,20 @@ set_target_properties(genesis_runtime PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
+add_executable(genesis_runtime_cli
+    apps/runtime_cli/Main.cpp
+)
+
+target_link_libraries(genesis_runtime_cli
+    PRIVATE
+        Genesis::Runtime
+        nlohmann_json::nlohmann_json
+)
+
+set_target_properties(genesis_runtime_cli PROPERTIES
+    OUTPUT_NAME "genesis-runtime-cli"
+)
+
 
 # --- Phase 0: 基础/诊断模块骨架（占位，便于后续迁移） ---
 add_library(genesis_diagnostics INTERFACE)

@@ -33,6 +33,8 @@
 
 > 实现提示：当前仓库已在 `Genesis::Runtime::Runtime` 中提供 `worldAtlas()/worldVersion()` 与 `enqueueCommandFromJson(...)` 的基础实现，可作为 Headless 工具与测试入口。
 
+Headless 工具：仓库提供 `genesis-runtime-cli`（见 `docs/guides/headless_runtime_cli.md`），用于执行 JSON 脚本并回收事件结果。
+
 并发约束：
 - 模拟线程是唯一写入者；前端线程只读 `SimulationSnapshot` / `WorldAtlas`
 - `SimulationSnapshot` 双缓冲；Atlas 不可变；二者携带版本号避免竞争

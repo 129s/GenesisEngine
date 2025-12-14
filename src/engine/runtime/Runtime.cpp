@@ -7,6 +7,7 @@
 #include <exception>
 #include <filesystem>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -19,6 +20,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -43,6 +46,47 @@ namespace agent_components = Genesis::Agents::Components;
 WorldAtlas buildWorldAtlasFromDatabase(const genesis::world::WorldDatabase& db, std::uint32_t worldVersion);
 
 namespace {
+
+using json = nlohmann::json;
+
+[[nodiscard]] std::optional<std::string> getStringField(const json& obj, const char* key) {
+    if (!obj.contains(key)) {
+        return std::nullopt;
+    }
+    const auto& value = obj.at(key);
+    if (!value.is_string()) {
+        return std::nullopt;
+    }
+    return value.get<std::string>();
+}
+
+[[nodiscard]] std::optional<std::uint32_t> getU32Field(const json& obj, const char* key) {
+    if (!obj.contains(key)) {
+        return std::nullopt;
+    }
+    const auto& value = obj.at(key);
+    if (!value.is_number_unsigned()) {
+        if (value.is_number_integer()) {
+            const auto v = value.get<std::int64_t>();
+            if (v >= 0 && v <= static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max())) {
+                return static_cast<std::uint32_t>(v);
+            }
+        }
+        return std::nullopt;
+    }
+    return value.get<std::uint32_t>();
+}
+
+[[nodiscard]] std::optional<float> getFloatField(const json& obj, const char* key) {
+    if (!obj.contains(key)) {
+        return std::nullopt;
+    }
+    const auto& value = obj.at(key);
+    if (!value.is_number()) {
+        return std::nullopt;
+    }
+    return value.get<float>();
+}
 
 simulation::AgentSpawnParams2D toSpawnParams(const agent_components::AgentLocation2D& location,
                                             const std::optional<agent_components::MovementIntent2D>& intent) {
@@ -948,6 +992,210 @@ std::optional<agent_components::AgentLocation2D> Runtime::agentLocation(std::uin
 
 std::unique_ptr<Runtime> createRuntime(RuntimeConfig config) {
     return std::make_unique<Runtime>(std::move(config));
+}
+
+std::optional<std::uint64_t> Runtime::enqueueCommandFromJson(const nlohmann::json& descriptor, std::string& errorMessage) {
+    errorMessage.clear();
+
+    if (!descriptor.is_object()) {
+        errorMessage = "Command descriptor must be a JSON object";
+        return std::nullopt;
+    }
+
+    const auto actionOpt = getStringField(descriptor, "action");
+    if (!actionOpt || actionOpt->empty()) {
+        errorMessage = "Command descriptor is missing string field: action";
+        return std::nullopt;
+    }
+
+    const std::string action = *actionOpt;
+    const std::string label = descriptor.value("label", action);
+
+    json payload = descriptor;
+    payload.erase("action");
+    payload.erase("label");
+
+    RuntimeEvent event{};
+    event.kind = RuntimeEventKind::Command;
+    event.label = label;
+    if (!payload.empty()) {
+        event.payloadJson = payload.dump();
+    }
+
+    if (action == "world.db.load" || action == "world.db.reload") {
+        const auto folderOpt = getStringField(payload, "folder");
+        if (!folderOpt || folderOpt->empty()) {
+            errorMessage = "'" + action + "' requires string field: folder";
+            return std::nullopt;
+        }
+        const auto folder = std::filesystem::path(*folderOpt);
+        event.runtimeHandler = [folder](Runtime& runtime) {
+            const auto result = runtime.loadWorldFromFile(folder);
+            if (!result.success) {
+                throw std::runtime_error(result.error.empty() ? "world.db.load failed" : result.error);
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "world.db.save") {
+        const auto folderOpt = getStringField(payload, "folder");
+        if (!folderOpt || folderOpt->empty()) {
+            errorMessage = "'world.db.save' requires string field: folder";
+            return std::nullopt;
+        }
+        const auto folder = std::filesystem::path(*folderOpt);
+        event.runtimeHandler = [folder](Runtime& runtime) {
+            const auto result = runtime.saveWorldToFile(folder);
+            if (!result.success) {
+                throw std::runtime_error(result.error.empty() ? "world.db.save failed" : result.error);
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "agent.create2d") {
+        const auto mapIdOpt = getU32Field(payload, "mapId");
+        const auto xOpt = getFloatField(payload, "x");
+        const auto yOpt = getFloatField(payload, "y");
+        if (!mapIdOpt || !xOpt || !yOpt) {
+            errorMessage = "'agent.create2d' requires fields: mapId(uint), x(number), y(number)";
+            return std::nullopt;
+        }
+
+        simulation::AgentSpawnParams2D params{};
+        params.location.mapId = *mapIdOpt;
+        params.location.x = *xOpt;
+        params.location.y = *yOpt;
+
+        if (payload.contains("move") && payload.at("move").is_object()) {
+            const auto& move = payload.at("move");
+            const auto tMapOpt = getU32Field(move, "mapId");
+            const auto tXOpt = getFloatField(move, "x");
+            const auto tYOpt = getFloatField(move, "y");
+            const auto speedOpt = getFloatField(move, "speed");
+            if (tMapOpt && tXOpt && tYOpt && speedOpt) {
+                simulation::MovementCommand2D command{};
+                command.targetMapId = *tMapOpt;
+                command.targetX = *tXOpt;
+                command.targetY = *tYOpt;
+                command.speed = *speedOpt;
+                params.initialMovement = command;
+            }
+        }
+
+        event.runtimeHandler = [params](Runtime& runtime) mutable {
+            const auto created = runtime.createAgent(params);
+            if (created == 0U) {
+                throw std::runtime_error("agent.create2d failed");
+            }
+        };
+        event.onComplete = [params](RuntimeEventReport& report) {
+            if (report.success) {
+                report.message = "agent.create2d succeeded";
+            } else if (report.message.empty()) {
+                report.message = "agent.create2d failed";
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "agent.move2d") {
+        const auto entityIdOpt = getU32Field(payload, "entityId");
+        const auto mapIdOpt = getU32Field(payload, "mapId");
+        const auto xOpt = getFloatField(payload, "x");
+        const auto yOpt = getFloatField(payload, "y");
+        const auto speedOpt = getFloatField(payload, "speed");
+        if (!entityIdOpt || !mapIdOpt || !xOpt || !yOpt || !speedOpt) {
+            errorMessage = "'agent.move2d' requires fields: entityId(uint), mapId(uint), x(number), y(number), speed(number)";
+            return std::nullopt;
+        }
+
+        simulation::MovementCommand2D command{};
+        command.targetMapId = *mapIdOpt;
+        command.targetX = *xOpt;
+        command.targetY = *yOpt;
+        command.speed = *speedOpt;
+
+        event.runtimeHandler = [entityId=*entityIdOpt, command](Runtime& runtime) {
+            if (!runtime.setAgentMovementIntent(entityId, command)) {
+                throw std::runtime_error("agent.move2d failed");
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "agent.stop2d") {
+        const auto entityIdOpt = getU32Field(payload, "entityId");
+        if (!entityIdOpt) {
+            errorMessage = "'agent.stop2d' requires field: entityId(uint)";
+            return std::nullopt;
+        }
+        event.runtimeHandler = [entityId=*entityIdOpt](Runtime& runtime) {
+            if (!runtime.stopAgentMovement(entityId)) {
+                throw std::runtime_error("agent.stop2d failed");
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "agent.teleport2d") {
+        const auto entityIdOpt = getU32Field(payload, "entityId");
+        const auto mapIdOpt = getU32Field(payload, "mapId");
+        const auto xOpt = getFloatField(payload, "x");
+        const auto yOpt = getFloatField(payload, "y");
+        if (!entityIdOpt || !mapIdOpt || !xOpt || !yOpt) {
+            errorMessage = "'agent.teleport2d' requires fields: entityId(uint), mapId(uint), x(number), y(number)";
+            return std::nullopt;
+        }
+
+        simulation::AgentPose2D target{};
+        target.mapId = *mapIdOpt;
+        target.x = *xOpt;
+        target.y = *yOpt;
+
+        event.runtimeHandler = [entityId=*entityIdOpt, target](Runtime& runtime) {
+            if (!runtime.teleportAgent(entityId, target)) {
+                throw std::runtime_error("agent.teleport2d failed");
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "agent.delete2d") {
+        const auto entityIdOpt = getU32Field(payload, "entityId");
+        if (!entityIdOpt) {
+            errorMessage = "'agent.delete2d' requires field: entityId(uint)";
+            return std::nullopt;
+        }
+        event.runtimeHandler = [entityId=*entityIdOpt](Runtime& runtime) {
+            if (!runtime.deleteAgent(entityId)) {
+                throw std::runtime_error("agent.delete2d failed");
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "resource.consume") {
+        const auto interactionIdOpt = getU32Field(payload, "interactionId");
+        const auto amountOpt = getU32Field(payload, "amount");
+        if (!interactionIdOpt || !amountOpt) {
+            errorMessage = "'resource.consume' requires fields: interactionId(uint), amount(uint)";
+            return std::nullopt;
+        }
+        event.runtimeHandler = [interactionId=*interactionIdOpt, amount=*amountOpt](Runtime& runtime) {
+            runtime.consumeResource(interactionId, amount);
+        };
+        event.onComplete = [](RuntimeEventReport& report) {
+            if (report.success && report.message.empty()) {
+                report.message = "resource.consume succeeded";
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    errorMessage = "Unsupported command action: " + action;
+    return std::nullopt;
 }
 
 } // namespace Genesis::Runtime

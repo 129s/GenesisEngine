@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "genesis/runtime/SimulationSnapshot.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/runtime/WorldAtlas.hpp"
@@ -81,6 +83,7 @@ public:
     [[nodiscard]] std::shared_ptr<class world::WorldDatabase> worldDatabase() const noexcept;
 
     std::uint64_t enqueueEvent(RuntimeEvent event);
+    std::optional<std::uint64_t> enqueueCommandFromJson(const nlohmann::json& descriptor, std::string& errorMessage);
     std::uint32_t createAgent(const simulation::AgentSpawnParams2D& params);
     bool setAgentMovementIntent(std::uint32_t entityId, const simulation::MovementCommand2D& command);
     bool teleportAgent(std::uint32_t entityId, const simulation::AgentPose2D& target);

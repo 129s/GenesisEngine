@@ -92,6 +92,7 @@ add_executable(genesis_runtime_tests
     test_runtime_multi_agent_regression.cpp
     test_runtime_world_atlas.cpp
     test_runtime_json_commands.cpp
+    test_runtime_json_command_sequences.cpp
 )
 
 target_link_libraries(genesis_runtime_tests

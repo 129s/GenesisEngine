@@ -45,9 +45,8 @@ cmake --build build --target genesis_sandbox_gui
 > 2025-10 起，世界生成/加载/保存通过 Runtime 命令队列执行，所有操作都异步排队并可追踪状态。
 
 - 控件说明：
-  - `配置路径` / `输出路径` / `随机种子`：作为 `world.generate` 命令的 JSON 负载提交。
-  - `生成世界`：向命令队列提交 `world.generate`，返回事件 ID；命令成功后自动刷新最新种子，并在状态栏显示 `完成 (#id) · seed=...`。
-  - 说明：当前 v2 Runtime 对 `world.generate` 仍为占位实现（可能返回失败），建议优先使用 `world.db.load/save` 验证加载/回归链路。
+  - `配置路径` / `输出路径` / `随机种子`：作为 `world.db.generate` 命令的 JSON 负载提交（兼容 `world.generate`，已弃用）。
+  - `生成世界`：向命令队列提交 `world.db.generate`，返回事件 ID；命令成功后自动加载新世界，并在状态栏显示 `完成 (#id) · seed=...`。
   - `加载世界`：提交 `world.db.load { folder }`（目录包含 `world.json + map_#.json`）；成功后自动调用 `resetSceneForNewWorld()`，清空轨迹与 Inspector 选择。
   - `保存当前世界`：提交 `world.db.save { folder }`；成功信息写入 `RuntimeEventReport.message` 并显示在状态栏。
   - `命令脚本`：输入 JSON 文件路径（参考 `data/scripts/world_cycle.json`），点击 `执行脚本` 即可批量提交多条命令。脚本内命令支持 `waitForSuccess` 串联依赖。

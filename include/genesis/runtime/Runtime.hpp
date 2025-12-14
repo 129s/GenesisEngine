@@ -73,7 +73,7 @@ public:
         std::string error;
     };
 
-    // 已弃用：占位返回失败，避免编译器/调用处大改
+    // 旧接口：直接执行世界生成并落盘（推荐通过 JSON 命令 `world.db.generate` 使用，便于事件追踪与脚本串联）。
     WorldGenerationResult generateWorldFromConfig(const std::filesystem::path& configPath, std::optional<std::uint64_t> seedOverride = std::nullopt, std::optional<std::filesystem::path> outputPath = std::nullopt);
     [[nodiscard]] const std::optional<WorldGenerationResult>& lastWorldGeneration() const noexcept;
 
@@ -84,6 +84,9 @@ public:
 
     std::uint64_t enqueueEvent(RuntimeEvent event);
     std::optional<std::uint64_t> enqueueCommandFromJson(const nlohmann::json& descriptor, std::string& errorMessage);
+    // 脚本格式：{ name?:string, commands:[ {action:string, ..., waitForSuccess?:bool}, ... ] }
+    // `waitForSuccess=true` 会在上一条命令成功后才提交下一条；失败将终止该脚本后续提交。
+    bool enqueueCommandSequenceFromJson(const nlohmann::json& script, std::string& errorMessage);
     std::uint32_t createAgent(const simulation::AgentSpawnParams2D& params);
     bool setAgentMovementIntent(std::uint32_t entityId, const simulation::MovementCommand2D& command);
     bool teleportAgent(std::uint32_t entityId, const simulation::AgentPose2D& target);

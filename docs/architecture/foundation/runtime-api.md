@@ -18,7 +18,9 @@
     - `world.db.load { folder }`：从目录加载 `world.json + map_{id}.json`
     - `world.db.save { folder }`：保存当前 DB 到目录
     - `world.db.reload { folder }`：重载并刷新 Atlas
+    - `world.db.generate { configPath, seed?, outputFolder? }`：根据 worldgen 配置生成世界、落盘到目录并自动加载
     - 兼容别名（已弃用）：`world.load { path }` / `world.save { path }` / `world.reload { path }`（仅保留过渡期；v2 推荐统一使用 `world.db.*`）
+    - 兼容别名（已弃用）：`world.generate { configPath, seed?, outputFolder? }`（推荐改用 `world.db.generate`）
   - 实体（v2 2D）：
     - `agent.create2d { mapId, x, y, move?{ mapId,x,y,speed } }`
     - `agent.move2d   { entityId, mapId, x, y, speed }`
@@ -78,7 +80,7 @@ Atlas 描述世界静态结构（Map 图）与每图可视元数据；只读、�
 ### RuntimeBridge 命令描述（JSON）
 - 顶层：`name?:string`，`commands:CommandDescriptor[]`
 - `CommandDescriptor`：`action:string`（如 `world.db.load|agent.create2d|resource.consume`）、`label?`、`waitForSuccess?:bool`、其余字段入 `payloadJson`
-- GUI 可加载脚本、维护 pending/history 列表、串联命令并在报告到达时推进序列
+- v2 Runtime 已提供 Headless 的 `enqueueCommandSequenceFromJson(...)` 实现（支持 `waitForSuccess` 串联）；GUI 侧仅需提供脚本加载/显示即可
 
 ## 兼容性与演进
 - 兼容旧协议：保留 `latestSnapshot()`/`latestSnapshotDiff()` 的接口形式；字段迁移采用新增/弃用并行期

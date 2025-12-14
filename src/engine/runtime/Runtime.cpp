@@ -14,6 +14,7 @@
 #include <queue>
 #include <random>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <tuple>
 #include <unordered_map>
@@ -75,6 +76,23 @@ using json = nlohmann::json;
         return std::nullopt;
     }
     return value.get<std::uint32_t>();
+}
+
+[[nodiscard]] std::optional<std::uint64_t> getU64Field(const json& obj, const char* key) {
+    if (!obj.contains(key)) {
+        return std::nullopt;
+    }
+    const auto& value = obj.at(key);
+    if (!value.is_number_unsigned()) {
+        if (value.is_number_integer()) {
+            const auto v = value.get<std::int64_t>();
+            if (v >= 0) {
+                return static_cast<std::uint64_t>(v);
+            }
+        }
+        return std::nullopt;
+    }
+    return value.get<std::uint64_t>();
 }
 
 [[nodiscard]] std::optional<float> getFloatField(const json& obj, const char* key) {
@@ -530,6 +548,7 @@ public:
     [[nodiscard]] std::shared_ptr<world::WorldDatabase> worldDatabase() const noexcept;
 
     std::uint64_t enqueueEvent(RuntimeEvent event);
+    bool enqueueCommandSequenceFromJson(Runtime& owner, const json& script, std::string& errorMessage);
 
     std::uint32_t createAgent(const simulation::AgentSpawnParams2D& params);
     bool setAgentMovementIntent(std::uint32_t entityId, const simulation::MovementCommand2D& command);
@@ -544,6 +563,24 @@ private:
     void drainPendingEvents(Runtime& owner);
     void onSimulationSnapshot(const telemetry::TickTelemetry& tick);
     void updateWorldAtlas(std::shared_ptr<world::WorldDatabase> db, std::uint32_t worldVersion);
+
+    struct ScriptCommand {
+        json descriptor;
+        bool waitForSuccess{false};
+    };
+
+    struct CommandSequence {
+        std::string name{"sequence"};
+        std::vector<ScriptCommand> commands;
+        std::size_t nextIndex{0};
+        std::optional<std::uint64_t> waitingOn;
+        bool finished{false};
+        bool failed{false};
+        std::string error;
+    };
+
+    bool scheduleSequence(Runtime& owner, const std::shared_ptr<CommandSequence>& sequence, std::string& errorMessage);
+    void advanceSequencesFor(Runtime& owner, const std::vector<RuntimeEventReport>& reports);
 
     struct EventState {
         void enqueue(RuntimeEvent event);
@@ -565,6 +602,9 @@ private:
     SimulationSnapshotBuffer m_snapshotBuffer;
     std::atomic<std::uint64_t> m_nextEventId{1};
     EventState m_events;
+
+    std::mutex m_sequenceMutex;
+    std::vector<std::shared_ptr<CommandSequence>> m_sequences;
 
     std::atomic<std::uint32_t> m_worldVersion{0};
     mutable std::mutex m_worldMutex;
@@ -743,6 +783,127 @@ std::uint64_t Runtime::Impl::enqueueEvent(RuntimeEvent event) {
     return id;
 }
 
+bool Runtime::Impl::enqueueCommandSequenceFromJson(Runtime& owner, const json& script, std::string& errorMessage) {
+    errorMessage.clear();
+
+    if (!script.is_object()) {
+        errorMessage = "Sequence script must be a JSON object";
+        return false;
+    }
+
+    if (!script.contains("commands") || !script.at("commands").is_array()) {
+        errorMessage = "Script is missing commands array";
+        return false;
+    }
+
+    auto sequence = std::make_shared<CommandSequence>();
+    sequence->name = script.value("name", std::string{"sequence"});
+    sequence->commands.reserve(script.at("commands").size());
+    for (const auto& item : script.at("commands")) {
+        if (!item.is_object()) {
+            errorMessage = "Commands array entries must be JSON objects";
+            return false;
+        }
+
+        ScriptCommand command{};
+        json descriptor = item;
+        if (descriptor.contains("waitForSuccess")) {
+            if (!descriptor.at("waitForSuccess").is_boolean()) {
+                errorMessage = "'waitForSuccess' must be a boolean";
+                return false;
+            }
+            command.waitForSuccess = descriptor.at("waitForSuccess").get<bool>();
+            descriptor.erase("waitForSuccess");
+        }
+        command.descriptor = std::move(descriptor);
+        sequence->commands.push_back(std::move(command));
+    }
+
+    {
+        std::lock_guard lock(m_sequenceMutex);
+        m_sequences.push_back(sequence);
+    }
+
+    return scheduleSequence(owner, sequence, errorMessage);
+}
+
+bool Runtime::Impl::scheduleSequence(Runtime& owner, const std::shared_ptr<CommandSequence>& sequence, std::string& errorMessage) {
+    errorMessage.clear();
+    for (;;) {
+        json descriptor;
+        bool waitForSuccess = false;
+        {
+            std::lock_guard lock(m_sequenceMutex);
+            if (sequence->failed) {
+                errorMessage = sequence->error;
+                return false;
+            }
+            if (sequence->finished) {
+                return true;
+            }
+            if (sequence->waitingOn.has_value()) {
+                return true;
+            }
+            if (sequence->nextIndex >= sequence->commands.size()) {
+                sequence->finished = true;
+                return true;
+            }
+
+            descriptor = sequence->commands[sequence->nextIndex].descriptor;
+            waitForSuccess = sequence->commands[sequence->nextIndex].waitForSuccess;
+            sequence->nextIndex++;
+        }
+
+        std::string localError;
+        const auto id = owner.enqueueCommandFromJson(descriptor, localError);
+        if (!id.has_value()) {
+            std::lock_guard lock(m_sequenceMutex);
+            sequence->failed = true;
+            sequence->error = localError.empty() ? "Failed to enqueue command in sequence" : localError;
+            errorMessage = sequence->error;
+            return false;
+        }
+
+        if (waitForSuccess) {
+            std::lock_guard lock(m_sequenceMutex);
+            sequence->waitingOn = *id;
+            return true;
+        }
+    }
+}
+
+void Runtime::Impl::advanceSequencesFor(Runtime& owner, const std::vector<RuntimeEventReport>& reports) {
+    if (reports.empty()) {
+        return;
+    }
+
+    std::vector<std::shared_ptr<CommandSequence>> ready;
+    {
+        std::lock_guard lock(m_sequenceMutex);
+        for (const auto& report : reports) {
+            for (const auto& sequence : m_sequences) {
+                if (!sequence || !sequence->waitingOn.has_value() || *sequence->waitingOn != report.id) {
+                    continue;
+                }
+
+                sequence->waitingOn.reset();
+                if (!report.success) {
+                    sequence->failed = true;
+                    sequence->error = report.message.empty() ? ("Sequence '" + sequence->name + "' failed") : report.message;
+                    continue;
+                }
+
+                ready.push_back(sequence);
+            }
+        }
+    }
+
+    for (const auto& sequence : ready) {
+        std::string ignored;
+        (void)scheduleSequence(owner, sequence, ignored);
+    }
+}
+
 std::uint32_t Runtime::Impl::createAgent(const simulation::AgentSpawnParams2D& params) {
     return m_simulation->createAgent(params);
 }
@@ -827,6 +988,7 @@ void Runtime::Impl::drainPendingEvents(Runtime& owner) {
         executed.push_back(std::move(report));
     }
 
+    advanceSequencesFor(owner, executed);
     m_events.appendExecuted(std::move(executed));
 }
 
@@ -1038,6 +1200,32 @@ std::optional<std::uint64_t> Runtime::enqueueCommandFromJson(const nlohmann::jso
         return enqueueEvent(std::move(event));
     }
 
+    if (action == "world.load" || action == "world.reload") {
+        const auto pathOpt = getStringField(payload, "path");
+        if (!pathOpt || pathOpt->empty()) {
+            errorMessage = "'" + action + "' requires string field: path";
+            return std::nullopt;
+        }
+
+        const auto path = std::filesystem::path(*pathOpt);
+        std::filesystem::path folder = path;
+        if (path.has_extension() && path.extension() == ".json") {
+            if (path.filename() != "world.json") {
+                errorMessage = "v2 世界加载仅支持目录（world.json + map_#.json）；请改用 world.db.load { folder }";
+                return std::nullopt;
+            }
+            folder = path.parent_path();
+        }
+
+        event.runtimeHandler = [folder, action](Runtime& runtime) {
+            const auto result = runtime.loadWorldFromFile(folder);
+            if (!result.success) {
+                throw std::runtime_error(result.error.empty() ? (action + " failed") : result.error);
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
     if (action == "world.db.save") {
         const auto folderOpt = getStringField(payload, "folder");
         if (!folderOpt || folderOpt->empty()) {
@@ -1049,6 +1237,89 @@ std::optional<std::uint64_t> Runtime::enqueueCommandFromJson(const nlohmann::jso
             const auto result = runtime.saveWorldToFile(folder);
             if (!result.success) {
                 throw std::runtime_error(result.error.empty() ? "world.db.save failed" : result.error);
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "world.save") {
+        const auto pathOpt = getStringField(payload, "path");
+        if (!pathOpt || pathOpt->empty()) {
+            errorMessage = "'world.save' requires string field: path";
+            return std::nullopt;
+        }
+
+        const auto path = std::filesystem::path(*pathOpt);
+        std::filesystem::path folder = path;
+        if (path.has_extension() && path.extension() == ".json") {
+            if (path.filename() != "world.json") {
+                errorMessage = "v2 世界保存仅支持目录（world.json + map_#.json）；请改用 world.db.save { folder }";
+                return std::nullopt;
+            }
+            folder = path.parent_path();
+        }
+
+        event.runtimeHandler = [folder](Runtime& runtime) {
+            const auto result = runtime.saveWorldToFile(folder);
+            if (!result.success) {
+                throw std::runtime_error(result.error.empty() ? "world.save failed" : result.error);
+            }
+        };
+        return enqueueEvent(std::move(event));
+    }
+
+    if (action == "world.db.generate" || action == "world.generate") {
+        auto configPathOpt = getStringField(payload, "configPath");
+        if (!configPathOpt || configPathOpt->empty()) {
+            configPathOpt = getStringField(payload, "config");
+        }
+        if (!configPathOpt || configPathOpt->empty()) {
+            errorMessage = "'" + action + "' requires string field: configPath";
+            return std::nullopt;
+        }
+
+        const std::filesystem::path configPath = std::filesystem::path(*configPathOpt);
+        const auto seedOpt = getU64Field(payload, "seed");
+
+        std::optional<std::filesystem::path> outputPath;
+        if (const auto outOpt = getStringField(payload, "outputFolder"); outOpt && !outOpt->empty()) {
+            outputPath = std::filesystem::path(*outOpt);
+        } else if (const auto folderOpt = getStringField(payload, "folder"); folderOpt && !folderOpt->empty()) {
+            outputPath = std::filesystem::path(*folderOpt);
+        } else if (const auto outOpt2 = getStringField(payload, "outputPath"); outOpt2 && !outOpt2->empty()) {
+            outputPath = std::filesystem::path(*outOpt2);
+        }
+
+        auto feedback = std::make_shared<std::string>();
+        event.runtimeHandler = [configPath, seedOpt, outputPath, feedback, action](Runtime& runtime) {
+            const auto result = runtime.generateWorldFromConfig(configPath, seedOpt, outputPath);
+            if (!result.success) {
+                *feedback = result.error.empty() ? "world generation failed" : result.error;
+                throw std::runtime_error(*feedback);
+            }
+            if (result.outputPath) {
+                const auto loadResult = runtime.loadWorldFromFile(*result.outputPath);
+                if (!loadResult.success) {
+                    *feedback = loadResult.error.empty() ? "world load failed" : loadResult.error;
+                    throw std::runtime_error(*feedback);
+                }
+            }
+
+            std::ostringstream oss;
+            if (action == "world.generate") {
+                oss << "world.generate succeeded (deprecated; use world.db.generate)";
+            } else {
+                oss << "world.db.generate succeeded";
+            }
+            oss << " seed=" << result.seed.value << " nodes=" << result.locationCount << " edges=" << result.edgeCount;
+            if (result.outputPath) {
+                oss << " folder=" << result.outputPath->string();
+            }
+            *feedback = oss.str();
+        };
+        event.onComplete = [feedback](RuntimeEventReport& report) {
+            if (!feedback->empty()) {
+                report.message = *feedback;
             }
         };
         return enqueueEvent(std::move(event));
@@ -1196,6 +1467,10 @@ std::optional<std::uint64_t> Runtime::enqueueCommandFromJson(const nlohmann::jso
 
     errorMessage = "Unsupported command action: " + action;
     return std::nullopt;
+}
+
+bool Runtime::enqueueCommandSequenceFromJson(const nlohmann::json& script, std::string& errorMessage) {
+    return m_impl->enqueueCommandSequenceFromJson(*this, script, errorMessage);
 }
 
 } // namespace Genesis::Runtime

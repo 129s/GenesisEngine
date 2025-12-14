@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -135,7 +136,42 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         return {mid, mid};
     };
 
+    std::unordered_set<std::size_t> sceneLocalIds;
+    sceneLocalIds.reserve(topology.nodes.size());
     for (const auto& node : topology.nodes) {
+        if (node.kind == genesis::worldgen::DraftNodeKind::Scene) {
+            sceneLocalIds.insert(node.local_id);
+        }
+    }
+
+    auto isSceneLocalId = [&](std::size_t localId) -> bool {
+        return sceneLocalIds.find(localId) != sceneLocalIds.end();
+    };
+
+    std::unordered_map<world::MapId, world::InteractionId> nextInteractionId;
+    nextInteractionId.reserve(topology.nodes.size());
+
+    auto allocateInteractionId = [&](world::MapId mapId) -> std::optional<world::InteractionId> {
+        constexpr world::InteractionId kPortalIdOffset = 900U;
+        const auto base = static_cast<world::InteractionId>(mapId * 1000U);
+        auto it = nextInteractionId.find(mapId);
+        if (it == nextInteractionId.end()) {
+            it = nextInteractionId.emplace(mapId, base).first;
+        }
+        if (it->second >= base + kPortalIdOffset) {
+            return std::nullopt;
+        }
+        return it->second++;
+    };
+
+    std::unordered_map<world::MapId, std::pair<int, int>> mapCenters;
+    mapCenters.reserve(topology.nodes.size());
+
+    for (const auto& node : topology.nodes) {
+        if (node.kind != genesis::worldgen::DraftNodeKind::Scene) {
+            continue;
+        }
+
         const auto mapId = static_cast<world::MapId>(node.local_id + 1);
         world::Map m{};
         m.id = mapId;
@@ -148,34 +184,82 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         s.name = node.label.empty() ? ("Scene_" + std::to_string(s.id)) : (node.label + "_scene");
         db.addScene(std::move(s));
 
-        const auto baseCoord = coordFor(node.local_id);
+        mapCenters.emplace(mapId, coordFor(node.local_id));
+        nextInteractionId.emplace(mapId, static_cast<world::InteractionId>(mapId * 1000U));
+    }
 
-        const auto resourcesPerMap = std::max<std::size_t>(1, config.worlddb.resources.per_map);
-        constexpr world::InteractionId portalIdOffset = 900U;
-        const auto resourceIdBase = static_cast<world::InteractionId>(mapId * 1000U);
+    for (const auto& node : topology.nodes) {
+        if (node.kind != genesis::worldgen::DraftNodeKind::Scene) {
+            continue;
+        }
+
+        const auto mapId = static_cast<world::MapId>(node.local_id + 1);
+        const auto sceneId = static_cast<world::SceneId>(mapId * 100U);
+        const auto baseCoord = [&]() {
+            if (auto it = mapCenters.find(mapId); it != mapCenters.end()) {
+                return it->second;
+            }
+            return coordFor(node.local_id);
+        }();
+
+        std::size_t resourcesPerMap = std::max<std::size_t>(1, config.worlddb.resources.per_map);
+        if (std::find(node.tags.begin(), node.tags.end(), "hub") != node.tags.end()) {
+            resourcesPerMap += 1;
+        }
+        if (std::find(node.tags.begin(), node.tags.end(), "corridor") != node.tags.end() && resourcesPerMap > 1) {
+            resourcesPerMap -= 1;
+        }
+
         for (std::size_t index = 0; index < resourcesPerMap; ++index) {
             const int dx = static_cast<int>((index % 3) - 1);
             const int dy = static_cast<int>((index / 3) - 1);
 
-            world::Interaction resource{};
-            resource.id = static_cast<world::InteractionId>(resourceIdBase + static_cast<world::InteractionId>(index));
-            if (resource.id >= resourceIdBase + portalIdOffset) {
+            auto idOpt = allocateInteractionId(mapId);
+            if (!idOpt) {
                 break;
             }
+
+            world::Interaction resource{};
+            resource.id = *idOpt;
             resource.mapId = mapId;
-            resource.sceneId = static_cast<world::SceneId>(mapId * 100U);
+            resource.sceneId = sceneId;
             resource.kind = world::InteractionKind::Resource;
             resource.coord = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
                               std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
-            if (resourcesPerMap == 1) {
-                resource.name = "Resource";
-            } else {
-                resource.name = "Resource_" + std::to_string(index);
-            }
+            resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
             resource.capacity = config.worlddb.resources.capacity;
             resource.regenPerStep = config.worlddb.resources.regen_per_step;
             db.addInteraction(std::move(resource));
         }
+    }
+
+    for (const auto& node : topology.nodes) {
+        if (node.kind != genesis::worldgen::DraftNodeKind::InteractiveResource || !node.parent) {
+            continue;
+        }
+        if (!isSceneLocalId(*node.parent)) {
+            continue;
+        }
+
+        const auto mapId = static_cast<world::MapId>(*node.parent + 1);
+        const auto sceneId = static_cast<world::SceneId>(mapId * 100U);
+        const auto coord = coordFor(node.local_id);
+
+        auto idOpt = allocateInteractionId(mapId);
+        if (!idOpt) {
+            continue;
+        }
+
+        world::Interaction resource{};
+        resource.id = *idOpt;
+        resource.mapId = mapId;
+        resource.sceneId = sceneId;
+        resource.kind = world::InteractionKind::Resource;
+        resource.coord = coord;
+        resource.name = node.label.empty() ? "Resource" : node.label;
+        resource.capacity = config.worlddb.resources.capacity;
+        resource.regenPerStep = config.worlddb.resources.regen_per_step;
+        db.addInteraction(std::move(resource));
     }
 
     {
@@ -183,6 +267,9 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         for (const auto& e : topology.edges) {
             const auto from = static_cast<world::MapId>(e.from + 1);
             const auto to = static_cast<world::MapId>(e.to + 1);
+            if (!isSceneLocalId(e.from) || !isSceneLocalId(e.to)) {
+                continue;
+            }
             if (from == 0U || to == 0U || from == to) {
                 continue;
             }
@@ -198,6 +285,9 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         const auto& portal = topology.portals[index];
         const auto entryMap = static_cast<world::MapId>(portal.entry + 1);
         const auto exitMap = static_cast<world::MapId>(portal.exit + 1);
+        if (!isSceneLocalId(portal.entry) || !isSceneLocalId(portal.exit)) {
+            continue;
+        }
         if (entryMap == 0U || exitMap == 0U || entryMap == exitMap) {
             continue;
         }

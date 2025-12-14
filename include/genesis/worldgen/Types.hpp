@@ -10,6 +10,8 @@
 
 #include <toml++/toml.hpp>
 
+#include "genesis/world/WorldTypes.hpp"
+
 // 迁移到 v2：不再生成旧 LocationGraph，改为输出 Topology/Layout 草图，供后续数据库生成阶段使用。
 
 namespace genesis::worldgen
@@ -136,6 +138,7 @@ struct TilemapSettings
 struct WorldDbResourceSettings
 {
     std::size_t per_map{1};
+    genesis::world::ResourceType type{genesis::world::ResourceType::Food};
     std::uint32_t capacity{50};
     std::uint32_t regen_per_step{2};
 };

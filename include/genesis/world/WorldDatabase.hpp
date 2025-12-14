@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include "genesis/world/WorldTypes.hpp"
+
 namespace genesis::world {
 
 // 基础 ID 类型（后续可替换为强类型 ID）
@@ -45,6 +47,7 @@ struct Interaction {
     std::pair<int, int> coord{0, 0};
     std::string name;
     // Resource-specific (optional)
+    std::optional<ResourceType> resourceType;
     std::optional<std::uint32_t> capacity;      // max units
     std::optional<std::uint32_t> regenPerStep;  // units per step
 };

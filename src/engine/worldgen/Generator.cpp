@@ -25,6 +25,20 @@ bool has_tag(const NodeDraft& node, std::string_view tag)
     return std::find(node.tags.begin(), node.tags.end(), tag) != node.tags.end();
 }
 
+std::string resource_type_name(genesis::world::ResourceType type)
+{
+    switch (type)
+    {
+    case genesis::world::ResourceType::Food:
+        return "Food";
+    case genesis::world::ResourceType::Drink:
+        return "Drink";
+    case genesis::world::ResourceType::Social:
+        return "Social";
+    }
+    return "Food";
+}
+
 std::unordered_map<std::size_t, NodePlacement> build_placement_map(const LayoutDraft& layout)
 {
     std::unordered_map<std::size_t, NodePlacement> map;
@@ -54,6 +68,7 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
     }
 
     std::size_t id = next_local_id(topology);
+    const auto typeTag = std::string("resource_type=") + resource_type_name(config.worlddb.resources.type);
 
     // 注意：只给 Scene 生成子资源节点
     const auto original_count = topology.nodes.size();
@@ -73,7 +88,7 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
             resource.kind = DraftNodeKind::InteractiveResource;
             resource.label = (count == 1) ? "resource" : ("resource_" + std::to_string(j));
             resource.parent = node.local_id;
-            resource.tags = {"resource"};
+            resource.tags = {"resource", typeTag};
             topology.nodes.push_back(std::move(resource));
         }
     }

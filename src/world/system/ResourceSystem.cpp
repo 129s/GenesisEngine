@@ -36,7 +36,7 @@ void ResourceSystem::initialize(entt::registry& registry) {
 
             auto& info = registry.emplace<components::ResourceSpawn>(entity);
             info.name = it.name;
-            info.type = ResourceType::Food; // 默认类型：待世界数据模型扩展后细化
+            info.type = it.resourceType.value_or(ResourceType::Food);
             info.interaction = it.id;
             info.mapId = it.mapId;
             info.ratePerStep = it.regenPerStep.value_or(0);
@@ -155,4 +155,3 @@ std::uint32_t ResourceSystem::consume(entt::registry& registry,
 }
 
 } // namespace genesis::world::system
-

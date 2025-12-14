@@ -32,5 +32,6 @@ base_extent = 28
 
 [worlddb.resources]
 per_map = 1
+type = "Food"
 capacity = 50
 regen_per_step = 2

@@ -31,7 +31,7 @@ TEST(WorldDatabaseLoader, LoadsMinimalDataset) {
 
     writeFile(tmp / "map_1.json", R"JSON({
   "scenes": [ { "id": 100, "name": "S" } ],
-  "interactions": [ { "id": 1000, "sceneId": 100, "kind": "Resource", "coord": [2,3], "name": "Food" } ],
+  "interactions": [ { "id": 1000, "sceneId": 100, "kind": "Resource", "resourceType": "Drink", "coord": [2,3], "name": "Fountain" } ],
   "portals": [ { "interactionId": 1000, "targetMapId": 2 } ]
 })JSON");
 
@@ -44,5 +44,7 @@ TEST(WorldDatabaseLoader, LoadsMinimalDataset) {
     ASSERT_EQ(db.mapEdges().size(), 1U);
     EXPECT_EQ(db.scenes(1).size(), 1U);
     EXPECT_EQ(db.interactions(1).size(), 1U);
+    ASSERT_TRUE(db.interactions(1).front().resourceType.has_value());
+    EXPECT_EQ(*db.interactions(1).front().resourceType, ResourceType::Drink);
     EXPECT_EQ(db.portals(2).size(), 1U); // one portal targets map 2
 }

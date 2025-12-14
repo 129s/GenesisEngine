@@ -7,6 +7,18 @@ namespace genesis::world {
 
 using nlohmann::json;
 
+static const char* resourceTypeName(ResourceType type) {
+    switch (type) {
+    case ResourceType::Food:
+        return "Food";
+    case ResourceType::Drink:
+        return "Drink";
+    case ResourceType::Social:
+        return "Social";
+    }
+    return "Food";
+}
+
 static bool writeText(const std::filesystem::path& p, const std::string& s) {
     std::filesystem::create_directories(p.parent_path());
     std::ofstream ofs(p, std::ios::binary);
@@ -53,6 +65,9 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
                     {"name", i.name}
                 });
                 if (i.kind == InteractionKind::Resource) {
+                    if (i.resourceType) {
+                        jm["interactions"].back()["resourceType"] = resourceTypeName(*i.resourceType);
+                    }
                     if (i.capacity) {
                         jm["interactions"].back()["capacity"] = *i.capacity;
                     }
@@ -88,4 +103,3 @@ WorldDbSaveResult saveWorldDatabaseToFolder(const std::filesystem::path& folder,
 }
 
 } // namespace genesis::world
-

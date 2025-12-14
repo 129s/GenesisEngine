@@ -234,6 +234,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 resource.mapId = mapId;
                 resource.sceneId = sceneId;
                 resource.kind = world::InteractionKind::Resource;
+                resource.resourceType = config.worlddb.resources.type;
                 resource.coord = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
                                   std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
                 resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
@@ -243,6 +244,20 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             }
         }
     }
+
+    auto parseResourceTypeTag = [](const genesis::worldgen::NodeDraft& node) -> std::optional<world::ResourceType> {
+        constexpr std::string_view prefix = "resource_type=";
+        for (const auto& t : node.tags) {
+            if (t.size() >= prefix.size() && t.compare(0, prefix.size(), prefix.data(), prefix.size()) == 0) {
+                const auto value = t.substr(prefix.size());
+                if (value == "Food" || value == "food") return world::ResourceType::Food;
+                if (value == "Drink" || value == "drink" || value == "Water" || value == "water") return world::ResourceType::Drink;
+                if (value == "Social" || value == "social") return world::ResourceType::Social;
+                return std::nullopt;
+            }
+        }
+        return std::nullopt;
+    };
 
     for (const auto& node : topology.nodes) {
         if (node.kind != genesis::worldgen::DraftNodeKind::InteractiveResource || !node.parent) {
@@ -268,6 +283,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         resource.kind = world::InteractionKind::Resource;
         resource.coord = coord;
         resource.name = node.label.empty() ? "Resource" : node.label;
+        resource.resourceType = parseResourceTypeTag(node).value_or(config.worlddb.resources.type);
         resource.capacity = config.worlddb.resources.capacity;
         resource.regenPerStep = config.worlddb.resources.regen_per_step;
         db.addInteraction(std::move(resource));

@@ -61,7 +61,7 @@ RuntimeBridge::Vector2 computeExtent(std::size_t maxPerLevel, std::size_t levelC
                 if (auto p = atlas.nodePosition(m.id)) position = *p;
                 WorldAtlas::Spawn s{};
                 s.name = inter.name;
-                s.type = Genesis::World::ResourceType::Food; // 显示用途：细化类型映射可在数据扩展时加入
+                s.type = inter.resourceType.value_or(Genesis::World::ResourceType::Food);
                 s.mapId = m.id;
                 s.interactionId = inter.id;
                 s.position = position;

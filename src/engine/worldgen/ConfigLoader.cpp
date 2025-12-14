@@ -6,6 +6,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "genesis/world/WorldTypes.hpp"
+
 namespace genesis::worldgen
 {
 
@@ -22,6 +24,23 @@ std::optional<std::size_t> read_size_t(const toml::table& table, std::string_vie
             throw std::runtime_error(oss.str());
         }
         return static_cast<std::size_t>(value->get());
+    }
+    return std::nullopt;
+}
+
+std::optional<genesis::world::ResourceType> parse_resource_type(std::string_view sv)
+{
+    if (sv == "Food" || sv == "food")
+    {
+        return genesis::world::ResourceType::Food;
+    }
+    if (sv == "Drink" || sv == "drink" || sv == "Water" || sv == "water")
+    {
+        return genesis::world::ResourceType::Drink;
+    }
+    if (sv == "Social" || sv == "social")
+    {
+        return genesis::world::ResourceType::Social;
     }
     return std::nullopt;
 }
@@ -223,6 +242,13 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
             if (auto per_map = read_size_t(*res_table, "per_map"))
             {
                 settings.resources.per_map = *per_map;
+            }
+            if (const auto* type = res_table->get_as<std::string>("type"))
+            {
+                if (auto parsed = parse_resource_type(type->get()))
+                {
+                    settings.resources.type = *parsed;
+                }
             }
             if (auto capacity = read_size_t(*res_table, "capacity"))
             {

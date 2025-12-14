@@ -25,6 +25,13 @@ namespace {
         if (sv == "Landmark") return InteractionKind::Landmark;
         return InteractionKind::Unknown;
     }
+
+    std::optional<ResourceType> parseResourceType(std::string_view sv) {
+        if (sv == "Food") return ResourceType::Food;
+        if (sv == "Drink") return ResourceType::Drink;
+        if (sv == "Social") return ResourceType::Social;
+        return std::nullopt;
+    }
 }
 
 WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folder) {
@@ -108,6 +115,13 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
                     i.coord.first = ji["coord"][0].get<int>();
                     i.coord.second = ji["coord"][1].get<int>();
                 }
+                if (i.kind == InteractionKind::Resource) {
+                    if (ji.contains("resourceType") && ji["resourceType"].is_string()) {
+                        i.resourceType = parseResourceType(ji["resourceType"].get<std::string>());
+                    } else if (ji.contains("type") && ji["type"].is_string()) {
+                        i.resourceType = parseResourceType(ji["type"].get<std::string>());
+                    }
+                }
                 if (ji.contains("capacity") && ji["capacity"].is_number_unsigned()) {
                     i.capacity = ji["capacity"].get<std::uint32_t>();
                 }
@@ -138,4 +152,3 @@ WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folde
 }
 
 } // namespace genesis::world
-

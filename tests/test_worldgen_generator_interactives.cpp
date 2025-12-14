@@ -56,6 +56,14 @@ TEST(WorldgenGenerator, ProducesInteractiveNodesAndPlacesNearParent) {
     for (const auto& node : generated.topology.nodes) {
         if (node.kind == DraftNodeKind::InteractiveResource) {
             sawResource = true;
+            bool hasType = false;
+            for (const auto& tag : node.tags) {
+                if (tag.rfind("resource_type=", 0) == 0) {
+                    hasType = true;
+                    break;
+                }
+            }
+            EXPECT_TRUE(hasType);
         }
         if (node.kind == DraftNodeKind::InteractivePortal) {
             sawPortal = true;
@@ -80,4 +88,3 @@ TEST(WorldgenGenerator, ProducesInteractiveNodesAndPlacesNearParent) {
     EXPECT_TRUE(sawResource);
     EXPECT_TRUE(sawPortal);
 }
-

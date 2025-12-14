@@ -15,6 +15,7 @@
 #include <nlohmann/json.hpp>
 
 #include "genesis/runtime/Runtime.hpp"
+#include "genesis/world/ResourceTypeStrings.hpp"
 
 namespace {
 
@@ -354,7 +355,8 @@ struct ResourceEconomy {
         item["interactionId"] = economy.interactionId;
         item["mapId"] = economy.mapId;
         item["name"] = economy.name;
-        item["type"] = static_cast<std::uint32_t>(economy.type);
+        item["type"] = genesis::world::resourceTypeName(economy.type);
+        item["typeId"] = static_cast<std::uint32_t>(economy.type);
         item["capacity"] = economy.capacity;
         item["start"] = economy.startCurrent;
         item["end"] = economy.endCurrent;
@@ -411,6 +413,8 @@ struct ResourceEconomy {
         {"netProducedMinusConsumed", static_cast<std::int64_t>(totalProduced) - static_cast<std::int64_t>(totalConsumed)},
         {"stockoutSteps", stockoutSteps},
         {"stepsWithAnyConsumption", stepsWithAnyConsumption},
+        // NOTE: 历史字段名为 `stepsWithAnyRegen`，但此处统计的是 “produced>0”（包含自然 regen 与工坊生产）。
+        {"stepsWithAnyProduced", stepsWithAnyRegen},
         {"stepsWithAnyRegen", stepsWithAnyRegen},
     };
 

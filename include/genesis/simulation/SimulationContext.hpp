@@ -10,6 +10,7 @@
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/agents/NeedSystem.hpp"
+#include "genesis/agents/Planner.hpp"
 #include "genesis/messaging/EventBus.hpp"
 #include "genesis/simulation/AgentApi.hpp"
 #include "genesis/simulation/Movement2DSystem.hpp"
@@ -50,6 +51,7 @@ public:
     void collectResourceSnapshots(std::vector<telemetry::ResourceSnapshot>& out) const;
     void collectNeedSnapshots(std::vector<telemetry::NeedSnapshot>& out) const;
     void collectActionSnapshots(std::vector<telemetry::ActionSnapshot>& out) const;
+    void collectPlannerSnapshots(std::vector<telemetry::PlannerSnapshot>& out) const;
 
     messaging::EventBus& eventBus() noexcept { return m_eventBus; }
     const messaging::EventBus& eventBus() const noexcept { return m_eventBus; }

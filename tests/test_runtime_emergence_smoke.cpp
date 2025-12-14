@@ -25,15 +25,20 @@ TEST(RuntimeEmergenceSmoke, NeedsAreReportedAndActionsEventuallyAppear) {
     ASSERT_NE(snapshot1, nullptr);
     EXPECT_FALSE(snapshot1->telemetry.needs.empty());
 
+    bool sawPlanner = !snapshot1->telemetry.plannerDecisions.empty();
     bool sawActions = false;
-    for (std::uint64_t i = 0; i < 200; ++i) {
+    for (std::uint64_t i = 0; i < 400; ++i) {
         runtime.step(1);
         const auto* snapshot = runtime.latestSnapshot();
         ASSERT_NE(snapshot, nullptr);
+        if (!snapshot->telemetry.plannerDecisions.empty()) {
+            sawPlanner = true;
+        }
         if (!snapshot->telemetry.actions.empty()) {
             sawActions = true;
             break;
         }
     }
+    EXPECT_TRUE(sawPlanner);
     EXPECT_TRUE(sawActions);
 }

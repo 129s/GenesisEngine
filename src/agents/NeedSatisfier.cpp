@@ -1,12 +1,15 @@
 #include "genesis/agents/NeedSatisfier.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <optional>
 #include <utility>
 
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/agents/Planner.hpp"
 
 namespace genesis::agents {
 
@@ -61,45 +64,37 @@ void NeedSatisfier::update(entt::registry& registry,
             continue;
         }
 
-        const auto findNearest = [&](world::ResourceType type) -> world::InteractionId {
-            struct Candidate {
-                world::InteractionId id{0};
-                float cost{0.0f};
-            };
-            std::optional<Candidate> best;
-
-            resourceSystem.forEachSpawn(registry, [&](const auto& spawn, const auto& inventory) {
-                if (spawn.type != type) {
-                    return;
-                }
-                if (inventory.current == 0U) {
-                    return;
-                }
-                const auto inter = db.findInteraction(spawn.interaction);
-                if (!inter) {
-                    return;
-                }
-
-                const float dx = static_cast<float>(inter->coord.first) - location.x;
-                const float dy = static_cast<float>(inter->coord.second) - location.y;
-                const float dist2 = dx * dx + dy * dy;
-                const float mapPenalty = (inter->mapId == location.mapId) ? 0.0f : 1000.0f;
-                const float cost = mapPenalty + dist2;
-
-                if (!best || cost < best->cost) {
-                    best = Candidate{spawn.interaction, cost};
-                }
-            });
-
-            return best ? best->id : world::InteractionId{0};
+        const auto costToInteraction = [&](const world::Interaction& inter) -> float {
+            const float dx = static_cast<float>(inter.coord.first) - location.x;
+            const float dy = static_cast<float>(inter.coord.second) - location.y;
+            const float dist2 = dx * dx + dy * dy;
+            const float mapPenalty = (inter.mapId == location.mapId) ? 0.0f : 1000.0f;
+            return mapPenalty + dist2;
         };
 
-        const auto trySatisfy = [&](NeedType need,
-                                   world::ResourceType resource,
-                                   std::uint32_t unitsPerRequest,
-                                   float reliefPerUnit,
-                                   float prepareMargin,
-                                   const std::function<world::InteractionId(entt::entity)>& preferredLocator) {
+        const auto urgency01 = [](const NeedState& state, const NeedDescriptor& descriptor) -> float {
+            const float denom = std::max(1.0f, descriptor.maxValue - descriptor.satisfiedThreshold);
+            const float x = (state.value - descriptor.satisfiedThreshold) / denom;
+            return std::clamp(x, 0.0f, 1.0f);
+        };
+
+        struct Candidate {
+            NeedType need{NeedType::Hunger};
+            world::ResourceType resource{world::ResourceType::Food};
+            world::InteractionId interaction{0};
+            float travelCost{0.0f};
+            float score{0.0f};
+            std::uint32_t units{0};
+            float reliefPerUnit{0.0f};
+        };
+
+        auto considerNeed = [&](NeedType need,
+                                world::ResourceType resource,
+                                std::uint32_t unitsPerRequest,
+                                float reliefPerUnit,
+                                float prepareMargin,
+                                const std::function<world::InteractionId(entt::entity)>& preferredLocator,
+                                std::optional<Candidate>& best) {
             auto* state = component.needs.state(need);
             const auto* descriptor = component.needs.descriptor(need);
             if (!state || !descriptor) {
@@ -112,53 +107,124 @@ void NeedSatisfier::update(entt::registry& registry,
                 return;
             }
 
-            world::InteractionId interaction{0};
+            const float urgency = urgency01(*state, *descriptor);
+            if (urgency <= 0.0f) {
+                return;
+            }
+
+            // 1) preferred locator（如果存在）
             if (preferredLocator) {
-                interaction = preferredLocator(entity);
-            }
-            if (interaction == 0) {
-                interaction = findNearest(resource);
-            }
-            if (interaction == 0) {
-                return;
+                const auto preferred = preferredLocator(entity);
+                if (preferred != 0) {
+                    if (const auto inter = db.findInteraction(preferred); inter && inter->kind == world::InteractionKind::Resource) {
+                        if (inter->resourceType.value_or(resource) == resource) {
+                            Candidate c{};
+                            c.need = need;
+                            c.resource = resource;
+                            c.interaction = preferred;
+                            c.travelCost = costToInteraction(*inter);
+                            c.units = unitsPerRequest;
+                            c.reliefPerUnit = reliefPerUnit;
+                            c.score = urgency * 1000.0f - c.travelCost;
+                            if (!best || c.score > best->score) {
+                                best = c;
+                            }
+                        }
+                    }
+                }
             }
 
-            if (actionExecutor) {
-                actionExecutor->requestConsume(entity, interaction, need, resource, unitsPerRequest, reliefPerUnit, registry);
-                return;
-            }
+            // 2) 遍历资源刷点，选“综合最优”的目标
+            resourceSystem.forEachSpawn(registry, [&](const auto& spawn, const auto& inventory) {
+                if (spawn.type != resource) {
+                    return;
+                }
+                if (inventory.current == 0U) {
+                    return;
+                }
+                const auto inter = db.findInteraction(spawn.interaction);
+                if (!inter) {
+                    return;
+                }
 
-            const auto consumed = resourceSystem.consume(registry, resource, unitsPerRequest, interaction);
-            if (consumed == 0U) {
-                return;
-            }
+                const float travelCost = costToInteraction(*inter);
+                const float scarcity01 =
+                    (inventory.capacity == 0U) ? 1.0f : (1.0f - static_cast<float>(inventory.current) / static_cast<float>(inventory.capacity));
+                const float scarcityPenalty = scarcity01 * 50.0f;
 
-            const float relief = static_cast<float>(consumed) * reliefPerUnit;
-            state->value = std::max(descriptor->minValue, state->value - relief);
-            state->clamp(*descriptor);
-            component.lastSamples[needIndex(need)] = std::nullopt;
+                Candidate c{};
+                c.need = need;
+                c.resource = resource;
+                c.interaction = spawn.interaction;
+                c.travelCost = travelCost;
+                c.units = unitsPerRequest;
+                c.reliefPerUnit = reliefPerUnit;
+                c.score = urgency * 1000.0f - travelCost - scarcityPenalty;
+                if (!best || c.score > best->score) {
+                    best = c;
+                }
+            });
         };
 
-        trySatisfy(NeedType::Hunger,
-                   world::ResourceType::Food,
-                   m_config.hungerUnitsPerRequest,
-                   m_config.hungerReliefPerUnit,
-                   m_config.hungerPrepareMargin,
-                   m_config.hungerPreferredLocator);
+        std::optional<Candidate> best;
+        considerNeed(NeedType::Hunger,
+                     world::ResourceType::Food,
+                     m_config.hungerUnitsPerRequest,
+                     m_config.hungerReliefPerUnit,
+                     m_config.hungerPrepareMargin,
+                     m_config.hungerPreferredLocator,
+                     best);
 
-        trySatisfy(NeedType::Thirst,
-                   world::ResourceType::Drink,
-                   m_config.thirstUnitsPerRequest,
-                   m_config.thirstReliefPerUnit,
-                   m_config.thirstPrepareMargin,
-                   m_config.thirstPreferredLocator);
+        considerNeed(NeedType::Thirst,
+                     world::ResourceType::Drink,
+                     m_config.thirstUnitsPerRequest,
+                     m_config.thirstReliefPerUnit,
+                     m_config.thirstPrepareMargin,
+                     m_config.thirstPreferredLocator,
+                     best);
 
-        trySatisfy(NeedType::Social,
-                   world::ResourceType::Social,
-                   m_config.socialUnitsPerRequest,
-                   m_config.socialReliefPerUnit,
-                   m_config.socialPrepareMargin,
-                   m_config.socialPreferredLocator);
+        considerNeed(NeedType::Social,
+                     world::ResourceType::Social,
+                     m_config.socialUnitsPerRequest,
+                     m_config.socialReliefPerUnit,
+                     m_config.socialPrepareMargin,
+                     m_config.socialPreferredLocator,
+                     best);
+
+        if (!best || best->interaction == 0) {
+            if (registry.any_of<components::PlannerDecision>(entity)) {
+                registry.remove<components::PlannerDecision>(entity);
+            }
+            continue;
+        }
+
+        registry.emplace_or_replace<components::PlannerDecision>(entity,
+                                                                components::PlannerDecision{best->interaction, best->travelCost, best->score});
+
+        if (actionExecutor) {
+            actionExecutor->requestConsume(entity,
+                                           best->interaction,
+                                           best->need,
+                                           best->resource,
+                                           best->units,
+                                           best->reliefPerUnit,
+                                           registry);
+            continue;
+        }
+
+        const auto consumed = resourceSystem.consume(registry, best->resource, best->units, best->interaction);
+        if (consumed == 0U) {
+            continue;
+        }
+
+        if (auto* state = component.needs.state(best->need); state) {
+            if (const auto* descriptor = component.needs.descriptor(best->need); descriptor) {
+                const float relief = static_cast<float>(consumed) * best->reliefPerUnit;
+                state->value = std::max(descriptor->minValue, state->value - relief);
+                state->clamp(*descriptor);
+                component.lastSamples[needIndex(best->need)] = std::nullopt;
+            }
+        }
 
     }
 }

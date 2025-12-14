@@ -58,6 +58,7 @@ private:
     std::vector<telemetry::AgentSnapshot> m_agentScratch;
     std::vector<telemetry::ResourceSnapshot> m_resourceScratch;
     std::vector<telemetry::NeedSnapshot> m_needScratch;
+    std::vector<telemetry::PlannerSnapshot> m_plannerScratch;
     std::vector<telemetry::ActionSnapshot> m_actionScratch;
     std::shared_ptr<world::WorldDatabase> m_worldDb;
 };

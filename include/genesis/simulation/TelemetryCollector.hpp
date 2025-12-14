@@ -14,6 +14,7 @@ public:
                                      const genesis::world::WorldDatabase* db,
                                      std::span<const telemetry::ResourceSnapshot> resources,
                                      std::span<const telemetry::NeedSnapshot> needs,
+                                     std::span<const telemetry::PlannerSnapshot> plannerDecisions,
                                      std::span<const telemetry::ActionSnapshot> actions,
                                      std::uint64_t stepIndex,
                                      float stepSeconds) const;

@@ -308,6 +308,19 @@ void SimulationContext::collectActionSnapshots(std::vector<telemetry::ActionSnap
     });
 }
 
+void SimulationContext::collectPlannerSnapshots(std::vector<telemetry::PlannerSnapshot>& out) const {
+    out.clear();
+    auto view = m_registry.view<agents::components::PlannerDecision>();
+    view.each([&](auto entity, const agents::components::PlannerDecision& decision) {
+        telemetry::PlannerSnapshot snap{};
+        snap.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        snap.target = decision.target;
+        snap.travelCost = decision.travelCost;
+        snap.score = decision.score;
+        out.push_back(std::move(snap));
+    });
+}
+
 entt::entity SimulationContext::toEntity(std::uint32_t id) const noexcept {
     return static_cast<entt::entity>(id);
 }

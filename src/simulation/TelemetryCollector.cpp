@@ -8,6 +8,7 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
                                                      const genesis::world::WorldDatabase* db,
                                                      std::span<const telemetry::ResourceSnapshot> resources,
                                                      std::span<const telemetry::NeedSnapshot> needs,
+                                                     std::span<const telemetry::PlannerSnapshot> plannerDecisions,
                                                      std::span<const telemetry::ActionSnapshot> actions,
                                                      std::uint64_t stepIndex,
                                                      float stepSeconds) const {
@@ -39,6 +40,13 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
         tick.needs.reserve(needs.size());
         for (const auto& need : needs) {
             tick.needs.push_back(need);
+        }
+    }
+
+    if (!plannerDecisions.empty()) {
+        tick.plannerDecisions.reserve(plannerDecisions.size());
+        for (const auto& decision : plannerDecisions) {
+            tick.plannerDecisions.push_back(decision);
         }
     }
 

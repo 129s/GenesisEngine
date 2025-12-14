@@ -29,3 +29,8 @@ step = 7.0
 [tilemap]
 tile_size = 32
 base_extent = 28
+
+[worlddb.resources]
+per_map = 1
+capacity = 50
+regen_per_step = 2

@@ -133,6 +133,18 @@ struct TilemapSettings
     int base_extent{32};
 };
 
+struct WorldDbResourceSettings
+{
+    std::size_t per_map{1};
+    std::uint32_t capacity{50};
+    std::uint32_t regen_per_step{2};
+};
+
+struct WorldDbSettings
+{
+    WorldDbResourceSettings resources{};
+};
+
 struct Seed
 {
     std::uint64_t value{0};
@@ -145,6 +157,7 @@ struct GeneratorConfig
     TopologySettings topology{};
     LayoutSettings layout{};
     TilemapSettings tilemap{};
+    WorldDbSettings worlddb{};
 };
 
 struct GenerationLogEntry

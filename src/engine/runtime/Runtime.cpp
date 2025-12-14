@@ -149,19 +149,33 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         db.addScene(std::move(s));
 
         const auto baseCoord = coordFor(node.local_id);
-        const auto resourceId = static_cast<world::InteractionId>(mapId * 1000U);
 
-        world::Interaction resource{};
-        resource.id = resourceId;
-        resource.mapId = mapId;
-        resource.sceneId = static_cast<world::SceneId>(mapId * 100U);
-        resource.kind = world::InteractionKind::Resource;
-        resource.coord = {std::clamp(baseCoord.first + 1, 0, extent - 1),
-                          std::clamp(baseCoord.second + 1, 0, extent - 1)};
-        resource.name = "Resource";
-        resource.capacity = 50U;
-        resource.regenPerStep = 2U;
-        db.addInteraction(std::move(resource));
+        const auto resourcesPerMap = std::max<std::size_t>(1, config.worlddb.resources.per_map);
+        constexpr world::InteractionId portalIdOffset = 900U;
+        const auto resourceIdBase = static_cast<world::InteractionId>(mapId * 1000U);
+        for (std::size_t index = 0; index < resourcesPerMap; ++index) {
+            const int dx = static_cast<int>((index % 3) - 1);
+            const int dy = static_cast<int>((index / 3) - 1);
+
+            world::Interaction resource{};
+            resource.id = static_cast<world::InteractionId>(resourceIdBase + static_cast<world::InteractionId>(index));
+            if (resource.id >= resourceIdBase + portalIdOffset) {
+                break;
+            }
+            resource.mapId = mapId;
+            resource.sceneId = static_cast<world::SceneId>(mapId * 100U);
+            resource.kind = world::InteractionKind::Resource;
+            resource.coord = {std::clamp(baseCoord.first + 1 + dx, 0, extent - 1),
+                              std::clamp(baseCoord.second + 1 + dy, 0, extent - 1)};
+            if (resourcesPerMap == 1) {
+                resource.name = "Resource";
+            } else {
+                resource.name = "Resource_" + std::to_string(index);
+            }
+            resource.capacity = config.worlddb.resources.capacity;
+            resource.regenPerStep = config.worlddb.resources.regen_per_step;
+            db.addInteraction(std::move(resource));
+        }
     }
 
     {
@@ -192,7 +206,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         const auto exitCoord = coordFor(portal.exit);
 
         world::Interaction portalInter{};
-        portalInter.id = static_cast<world::InteractionId>(entryMap * 1000U + 500U + static_cast<world::InteractionId>(index));
+        portalInter.id = static_cast<world::InteractionId>(entryMap * 1000U + 900U + static_cast<world::InteractionId>(index));
         portalInter.mapId = entryMap;
         portalInter.sceneId = static_cast<world::SceneId>(entryMap * 100U);
         portalInter.kind = world::InteractionKind::Portal;

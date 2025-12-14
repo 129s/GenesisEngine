@@ -213,6 +213,30 @@ TilemapSettings parse_tilemap_settings(const toml::table& root)
     return settings;
 }
 
+WorldDbSettings parse_worlddb_settings(const toml::table& root)
+{
+    WorldDbSettings settings{};
+    if (const auto* db_table = root.get_as<toml::table>("worlddb"))
+    {
+        if (const auto* res_table = db_table->get_as<toml::table>("resources"))
+        {
+            if (auto per_map = read_size_t(*res_table, "per_map"))
+            {
+                settings.resources.per_map = *per_map;
+            }
+            if (auto capacity = read_size_t(*res_table, "capacity"))
+            {
+                settings.resources.capacity = static_cast<std::uint32_t>(*capacity);
+            }
+            if (auto regen = read_size_t(*res_table, "regen_per_step"))
+            {
+                settings.resources.regen_per_step = static_cast<std::uint32_t>(*regen);
+            }
+        }
+    }
+    return settings;
+}
+
 void validate_config(const toml::table& table, const std::filesystem::path& path)
 {
     if (!table.contains("world") || !table["world"].is_table())
@@ -248,6 +272,7 @@ GeneratorConfig load_config(const std::filesystem::path& path)
     config.topology = parse_topology_settings(config.root);
     config.layout = parse_layout_settings(config.root);
     config.tilemap = parse_tilemap_settings(config.root);
+    config.worlddb = parse_worlddb_settings(config.root);
     return config;
 }
 

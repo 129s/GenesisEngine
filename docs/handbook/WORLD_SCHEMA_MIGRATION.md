@@ -4,17 +4,18 @@
 
 ## v2 数据产物
 - 世界总表 `world.json`：
-  - `maps[]: { id:uint32, name:string }`
-  - `map_edges[]: { from:uint32, to:uint32, bidirectional?:bool }`
+  - `maps[]: { id:uint32, name:string, meta?:object }`
+  - `map_edges[]: { from:uint32, to:uint32, bidirectional?:bool, cost?:number, rules?:object }`
 - 每图分表 `map_{id}.json`：
-  - `scenes[]: { id:uint32, parent?:uint32, name:string }`
-  - `interactions[]: { id:uint32, sceneId:uint32, kind:string, coord:[int,int], capacity?:uint32, regen?:uint32 }`
-  - `portals[]: { interactionId:uint32, targetMapId:uint32, targetSceneId?:uint32, targetCoord?:[int,int] }`
-  - `tilemap?`: 渲染层元数据（与运行时解耦）
+  - `scenes[]: { id:uint32, parent?:uint32, name:string, origin?:[int,int], transform?:object, meta?:object }`
+  - `interactions[]: { id:uint32, sceneId:uint32, kind:string, coord_local:[int,int], coord_global?:[int,int], meta?:object, ... }`
+    - Resource：`resourceType?:string, capacity?:uint32, regen?:uint32`
+  - `portals[]: { interactionId:uint32, targetMapId:uint32, targetSceneId?:uint32, targetCoord?:[int,int], channelId?:string, oneWay?:bool, teleportCost?:number }`
+  - `tilemap?`: `{ width:int, height:int, tileW:int, tileH:int, meta?:object }`（仅渲染元数据，与运行时解耦）
 
 说明：
 - 资源交互（`kind=Resource`）可直接在 `interactions` 中声明 `capacity` 与 `regen`（每步再生量）。
-- 跨图连接通过 `map_edges` 表达；如需 `cost/rules` 等高级字段，可在后续 schema 扩展时加入。
+- 跨图连接通过 `map_edges` 表达；`cost/rules` 可用于寻路代价与门禁规则（运行时不读取 Tilemap/碰撞）。
 
 ## 迁移映射
 - v1 Location → v2 Interaction：
@@ -26,8 +27,8 @@
 
 ## 迁移步骤
 1) 建立 `maps[]` 与 `map_edges[]`：将原区域/楼层划分为 Map；按可达关系建立有向边，必要时标注 `bidirectional=false`。
-2) 为每张 Map 建立 `map_{id}.json`：梳理 `scenes[]`（分组/布局），把可交互处转为 `interactions[]` 并填入 `coord`。
-3) 对资源交互补齐 `capacity/regen`；Portal 转为 `portals[]` 并声明目标定位（Map/Scene/Coord）。
+2) 为每张 Map 建立 `map_{id}.json`：梳理 `scenes[]`（分组/布局），把可交互处转为 `interactions[]` 并填入 `coord_local/coord_global`。
+3) 对资源交互补齐 `capacity/regen`；Portal 转为 `portals[]` 并声明目标定位（Map/Scene/Coord），可选填 `channelId/oneWay/teleportCost`。
 4) 用最小样例跑通 GUI Atlas/实体直线移动；逐步扩充数据与渲染元。
 
 ## 最小示例（v2）
@@ -43,7 +44,7 @@ map_1.json
 {
   "scenes": [ { "id": 100, "name": "Town Center" } ],
   "interactions": [
-    { "id": 10001, "sceneId": 100, "kind": "Resource", "coord": [10, 5], "capacity": 24, "regen": 3 }
+    { "id": 10001, "sceneId": 100, "kind": "Resource", "coord_local": [10, 5], "capacity": 24, "regen": 3 }
   ],
   "portals": []
 }
@@ -51,5 +52,5 @@ map_1.json
 
 ## 校验建议
 - ID 唯一性与引用合法性（sceneId/interactionId/mapId）。
-- 坐标范围与数据类型（`coord` 为整数对）。
+- 坐标范围与数据类型（`coord_local/coord_global` 为整数对）。
 - 资源参数非负且 `current<=capacity`（运行时默认填满）。

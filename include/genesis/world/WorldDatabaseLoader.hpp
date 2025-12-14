@@ -15,8 +15,14 @@ struct WorldDbLoadResult {
 };
 
 // 从目录加载：
-// - world.json: { maps:[{id,name}], map_edges:[{from,to,bidirectional}] }
-// - map_#.json: { scenes:[{id,name}], interactions:[{id,sceneId,kind,coord:[x,y],name,resourceType?,capacity?,regen?}], portals:[{interactionId,targetMapId,targetSceneId?,targetCoord?}] }
+// - world.json:
+//   - maps:      [{ id,name,meta? }]
+//   - map_edges: [{ from,to,bidirectional?,cost?,rules? }]
+// - map_#.json:
+//   - scenes:       [{ id,parent?,name,origin?,transform?,meta? }]
+//   - interactions: [{ id,sceneId,kind,coord_local,coord_global?,meta?,name,resourceType?,capacity?,regen? }]
+//   - portals:      [{ interactionId,targetMapId,targetSceneId?,targetCoord?,channelId?,oneWay?,teleportCost? }]
+//   - tilemap?:     { width,height,tileW,tileH,meta? }
 WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folder);
 
 } // namespace genesis::world

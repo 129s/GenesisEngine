@@ -10,7 +10,11 @@
       "id": 1000,
       "sceneId": 100,
       "kind": "Resource",
-      "coord": [
+      "coord_local": [
+        5,
+        5
+      ],
+      "coord_global": [
         5,
         5
       ],
@@ -22,7 +26,11 @@
       "id": 1001,
       "sceneId": 100,
       "kind": "Portal",
-      "coord": [
+      "coord_local": [
+        10,
+        2
+      ],
+      "coord_global": [
         10,
         2
       ],

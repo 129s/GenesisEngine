@@ -29,6 +29,8 @@
     - `resource.consume { interactionId, amount }`
   - 事件执行：统一通过 `enqueueEvent(RuntimeEvent)` 串行执行；返回 `eventId`，结果在 `RuntimeEventReport` 中体现。
 
+> 实现提示：当前仓库已在 `Genesis::Runtime::Runtime` 中提供 `worldAtlas()/worldVersion()` 与 `enqueueCommandFromJson(...)` 的基础实现，可作为 Headless 工具与测试入口。
+
 并发约束：
 - 模拟线程是唯一写入者；前端线程只读 `SimulationSnapshot` / `WorldAtlas`
 - `SimulationSnapshot` 双缓冲；Atlas 不可变；二者携带版本号避免竞争
@@ -61,11 +63,11 @@
 Atlas 描述世界静态结构（Map 图）与每图可视元数据；只读、版本化。
 - `world_version:uint32`、`schema_version:uint32`
 - `maps[]: { id:uint32, name:string, meta?:object }`
-- `mapEdges[]: { from:uint32, to:uint32, bidirectional?:bool }`
+- `mapEdges[]: { from:uint32, to:uint32, bidirectional?:bool, cost?:number, rules?:object }`
 - `perMap[]: { mapId:uint32, scenes:Scene[], interactions:Interaction[], portals:Portal[], tilemap?:TilemapMeta }`
   - `Scene{ id:uint32, parent?:uint32, name:string, origin?:[int,int], transform?:object, meta?:object }`
-  - `Interaction{ id:uint32, sceneId:uint32, kind:string, coord:[int,int], capacity?:uint32, regen?:uint32 }`
-  - `Portal{ interactionId:uint32, channelId?:string, oneWay?:bool }`
+  - `Interaction{ id:uint32, sceneId:uint32, kind:string, coord_local:[int,int], coord_global?:[int,int], meta?:object, capacity?:uint32, regen?:uint32 }`
+  - `Portal{ interactionId:uint32, channelId?:string, oneWay?:bool, teleportCost?:number }`
   - `TilemapMeta{ width:int, height:int, tileW:int, tileH:int }`
 
 ## 事件模型（命令队列）

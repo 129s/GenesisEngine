@@ -56,7 +56,17 @@ struct AgentSnapshot {
     Float2 position{}; // 地图内世界坐标（直线移动语义）
 };
 
+struct MovementSnapshot {
+    std::uint32_t entityId{0};
+    std::uint32_t mapId{1};
+    Float2 position{};
+    std::uint32_t targetMapId{1};
+    Float2 target{};
+    float speed{0.0f};
+};
+
 struct TickTelemetry {
+    std::uint32_t schema_version{2};
     std::uint64_t step{0};
     float stepSeconds{0.0f};
     std::vector<ResourceSnapshot> resources;
@@ -64,6 +74,7 @@ struct TickTelemetry {
     std::vector<PlannerSnapshot> plannerDecisions;
     std::vector<ActionSnapshot> actions;
     std::vector<AgentSnapshot> agents;
+    std::vector<MovementSnapshot> movements;
 };
 
 class TelemetryBuffer {

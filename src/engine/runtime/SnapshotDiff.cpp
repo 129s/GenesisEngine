@@ -108,7 +108,19 @@ bool agentEqual(const telemetry::AgentSnapshot& lhs, const telemetry::AgentSnaps
     return true;
 }
 
-// 移除 MovementProgress 比对（v2 统一直线运动，不追踪离散节点路径）
+std::string movementKey(const telemetry::MovementSnapshot& snapshot) {
+    return std::to_string(snapshot.entityId);
+}
+
+bool movementEqual(const telemetry::MovementSnapshot& lhs, const telemetry::MovementSnapshot& rhs) {
+    if (lhs.entityId != rhs.entityId) return false;
+    if (lhs.mapId != rhs.mapId) return false;
+    if (lhs.position.x != rhs.position.x || lhs.position.y != rhs.position.y) return false;
+    if (lhs.targetMapId != rhs.targetMapId) return false;
+    if (lhs.target.x != rhs.target.x || lhs.target.y != rhs.target.y) return false;
+    if (lhs.speed != rhs.speed) return false;
+    return true;
+}
 
 } // namespace
 
@@ -131,7 +143,7 @@ SimulationSnapshotDiff diffSnapshots(const SimulationSnapshot* base, const Simul
     diff.plannerChanges = diffCollection(baseTelemetry ? &baseTelemetry->plannerDecisions : nullptr, target.telemetry.plannerDecisions, plannerKey, plannerEqual);
     diff.actionChanges = diffCollection(baseTelemetry ? &baseTelemetry->actions : nullptr, target.telemetry.actions, actionKey, actionEqual);
     diff.agentChanges = diffCollection(baseTelemetry ? &baseTelemetry->agents : nullptr, target.telemetry.agents, agentKey, agentEqual);
-    // v2: 无 movementProgress 采样
+    diff.movementChanges = diffCollection(baseTelemetry ? &baseTelemetry->movements : nullptr, target.telemetry.movements, movementKey, movementEqual);
 
     return diff;
 }

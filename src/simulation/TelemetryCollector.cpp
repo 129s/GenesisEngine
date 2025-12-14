@@ -13,6 +13,7 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
                                                      std::uint64_t stepIndex,
                                                      float stepSeconds) const {
     telemetry::TickTelemetry tick{};
+    tick.schema_version = 2;
     tick.step = stepIndex;
     tick.stepSeconds = stepSeconds;
 

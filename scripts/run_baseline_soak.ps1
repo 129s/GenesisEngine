@@ -2,6 +2,8 @@ param(
   [string]$Generator = "Ninja",
   [string]$Config = "Release",
   [string]$BuildDir = "build_baseline_core",
+  [ValidateSet("default", "short", "long")]
+  [string]$Preset = "default",
   [UInt64]$Steps = 5000,
   [UInt64]$Seed = 1337
 )
@@ -10,6 +12,16 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $buildPath = Join-Path $repoRoot $BuildDir
+
+if (-not $PSBoundParameters.ContainsKey("Steps")) {
+  switch ($Preset) {
+    "short" { $Steps = 800 }
+    "long" { $Steps = 20000 }
+    default { }
+  }
+}
+
+Write-Host ("[baseline] preset={0} steps={1} seed={2} config={3}" -f $Preset, $Steps, $Seed, $Config)
 
 function Ensure-Dir([string]$Path) {
   New-Item -ItemType Directory -Force -Path $Path | Out-Null

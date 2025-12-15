@@ -117,7 +117,7 @@ cmake --build build --target genesis_sandbox_gui
 - 里程碑 3：完善控制台板（播放/步进/倍率 UI）、HUD 指标与性能采样。
 - 里程碑 4：Inspector 深化（人格/Traits、Portal 详情、历史曲线）与 Telemetry 图表。
 - 里程碑 5：WorldGen 参数面板与世界热加载。
-- 请跟踪 `docs/roadmap/SANDBOX_GUI.md` 获取后续任务进度与待办。
+- 请跟踪 `docs/roadmap/README.md` 获取后续任务进度与待办。
 
 ## 故障排查
 - 若在某些终端环境运行 GUI 出现卡死或约第 200 步崩溃，请参考 `docs/troubleshooting/sandbox_gui.md`。

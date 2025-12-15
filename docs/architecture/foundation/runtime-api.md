@@ -52,8 +52,10 @@ Headless 工具：仓库提供 `genesis-runtime-cli`（见 `docs/guides/headless
 
 ## TickTelemetry 契约（v3）
 最小字段集合，按需扩展；变更需提升 `schema_version` 并记录（GUI 以 schema 做兼容）。
+
+完整字段字典与变更记录见：`docs/architecture/foundation/telemetry-schema.md`。
 - `schema_version:uint32`
-- `step:uint64`、`step_seconds:float`
+- `step:uint64`、`stepSeconds:float`
 - `agents[]`：
   - `entityId:uint32`
   - `name:string`

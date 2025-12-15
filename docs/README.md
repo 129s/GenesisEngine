@@ -15,6 +15,7 @@
 - 内核回归闭环（Headless 优先）：`docs/handbook/CORE_REGRESSION.md`
 - 架构概览：`docs/architecture/README.md`
 - 愿景与设计原则：`docs/architecture/meta/vision.md`
+- Telemetry Schema（TickTelemetry）：`docs/architecture/foundation/telemetry-schema.md`
 - 世界模型：`docs/architecture/world/world-model.md`
 - 世界生成流程：`docs/architecture/world/world-generation.md`
 - 行为与人格建模：`docs/architecture/agents/agent-personality-big5.md`

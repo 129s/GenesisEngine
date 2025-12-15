@@ -10,6 +10,7 @@
 - **Foundation**
   - [foundation/architecture-overview.md](foundation/architecture-overview.md)：分层结构、运行循环、并发/数据流边界。
   - [foundation/runtime-api.md](foundation/runtime-api.md)：运行时控制/查询协议、Telemetry/WorldAtlas 契约。
+  - [foundation/telemetry-schema.md](foundation/telemetry-schema.md)：TickTelemetry 字段字典与 schema 演进记录（GUI/工具链消费基线）。
 - **World Layer**
   - [world/world-model.md](world/world-model.md)：Map 图（有向）+ Scene 分组 + Interaction/Portal 与坐标契约。
   - [world/world-generation.md](world/world-generation.md)：生成流程（maps/map_edges 与每图 scenes/interactions/portals）、校验与产出。

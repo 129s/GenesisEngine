@@ -72,7 +72,7 @@
 - 快捷键约定：是否启用一组全局快捷键（F5 播放/暂停、F6 单步、F7×10、F8 日志、F9 Telemetry）？
 
 ## 后续输出
-- 合并上述 Phase 0 变更后，补充 docs/architecture/SANDBOX_GUI.md 的“交互与布局”章节，并在 docs/status/todo.md 跟踪实现条目。
+- 合并上述 Phase 0 变更后，补充 `docs/architecture/interface/sandbox/sandbox-gui.md` 的“交互与布局”章节，并在 `docs/status/todo.md` 跟踪实现条目。
 
 ## 决策同步（确认采纳）
 - 语言：当前阶段统一英文（后续引入 i18n）。

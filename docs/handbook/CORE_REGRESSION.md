@@ -64,6 +64,12 @@ cmake --build build_core --target genesis_runtime_cli
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_baseline_soak.ps1 -Steps 5000 -Seed 1337
 ```
 
+短 soak（更快的本地验证，适合日常迭代）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_baseline_soak.ps1 -Preset short -Seed 1337
+```
+
 ## 4. 世界数据契约（避免旧术语干扰）
 
 - v2 世界输入输出：目录结构 `world.json + map_{id}.json`

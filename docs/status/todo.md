@@ -5,7 +5,7 @@
 ## P0 · Sprint-2（建议聚焦）
 - [x] Runtime 命令队列接入 GUI `RuntimeBridge`，提供事件注入/回放示例脚本与最小 UI 触发。（World Generation 面板改为命令队列，新增脚本加载与状态表）
 - [ ] 建立 Sandbox GUI 自动化回归：端到端闭环测试（Planner → Executor → Need 恢复）与 24 小时 soak 指标脚本。
-- [ ] Telemetry/快照协议文档更新：统一 schema 版本，扩写 `docs/architecture/runtime_api.md`、Inspector 字段说明，并在 GUI 中校验版本。
+- [ ] Telemetry/快照协议文档更新：统一 schema 版本，扩写 `docs/architecture/foundation/runtime-api.md`、Inspector 字段说明，并在 GUI 中校验版本。
 
 ## Runtime refactor
 - [x] 提炼 `GenesisRuntime` 公共 API（创建/销毁/推进/获取快照）。

@@ -70,7 +70,7 @@
 
 - 运行时桥接增强：完善命令队列在 `RuntimeBridge` 中的接入，提供示例脚本验证事件注入/回放，并确保线程模型与 GUI 消费逻辑一致。
 - GUI 自动化覆盖：固化端到端闭环测试场景（饥饿→规划→行动→补给），原 CLI 烟雾脚本已移除；补充 24 小时 soak 流程采集饥饿/库存/旅行成本指标。
-- Telemetry 与协议文档：统一快照 diff / Telemetry schema，扩写 `docs/architecture/runtime_api.md` 与 Inspector 数据字典，约束前端消费契约并做好版本标记。
+- Telemetry 与协议文档：统一快照 diff / Telemetry schema，扩写 `docs/architecture/foundation/runtime-api.md` 与 Inspector 数据字典，约束前端消费契约并做好版本标记。
 
 ### 关键里程碑与交付
 1. 提交 `RuntimeBridge` 命令队列与事件脚本示例（含最小 UI 触发入口），并通过手动验收记录。

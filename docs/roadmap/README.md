@@ -121,9 +121,9 @@
 
 ## 参考资料
 - 架构索引：`docs/architecture/README.md`
-- 运行时 API：`docs/architecture/runtime_api.md`
-- GUI 设计：`docs/architecture/SANDBOX_GUI.md`、`docs/architecture/SANDBOX_GUI_SIM_LOOP.md`
-- 世界模型：`docs/architecture/world_model.md`、`docs/roadmap/MVP_SCENE_INTERACTIVE.md`
+- 运行时 API：`docs/architecture/foundation/runtime-api.md`
+- GUI 设计：`docs/architecture/interface/sandbox/sandbox-gui.md`、`docs/architecture/interface/sandbox/sandbox-gui-sim-loop.md`
+- 世界模型：`docs/architecture/world/world-model.md`、`docs/roadmap/MVP_SCENE_INTERACTIVE.md`
 - 进度概览：`docs/status/progress-summary.md`
 
 ## Roadmap 与 Status 边界

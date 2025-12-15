@@ -5,7 +5,7 @@ GenesisEngine 是一个以“涌现式叙事模拟”为目标的 C++ 引擎核�
 ## 快速开始
 - 构建与运行沙盒 GUI：见 `docs/guides/sandbox_gui_smoke.md`
 - Headless 回归与脚本回放：见 `docs/handbook/CORE_REGRESSION.md`、`docs/guides/headless_runtime_cli.md`
-- 架构与设计原则：见 `docs/architecture/README.md`、`docs/architecture/VISION.md`
+- 架构与设计原则：见 `docs/architecture/README.md`、`docs/architecture/meta/vision.md`
 - 统一路线图与里程碑：见 `docs/roadmap/README.md`
 - 进度总览与待办：见 `docs/status/progress-summary.md`、`docs/status/todo.md`
 

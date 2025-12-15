@@ -6,6 +6,7 @@
 - `InteractionKind::Resource` 既可以表示自然供给点（Source：被动 regen），也可以表示工坊（Workshop：不被动 regen，需要 Agent 执行生产动作）。
 - `ResourceType::Water` 为新名称（legacy：`Drink` 仍可被解析为 `Water`）。
 - `ResourceType::Ore`：用于“非需求型资源”，只参与生产链输入（不直接满足需求）。
+- `ResourceType::Tool`：用于“中间品 / 生产力放大器”，只参与生产链输入（不直接满足需求）。
 
 ## 数据契约（WorldDB）
 工坊通过 `Interaction.meta.workshop` 声明（JSON object）：
@@ -38,7 +39,7 @@
 - `recipes[]`：配方列表（至少一个）；每个元素包含：
   - `outputUnits`：每次生产批次产出单位数（>= 1）。
   - `inputs[]`：输入资源列表；每个元素包含：
-    - `type`：输入资源类型字符串（`Food` / `Water` / `Social` / `Ore`；legacy：`Drink`）。
+    - `type`：输入资源类型字符串（`Food` / `Water` / `Social` / `Ore` / `Tool`；legacy：`Drink`）。
     - `units`：每批次消耗单位数（>= 1）。
 
 兼容：

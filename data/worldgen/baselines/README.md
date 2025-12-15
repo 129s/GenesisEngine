@@ -17,3 +17,4 @@
 - `ecosystem_v2.toml`：引入 `Ore` + 多配方工坊（替代输入）；观察瓶颈转移与“转产”倾向。
 - `substitution_v2.toml`：强化 `Ore` 稀缺下的替代配方；观察在不同压力下是否切换到低产但稳定的 Water-only 路线。
 - `logistics_v2.toml`：使用 `map_overrides` 将 Water/Ore/Food/Social 空间分离；观察迁徙、补给线与跨地图拥堵形态。
+- `tool_feedback_v3.toml`：引入 `Tool` 作为中间品与“生产力放大器”（配方用 Tool 提升产出）；观察正反馈扩张与上游压力导致的瓶颈迁移。

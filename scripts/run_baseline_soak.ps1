@@ -40,7 +40,8 @@ $baselines = @(
   @{ Name = "ecosystem_v1"; ConfigPath = "data/worldgen/baselines/ecosystem_v1.toml"; Seed = $Seed; Agents = 8 },
   @{ Name = "ecosystem_v2"; ConfigPath = "data/worldgen/baselines/ecosystem_v2.toml"; Seed = $Seed; Agents = 10 },
   @{ Name = "substitution_v2"; ConfigPath = "data/worldgen/baselines/substitution_v2.toml"; Seed = $Seed; Agents = 10 },
-  @{ Name = "logistics_v2"; ConfigPath = "data/worldgen/baselines/logistics_v2.toml"; Seed = $Seed; Agents = 10 }
+  @{ Name = "logistics_v2"; ConfigPath = "data/worldgen/baselines/logistics_v2.toml"; Seed = $Seed; Agents = 10 },
+  @{ Name = "tool_feedback_v3"; ConfigPath = "data/worldgen/baselines/tool_feedback_v3.toml"; Seed = $Seed; Agents = 12 }
 )
 
 foreach ($b in $baselines) {

@@ -18,12 +18,14 @@ constexpr std::size_t resourceTypeIndex(genesis::world::ResourceType type) noexc
         return 2;
     case genesis::world::ResourceType::Ore:
         return 3;
+    case genesis::world::ResourceType::Tool:
+        return 4;
     }
     return 0;
 }
 
 struct CarriedResources {
-    static constexpr std::size_t kTypeCount = 4;
+    static constexpr std::size_t kTypeCount = 5;
 
     std::array<std::uint32_t, kTypeCount> units{};
     std::uint32_t capacityPerType{12};

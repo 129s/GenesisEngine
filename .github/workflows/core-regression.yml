@@ -54,7 +54,7 @@ jobs:
 
   ubuntu-soak:
     name: Ubuntu (Short Soak, optional)
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_soak }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_soak == 'true' }}
     runs-on: ubuntu-latest
     env:
       CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpmcache

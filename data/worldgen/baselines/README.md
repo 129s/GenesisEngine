@@ -19,3 +19,4 @@
 - `logistics_v2.toml`：使用 `map_overrides` 将 Water/Ore/Food/Social 空间分离；观察迁徙、补给线与跨地图拥堵形态。
 - `tool_feedback_v3.toml`：引入 `Tool` 作为中间品与“生产力放大器”（配方用 Tool 提升产出）；观察正反馈扩张与上游压力导致的瓶颈迁移。
   - 启用 `Food` 腐败：`decay_per_step=1` + `decay_types=["Food"]`，用于制造周期性补给压力与浪费。
+- `ecology_chain_v1.toml`：强制 Water/Ore+Tool/Food/Social 分布在不同 Map；Food 腐败；观察跨图补给线、工具复用、以及“浪费/缺货/迁徙”的涌现形态。

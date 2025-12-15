@@ -257,6 +257,29 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     out << "- stockoutStepsSources: `" << econ.value("stockoutStepsSources", 0ULL) << "`\n";
     out << "- stockoutStepsWorkshops: `" << econ.value("stockoutStepsWorkshops", 0ULL) << "`\n\n";
 
+    out << "## 浪费 Top（Decay）\n\n";
+    if (summary.contains("decayTop") && summary.at("decayTop").is_array()) {
+        const auto& top = summary.at("decayTop");
+        if (top.empty()) {
+            out << "- (none)\n";
+        } else {
+            for (std::size_t i = 0; i < top.size(); ++i) {
+                const auto& b = top.at(i);
+                out << i + 1 << ". "
+                    << b.value("type", "?")
+                    << (b.value("isWorkshop", false) ? " (Workshop)" : " (Source)")
+                    << " map=" << b.value("mapId", 0U)
+                    << " id=" << b.value("interactionId", 0U)
+                    << " decayed=" << b.value("decayedTotal", 0ULL)
+                    << " events=" << b.value("decayEvents", 0ULL)
+                    << " name=`" << b.value("name", std::string{}) << "`\n";
+            }
+        }
+    } else {
+        out << "- (missing decayTop)\n";
+    }
+    out << "\n";
+
     out << "## 动作与行为\n\n";
     if (summary.contains("actions") && summary.at("actions").is_object() && summary.at("actions").contains("counts")) {
         const auto& actions = summary.at("actions").at("counts");
@@ -786,6 +809,47 @@ struct ResourceEconomy {
           {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0}}},
         {"bottlenecksTop", topBottlenecks},
     };
+
+    // --- Summary: Decay / waste top (by totalDecayed) ---
+    {
+        struct WasteScore {
+            std::uint32_t interactionId{0};
+            std::uint64_t decayedTotal{0};
+        };
+
+        std::vector<WasteScore> waste;
+        waste.reserve(resourceByInteraction.size());
+        for (const auto& [interactionId, economy] : resourceByInteraction) {
+            if (economy.totalDecayed > 0ULL) {
+                waste.push_back(WasteScore{interactionId, economy.totalDecayed});
+            }
+        }
+        std::sort(waste.begin(), waste.end(), [](const WasteScore& a, const WasteScore& b) {
+            return a.decayedTotal > b.decayedTotal;
+        });
+
+        json decayTop = json::array();
+        const std::size_t topN = std::min<std::size_t>(8, waste.size());
+        for (std::size_t i = 0; i < topN; ++i) {
+            const auto id = waste[i].interactionId;
+            const auto it = resourceByInteraction.find(id);
+            if (it == resourceByInteraction.end()) {
+                continue;
+            }
+            const auto& economy = it->second;
+            decayTop.push_back({
+                {"interactionId", economy.interactionId},
+                {"mapId", economy.mapId},
+                {"name", economy.name},
+                {"type", genesis::world::resourceTypeName(economy.type)},
+                {"isWorkshop", economy.isWorkshop},
+                {"decayedTotal", economy.totalDecayed},
+                {"decayEvents", economy.decayEvents},
+            });
+        }
+
+        report["summary"]["decayTop"] = std::move(decayTop);
+    }
 
     if (opts.outPath) {
         const auto outputPath = resolvePathIfRelative(opts.rootPath, *opts.outPath);

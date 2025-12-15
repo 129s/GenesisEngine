@@ -16,6 +16,7 @@ public:
                                      std::span<const telemetry::NeedSnapshot> needs,
                                      std::span<const telemetry::PlannerSnapshot> plannerDecisions,
                                      std::span<const telemetry::ActionSnapshot> actions,
+                                     std::span<const telemetry::WorkshopAttemptSnapshot> workshopAttempts,
                                      std::uint64_t stepIndex,
                                      float stepSeconds) const;
 };

@@ -51,6 +51,7 @@ public:
     void collectResourceSnapshots(std::vector<telemetry::ResourceSnapshot>& out) const;
     void collectNeedSnapshots(std::vector<telemetry::NeedSnapshot>& out) const;
     void collectActionSnapshots(std::vector<telemetry::ActionSnapshot>& out) const;
+    void collectWorkshopAttemptSnapshots(std::vector<telemetry::WorkshopAttemptSnapshot>& out) const;
     void collectPlannerSnapshots(std::vector<telemetry::PlannerSnapshot>& out) const;
 
     messaging::EventBus& eventBus() noexcept { return m_eventBus; }

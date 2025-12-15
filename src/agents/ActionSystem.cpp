@@ -16,11 +16,24 @@ namespace genesis::agents {
 
 namespace {
 constexpr float kMinSpeed = 0.1f;
+constexpr const char* kReasonMissingInteraction = "MissingInteraction";
+constexpr const char* kReasonNoRecipes = "NoRecipes";
+constexpr const char* kReasonNoCarriedResources = "NoCarriedResources";
+constexpr const char* kReasonNoSpawnState = "NoSpawnState";
+constexpr const char* kReasonOutputFull = "OutputFull";
+constexpr const char* kReasonMissingConsumableInput = "MissingConsumableInput";
+constexpr const char* kReasonMissingNonConsumableInput = "MissingNonConsumableInput";
+constexpr const char* kReasonUnknown = "Unknown";
 } // namespace
 
 ActionExecutor::ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources)
     : m_db(db)
     , m_resources(resources) {}
+
+void ActionExecutor::drainWorkshopAttemptSnapshots(std::vector<telemetry::WorkshopAttemptSnapshot>& out) noexcept {
+    out.clear();
+    out.swap(m_workshopAttempts);
+}
 
 void ActionExecutor::requestMoveToInteraction(entt::entity entity,
                                               genesis::world::InteractionId target,
@@ -89,6 +102,8 @@ void ActionExecutor::requestConsume(entt::entity entity,
 }
 
 void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
+    m_workshopAttempts.clear();
+
     auto view = registry.view<ActionQueue, components::AgentLocation2D>();
 
     for (auto entity : view) {
@@ -391,6 +406,13 @@ void ActionExecutor::processProduce(entt::entity entity,
     auto& task = queue.tasks.front();
     auto it = m_db.findInteraction(task.interaction);
     if (!it) {
+        telemetry::WorkshopAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.interactionId = task.interaction;
+        attempt.outputType = task.resource;
+        attempt.wantedBatches = std::max<std::uint32_t>(1U, task.batches);
+        attempt.failureReason = kReasonMissingInteraction;
+        m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
     }
@@ -411,18 +433,39 @@ void ActionExecutor::processProduce(entt::entity entity,
 
     const auto recipes = parseWorkshopRecipes(*it);
     if (recipes.empty()) {
+        telemetry::WorkshopAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.interactionId = task.interaction;
+        attempt.outputType = task.resource;
+        attempt.wantedBatches = std::max<std::uint32_t>(1U, task.batches);
+        attempt.failureReason = kReasonNoRecipes;
+        m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
     }
 
     auto* carried = registry.try_get<components::CarriedResources>(entity);
     if (!carried) {
+        telemetry::WorkshopAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.interactionId = task.interaction;
+        attempt.outputType = task.resource;
+        attempt.wantedBatches = std::max<std::uint32_t>(1U, task.batches);
+        attempt.failureReason = kReasonNoCarriedResources;
+        m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
     }
 
     const auto state = m_resources.spawnState(registry, task.interaction);
     if (!state) {
+        telemetry::WorkshopAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.interactionId = task.interaction;
+        attempt.outputType = task.resource;
+        attempt.wantedBatches = std::max<std::uint32_t>(1U, task.batches);
+        attempt.failureReason = kReasonNoSpawnState;
+        m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
     }
@@ -432,10 +475,15 @@ void ActionExecutor::processProduce(entt::entity entity,
     const WorkshopRecipe* bestRecipe = nullptr;
     std::uint32_t bestBatches = 0U;
 
+    bool anyCapacity = false;
+    bool anyNonConsumableOk = false;
+    bool anyConsumableOk = false;
+
     for (const auto& r : recipes) {
         const auto outputUnits = std::max<std::uint32_t>(1U, r.outputUnits);
 
         std::uint32_t maxByInputs = std::numeric_limits<std::uint32_t>::max();
+        bool nonConsumablesOk = true;
         for (const auto& input : r.inputs) {
             if (input.units == 0U) {
                 continue;
@@ -444,7 +492,7 @@ void ActionExecutor::processProduce(entt::entity entity,
                 maxByInputs = std::min(maxByInputs, carried->get(input.type) / input.units);
             } else {
                 if (carried->get(input.type) < input.units) {
-                    maxByInputs = 0U;
+                    nonConsumablesOk = false;
                 }
             }
         }
@@ -452,7 +500,13 @@ void ActionExecutor::processProduce(entt::entity entity,
         const std::uint32_t space = (state->current >= state->capacity) ? 0U : (state->capacity - state->current);
         const std::uint32_t maxByCapacity = space / outputUnits;
 
-        const std::uint32_t batches = std::min(wantedBatches, std::min(maxByInputs, maxByCapacity));
+        anyCapacity = anyCapacity || (maxByCapacity > 0U);
+        anyNonConsumableOk = anyNonConsumableOk || nonConsumablesOk;
+
+        const std::uint32_t effectiveByInputs = nonConsumablesOk ? maxByInputs : 0U;
+        anyConsumableOk = anyConsumableOk || (nonConsumablesOk && effectiveByInputs > 0U);
+
+        const std::uint32_t batches = std::min(wantedBatches, std::min(effectiveByInputs, maxByCapacity));
         if (batches > bestBatches) {
             bestBatches = batches;
             bestRecipe = &r;
@@ -460,6 +514,21 @@ void ActionExecutor::processProduce(entt::entity entity,
     }
 
     if (!bestRecipe || bestBatches == 0U) {
+        telemetry::WorkshopAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.interactionId = task.interaction;
+        attempt.outputType = task.resource;
+        attempt.wantedBatches = wantedBatches;
+        if (!anyCapacity) {
+            attempt.failureReason = kReasonOutputFull;
+        } else if (!anyNonConsumableOk) {
+            attempt.failureReason = kReasonMissingNonConsumableInput;
+        } else if (!anyConsumableOk) {
+            attempt.failureReason = kReasonMissingConsumableInput;
+        } else {
+            attempt.failureReason = kReasonUnknown;
+        }
+        m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
     }
@@ -471,7 +540,21 @@ void ActionExecutor::processProduce(entt::entity entity,
         }
     }
 
-    m_resources.produceAtInteraction(registry, task.interaction, outputUnits * bestBatches);
+    const std::uint32_t wantedUnits = outputUnits * bestBatches;
+    const std::uint32_t producedUnits = m_resources.produceAtInteraction(registry, task.interaction, wantedUnits);
+
+    telemetry::WorkshopAttemptSnapshot attempt{};
+    attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+    attempt.interactionId = task.interaction;
+    attempt.outputType = task.resource;
+    attempt.wantedBatches = wantedBatches;
+    attempt.wantedUnits = outputUnits * wantedBatches;
+    attempt.producedUnits = producedUnits;
+    if (producedUnits == 0U) {
+        attempt.failureReason = kReasonOutputFull;
+    }
+    m_workshopAttempts.push_back(std::move(attempt));
+
     queue.tasks.pop_front();
 }
 

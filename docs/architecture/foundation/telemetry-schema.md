@@ -1,4 +1,4 @@
-# Telemetry Schema（TickTelemetry v3）
+# Telemetry Schema（TickTelemetry v4）
 
 本文档定义运行时对外暴露的 **TickTelemetry** 数据结构（GUI/工具链消费的只读快照内容之一），并提供最小的版本演进记录，作为“可观测性闭环”的协议基线。
 
@@ -25,7 +25,7 @@
 
 ### 2.1 顶层字段
 
-- `schema_version:uint32`：Telemetry 协议版本（当前为 3）。
+- `schema_version:uint32`：Telemetry 协议版本（当前为 4）。
 - `step:uint64`：模拟步号（离散时间）。
 - `stepSeconds:float`：单步的时间长度（秒），由 `SimulationClock::stepDuration()` 推导；用于把“每步统计”换算为“每秒速率”。
 - `agents:AgentSnapshot[]`：代理位置与身份摘要。
@@ -33,6 +33,7 @@
 - `needs:NeedSnapshot[]`：需求强度（当前主要用于 Hunger 等）。
 - `plannerDecisions:PlannerSnapshot[]`：本步规划结果（目标与评分）。
 - `actions:ActionSnapshot[]`：行动执行状态（队列/当前动作/目标/消耗意图）。
+- `workshopAttempts:WorkshopAttemptSnapshot[]`：工坊生产尝试与失败原因（“解释性可观测”关键字段）。
 - `movements:MovementSnapshot[]`：移动细节（当前实现可能为空；用于未来的可视化插值/轨迹）。
 
 > 采集时机：每步执行完系统 `tick(...)` 后采集（见 `src/engine/core/Engine.cpp`），因此 `current/capacity` 等为“本步结束时”的状态快照；`consumed/produced/decayed` 为“本步内变化量”。
@@ -95,11 +96,33 @@
 - `target:{x:float,y:float}`
 - `speed:float`
 
+### 2.8 WorkshopAttemptSnapshot
+
+- `entityId:uint32`：执行该次生产尝试的代理实体 ID。
+- `interactionId:uint32`：工坊交互点 ID（与 WorldAtlas/ResourceSnapshot 对齐）。
+- `outputType:ResourceType(enum)`：本次尝试的目标产物类型。
+- `wantedBatches:uint32`：计划生产的批次数（至少为 1）。
+- `wantedUnits:uint32`：计划产出单位数（当可计算时写入；否则为 0）。
+- `producedUnits:uint32`：实际产出单位数（0 表示未产出）。
+- `failureReason:string`：失败原因；空字符串表示成功。
+
+当前失败原因枚举（字符串）：
+- `MissingInteraction`：目标交互点不存在（世界数据/计划失配）。
+- `NoRecipes`：该交互点没有工坊配方（配置缺失）。
+- `NoCarriedResources`：代理没有携带资源组件（内部错误/不应发生）。
+- `NoSpawnState`：运行时找不到该交互点对应的资源点库存（世界数据/初始化问题）。
+- `OutputFull`：工坊库存已满（容量约束）。
+- `MissingConsumableInput`：缺少可消耗输入（例如 Water/Food/Ore 等）。
+- `MissingNonConsumableInput`：缺少非消耗输入（例如 Tool 作为复用工具）。
+- `Unknown`：无法归类的失败（需要进一步细化分类时再拆分）。
+
 ## 3. 变更记录（Changelog）
+
+### v4
+- `workshopAttempts[]`：新增工坊生产尝试与失败原因，用于解释生产链断点与瓶颈成因。
 
 ### v3
 - `resources[].decayed`：新增资源腐败/衰减的本步变化量字段，用于度量“浪费/周期性压力”（生态链基线已使用）。
 
 ### v2（历史基线）
 - v2 作为早期稳定版本，字段集合以 v3 的子集为主；差异以实际代码/提交为准。
-

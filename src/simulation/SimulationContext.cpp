@@ -323,6 +323,14 @@ void SimulationContext::collectActionSnapshots(std::vector<telemetry::ActionSnap
     });
 }
 
+void SimulationContext::collectWorkshopAttemptSnapshots(std::vector<telemetry::WorkshopAttemptSnapshot>& out) const {
+    out.clear();
+    if (!m_actionExecutor) {
+        return;
+    }
+    m_actionExecutor->drainWorkshopAttemptSnapshots(out);
+}
+
 void SimulationContext::collectPlannerSnapshots(std::vector<telemetry::PlannerSnapshot>& out) const {
     out.clear();
     auto view = m_registry.view<agents::components::PlannerDecision>();

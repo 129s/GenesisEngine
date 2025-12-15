@@ -257,6 +257,74 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     out << "- stockoutStepsSources: `" << econ.value("stockoutStepsSources", 0ULL) << "`\n";
     out << "- stockoutStepsWorkshops: `" << econ.value("stockoutStepsWorkshops", 0ULL) << "`\n\n";
 
+    out << "## 资源流量（按类型）\n\n";
+    if (summary.contains("resourceFlowByType") && summary.at("resourceFlowByType").is_array()) {
+        const auto& flows = summary.at("resourceFlowByType");
+        if (flows.empty()) {
+            out << "- (none)\n";
+        } else {
+            for (const auto& row : flows) {
+                out << "- " << row.value("type", "?")
+                    << " produced=" << row.value("produced", 0ULL)
+                    << " consumed=" << row.value("consumed", 0ULL)
+                    << " decayed=" << row.value("decayed", 0ULL)
+                    << " net=" << row.value("netProducedMinusConsumed", 0LL)
+                    << " netAfterDecay=" << row.value("netProducedMinusConsumedMinusDecayed", 0LL)
+                    << "\n";
+            }
+        }
+    } else {
+        out << "- (missing resourceFlowByType)\n";
+    }
+    out << "\n";
+
+    out << "## 生产尝试（Workshop）\n\n";
+    if (summary.contains("production") && summary.at("production").is_object()) {
+        const auto& prod = summary.at("production");
+        out << "- attemptsTotal: `" << prod.value("attemptsTotal", 0ULL) << "`\n";
+        out << "- succeededTotal: `" << prod.value("succeededTotal", 0ULL) << "`\n";
+        out << "- failedTotal: `" << prod.value("failedTotal", 0ULL) << "`\n";
+
+        out << "\n### 失败原因 Top\n\n";
+        if (prod.contains("failureReasonsTop") && prod.at("failureReasonsTop").is_array()) {
+            const auto& top = prod.at("failureReasonsTop");
+            if (top.empty()) {
+                out << "- (none)\n";
+            } else {
+                for (std::size_t i = 0; i < top.size(); ++i) {
+                    const auto& r = top.at(i);
+                    out << i + 1 << ". " << r.value("reason", "?") << " count=" << r.value("count", 0ULL) << "\n";
+                }
+            }
+        } else {
+            out << "- (missing failureReasonsTop)\n";
+        }
+
+        out << "\n### 失败点 Top（按交互点）\n\n";
+        if (prod.contains("failuresTop") && prod.at("failuresTop").is_array()) {
+            const auto& top = prod.at("failuresTop");
+            if (top.empty()) {
+                out << "- (none)\n";
+            } else {
+                for (std::size_t i = 0; i < top.size(); ++i) {
+                    const auto& b = top.at(i);
+                    out << i + 1 << ". "
+                        << b.value("type", "?")
+                        << (b.value("isWorkshop", true) ? " (Workshop)" : " (Source)")
+                        << " map=" << b.value("mapId", 0U)
+                        << " id=" << b.value("interactionId", 0U)
+                        << " failed=" << b.value("failed", 0ULL)
+                        << " name=`" << b.value("name", std::string{}) << "`\n";
+                }
+            }
+        } else {
+            out << "- (missing failuresTop)\n";
+        }
+    } else {
+        out << "- (missing production)\n";
+    }
+    out << "\n";
+
     out << "## 浪费 Top（Decay）\n\n";
     if (summary.contains("decayTop") && summary.at("decayTop").is_array()) {
         const auto& top = summary.at("decayTop");
@@ -455,6 +523,20 @@ struct ResourceEconomy {
     std::uint64_t stepsWithAnyRegen = 0;
     std::uint64_t stepsWithAnyDecay = 0;
 
+    struct ResourceFlow {
+        std::uint64_t produced{0};
+        std::uint64_t consumed{0};
+        std::uint64_t decayed{0};
+    };
+
+    std::unordered_map<std::string, ResourceFlow> flowByType;
+
+    std::uint64_t productionAttemptsTotal = 0;
+    std::uint64_t productionSucceededTotal = 0;
+    std::uint64_t productionFailedTotal = 0;
+    std::unordered_map<std::string, std::uint64_t> productionFailureReasons;
+    std::unordered_map<std::uint32_t, std::uint64_t> productionFailuresByWorkshop;
+
     double utilizationSum = 0.0;
     std::uint64_t utilizationSamples = 0;
 
@@ -504,6 +586,14 @@ struct ResourceEconomy {
         bool anyDecay = false;
 
         for (const auto& resource : telemetry.resources) {
+            {
+                const auto typeName = genesis::world::resourceTypeName(resource.type);
+                auto& flow = flowByType[typeName];
+                flow.produced += resource.produced;
+                flow.consumed += resource.consumed;
+                flow.decayed += resource.decayed;
+            }
+
             auto& economy = resourceByInteraction[resource.interactionId];
             if (!economy.initialized) {
                 economy.initialized = true;
@@ -580,6 +670,24 @@ struct ResourceEconomy {
         }
         if (anyDecay) {
             stepsWithAnyDecay++;
+        }
+
+        if (!telemetry.workshopAttempts.empty()) {
+            for (const auto& attempt : telemetry.workshopAttempts) {
+                productionAttemptsTotal++;
+                const bool ok = attempt.failureReason.empty() && attempt.producedUnits > 0U;
+                if (ok) {
+                    productionSucceededTotal++;
+                } else {
+                    productionFailedTotal++;
+                    if (!attempt.failureReason.empty()) {
+                        productionFailureReasons[attempt.failureReason]++;
+                        if (attempt.interactionId != 0) {
+                            productionFailuresByWorkshop[attempt.interactionId]++;
+                        }
+                    }
+                }
+            }
         }
     };
 
@@ -809,6 +917,112 @@ struct ResourceEconomy {
           {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0}}},
         {"bottlenecksTop", topBottlenecks},
     };
+
+    // --- Summary: Resource flow by type (produced/consumed/decayed) ---
+    {
+        struct FlowRow {
+            std::string type;
+            std::uint64_t produced{0};
+            std::uint64_t consumed{0};
+            std::uint64_t decayed{0};
+        };
+        std::vector<FlowRow> rows;
+        rows.reserve(flowByType.size());
+        for (const auto& [type, flow] : flowByType) {
+            if (flow.produced == 0ULL && flow.consumed == 0ULL && flow.decayed == 0ULL) {
+                continue;
+            }
+            rows.push_back(FlowRow{type, flow.produced, flow.consumed, flow.decayed});
+        }
+        std::sort(rows.begin(), rows.end(), [](const FlowRow& a, const FlowRow& b) {
+            const std::uint64_t wa = a.produced + a.consumed + a.decayed;
+            const std::uint64_t wb = b.produced + b.consumed + b.decayed;
+            return wa > wb;
+        });
+
+        json flowJson = json::array();
+        for (const auto& row : rows) {
+            flowJson.push_back({
+                {"type", row.type},
+                {"produced", row.produced},
+                {"consumed", row.consumed},
+                {"decayed", row.decayed},
+                {"netProducedMinusConsumed", static_cast<std::int64_t>(row.produced) - static_cast<std::int64_t>(row.consumed)},
+                {"netProducedMinusConsumedMinusDecayed",
+                 static_cast<std::int64_t>(row.produced) - static_cast<std::int64_t>(row.consumed) - static_cast<std::int64_t>(row.decayed)},
+            });
+        }
+        report["summary"]["resourceFlowByType"] = std::move(flowJson);
+    }
+
+    // --- Summary: Production attempts / failure reasons (explainability) ---
+    {
+        json reasonsJson = json::object();
+        for (const auto& [reason, count] : productionFailureReasons) {
+            reasonsJson[reason] = count;
+        }
+
+        struct ReasonScore {
+            std::string reason;
+            std::uint64_t count{0};
+        };
+        std::vector<ReasonScore> reasons;
+        reasons.reserve(productionFailureReasons.size());
+        for (const auto& [reason, count] : productionFailureReasons) {
+            reasons.push_back(ReasonScore{reason, count});
+        }
+        std::sort(reasons.begin(), reasons.end(), [](const ReasonScore& a, const ReasonScore& b) {
+            return a.count > b.count;
+        });
+
+        json reasonsTop = json::array();
+        const std::size_t topNReasons = std::min<std::size_t>(8, reasons.size());
+        for (std::size_t i = 0; i < topNReasons; ++i) {
+            reasonsTop.push_back({{"reason", reasons[i].reason}, {"count", reasons[i].count}});
+        }
+
+        struct WorkshopFail {
+            std::uint32_t interactionId{0};
+            std::uint64_t failed{0};
+        };
+        std::vector<WorkshopFail> fails;
+        fails.reserve(productionFailuresByWorkshop.size());
+        for (const auto& [id, failed] : productionFailuresByWorkshop) {
+            fails.push_back(WorkshopFail{id, failed});
+        }
+        std::sort(fails.begin(), fails.end(), [](const WorkshopFail& a, const WorkshopFail& b) {
+            return a.failed > b.failed;
+        });
+
+        json failuresTop = json::array();
+        const std::size_t topN = std::min<std::size_t>(8, fails.size());
+        for (std::size_t i = 0; i < topN; ++i) {
+            const auto id = fails[i].interactionId;
+            const auto it = resourceByInteraction.find(id);
+            if (it == resourceByInteraction.end()) {
+                failuresTop.push_back({{"interactionId", id}, {"failed", fails[i].failed}});
+                continue;
+            }
+            const auto& economy = it->second;
+            failuresTop.push_back({
+                {"interactionId", economy.interactionId},
+                {"mapId", economy.mapId},
+                {"name", economy.name},
+                {"type", genesis::world::resourceTypeName(economy.type)},
+                {"isWorkshop", economy.isWorkshop},
+                {"failed", fails[i].failed},
+            });
+        }
+
+        report["summary"]["production"] = {
+            {"attemptsTotal", productionAttemptsTotal},
+            {"succeededTotal", productionSucceededTotal},
+            {"failedTotal", productionFailedTotal},
+            {"failureReasons", std::move(reasonsJson)},
+            {"failureReasonsTop", std::move(reasonsTop)},
+            {"failuresTop", std::move(failuresTop)},
+        };
+    }
 
     // --- Summary: Decay / waste top (by totalDecayed) ---
     {

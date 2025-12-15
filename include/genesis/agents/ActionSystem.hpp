@@ -2,12 +2,14 @@
 
 #include <cstdint>
 #include <deque>
+#include <vector>
 
 #include <entt/entt.hpp>
 
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/WorldDatabase.hpp"
 #include "genesis/world/WorldTypes.hpp"
 
@@ -57,6 +59,8 @@ public:
 
     [[nodiscard]] bool hasPendingActions(entt::entity entity, const entt::registry& registry) const;
 
+    void drainWorkshopAttemptSnapshots(std::vector<telemetry::WorkshopAttemptSnapshot>& out) noexcept;
+
 private:
     void ensureQueue(entt::entity entity, entt::registry& registry);
     bool hasPendingConsume(const ActionQueue& queue, genesis::world::InteractionId interaction, genesis::world::ResourceType type) const;
@@ -67,6 +71,8 @@ private:
 
     genesis::world::WorldDatabase& m_db;
     genesis::world::system::ResourceSystem& m_resources;
+
+    std::vector<telemetry::WorkshopAttemptSnapshot> m_workshopAttempts;
 };
 
 } // namespace genesis::agents

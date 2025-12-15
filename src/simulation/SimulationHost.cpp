@@ -55,6 +55,7 @@ telemetry::TickTelemetry SimulationHost::captureTelemetry(std::uint64_t stepInde
     m_context.collectNeedSnapshots(m_needScratch);
     m_context.collectPlannerSnapshots(m_plannerScratch);
     m_context.collectActionSnapshots(m_actionScratch);
+    m_context.collectWorkshopAttemptSnapshots(m_workshopAttemptScratch);
     return m_telemetryCollector.collect(
         std::span<const telemetry::AgentSnapshot>(m_agentScratch),
         m_worldDb ? m_worldDb.get() : nullptr,
@@ -62,6 +63,7 @@ telemetry::TickTelemetry SimulationHost::captureTelemetry(std::uint64_t stepInde
         std::span<const telemetry::NeedSnapshot>(m_needScratch),
         std::span<const telemetry::PlannerSnapshot>(m_plannerScratch),
         std::span<const telemetry::ActionSnapshot>(m_actionScratch),
+        std::span<const telemetry::WorkshopAttemptSnapshot>(m_workshopAttemptScratch),
         stepIndex,
         stepSeconds);
 }

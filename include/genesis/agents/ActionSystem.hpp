@@ -60,6 +60,7 @@ public:
     [[nodiscard]] bool hasPendingActions(entt::entity entity, const entt::registry& registry) const;
 
     void drainWorkshopAttemptSnapshots(std::vector<telemetry::WorkshopAttemptSnapshot>& out) noexcept;
+    void drainResourceAttemptSnapshots(std::vector<telemetry::ResourceAttemptSnapshot>& out) noexcept;
 
 private:
     void ensureQueue(entt::entity entity, entt::registry& registry);
@@ -73,6 +74,7 @@ private:
     genesis::world::system::ResourceSystem& m_resources;
 
     std::vector<telemetry::WorkshopAttemptSnapshot> m_workshopAttempts;
+    std::vector<telemetry::ResourceAttemptSnapshot> m_resourceAttempts;
 };
 
 } // namespace genesis::agents

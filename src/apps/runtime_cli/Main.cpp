@@ -355,6 +355,68 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     }
     out << "\n";
 
+    out << "## 资源获取失败（Consume/Take）\n\n";
+    if (summary.contains("resourceAttempts") && summary.at("resourceAttempts").is_object()) {
+        const auto& ra = summary.at("resourceAttempts");
+        out << "- attemptsTotal: `" << ra.value("attemptsTotal", 0ULL) << "`\n";
+        out << "- succeededTotal: `" << ra.value("succeededTotal", 0ULL) << "`\n";
+        out << "- failedTotal: `" << ra.value("failedTotal", 0ULL) << "`\n";
+
+        out << "\n### 失败原因 Top\n\n";
+        if (ra.contains("failureReasonsTop") && ra.at("failureReasonsTop").is_array()) {
+            const auto& top = ra.at("failureReasonsTop");
+            if (top.empty()) {
+                out << "- (none)\n";
+            } else {
+                for (std::size_t i = 0; i < top.size(); ++i) {
+                    const auto& r = top.at(i);
+                    out << i + 1 << ". " << r.value("reason", "?") << " count=" << r.value("count", 0ULL) << "\n";
+                }
+            }
+        } else {
+            out << "- (missing failureReasonsTop)\n";
+        }
+
+        out << "\n### 失败资源类型 Top\n\n";
+        if (ra.contains("failureTypesTop") && ra.at("failureTypesTop").is_array()) {
+            const auto& top = ra.at("failureTypesTop");
+            if (top.empty()) {
+                out << "- (none)\n";
+            } else {
+                for (std::size_t i = 0; i < top.size(); ++i) {
+                    const auto& r = top.at(i);
+                    out << i + 1 << ". " << r.value("type", "?") << " count=" << r.value("count", 0ULL) << "\n";
+                }
+            }
+        } else {
+            out << "- (missing failureTypesTop)\n";
+        }
+
+        out << "\n### 失败点 Top（按交互点）\n\n";
+        if (ra.contains("failuresTop") && ra.at("failuresTop").is_array()) {
+            const auto& top = ra.at("failuresTop");
+            if (top.empty()) {
+                out << "- (none)\n";
+            } else {
+                for (std::size_t i = 0; i < top.size(); ++i) {
+                    const auto& b = top.at(i);
+                    out << i + 1 << ". "
+                        << b.value("type", "?")
+                        << (b.value("isWorkshop", false) ? " (Workshop)" : " (Source)")
+                        << " map=" << b.value("mapId", 0U)
+                        << " id=" << b.value("interactionId", 0U)
+                        << " failed=" << b.value("failed", 0ULL)
+                        << " name=`" << b.value("name", std::string{}) << "`\n";
+                }
+            }
+        } else {
+            out << "- (missing failuresTop)\n";
+        }
+    } else {
+        out << "- (missing resourceAttempts)\n";
+    }
+    out << "\n";
+
     out << "## 浪费 Top（Decay）\n\n";
     if (summary.contains("decayTop") && summary.at("decayTop").is_array()) {
         const auto& top = summary.at("decayTop");
@@ -572,6 +634,13 @@ struct ResourceEconomy {
     std::unordered_map<std::uint32_t, std::uint64_t> productionSucceededByWorkshop;
     std::unordered_map<std::uint32_t, std::uint64_t> productionFailedByWorkshop;
 
+    std::uint64_t resourceAttemptsTotal = 0;
+    std::uint64_t resourceSucceededTotal = 0;
+    std::uint64_t resourceFailedTotal = 0;
+    std::unordered_map<std::string, std::uint64_t> resourceFailureReasons;
+    std::unordered_map<std::string, std::uint64_t> resourceFailureByType;
+    std::unordered_map<std::uint32_t, std::uint64_t> resourceFailuresByInteraction;
+
     double utilizationSum = 0.0;
     std::uint64_t utilizationSamples = 0;
 
@@ -727,6 +796,25 @@ struct ResourceEconomy {
                             productionFailuresByWorkshop[attempt.interactionId]++;
                             productionFailedByWorkshop[attempt.interactionId]++;
                         }
+                    }
+                }
+            }
+        }
+
+        if (!telemetry.resourceAttempts.empty()) {
+            for (const auto& attempt : telemetry.resourceAttempts) {
+                resourceAttemptsTotal++;
+                const bool ok = attempt.failureReason.empty() && attempt.obtainedUnits > 0U;
+                if (ok) {
+                    resourceSucceededTotal++;
+                } else {
+                    resourceFailedTotal++;
+                    if (!attempt.failureReason.empty()) {
+                        resourceFailureReasons[attempt.failureReason]++;
+                    }
+                    resourceFailureByType[genesis::world::resourceTypeName(attempt.resourceType)]++;
+                    if (attempt.interactionId != 0) {
+                        resourceFailuresByInteraction[attempt.interactionId]++;
                     }
                 }
             }
@@ -1133,6 +1221,91 @@ struct ResourceEconomy {
             {"failuresTop", std::move(failuresTop)},
             {"missingConsumableInputsTop", buildTopList(missingConsumableInputs)},
             {"missingNonConsumableInputsTop", buildTopList(missingNonConsumableInputs)},
+        };
+    }
+
+    // --- Summary: Resource attempts / failure reasons (Consume/Take) ---
+    {
+        json reasonsJson = json::object();
+        for (const auto& [reason, count] : resourceFailureReasons) {
+            reasonsJson[reason] = count;
+        }
+
+        struct ReasonScore {
+            std::string reason;
+            std::uint64_t count{0};
+        };
+        std::vector<ReasonScore> reasons;
+        reasons.reserve(resourceFailureReasons.size());
+        for (const auto& [reason, count] : resourceFailureReasons) {
+            reasons.push_back(ReasonScore{reason, count});
+        }
+        std::sort(reasons.begin(), reasons.end(), [](const ReasonScore& a, const ReasonScore& b) {
+            return a.count > b.count;
+        });
+
+        json reasonsTop = json::array();
+        const std::size_t topNReasons = std::min<std::size_t>(8, reasons.size());
+        for (std::size_t i = 0; i < topNReasons; ++i) {
+            reasonsTop.push_back({{"reason", reasons[i].reason}, {"count", reasons[i].count}});
+        }
+
+        struct TypeScore {
+            std::string type;
+            std::uint64_t count{0};
+        };
+        std::vector<TypeScore> types;
+        types.reserve(resourceFailureByType.size());
+        for (const auto& [type, count] : resourceFailureByType) {
+            types.push_back(TypeScore{type, count});
+        }
+        std::sort(types.begin(), types.end(), [](const TypeScore& a, const TypeScore& b) { return a.count > b.count; });
+
+        json typesTop = json::array();
+        const std::size_t topNTypes = std::min<std::size_t>(8, types.size());
+        for (std::size_t i = 0; i < topNTypes; ++i) {
+            typesTop.push_back({{"type", types[i].type}, {"count", types[i].count}});
+        }
+
+        struct InteractionFail {
+            std::uint32_t interactionId{0};
+            std::uint64_t failed{0};
+        };
+        std::vector<InteractionFail> fails;
+        fails.reserve(resourceFailuresByInteraction.size());
+        for (const auto& [id, failed] : resourceFailuresByInteraction) {
+            fails.push_back(InteractionFail{id, failed});
+        }
+        std::sort(fails.begin(), fails.end(), [](const InteractionFail& a, const InteractionFail& b) { return a.failed > b.failed; });
+
+        json failuresTop = json::array();
+        const std::size_t topN = std::min<std::size_t>(8, fails.size());
+        for (std::size_t i = 0; i < topN; ++i) {
+            const auto id = fails[i].interactionId;
+            const auto it = resourceByInteraction.find(id);
+            if (it == resourceByInteraction.end()) {
+                failuresTop.push_back({{"interactionId", id}, {"failed", fails[i].failed}});
+                continue;
+            }
+            const auto& economy = it->second;
+            failuresTop.push_back({
+                {"interactionId", economy.interactionId},
+                {"mapId", economy.mapId},
+                {"name", economy.name},
+                {"type", genesis::world::resourceTypeName(economy.type)},
+                {"isWorkshop", economy.isWorkshop},
+                {"failed", fails[i].failed},
+            });
+        }
+
+        report["summary"]["resourceAttempts"] = {
+            {"attemptsTotal", resourceAttemptsTotal},
+            {"succeededTotal", resourceSucceededTotal},
+            {"failedTotal", resourceFailedTotal},
+            {"failureReasons", std::move(reasonsJson)},
+            {"failureReasonsTop", std::move(reasonsTop)},
+            {"failureTypesTop", std::move(typesTop)},
+            {"failuresTop", std::move(failuresTop)},
         };
     }
 

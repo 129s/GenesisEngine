@@ -27,6 +27,17 @@ constexpr const char* kReasonMissingConsumableInput = "MissingConsumableInput";
 constexpr const char* kReasonMissingNonConsumableInput = "MissingNonConsumableInput";
 constexpr const char* kReasonUnknown = "Unknown";
 
+constexpr const char* kReasonStockout = "Stockout";
+constexpr const char* kReasonPlanningFailed = "PlanningFailed";
+constexpr const char* kReasonUnreachable = "Unreachable";
+
+[[nodiscard]] std::string unreachableWithDetail(const char* detail) {
+    std::string out(kReasonUnreachable);
+    out.push_back(':');
+    out.append(detail);
+    return out;
+}
+
 [[nodiscard]] std::string reasonWithType(const char* prefix, genesis::world::ResourceType type, bool unreachable) {
     std::string out(prefix);
     out.push_back(':');
@@ -65,6 +76,11 @@ ActionExecutor::ActionExecutor(genesis::world::WorldDatabase& db, genesis::world
 void ActionExecutor::drainWorkshopAttemptSnapshots(std::vector<telemetry::WorkshopAttemptSnapshot>& out) noexcept {
     out.clear();
     out.swap(m_workshopAttempts);
+}
+
+void ActionExecutor::drainResourceAttemptSnapshots(std::vector<telemetry::ResourceAttemptSnapshot>& out) noexcept {
+    out.clear();
+    out.swap(m_resourceAttempts);
 }
 
 void ActionExecutor::requestMoveToInteraction(entt::entity entity,
@@ -135,6 +151,7 @@ void ActionExecutor::requestConsume(entt::entity entity,
 
 void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
     m_workshopAttempts.clear();
+    m_resourceAttempts.clear();
 
     auto view = registry.view<ActionQueue, components::AgentLocation2D>();
 
@@ -316,6 +333,14 @@ void ActionExecutor::processConsume(entt::entity entity,
     auto& task = queue.tasks.front();
     auto it = m_db.findInteraction(task.interaction);
     if (!it) {
+        telemetry::ResourceAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.action = "ConsumeResource";
+        attempt.interactionId = task.interaction;
+        attempt.resourceType = task.resource;
+        attempt.wantedUnits = task.amount;
+        attempt.failureReason = kReasonMissingInteraction;
+        m_resourceAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
     }
@@ -326,6 +351,43 @@ void ActionExecutor::processConsume(entt::entity entity,
     const float ty = static_cast<float>(coord.second);
 
     if (!(location.mapId == targetMap && location.x == tx && location.y == ty)) {
+        if (location.mapId != targetMap) {
+            const auto path = genesis::world::shortestMapPath(m_db, location.mapId, targetMap);
+            if (!path || path->maps.size() < 2) {
+                telemetry::ResourceAttemptSnapshot attempt{};
+                attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+                attempt.action = "ConsumeResource";
+                attempt.interactionId = task.interaction;
+                attempt.resourceType = task.resource;
+                attempt.wantedUnits = task.amount;
+                attempt.failureReason = unreachableWithDetail("NoPath");
+                m_resourceAttempts.push_back(std::move(attempt));
+                queue.tasks.pop_front();
+                return;
+            }
+
+            const auto nextMap = path->maps[1];
+            bool hasPortal = false;
+            for (const auto& portal : m_db.portals(location.mapId)) {
+                if (portal.targetMapId == nextMap) {
+                    hasPortal = true;
+                    break;
+                }
+            }
+            if (!hasPortal) {
+                telemetry::ResourceAttemptSnapshot attempt{};
+                attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+                attempt.action = "ConsumeResource";
+                attempt.interactionId = task.interaction;
+                attempt.resourceType = task.resource;
+                attempt.wantedUnits = task.amount;
+                attempt.failureReason = unreachableWithDetail("NoPortal");
+                m_resourceAttempts.push_back(std::move(attempt));
+                queue.tasks.pop_front();
+                return;
+            }
+        }
+
         ActionTask move{};
         move.type = ActionType::MoveToInteraction;
         move.interaction = task.interaction;
@@ -348,6 +410,13 @@ void ActionExecutor::processConsume(entt::entity entity,
     }
 
     const auto consumed = m_resources.consumeFromInteraction(registry, task.interaction, task.resource, task.amount);
+    telemetry::ResourceAttemptSnapshot attempt{};
+    attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+    attempt.action = "ConsumeResource";
+    attempt.interactionId = task.interaction;
+    attempt.resourceType = task.resource;
+    attempt.wantedUnits = task.amount;
+    attempt.obtainedUnits = consumed;
     if (consumed > 0U) {
         const float relief = static_cast<float>(consumed) * task.reliefPerUnit;
         state->value = std::max(descriptor->minValue, state->value - relief);
@@ -373,12 +442,21 @@ void ActionExecutor::processConsume(entt::entity entity,
         req.reliefPerUnit = task.reliefPerUnit;
 
         if (auto plan = planner.buildRecoveryPlan(req)) {
+            attempt.failureReason = kReasonStockout;
+            attempt.recoveryPlanned = true;
+            m_resourceAttempts.push_back(std::move(attempt));
             queue.tasks.pop_front();
             queue.tasks.insert(queue.tasks.begin(), plan->begin(), plan->end());
             return;
         }
+
+        attempt.failureReason = kReasonPlanningFailed;
+        m_resourceAttempts.push_back(std::move(attempt));
+        queue.tasks.pop_front();
+        return;
     }
 
+    m_resourceAttempts.push_back(std::move(attempt));
     queue.tasks.pop_front();
 }
 
@@ -393,6 +471,14 @@ void ActionExecutor::processTake(entt::entity entity,
     auto& task = queue.tasks.front();
     auto it = m_db.findInteraction(task.interaction);
     if (!it) {
+        telemetry::ResourceAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.action = "TakeResource";
+        attempt.interactionId = task.interaction;
+        attempt.resourceType = task.resource;
+        attempt.wantedUnits = task.amount;
+        attempt.failureReason = kReasonMissingInteraction;
+        m_resourceAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
     }
@@ -403,6 +489,43 @@ void ActionExecutor::processTake(entt::entity entity,
     const float ty = static_cast<float>(coord.second);
 
     if (!(location.mapId == targetMap && location.x == tx && location.y == ty)) {
+        if (location.mapId != targetMap) {
+            const auto path = genesis::world::shortestMapPath(m_db, location.mapId, targetMap);
+            if (!path || path->maps.size() < 2) {
+                telemetry::ResourceAttemptSnapshot attempt{};
+                attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+                attempt.action = "TakeResource";
+                attempt.interactionId = task.interaction;
+                attempt.resourceType = task.resource;
+                attempt.wantedUnits = task.amount;
+                attempt.failureReason = unreachableWithDetail("NoPath");
+                m_resourceAttempts.push_back(std::move(attempt));
+                queue.tasks.pop_front();
+                return;
+            }
+
+            const auto nextMap = path->maps[1];
+            bool hasPortal = false;
+            for (const auto& portal : m_db.portals(location.mapId)) {
+                if (portal.targetMapId == nextMap) {
+                    hasPortal = true;
+                    break;
+                }
+            }
+            if (!hasPortal) {
+                telemetry::ResourceAttemptSnapshot attempt{};
+                attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+                attempt.action = "TakeResource";
+                attempt.interactionId = task.interaction;
+                attempt.resourceType = task.resource;
+                attempt.wantedUnits = task.amount;
+                attempt.failureReason = unreachableWithDetail("NoPortal");
+                m_resourceAttempts.push_back(std::move(attempt));
+                queue.tasks.pop_front();
+                return;
+            }
+        }
+
         ActionTask move{};
         move.type = ActionType::MoveToInteraction;
         move.interaction = task.interaction;
@@ -423,6 +546,17 @@ void ActionExecutor::processTake(entt::entity entity,
     }
 
     const auto taken = m_resources.consumeFromInteraction(registry, task.interaction, task.resource, want);
+    telemetry::ResourceAttemptSnapshot attempt{};
+    attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+    attempt.action = "TakeResource";
+    attempt.interactionId = task.interaction;
+    attempt.resourceType = task.resource;
+    attempt.wantedUnits = want;
+    attempt.obtainedUnits = taken;
+    if (taken == 0U) {
+        attempt.failureReason = kReasonStockout;
+    }
+    m_resourceAttempts.push_back(std::move(attempt));
     carried->add(task.resource, taken);
     queue.tasks.pop_front();
 }

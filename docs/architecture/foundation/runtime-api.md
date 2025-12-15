@@ -50,7 +50,7 @@ Headless 工具：仓库提供 `genesis-runtime-cli`（见 `docs/guides/headless
 - 变更集合（按需扩展）：
   - `resourceChanges[]` / `needChanges[]` / `plannerChanges[]` / `actionChanges[]` / `agentChanges[]` / `movementChanges[]`
 
-## TickTelemetry 契约（v4）
+## TickTelemetry 契约（v5）
 最小字段集合，按需扩展；变更需提升 `schema_version` 并记录（GUI 以 schema 做兼容）。
 
 完整字段字典与变更记录见：`docs/architecture/foundation/telemetry-schema.md`。
@@ -64,6 +64,7 @@ Headless 工具：仓库提供 `genesis-runtime-cli`（见 `docs/guides/headless
 - `movements[]`（可选）
 - `resources[]`：`{ interactionId:uint32, mapId:uint32, name:string, type:enum, current:uint32, capacity:uint32, consumed:uint32, produced:uint32, decayed:uint32 }`
 - `workshopAttempts[]`：工坊生产尝试与失败原因（用于解释“为何没产出/卡在哪”）。
+- `resourceAttempts[]`：资源获取尝试与失败原因（Consume/Take；用于解释“为何拿不到/是否规划了补链”）。
 - `needs[]`、`plannerDecisions[]`、`actions[]`：按需扩展；可作为 Headless/Soak 分析输入
 
 ## WorldAtlas 契约（v2）

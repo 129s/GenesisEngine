@@ -11,10 +11,11 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
                                                      std::span<const telemetry::PlannerSnapshot> plannerDecisions,
                                                      std::span<const telemetry::ActionSnapshot> actions,
                                                      std::span<const telemetry::WorkshopAttemptSnapshot> workshopAttempts,
+                                                     std::span<const telemetry::ResourceAttemptSnapshot> resourceAttempts,
                                                      std::uint64_t stepIndex,
                                                      float stepSeconds) const {
     telemetry::TickTelemetry tick{};
-    tick.schema_version = 4;
+    tick.schema_version = 5;
     tick.step = stepIndex;
     tick.stepSeconds = stepSeconds;
 
@@ -63,6 +64,13 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
         tick.workshopAttempts.reserve(workshopAttempts.size());
         for (const auto& attempt : workshopAttempts) {
             tick.workshopAttempts.push_back(attempt);
+        }
+    }
+
+    if (!resourceAttempts.empty()) {
+        tick.resourceAttempts.reserve(resourceAttempts.size());
+        for (const auto& attempt : resourceAttempts) {
+            tick.resourceAttempts.push_back(attempt);
         }
     }
 

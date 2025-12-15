@@ -1,4 +1,4 @@
-# Telemetry Schema（TickTelemetry v4）
+# Telemetry Schema（TickTelemetry v5）
 
 本文档定义运行时对外暴露的 **TickTelemetry** 数据结构（GUI/工具链消费的只读快照内容之一），并提供最小的版本演进记录，作为“可观测性闭环”的协议基线。
 
@@ -25,7 +25,7 @@
 
 ### 2.1 顶层字段
 
-- `schema_version:uint32`：Telemetry 协议版本（当前为 4）。
+- `schema_version:uint32`：Telemetry 协议版本（当前为 5）。
 - `step:uint64`：模拟步号（离散时间）。
 - `stepSeconds:float`：单步的时间长度（秒），由 `SimulationClock::stepDuration()` 推导；用于把“每步统计”换算为“每秒速率”。
 - `agents:AgentSnapshot[]`：代理位置与身份摘要。
@@ -34,6 +34,7 @@
 - `plannerDecisions:PlannerSnapshot[]`：本步规划结果（目标与评分）。
 - `actions:ActionSnapshot[]`：行动执行状态（队列/当前动作/目标/消耗意图）。
 - `workshopAttempts:WorkshopAttemptSnapshot[]`：工坊生产尝试与失败原因（“解释性可观测”关键字段）。
+- `resourceAttempts:ResourceAttemptSnapshot[]`：资源获取尝试与失败原因（“为什么没拿到/为什么没吃到”）。
 - `movements:MovementSnapshot[]`：移动细节（当前实现可能为空；用于未来的可视化插值/轨迹）。
 
 > 采集时机：每步执行完系统 `tick(...)` 后采集（见 `src/engine/core/Engine.cpp`），因此 `current/capacity` 等为“本步结束时”的状态快照；`consumed/produced/decayed` 为“本步内变化量”。
@@ -120,7 +121,30 @@
 - `MissingConsumableInput:<Type>[:Unreachable]`：例如 `MissingConsumableInput:Water`、`MissingConsumableInput:Water:Unreachable`。
 - `MissingNonConsumableInput:<Type>[:Unreachable]`：例如 `MissingNonConsumableInput:Tool`。
 
+### 2.9 ResourceAttemptSnapshot
+
+用于解释 `ConsumeResource` / `TakeResource` 两类资源获取动作的“失败原因”：
+
+- `entityId:uint32`：执行动作的代理实体 ID。
+- `action:string`：`ConsumeResource` 或 `TakeResource`。
+- `interactionId:uint32`：目标资源点交互 ID。
+- `resourceType:ResourceType(enum)`：目标资源类型。
+- `wantedUnits:uint32`：希望获得的单位数。
+- `obtainedUnits:uint32`：实际获得的单位数（0 表示未获得）。
+- `recoveryPlanned:bool`：当 `ConsumeResource` 未获得资源时，是否成功生成“补链计划”（插入 Take/Produce 任务）。
+- `failureReason:string`：失败原因；空字符串表示成功。
+
+当前失败原因枚举（字符串）：
+- `MissingInteraction`：目标交互点不存在（世界数据/计划失配）。
+- `Stockout`：目标资源点库存为空（或本次未取到）。
+- `PlanningFailed`：Consume 失败后尝试生成补链计划，但 planner 无法给出可执行计划。
+- `Unreachable:NoPath`：跨图不可达（Map 图无路径）。
+- `Unreachable:NoPortal`：Map 图有下一跳，但当前图缺少到下一跳的 Portal（世界数据缺失/不一致）。
+
 ## 3. 变更记录（Changelog）
+
+### v5
+- `resourceAttempts[]`：新增 Consume/Take 的资源获取尝试与失败原因，用于解释“空库存/不可达/规划失败”等断点。
 
 ### v4
 - `workshopAttempts[]`：新增工坊生产尝试与失败原因，用于解释生产链断点与瓶颈成因。

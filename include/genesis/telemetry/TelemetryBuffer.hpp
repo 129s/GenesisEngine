@@ -64,6 +64,18 @@ struct WorkshopAttemptSnapshot {
     std::string failureReason;
 };
 
+struct ResourceAttemptSnapshot {
+    std::uint32_t entityId{0};
+    std::string action; // ConsumeResource / TakeResource
+    genesis::world::InteractionId interactionId{0};
+    genesis::world::ResourceType resourceType{genesis::world::ResourceType::Food};
+    std::uint32_t wantedUnits{0};
+    std::uint32_t obtainedUnits{0};
+    bool recoveryPlanned{false}; // 仅对 ConsumeResource 且 consumed==0 时有意义
+    // 空字符串表示成功；非空表示失败原因（见 docs/architecture/foundation/telemetry-schema.md）。
+    std::string failureReason;
+};
+
 struct AgentSnapshot {
     std::uint32_t entityId{0};
     std::string name;
@@ -81,7 +93,7 @@ struct MovementSnapshot {
 };
 
 struct TickTelemetry {
-    std::uint32_t schema_version{4};
+    std::uint32_t schema_version{5};
     std::uint64_t step{0};
     float stepSeconds{0.0f};
     std::vector<ResourceSnapshot> resources;
@@ -89,6 +101,7 @@ struct TickTelemetry {
     std::vector<PlannerSnapshot> plannerDecisions;
     std::vector<ActionSnapshot> actions;
     std::vector<WorkshopAttemptSnapshot> workshopAttempts;
+    std::vector<ResourceAttemptSnapshot> resourceAttempts;
     std::vector<AgentSnapshot> agents;
     std::vector<MovementSnapshot> movements;
 };

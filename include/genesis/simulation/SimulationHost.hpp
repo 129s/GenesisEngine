@@ -61,6 +61,7 @@ private:
     std::vector<telemetry::PlannerSnapshot> m_plannerScratch;
     std::vector<telemetry::ActionSnapshot> m_actionScratch;
     std::vector<telemetry::WorkshopAttemptSnapshot> m_workshopAttemptScratch;
+    std::vector<telemetry::ResourceAttemptSnapshot> m_resourceAttemptScratch;
     std::shared_ptr<world::WorldDatabase> m_worldDb;
 };
 

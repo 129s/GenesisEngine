@@ -92,3 +92,94 @@ TEST(ProductionPlannerTest, BuildsRecoveryPlanForWorkshopDemand) {
     EXPECT_TRUE(sawProduceFood);
 }
 
+TEST(ProductionPlannerTest, NonConsumableInputsAreRequiredOnceNotPerBatch) {
+    using json = nlohmann::json;
+
+    genesis::world::InMemoryWorldDatabase db;
+    db.addMap(genesis::world::Map{1, "map_1", std::nullopt});
+    db.addScene(genesis::world::Scene{100, 1, std::nullopt, "scene_1", std::nullopt, std::nullopt, std::nullopt});
+
+    genesis::world::Interaction water{};
+    water.id = 1000;
+    water.mapId = 1;
+    water.sceneId = 100;
+    water.kind = genesis::world::InteractionKind::Resource;
+    water.coordLocal = {0, 0};
+    water.coordGlobal = water.coordLocal;
+    water.name = "water_source";
+    water.resourceType = genesis::world::ResourceType::Water;
+    water.capacity = 50;
+    water.regenPerStep = 2;
+    db.addInteraction(water);
+
+    genesis::world::Interaction toolSource{};
+    toolSource.id = 1002;
+    toolSource.mapId = 1;
+    toolSource.sceneId = 100;
+    toolSource.kind = genesis::world::InteractionKind::Resource;
+    toolSource.coordLocal = {2, 0};
+    toolSource.coordGlobal = toolSource.coordLocal;
+    toolSource.name = "tool_source";
+    toolSource.resourceType = genesis::world::ResourceType::Tool;
+    toolSource.capacity = 50;
+    toolSource.regenPerStep = 2;
+    db.addInteraction(toolSource);
+
+    genesis::world::Interaction foodWorkshop{};
+    foodWorkshop.id = 1001;
+    foodWorkshop.mapId = 1;
+    foodWorkshop.sceneId = 100;
+    foodWorkshop.kind = genesis::world::InteractionKind::Resource;
+    foodWorkshop.coordLocal = {5, 5};
+    foodWorkshop.coordGlobal = foodWorkshop.coordLocal;
+    foodWorkshop.name = "food_workshop";
+    foodWorkshop.resourceType = genesis::world::ResourceType::Food;
+    foodWorkshop.capacity = 40;
+    foodWorkshop.regenPerStep = 0;
+    foodWorkshop.meta = json{
+        {"workshop",
+         {{"recipes",
+           json::array({json{{"outputUnits", 1},
+                             {"inputs",
+                              json::array({json{{"type", "Water"}, {"units", 1}},
+                                           json{{"type", "Tool"}, {"units", 1}, {"consumable", false}}})}}})}}}
+    };
+    db.addInteraction(foodWorkshop);
+
+    genesis::agents::ProductionPlanner planner(db);
+
+    genesis::agents::components::AgentLocation2D location{};
+    location.mapId = 1;
+    location.x = 10.0f;
+    location.y = 10.0f;
+
+    genesis::agents::components::CarriedResources carried{};
+
+    genesis::agents::ProductionPlanner::Request request{};
+    request.location = &location;
+    request.carried = &carried;
+    request.targetWorkshop = foodWorkshop.id;
+    request.outputType = genesis::world::ResourceType::Food;
+    request.outputAmount = 5; // batches=5 (outputUnits=1)
+    request.currentRetries = 0;
+    request.need = genesis::agents::NeedType::Hunger;
+    request.reliefPerUnit = 12.0f;
+
+    const auto planOpt = planner.buildRecoveryPlan(request);
+    ASSERT_TRUE(planOpt.has_value());
+    const auto& plan = *planOpt;
+
+    std::uint32_t takeToolTotal = 0;
+    std::uint32_t takeWaterTotal = 0;
+    for (const auto& task : plan) {
+        if (task.type == genesis::agents::ActionType::TakeResource && task.resource == genesis::world::ResourceType::Tool) {
+            takeToolTotal += task.amount;
+        }
+        if (task.type == genesis::agents::ActionType::TakeResource && task.resource == genesis::world::ResourceType::Water) {
+            takeWaterTotal += task.amount;
+        }
+    }
+
+    EXPECT_EQ(takeToolTotal, 1U);
+    EXPECT_EQ(takeWaterTotal, 5U);
+}

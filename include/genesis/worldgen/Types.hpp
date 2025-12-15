@@ -149,6 +149,8 @@ struct WorldDbResourceSettings
     {
         genesis::world::ResourceType type{genesis::world::ResourceType::Food};
         std::uint32_t units{1};
+        // 是否被消耗：false 表示“工具/催化剂”类输入，只需持有即可（不会按批次消耗）。
+        bool consumable{true};
     };
 
     struct WorkshopRecipe

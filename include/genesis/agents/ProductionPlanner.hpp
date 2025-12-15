@@ -14,6 +14,7 @@ namespace genesis::agents {
 struct WorkshopRecipeInput {
     genesis::world::ResourceType type{genesis::world::ResourceType::Food};
     std::uint32_t units{1};
+    bool consumable{true};
 };
 
 struct WorkshopRecipe {

@@ -384,6 +384,11 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
                             throw std::runtime_error(std::string(prefix) + "inputs.units 必须存在且为整数");
                         }
 
+                        if (const auto* consumable = in_table.get_as<bool>("consumable"))
+                        {
+                            in.consumable = consumable->get();
+                        }
+
                         inputs.push_back(in);
                     }
 

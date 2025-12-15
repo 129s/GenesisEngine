@@ -78,7 +78,11 @@ std::optional<WorkshopRecipe> parseRecipeObject(const json& obj) {
         if (units == 0U) {
             continue;
         }
-        recipe.inputs.push_back(WorkshopRecipeInput{*type, units});
+        bool consumable = true;
+        if (item.contains("consumable") && item.at("consumable").is_boolean()) {
+            consumable = item.at("consumable").get<bool>();
+        }
+        recipe.inputs.push_back(WorkshopRecipeInput{*type, units, consumable});
     }
 
     if (recipe.inputs.empty()) {
@@ -257,7 +261,7 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
             double totalCost = 0.0;
 
             for (const auto& input : r.inputs) {
-                const std::uint32_t required = input.units * batches;
+                const std::uint32_t required = input.consumable ? (input.units * batches) : input.units;
                 const std::uint32_t have = carried.get(input.type);
                 const std::uint32_t missing = (required > have) ? (required - have) : 0U;
                 if (missing == 0U) {
@@ -295,6 +299,7 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
     const std::uint32_t batches = ceilDiv(request.outputAmount, std::max<std::uint32_t>(1U, recipe->outputUnits));
 
     std::array<bool, components::CarriedResources::kTypeCount> acquiring{};
+    std::array<std::uint32_t, components::CarriedResources::kTypeCount> reservedNonConsumable{};
 
     std::function<bool(genesis::world::ResourceType, std::uint32_t, int)> acquire;
     acquire = [&](genesis::world::ResourceType type, std::uint32_t units, int depth) -> bool {
@@ -328,7 +333,14 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
         if (targetRecipe) {
             const std::uint32_t needBatches = ceilDiv(units, std::max<std::uint32_t>(1U, targetRecipe->outputUnits));
             for (const auto& input : targetRecipe->inputs) {
-                if (!acquire(input.type, input.units * needBatches, depth + 1)) {
+                const std::uint32_t required = input.consumable ? (input.units * needBatches) : input.units;
+                const auto inIdx = components::resourceTypeIndex(input.type);
+                const std::uint32_t effectiveHave = carried.get(input.type) + ((inIdx < reservedNonConsumable.size()) ? reservedNonConsumable[inIdx] : 0U);
+                const std::uint32_t missing = (required > effectiveHave) ? (required - effectiveHave) : 0U;
+                if (missing == 0U) {
+                    continue;
+                }
+                if (!acquire(input.type, missing, depth + 1)) {
                     break;
                 }
             }
@@ -348,6 +360,10 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
         take.amount = units;
         plan.push_back(take);
 
+        if (idx < reservedNonConsumable.size()) {
+            reservedNonConsumable[idx] += units;
+        }
+
         if (idx < acquiring.size()) {
             acquiring[idx] = false;
         }
@@ -355,10 +371,11 @@ std::optional<std::vector<ActionTask>> ProductionPlanner::buildRecoveryPlan(cons
     };
 
     for (const auto& input : recipe->inputs) {
-        const std::uint32_t required = input.units * batches;
-        const std::uint32_t have = carried.get(input.type);
-        if (required > have) {
-            acquire(input.type, required - have, 0);
+        const std::uint32_t required = input.consumable ? (input.units * batches) : input.units;
+        const auto idx = components::resourceTypeIndex(input.type);
+        const std::uint32_t effectiveHave = carried.get(input.type) + ((idx < reservedNonConsumable.size()) ? reservedNonConsumable[idx] : 0U);
+        if (required > effectiveHave) {
+            acquire(input.type, required - effectiveHave, 0);
         }
     }
 

@@ -328,7 +328,11 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             r["inputs"] = json::array();
             for (const auto& input : recipe.inputs)
             {
-                r["inputs"].push_back({{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}});
+                json in{{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}};
+                if (!input.consumable) {
+                    in["consumable"] = false;
+                }
+                r["inputs"].push_back(std::move(in));
             }
             workshop["recipes"].push_back(std::move(r));
         }
@@ -340,7 +344,11 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
             workshop["inputs"] = json::array();
             for (const auto& input : spec->recipes.front().inputs)
             {
-                workshop["inputs"].push_back({{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}});
+                json in{{"type", genesis::world::resourceTypeName(input.type)}, {"units", input.units}};
+                if (!input.consumable) {
+                    in["consumable"] = false;
+                }
+                workshop["inputs"].push_back(std::move(in));
             }
         }
 

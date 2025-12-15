@@ -51,7 +51,7 @@ initial = 0
 chance = 1.0
 recipes = [
   { output_units = 3, inputs = [{ type = "Water", units = 2 }] },
-  { output_units = 9, inputs = [{ type = "Water", units = 2 }, { type = "Tool", units = 1 }] }
+  { output_units = 9, inputs = [{ type = "Water", units = 2 }, { type = "Tool", units = 1, consumable = false }] }
 ]
 
 [[worlddb.resources.workshop]]
@@ -60,6 +60,5 @@ initial = 0
 chance = 1.0
 recipes = [
   { output_units = 2, inputs = [{ type = "Food", units = 1 }, { type = "Water", units = 1 }] },
-  { output_units = 6, inputs = [{ type = "Food", units = 1 }, { type = "Tool", units = 1 }] }
+  { output_units = 6, inputs = [{ type = "Food", units = 1 }, { type = "Tool", units = 1, consumable = false }] }
 ]
-

@@ -440,7 +440,13 @@ void ActionExecutor::processProduce(entt::entity entity,
             if (input.units == 0U) {
                 continue;
             }
-            maxByInputs = std::min(maxByInputs, carried->get(input.type) / input.units);
+            if (input.consumable) {
+                maxByInputs = std::min(maxByInputs, carried->get(input.type) / input.units);
+            } else {
+                if (carried->get(input.type) < input.units) {
+                    maxByInputs = 0U;
+                }
+            }
         }
 
         const std::uint32_t space = (state->current >= state->capacity) ? 0U : (state->capacity - state->current);
@@ -460,7 +466,9 @@ void ActionExecutor::processProduce(entt::entity entity,
 
     const auto outputUnits = std::max<std::uint32_t>(1U, bestRecipe->outputUnits);
     for (const auto& input : bestRecipe->inputs) {
-        carried->remove(input.type, input.units * bestBatches);
+        if (input.consumable) {
+            carried->remove(input.type, input.units * bestBatches);
+        }
     }
 
     m_resources.produceAtInteraction(registry, task.interaction, outputUnits * bestBatches);

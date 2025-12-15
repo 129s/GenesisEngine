@@ -41,6 +41,7 @@
   - `inputs[]`：输入资源列表；每个元素包含：
     - `type`：输入资源类型字符串（`Food` / `Water` / `Social` / `Ore` / `Tool`；legacy：`Drink`）。
     - `units`：每批次消耗单位数（>= 1）。
+    - `consumable`：是否按批次消耗（可选，默认 `true`）。当为 `false` 时表示“工具/催化剂”输入：只需持有即可，不会随生产批次数减少。
 
 兼容：
 - 旧协议（v1）仍可使用：直接在 `workshop` 下提供 `outputUnits + inputs[]`（等价于单配方）。

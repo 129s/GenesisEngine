@@ -5,8 +5,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -39,6 +41,7 @@ struct SoakOptions {
     std::uint32_t agentCount{0};
     bool quiet{false};
     std::optional<std::filesystem::path> outPath;
+    std::optional<std::filesystem::path> summaryOutPath;
 };
 
 void printUsage(std::ostream& out) {
@@ -57,6 +60,7 @@ void printUsage(std::ostream& out) {
            "  --steps <n>           Steps to simulate for soak (default: 5000)\n"
            "  --agents <n>          Spawn N agents at start (replaces any existing)\n"
            "  --out <file>          Write soak metrics report as JSON\n"
+           "  --summary-out <file>  Write 1-page Markdown summary for soak\n"
            "  --quiet               Suppress per-event printing\n"
            "  --no-exit-on-failure  Always return 0 even if some commands fail\n"
            "  --help                Show this help\n";
@@ -208,6 +212,98 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     return std::clamp(g, 0.0, 1.0);
 }
 
+[[nodiscard]] std::string formatPct(double x) {
+    if (!std::isfinite(x)) {
+        return "n/a";
+    }
+    const double v = std::clamp(x, 0.0, 1.0) * 100.0;
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(1) << v << "%";
+    return oss.str();
+}
+
+[[nodiscard]] std::string buildMarkdownSoakSummary(const json& report) {
+    std::ostringstream out;
+
+    const auto steps = report.value("steps", 0ULL);
+    const auto agentCount = report.value("agentCount", 0U);
+    const auto worldFolder = report.value("worldFolder", std::string{});
+
+    out << "# Genesis Soak Summary\n\n";
+    out << "- worldFolder: `" << worldFolder << "`\n";
+    out << "- steps: `" << steps << "`\n";
+    out << "- agentCount: `" << agentCount << "`\n\n";
+
+    if (!report.contains("summary") || !report.at("summary").is_object()) {
+        out << "No `summary` found.\n";
+        return out.str();
+    }
+
+    const auto& summary = report.at("summary");
+    const auto& econ = summary.at("resourceEconomy");
+
+    out << "## 资源经济\n\n";
+    out << "- totalProduced: `" << econ.value("totalProduced", 0ULL) << "`\n";
+    out << "- totalConsumed: `" << econ.value("totalConsumed", 0ULL) << "`\n";
+    out << "- workshopProducedTotal: `" << econ.value("workshopProducedTotal", 0ULL) << "`\n";
+    out << "- regenProducedTotal: `" << econ.value("regenProducedTotal", 0ULL) << "`\n";
+    out << "- netProducedMinusConsumed: `" << report.at("resourceEconomy").value("netProducedMinusConsumed", 0LL) << "`\n";
+    out << "- avgUtilization: `" << econ.value("avgUtilization", 0.0) << "`\n";
+    out << "- avgOscillation: `" << econ.value("avgOscillation", 0.0) << "`\n";
+    out << "- workshopAvgOscillation: `" << econ.value("workshopAvgOscillation", 0.0) << "`\n";
+    out << "- stockoutStepsAny: `" << econ.value("stockoutStepsAny", 0ULL) << "`\n";
+    out << "- stockoutStepsSources: `" << econ.value("stockoutStepsSources", 0ULL) << "`\n";
+    out << "- stockoutStepsWorkshops: `" << econ.value("stockoutStepsWorkshops", 0ULL) << "`\n\n";
+
+    out << "## 动作与行为\n\n";
+    if (summary.contains("actions") && summary.at("actions").is_object() && summary.at("actions").contains("counts")) {
+        const auto& actions = summary.at("actions").at("counts");
+        out << "- ConsumeResource: `" << actions.value("ConsumeResource", 0ULL) << "`\n";
+        out << "- TakeResource: `" << actions.value("TakeResource", 0ULL) << "`\n";
+        out << "- ProduceResource: `" << actions.value("ProduceResource", 0ULL) << "`\n";
+        out << "- MoveToInteraction: `" << actions.value("MoveToInteraction", 0ULL) << "`\n";
+    }
+    out << "\n";
+
+    if (summary.contains("switching")) {
+        const auto& switching = summary.at("switching");
+        out << "- plannerTargetSwitchesPerAgent: `" << switching.value("plannerTargetSwitchesPerAgent", 0.0) << "`\n";
+        out << "- produceTargetSwitchesPerAgent: `" << switching.value("produceTargetSwitchesPerAgent", 0.0) << "`\n";
+    }
+    if (summary.contains("specialization")) {
+        const auto& spec = summary.at("specialization");
+        out << "- produceTicksGini: `" << spec.value("produceTicksGini", 0.0) << "`\n";
+        out << "- takeTicksGini: `" << spec.value("takeTicksGini", 0.0) << "`\n";
+    }
+    out << "\n";
+
+    out << "## 瓶颈 Top\n\n";
+    if (summary.contains("bottlenecksTop") && summary.at("bottlenecksTop").is_array()) {
+        const auto& top = summary.at("bottlenecksTop");
+        if (top.empty()) {
+            out << "- (none)\n";
+        } else {
+            for (std::size_t i = 0; i < top.size(); ++i) {
+                const auto& b = top.at(i);
+                out << i + 1 << ". "
+                    << b.value("type", "?")
+                    << (b.value("isWorkshop", false) ? " (Workshop)" : " (Source)")
+                    << " map=" << b.value("mapId", 0U)
+                    << " id=" << b.value("interactionId", 0U)
+                    << " hits=" << b.value("plannerHits", 0ULL)
+                    << " zero=" << formatPct(b.value("zeroShare", 0.0))
+                    << " util=" << formatPct(b.value("avgUtilization", 0.0))
+                    << " score=" << b.value("score", 0.0)
+                    << " name=`" << b.value("name", std::string{}) << "`\n";
+            }
+        }
+    } else {
+        out << "- (missing bottlenecksTop)\n";
+    }
+
+    return out.str();
+}
+
 struct BottleneckScore {
     std::uint32_t interactionId{0};
     double score{0.0};
@@ -325,7 +421,9 @@ struct ResourceEconomy {
     bool sawPlanner = !initialSnapshot->telemetry.plannerDecisions.empty();
     bool sawActions = !initialSnapshot->telemetry.actions.empty();
 
-    std::uint64_t stockoutSteps = 0;
+    std::uint64_t stockoutStepsAny = 0;
+    std::uint64_t stockoutStepsSources = 0;
+    std::uint64_t stockoutStepsWorkshops = 0;
     std::uint64_t stepsWithAnyConsumption = 0;
     std::uint64_t stepsWithAnyRegen = 0;
 
@@ -371,6 +469,8 @@ struct ResourceEconomy {
         }
 
         bool anyStockout = false;
+        bool anyStockoutSource = false;
+        bool anyStockoutWorkshop = false;
         bool anyConsumption = false;
         bool anyRegen = false;
 
@@ -405,6 +505,11 @@ struct ResourceEconomy {
 
             if (resource.current == 0U) {
                 anyStockout = true;
+                if (economy.isWorkshop) {
+                    anyStockoutWorkshop = true;
+                } else {
+                    anyStockoutSource = true;
+                }
             }
 
             if (resource.consumed > 0U) {
@@ -425,7 +530,13 @@ struct ResourceEconomy {
         }
 
         if (anyStockout) {
-            stockoutSteps++;
+            stockoutStepsAny++;
+        }
+        if (anyStockoutSource) {
+            stockoutStepsSources++;
+        }
+        if (anyStockoutWorkshop) {
+            stockoutStepsWorkshops++;
         }
         if (anyConsumption) {
             stepsWithAnyConsumption++;
@@ -529,7 +640,11 @@ struct ResourceEconomy {
         {"workshopProducedTotal", workshopProducedTotal},
         {"regenProducedTotal", regenProducedTotal},
         {"netProducedMinusConsumed", static_cast<std::int64_t>(totalProduced) - static_cast<std::int64_t>(totalConsumed)},
-        {"stockoutSteps", stockoutSteps},
+        // 历史：任意资源点 current==0（包含工坊初始为 0）即计入 `stockoutSteps`。
+        {"stockoutSteps", stockoutStepsAny},
+        {"stockoutStepsAny", stockoutStepsAny},
+        {"stockoutStepsSources", stockoutStepsSources},
+        {"stockoutStepsWorkshops", stockoutStepsWorkshops},
         {"stepsWithAnyConsumption", stepsWithAnyConsumption},
         // NOTE: 历史字段名为 `stepsWithAnyRegen`，但此处统计的是 “produced>0”（包含自然 regen 与工坊生产）。
         {"stepsWithAnyProduced", stepsWithAnyRegen},
@@ -641,7 +756,9 @@ struct ResourceEconomy {
           {"totalProduced", totalProduced},
           {"workshopProducedTotal", workshopProducedTotal},
           {"regenProducedTotal", regenProducedTotal},
-          {"stockoutSteps", stockoutSteps},
+          {"stockoutStepsAny", stockoutStepsAny},
+          {"stockoutStepsSources", stockoutStepsSources},
+          {"stockoutStepsWorkshops", stockoutStepsWorkshops},
           {"avgOscillation", oscillationSamples > 0 ? (oscillationSum / static_cast<double>(oscillationSamples)) : 0.0},
           {"workshopAvgOscillation", workshopOscillationSamples > 0 ? (workshopOscillationSum / static_cast<double>(workshopOscillationSamples)) : 0.0},
           {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0}}},
@@ -661,6 +778,19 @@ struct ResourceEconomy {
         }
     } else {
         std::cout << report.dump(2) << "\n";
+    }
+
+    if (opts.summaryOutPath) {
+        const auto outputPath = resolvePathIfRelative(opts.rootPath, *opts.summaryOutPath);
+        std::ofstream output(outputPath);
+        if (!output.is_open()) {
+            std::cerr << "Failed to write summary: " << outputPath.string() << "\n";
+            return 2;
+        }
+        output << buildMarkdownSoakSummary(report);
+        if (!opts.quiet) {
+            std::cout << "Wrote: " << outputPath.string() << "\n";
+        }
     }
 
     return 0;
@@ -883,7 +1013,7 @@ struct ParsedArgs {
                 continue;
             }
 
-            if ((arg == "--root" || arg == "--steps" || arg == "--out") && i + 1 >= argc) {
+            if ((arg == "--root" || arg == "--steps" || arg == "--out" || arg == "--summary-out") && i + 1 >= argc) {
                 return std::nullopt;
             }
 
@@ -893,6 +1023,10 @@ struct ParsedArgs {
             }
             if (arg == "--out") {
                 opts.outPath = std::filesystem::path(argv[++i]);
+                continue;
+            }
+            if (arg == "--summary-out") {
+                opts.summaryOutPath = std::filesystem::path(argv[++i]);
                 continue;
             }
             if (arg == "--steps") {

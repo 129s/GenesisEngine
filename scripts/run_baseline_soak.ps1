@@ -74,7 +74,8 @@ foreach ($b in $baselines) {
   }
 
   $metricsOut = Join-Path $repoRoot ("out\\metrics\\soak_{0}_seed{1}_steps{2}.json" -f $name, $seed, $Steps)
-  $soakArgs = @("soak", $worldOut, "--root", $repoRoot, "--steps", $Steps, "--out", $metricsOut, "--quiet")
+  $summaryOut = Join-Path $repoRoot ("out\\metrics\\summary_{0}_seed{1}_steps{2}.md" -f $name, $seed, $Steps)
+  $soakArgs = @("soak", $worldOut, "--root", $repoRoot, "--steps", $Steps, "--out", $metricsOut, "--summary-out", $summaryOut, "--quiet")
   if ($agents -gt 0) {
     $soakArgs += @("--agents", $agents)
   }

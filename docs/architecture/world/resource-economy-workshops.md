@@ -73,3 +73,16 @@ recipes = [
 - 旧写法仍可用（单配方）：
   - `output_units = 3`
   - `inputs = [{ type = "Water", units = 2 }]`
+
+## Worldgen：腐败/衰减（Decay）
+可在 `worlddb.resources` 中启用对指定资源类型的腐败（每 step 扣减库存）：
+
+```toml
+[worlddb.resources]
+decay_per_step = 1
+decay_types = ["Food"]
+```
+
+说明：
+- 当前实现通过在生成的 `Interaction.meta.decayPerStep` 写入数值来驱动运行时扣减。
+- 默认不启用（`decay_types` 为空或 `decay_per_step=0`）。

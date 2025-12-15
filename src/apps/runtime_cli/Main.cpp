@@ -251,6 +251,8 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     out << "- avgUtilization: `" << econ.value("avgUtilization", 0.0) << "`\n";
     out << "- avgOscillation: `" << econ.value("avgOscillation", 0.0) << "`\n";
     out << "- workshopAvgOscillation: `" << econ.value("workshopAvgOscillation", 0.0) << "`\n";
+    out << "- totalDecayed: `" << econ.value("totalDecayed", 0ULL) << "`\n";
+    out << "- stepsWithAnyDecay: `" << econ.value("stepsWithAnyDecay", 0ULL) << "`\n";
     out << "- stockoutStepsAny: `" << econ.value("stockoutStepsAny", 0ULL) << "`\n";
     out << "- stockoutStepsSources: `" << econ.value("stockoutStepsSources", 0ULL) << "`\n";
     out << "- stockoutStepsWorkshops: `" << econ.value("stockoutStepsWorkshops", 0ULL) << "`\n\n";
@@ -335,8 +337,10 @@ struct ResourceEconomy {
 
     std::uint64_t totalConsumed{0};
     std::uint64_t totalProduced{0};
+    std::uint64_t totalDecayed{0};
     std::uint64_t consumptionEvents{0};
     std::uint64_t productionEvents{0};
+    std::uint64_t decayEvents{0};
     bool initialized{false};
 };
 
@@ -426,6 +430,7 @@ struct ResourceEconomy {
     std::uint64_t stockoutStepsWorkshops = 0;
     std::uint64_t stepsWithAnyConsumption = 0;
     std::uint64_t stepsWithAnyRegen = 0;
+    std::uint64_t stepsWithAnyDecay = 0;
 
     double utilizationSum = 0.0;
     std::uint64_t utilizationSamples = 0;
@@ -473,6 +478,7 @@ struct ResourceEconomy {
         bool anyStockoutWorkshop = false;
         bool anyConsumption = false;
         bool anyRegen = false;
+        bool anyDecay = false;
 
         for (const auto& resource : telemetry.resources) {
             auto& economy = resourceByInteraction[resource.interactionId];
@@ -522,6 +528,11 @@ struct ResourceEconomy {
                 economy.productionEvents++;
                 anyRegen = true;
             }
+            if (resource.decayed > 0U) {
+                economy.totalDecayed += resource.decayed;
+                economy.decayEvents++;
+                anyDecay = true;
+            }
 
             if (economy.capacity > 0U) {
                 utilizationSum += static_cast<double>(economy.endCurrent) / static_cast<double>(economy.capacity);
@@ -544,6 +555,9 @@ struct ResourceEconomy {
         if (anyRegen) {
             stepsWithAnyRegen++;
         }
+        if (anyDecay) {
+            stepsWithAnyDecay++;
+        }
     };
 
     ingestTelemetry(initialSnapshot->telemetry);
@@ -561,6 +575,7 @@ struct ResourceEconomy {
     std::uint64_t totalFinal = 0;
     std::uint64_t totalConsumed = 0;
     std::uint64_t totalProduced = 0;
+    std::uint64_t totalDecayed = 0;
     std::uint64_t workshopProducedTotal = 0;
     std::uint64_t regenProducedTotal = 0;
 
@@ -581,8 +596,10 @@ struct ResourceEconomy {
         item["max"] = economy.maxCurrent;
         item["consumedTotal"] = economy.totalConsumed;
         item["producedTotal"] = economy.totalProduced;
+        item["decayedTotal"] = economy.totalDecayed;
         item["consumeEvents"] = economy.consumptionEvents;
         item["produceEvents"] = economy.productionEvents;
+        item["decayEvents"] = economy.decayEvents;
         item["ticks"] = economy.ticks;
         item["zeroSteps"] = economy.zeroSteps;
         item["zeroShare"] = economy.ticks > 0 ? (static_cast<double>(economy.zeroSteps) / static_cast<double>(economy.ticks)) : 0.0;
@@ -594,6 +611,7 @@ struct ResourceEconomy {
         totalFinal += economy.endCurrent;
         totalConsumed += economy.totalConsumed;
         totalProduced += economy.totalProduced;
+        totalDecayed += economy.totalDecayed;
         if (economy.isWorkshop) {
             workshopProducedTotal += economy.totalProduced;
         } else {
@@ -637,6 +655,7 @@ struct ResourceEconomy {
         {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0},
         {"totalConsumed", totalConsumed},
         {"totalProduced", totalProduced},
+        {"totalDecayed", totalDecayed},
         {"workshopProducedTotal", workshopProducedTotal},
         {"regenProducedTotal", regenProducedTotal},
         {"netProducedMinusConsumed", static_cast<std::int64_t>(totalProduced) - static_cast<std::int64_t>(totalConsumed)},
@@ -649,6 +668,7 @@ struct ResourceEconomy {
         // NOTE: 历史字段名为 `stepsWithAnyRegen`，但此处统计的是 “produced>0”（包含自然 regen 与工坊生产）。
         {"stepsWithAnyProduced", stepsWithAnyRegen},
         {"stepsWithAnyRegen", stepsWithAnyRegen},
+        {"stepsWithAnyDecay", stepsWithAnyDecay},
     };
 
     // --- Summary: Bottlenecks & rollups (human-readable oriented) ---
@@ -754,11 +774,13 @@ struct ResourceEconomy {
         {"resourceEconomy",
          {{"totalConsumed", totalConsumed},
           {"totalProduced", totalProduced},
+          {"totalDecayed", totalDecayed},
           {"workshopProducedTotal", workshopProducedTotal},
           {"regenProducedTotal", regenProducedTotal},
           {"stockoutStepsAny", stockoutStepsAny},
           {"stockoutStepsSources", stockoutStepsSources},
           {"stockoutStepsWorkshops", stockoutStepsWorkshops},
+          {"stepsWithAnyDecay", stepsWithAnyDecay},
           {"avgOscillation", oscillationSamples > 0 ? (oscillationSum / static_cast<double>(oscillationSamples)) : 0.0},
           {"workshopAvgOscillation", workshopOscillationSamples > 0 ? (workshopOscillationSum / static_cast<double>(workshopOscillationSamples)) : 0.0},
           {"avgUtilization", utilizationSamples > 0 ? (utilizationSum / static_cast<double>(utilizationSamples)) : 0.0}}},

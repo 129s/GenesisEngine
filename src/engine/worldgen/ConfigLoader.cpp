@@ -328,6 +328,11 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
             {
                 settings.resources.regen_per_step = static_cast<std::uint32_t>(*regen);
             }
+            if (auto decay = read_size_t(*res_table, "decay_per_step"))
+            {
+                settings.resources.decay_per_step = static_cast<std::uint32_t>(*decay);
+            }
+            settings.resources.decay_types = parse_resource_types(*res_table, "decay_types");
 
             if (const auto* workshop_node = res_table->get("workshop"))
             {
@@ -575,6 +580,11 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
                 {
                     throw std::runtime_error("worlddb.resources.weights 总和必须大于 0");
                 }
+            }
+
+            if (!settings.resources.decay_types.empty() && settings.resources.decay_per_step == 0U)
+            {
+                throw std::runtime_error("worlddb.resources.decay_types 非空时，decay_per_step 必须大于 0");
             }
         }
     }

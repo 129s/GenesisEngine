@@ -291,6 +291,24 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         return nullptr;
     };
 
+    auto applyDecayMetaIfNeeded = [&](world::Interaction& resource) {
+        if (!resource.resourceType) {
+            return;
+        }
+        if (config.worlddb.resources.decay_per_step == 0U || config.worlddb.resources.decay_types.empty()) {
+            return;
+        }
+        const auto type = *resource.resourceType;
+        if (std::find(config.worlddb.resources.decay_types.begin(),
+                      config.worlddb.resources.decay_types.end(),
+                      type) == config.worlddb.resources.decay_types.end()) {
+            return;
+        }
+        json meta = resource.meta ? *resource.meta : json::object();
+        meta["decayPerStep"] = config.worlddb.resources.decay_per_step;
+        resource.meta = std::move(meta);
+    };
+
     auto shouldMarkWorkshop = [&](const genesis::worldgen::WorldDbResourceSettings::Workshop& spec, std::uint64_t ordinal) -> bool {
         const double chance = std::clamp(spec.chance, 0.0, 1.0);
         if (chance <= 0.0) {
@@ -467,6 +485,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
                 resource.name = (resourcesPerMap == 1) ? "Resource" : ("Resource_" + std::to_string(index));
                 resource.capacity = config.worlddb.resources.capacity;
                 resource.regenPerStep = config.worlddb.resources.regen_per_step;
+                applyDecayMetaIfNeeded(resource);
                 applyWorkshopMetaIfNeeded(resource, (static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(index));
                 db.addInteraction(std::move(resource));
             }
@@ -516,6 +535,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         resource.resourceType = parseResourceTypeTag(node).value_or(config.worlddb.resources.type);
         resource.capacity = config.worlddb.resources.capacity;
         resource.regenPerStep = config.worlddb.resources.regen_per_step;
+        applyDecayMetaIfNeeded(resource);
         applyWorkshopMetaIfNeeded(resource, (static_cast<std::uint64_t>(mapId) << 32ULL) ^ static_cast<std::uint64_t>(resource.id));
         db.addInteraction(std::move(resource));
     }

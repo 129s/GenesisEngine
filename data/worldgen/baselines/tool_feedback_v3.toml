@@ -36,6 +36,8 @@ types = ["Water", "Food", "Social", "Ore", "Tool"]
 weights = [2.0, 1.0, 1.0, 0.45, 0.20]
 capacity = 40
 regen_per_step = 2
+decay_per_step = 1
+decay_types = ["Food"]
 
 [[worlddb.resources.workshop]]
 output = "Tool"

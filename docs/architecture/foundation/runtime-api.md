@@ -50,7 +50,7 @@ Headless 工具：仓库提供 `genesis-runtime-cli`（见 `docs/guides/headless
 - 变更集合（按需扩展）：
   - `resourceChanges[]` / `needChanges[]` / `plannerChanges[]` / `actionChanges[]` / `agentChanges[]` / `movementChanges[]`
 
-## TickTelemetry 契约（v2）
+## TickTelemetry 契约（v3）
 最小字段集合，按需扩展；变更需提升 `schema_version` 并记录（GUI 以 schema 做兼容）。
 - `schema_version:uint32`
 - `step:uint64`、`step_seconds:float`
@@ -59,9 +59,9 @@ Headless 工具：仓库提供 `genesis-runtime-cli`（见 `docs/guides/headless
   - `name:string`
   - `mapId:uint32`
   - `position:{ x:float, y:float }`（地图内世界坐标；直线移动语义）
- - （可选）`movement`：未来扩展跨图进度/目标等
- - `resourcesV2[]`：`{ interactionId:uint32, mapId:uint32, name:string, current:uint32, capacity:uint32 }`
- - 其余（needs/attributes/actions/diagnostics）：v2 暂不输出，待模块化回归
+- `movements[]`（可选）
+- `resources[]`：`{ interactionId:uint32, mapId:uint32, name:string, type:enum, current:uint32, capacity:uint32, consumed:uint32, produced:uint32, decayed:uint32 }`
+- `needs[]`、`plannerDecisions[]`、`actions[]`：按需扩展；可作为 Headless/Soak 分析输入
 
 ## WorldAtlas 契约（v2）
 Atlas 描述世界静态结构（Map 图）与每图可视元数据；只读、版本化。

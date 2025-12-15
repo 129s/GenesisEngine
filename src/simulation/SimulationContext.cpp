@@ -249,6 +249,7 @@ void SimulationContext::collectResourceSnapshots(std::vector<telemetry::Resource
         const auto delta = m_resourceSystem->telemetryDelta(spawn.interaction);
         snapshot.consumed = delta.consumed;
         snapshot.produced = delta.produced;
+        snapshot.decayed = delta.decayed;
         out.push_back(std::move(snapshot));
     });
 

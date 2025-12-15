@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <utility>
 
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include "genesis/messaging/EventBus.hpp"
@@ -42,6 +43,27 @@ void ResourceSystem::initialize(entt::registry& registry) {
         }
         const auto& meta = *it.meta;
         return meta.contains("workshop") && meta.at("workshop").is_object();
+    };
+
+    auto decayPerStep = [](const genesis::world::Interaction& it) -> std::uint32_t {
+        if (!it.meta) {
+            return 0U;
+        }
+        const auto& meta = *it.meta;
+        if (!meta.contains("decayPerStep")) {
+            return 0U;
+        }
+        const auto& v = meta.at("decayPerStep");
+        if (v.is_number_unsigned()) {
+            return v.get<std::uint32_t>();
+        }
+        if (v.is_number_integer()) {
+            const auto i = v.get<std::int64_t>();
+            if (i > 0) {
+                return static_cast<std::uint32_t>(i);
+            }
+        }
+        return 0U;
     };
 
     auto workshopInitial = [&](const genesis::world::Interaction& it, std::uint32_t capacity) -> std::uint32_t {
@@ -89,6 +111,7 @@ void ResourceSystem::initialize(entt::registry& registry) {
             info.interaction = it.id;
             info.mapId = it.mapId;
             info.ratePerStep = isWorkshop(it) ? 0U : it.regenPerStep.value_or(0);
+            info.decayPerStep = decayPerStep(it);
 
             m_spawnEntities.push_back(entity);
             m_spawnByInteraction[it.id] = entity;
@@ -121,6 +144,12 @@ void ResourceSystem::tick(entt::registry& registry, std::uint64_t stepIndex) {
     for (const auto entity : m_spawnEntities) {
         auto& inventory = registry.get<components::ResourceInventory>(entity);
         const auto& info = registry.get<components::ResourceSpawn>(entity);
+
+        if (inventory.current > 0U && info.decayPerStep > 0U) {
+            const std::uint32_t decayed = std::min(inventory.current, info.decayPerStep);
+            inventory.current -= decayed;
+            m_telemetryDeltas[info.interaction].decayed += decayed;
+        }
 
         if (inventory.current >= inventory.capacity || info.ratePerStep == 0U) {
             continue;

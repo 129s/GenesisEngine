@@ -10,10 +10,10 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
                                                      std::span<const telemetry::NeedSnapshot> needs,
                                                      std::span<const telemetry::PlannerSnapshot> plannerDecisions,
                                                      std::span<const telemetry::ActionSnapshot> actions,
-                                                     std::uint64_t stepIndex,
+    std::uint64_t stepIndex,
                                                      float stepSeconds) const {
     telemetry::TickTelemetry tick{};
-    tick.schema_version = 2;
+    tick.schema_version = 3;
     tick.step = stepIndex;
     tick.stepSeconds = stepSeconds;
 

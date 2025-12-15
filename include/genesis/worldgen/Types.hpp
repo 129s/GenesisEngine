@@ -144,6 +144,9 @@ struct WorldDbResourceSettings
     std::vector<double> weights{};
     std::uint32_t capacity{50};
     std::uint32_t regen_per_step{2};
+    // 可选：对指定资源类型启用腐败/衰减（每 step 减少库存的单位数）。
+    std::uint32_t decay_per_step{0};
+    std::vector<genesis::world::ResourceType> decay_types{};
 
     struct WorkshopInput
     {

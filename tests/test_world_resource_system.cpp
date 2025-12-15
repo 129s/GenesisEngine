@@ -2,6 +2,7 @@
 
 #include <entt/entt.hpp>
 #include <iterator>
+#include <nlohmann/json.hpp>
 
 #include "genesis/messaging/EventBus.hpp"
 #include "genesis/world/WorldDatabase.hpp"
@@ -118,6 +119,48 @@ TEST_F(ResourceSystemTest, ConsumeEmitsEventsAndTickRegenerates) {
     system_->reset(registry_);
     auto postResetView = registry_.view<genesis::world::components::ResourceInventory>();
     EXPECT_EQ(std::distance(postResetView.begin(), postResetView.end()), 0);
+}
+
+TEST_F(ResourceSystemTest, TickAppliesDecayWhenConfiguredInMeta) {
+    using json = nlohmann::json;
+
+    database_.clear();
+    genesis::world::Map map{};
+    map.id = 1;
+    map.name = "TestMap";
+    database_.addMap(map);
+
+    genesis::world::Interaction resource{};
+    resource.id = kInteractionId;
+    resource.mapId = map.id;
+    resource.kind = genesis::world::InteractionKind::Resource;
+    resource.capacity = 10;
+    resource.regenPerStep = 2;
+    resource.name = "Berries";
+    resource.meta = json{{"decayPerStep", 1}};
+    database_.addInteraction(resource);
+
+    system_->reset(registry_);
+    system_ = std::make_unique<genesis::world::system::ResourceSystem>(database_, eventBus_);
+    system_->initialize(registry_);
+
+    auto view = registry_.view<genesis::world::components::ResourceInventory,
+                               genesis::world::components::ResourceSpawn>();
+    ASSERT_EQ(std::distance(view.begin(), view.end()), 1);
+    auto entity = *view.begin();
+
+    auto& inventory = view.get<genesis::world::components::ResourceInventory>(entity);
+    const auto& spawn = view.get<genesis::world::components::ResourceSpawn>(entity);
+    EXPECT_EQ(spawn.decayPerStep, 1U);
+
+    inventory.current = 10;
+    system_->tick(registry_, 1);
+    // decay 1 then regen 1 (space=1) => stays 10
+    EXPECT_EQ(inventory.current, 10U);
+
+    const auto delta = system_->telemetryDelta(kInteractionId);
+    EXPECT_EQ(delta.decayed, 1U);
+    EXPECT_EQ(delta.produced, 1U);
 }
 
 } // namespace

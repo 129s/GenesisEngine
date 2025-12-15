@@ -25,6 +25,7 @@ struct ResourceSnapshot {
     // 本 tick 内的变化量（由运行时写入；用于 Soak/对比，不作为世界状态的唯一来源）。
     std::uint32_t consumed{0};
     std::uint32_t produced{0};
+    std::uint32_t decayed{0};
 };
 
 struct NeedSnapshot {
@@ -69,7 +70,7 @@ struct MovementSnapshot {
 };
 
 struct TickTelemetry {
-    std::uint32_t schema_version{2};
+    std::uint32_t schema_version{3};
     std::uint64_t step{0};
     float stepSeconds{0.0f};
     std::vector<ResourceSnapshot> resources;

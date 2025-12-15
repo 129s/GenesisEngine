@@ -33,7 +33,7 @@ TEST(RuntimeShortSoak, WorldRemainsSaneForShortRun) {
     runtime.step(1);
     const auto* snapshot0 = runtime.latestSnapshot();
     ASSERT_NE(snapshot0, nullptr);
-    ASSERT_EQ(snapshot0->telemetry.schema_version, 2U);
+    ASSERT_EQ(snapshot0->telemetry.schema_version, 3U);
     ASSERT_FALSE(snapshot0->telemetry.agents.empty());
     ASSERT_FALSE(snapshot0->telemetry.resources.empty());
 
@@ -50,7 +50,7 @@ TEST(RuntimeShortSoak, WorldRemainsSaneForShortRun) {
         ASSERT_NE(snapshot, nullptr);
 
         const auto& telemetry = snapshot->telemetry;
-        ASSERT_EQ(telemetry.schema_version, 2U);
+        ASSERT_EQ(telemetry.schema_version, 3U);
 
         ASSERT_GE(telemetry.step, lastTelemetryStep);
         if (telemetry.step == lastTelemetryStep) {
@@ -90,4 +90,3 @@ TEST(RuntimeShortSoak, WorldRemainsSaneForShortRun) {
     EXPECT_TRUE(sawPlanner);
     EXPECT_TRUE(sawActions);
 }
-

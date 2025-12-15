@@ -45,6 +45,7 @@ public:
     struct TelemetryDelta {
         std::uint32_t consumed{0};
         std::uint32_t produced{0};
+        std::uint32_t decayed{0};
     };
 
     [[nodiscard]] TelemetryDelta telemetryDelta(genesis::world::InteractionId interaction) const noexcept;

@@ -320,6 +320,36 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
         } else {
             out << "- (missing failuresTop)\n";
         }
+
+        out << "\n### 缺输入 Top（可消耗）\n\n";
+        if (prod.contains("missingConsumableInputsTop") && prod.at("missingConsumableInputsTop").is_array()) {
+            const auto& top = prod.at("missingConsumableInputsTop");
+            if (top.empty()) {
+                out << "- (none)\n";
+            } else {
+                for (std::size_t i = 0; i < top.size(); ++i) {
+                    const auto& r = top.at(i);
+                    out << i + 1 << ". " << r.value("type", "?") << " count=" << r.value("count", 0ULL) << "\n";
+                }
+            }
+        } else {
+            out << "- (missing missingConsumableInputsTop)\n";
+        }
+
+        out << "\n### 缺输入 Top（非消耗工具/设备）\n\n";
+        if (prod.contains("missingNonConsumableInputsTop") && prod.at("missingNonConsumableInputsTop").is_array()) {
+            const auto& top = prod.at("missingNonConsumableInputsTop");
+            if (top.empty()) {
+                out << "- (none)\n";
+            } else {
+                for (std::size_t i = 0; i < top.size(); ++i) {
+                    const auto& r = top.at(i);
+                    out << i + 1 << ". " << r.value("type", "?") << " count=" << r.value("count", 0ULL) << "\n";
+                }
+            }
+        } else {
+            out << "- (missing missingNonConsumableInputsTop)\n";
+        }
     } else {
         out << "- (missing production)\n";
     }
@@ -378,13 +408,15 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
         } else {
             for (std::size_t i = 0; i < top.size(); ++i) {
                 const auto& b = top.at(i);
+                const bool isWorkshop = b.value("isWorkshop", false);
                 out << i + 1 << ". "
                     << b.value("type", "?")
-                    << (b.value("isWorkshop", false) ? " (Workshop)" : " (Source)")
+                    << (isWorkshop ? " (Workshop)" : " (Source)")
                     << " map=" << b.value("mapId", 0U)
                     << " id=" << b.value("interactionId", 0U)
                     << " hits=" << b.value("plannerHits", 0ULL)
-                    << " zero=" << formatPct(b.value("zeroShare", 0.0))
+                    << (isWorkshop ? (std::string(" fail=") + formatPct(b.value("workshopFailureShare", 0.0)))
+                                   : (std::string(" zero=") + formatPct(b.value("zeroShare", 0.0))))
                     << " util=" << formatPct(b.value("avgUtilization", 0.0))
                     << " score=" << b.value("score", 0.0)
                     << " name=`" << b.value("name", std::string{}) << "`\n";
@@ -536,6 +568,9 @@ struct ResourceEconomy {
     std::uint64_t productionFailedTotal = 0;
     std::unordered_map<std::string, std::uint64_t> productionFailureReasons;
     std::unordered_map<std::uint32_t, std::uint64_t> productionFailuresByWorkshop;
+    std::unordered_map<std::uint32_t, std::uint64_t> productionAttemptsByWorkshop;
+    std::unordered_map<std::uint32_t, std::uint64_t> productionSucceededByWorkshop;
+    std::unordered_map<std::uint32_t, std::uint64_t> productionFailedByWorkshop;
 
     double utilizationSum = 0.0;
     std::uint64_t utilizationSamples = 0;
@@ -675,15 +710,22 @@ struct ResourceEconomy {
         if (!telemetry.workshopAttempts.empty()) {
             for (const auto& attempt : telemetry.workshopAttempts) {
                 productionAttemptsTotal++;
+                if (attempt.interactionId != 0) {
+                    productionAttemptsByWorkshop[attempt.interactionId]++;
+                }
                 const bool ok = attempt.failureReason.empty() && attempt.producedUnits > 0U;
                 if (ok) {
                     productionSucceededTotal++;
+                    if (attempt.interactionId != 0) {
+                        productionSucceededByWorkshop[attempt.interactionId]++;
+                    }
                 } else {
                     productionFailedTotal++;
                     if (!attempt.failureReason.empty()) {
                         productionFailureReasons[attempt.failureReason]++;
                         if (attempt.interactionId != 0) {
                             productionFailuresByWorkshop[attempt.interactionId]++;
+                            productionFailedByWorkshop[attempt.interactionId]++;
                         }
                     }
                 }
@@ -818,10 +860,23 @@ struct ResourceEconomy {
         const std::uint64_t hits = (hitsIt == plannerTargetCounts.end()) ? 0ULL : hitsIt->second;
         const double hitShare = totalPlannerHits > 0 ? (static_cast<double>(hits) / static_cast<double>(totalPlannerHits)) : 0.0;
 
-        // Score intuition:
-        // - hot target (hitShare) + frequently empty (zeroShare) => bottleneck candidate.
-        // - low avg utilization reinforces (inventory tends to be low).
-        const double score = std::log1p(static_cast<double>(hits)) * (0.65 * clamp01(zeroShare) + 0.35 * (1.0 - clamp01(avgUtil))) * (0.25 + clamp01(hitShare) * 2.0);
+        double score = 0.0;
+
+        if (economy.isWorkshop) {
+            const std::uint64_t attempts = productionAttemptsByWorkshop.contains(interactionId) ? productionAttemptsByWorkshop.at(interactionId) : 0ULL;
+            const std::uint64_t failures = productionFailedByWorkshop.contains(interactionId) ? productionFailedByWorkshop.at(interactionId) : 0ULL;
+            const double failShare = attempts > 0 ? (static_cast<double>(failures) / static_cast<double>(attempts)) : 0.0;
+
+            // Workshop score intuition:
+            // - A workshop can be "just-in-time" (current stays near 0) while being healthy.
+            // - Prefer failure rate over `current==0` for workshop bottleneck detection.
+            score = std::log1p(static_cast<double>(hits)) * clamp01(failShare) * (0.25 + clamp01(hitShare) * 2.0);
+        } else {
+            // Source score intuition:
+            // - hot target (hitShare) + frequently empty (zeroShare) => bottleneck candidate.
+            // - low avg utilization reinforces (inventory tends to be low).
+            score = std::log1p(static_cast<double>(hits)) * (0.65 * clamp01(zeroShare) + 0.35 * (1.0 - clamp01(avgUtil))) * (0.25 + clamp01(hitShare) * 2.0);
+        }
 
         if (score > 0.0) {
             bottlenecks.push_back(BottleneckScore{interactionId, score});
@@ -874,6 +929,10 @@ struct ResourceEconomy {
         const auto hitsIt = plannerTargetCounts.find(id);
         const std::uint64_t hits = (hitsIt == plannerTargetCounts.end()) ? 0ULL : hitsIt->second;
 
+        const std::uint64_t workshopAttempts = productionAttemptsByWorkshop.contains(id) ? productionAttemptsByWorkshop.at(id) : 0ULL;
+        const std::uint64_t workshopFailures = productionFailedByWorkshop.contains(id) ? productionFailedByWorkshop.at(id) : 0ULL;
+        const double workshopFailureShare = workshopAttempts > 0 ? (static_cast<double>(workshopFailures) / static_cast<double>(workshopAttempts)) : 0.0;
+
         topBottlenecks.push_back({
             {"interactionId", economy.interactionId},
             {"mapId", economy.mapId},
@@ -887,6 +946,9 @@ struct ResourceEconomy {
             {"plannerHits", hits},
             {"zeroShare", zeroShare},
             {"avgUtilization", avgUtil},
+            {"workshopAttempts", workshopAttempts},
+            {"workshopFailures", workshopFailures},
+            {"workshopFailureShare", workshopFailureShare},
             {"score", bottlenecks[i].score},
         });
     }
@@ -1014,6 +1076,54 @@ struct ResourceEconomy {
             });
         }
 
+        auto parseMissingInputType = [](std::string_view reason, std::string_view prefix) -> std::optional<std::string> {
+            if (!reason.starts_with(prefix)) {
+                return std::nullopt;
+            }
+            auto rest = reason.substr(prefix.size());
+            if (!rest.starts_with(':')) {
+                return std::nullopt;
+            }
+            rest.remove_prefix(1);
+            const auto colon = rest.find(':');
+            const auto typePart = (colon == std::string_view::npos) ? rest : rest.substr(0, colon);
+            if (typePart.empty()) {
+                return std::nullopt;
+            }
+            return std::string(typePart);
+        };
+
+        std::unordered_map<std::string, std::uint64_t> missingConsumableInputs;
+        std::unordered_map<std::string, std::uint64_t> missingNonConsumableInputs;
+        for (const auto& [reason, count] : productionFailureReasons) {
+            if (auto type = parseMissingInputType(reason, "MissingConsumableInput")) {
+                missingConsumableInputs[*type] += count;
+            }
+            if (auto type = parseMissingInputType(reason, "MissingNonConsumableInput")) {
+                missingNonConsumableInputs[*type] += count;
+            }
+        }
+
+        auto buildTopList = [](const std::unordered_map<std::string, std::uint64_t>& counts) -> json {
+            struct Score {
+                std::string key;
+                std::uint64_t count{0};
+            };
+            std::vector<Score> items;
+            items.reserve(counts.size());
+            for (const auto& [k, v] : counts) {
+                items.push_back(Score{k, v});
+            }
+            std::sort(items.begin(), items.end(), [](const Score& a, const Score& b) { return a.count > b.count; });
+
+            json top = json::array();
+            const std::size_t n = std::min<std::size_t>(8, items.size());
+            for (std::size_t i = 0; i < n; ++i) {
+                top.push_back({{"type", items[i].key}, {"count", items[i].count}});
+            }
+            return top;
+        };
+
         report["summary"]["production"] = {
             {"attemptsTotal", productionAttemptsTotal},
             {"succeededTotal", productionSucceededTotal},
@@ -1021,6 +1131,8 @@ struct ResourceEconomy {
             {"failureReasons", std::move(reasonsJson)},
             {"failureReasonsTop", std::move(reasonsTop)},
             {"failuresTop", std::move(failuresTop)},
+            {"missingConsumableInputsTop", buildTopList(missingConsumableInputs)},
+            {"missingNonConsumableInputsTop", buildTopList(missingNonConsumableInputs)},
         };
     }
 

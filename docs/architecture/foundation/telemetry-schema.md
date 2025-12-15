@@ -116,6 +116,10 @@
 - `MissingNonConsumableInput`：缺少非消耗输入（例如 Tool 作为复用工具）。
 - `Unknown`：无法归类的失败（需要进一步细化分类时再拆分）。
 
+细化格式（可选）：
+- `MissingConsumableInput:<Type>[:Unreachable]`：例如 `MissingConsumableInput:Water`、`MissingConsumableInput:Water:Unreachable`。
+- `MissingNonConsumableInput:<Type>[:Unreachable]`：例如 `MissingNonConsumableInput:Tool`。
+
 ## 3. 变更记录（Changelog）
 
 ### v4

@@ -5,12 +5,14 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <unordered_map>
 
 #include "genesis/agents/CarriedResources.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/ProductionPlanner.hpp"
 #include "genesis/world/MapPathfinding.hpp"
 #include "genesis/world/system/ResourceSystem.hpp"
+#include "genesis/world/ResourceTypeStrings.hpp"
 
 namespace genesis::agents {
 
@@ -24,6 +26,36 @@ constexpr const char* kReasonOutputFull = "OutputFull";
 constexpr const char* kReasonMissingConsumableInput = "MissingConsumableInput";
 constexpr const char* kReasonMissingNonConsumableInput = "MissingNonConsumableInput";
 constexpr const char* kReasonUnknown = "Unknown";
+
+[[nodiscard]] std::string reasonWithType(const char* prefix, genesis::world::ResourceType type, bool unreachable) {
+    std::string out(prefix);
+    out.push_back(':');
+    out.append(genesis::world::resourceTypeName(type));
+    if (unreachable) {
+        out.append(":Unreachable");
+    }
+    return out;
+}
+
+[[nodiscard]] bool anyReachableResourceType(const genesis::world::WorldDatabase& db,
+                                            genesis::world::MapId startMap,
+                                            genesis::world::ResourceType type) {
+    for (const auto& m : db.maps()) {
+        for (const auto& it : db.interactions(m.id)) {
+            if (it.kind != genesis::world::InteractionKind::Resource) {
+                continue;
+            }
+            if (it.resourceType.value_or(genesis::world::ResourceType::Food) != type) {
+                continue;
+            }
+            const auto path = genesis::world::shortestMapPath(db, startMap, it.mapId);
+            if (path) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 } // namespace
 
 ActionExecutor::ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources)
@@ -479,6 +511,9 @@ void ActionExecutor::processProduce(entt::entity entity,
     bool anyNonConsumableOk = false;
     bool anyConsumableOk = false;
 
+    std::unordered_map<std::uint32_t, std::uint32_t> missingNonConsumableByType;
+    std::unordered_map<std::uint32_t, std::uint32_t> missingConsumableByType;
+
     for (const auto& r : recipes) {
         const auto outputUnits = std::max<std::uint32_t>(1U, r.outputUnits);
 
@@ -506,6 +541,28 @@ void ActionExecutor::processProduce(entt::entity entity,
         const std::uint32_t effectiveByInputs = nonConsumablesOk ? maxByInputs : 0U;
         anyConsumableOk = anyConsumableOk || (nonConsumablesOk && effectiveByInputs > 0U);
 
+        if (maxByCapacity > 0U) {
+            if (!nonConsumablesOk) {
+                for (const auto& input : r.inputs) {
+                    if (input.units == 0U || input.consumable) {
+                        continue;
+                    }
+                    if (carried->get(input.type) < input.units) {
+                        missingNonConsumableByType[static_cast<std::uint32_t>(input.type)]++;
+                    }
+                }
+            } else if (effectiveByInputs == 0U) {
+                for (const auto& input : r.inputs) {
+                    if (input.units == 0U || !input.consumable) {
+                        continue;
+                    }
+                    if (carried->get(input.type) < input.units) {
+                        missingConsumableByType[static_cast<std::uint32_t>(input.type)]++;
+                    }
+                }
+            }
+        }
+
         const std::uint32_t batches = std::min(wantedBatches, std::min(effectiveByInputs, maxByCapacity));
         if (batches > bestBatches) {
             bestBatches = batches;
@@ -521,10 +578,30 @@ void ActionExecutor::processProduce(entt::entity entity,
         attempt.wantedBatches = wantedBatches;
         if (!anyCapacity) {
             attempt.failureReason = kReasonOutputFull;
-        } else if (!anyNonConsumableOk) {
-            attempt.failureReason = kReasonMissingNonConsumableInput;
-        } else if (!anyConsumableOk) {
-            attempt.failureReason = kReasonMissingConsumableInput;
+        } else if (!anyNonConsumableOk && !missingNonConsumableByType.empty()) {
+            std::uint32_t bestType = missingNonConsumableByType.begin()->first;
+            std::uint32_t bestCount = missingNonConsumableByType.begin()->second;
+            for (const auto& [t, c] : missingNonConsumableByType) {
+                if (c > bestCount) {
+                    bestType = t;
+                    bestCount = c;
+                }
+            }
+            const auto type = static_cast<genesis::world::ResourceType>(bestType);
+            const bool reachable = anyReachableResourceType(m_db, location.mapId, type);
+            attempt.failureReason = reasonWithType(kReasonMissingNonConsumableInput, type, !reachable);
+        } else if (!anyConsumableOk && !missingConsumableByType.empty()) {
+            std::uint32_t bestType = missingConsumableByType.begin()->first;
+            std::uint32_t bestCount = missingConsumableByType.begin()->second;
+            for (const auto& [t, c] : missingConsumableByType) {
+                if (c > bestCount) {
+                    bestType = t;
+                    bestCount = c;
+                }
+            }
+            const auto type = static_cast<genesis::world::ResourceType>(bestType);
+            const bool reachable = anyReachableResourceType(m_db, location.mapId, type);
+            attempt.failureReason = reasonWithType(kReasonMissingConsumableInput, type, !reachable);
         } else {
             attempt.failureReason = kReasonUnknown;
         }

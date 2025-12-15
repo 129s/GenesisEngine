@@ -2,6 +2,8 @@
 
 #include <unordered_map>
 
+#include "genesis/runtime/SchemaVersions.hpp"
+
 namespace Genesis::Runtime {
 
 namespace {
@@ -20,7 +22,7 @@ using SceneId = genesis::world::SceneId;
 
 WorldAtlas buildWorldAtlasFromDatabase(const genesis::world::WorldDatabase& db, std::uint32_t worldVersion) {
     WorldAtlas atlas{};
-    atlas.schema_version = 2;
+    atlas.schema_version = kWorldAtlasSchemaVersion;
     atlas.world_version = worldVersion;
     atlas.maps = db.maps();
     atlas.mapEdges = db.mapEdges();
@@ -62,4 +64,3 @@ WorldAtlas buildWorldAtlasFromDatabase(const genesis::world::WorldDatabase& db, 
 }
 
 } // namespace Genesis::Runtime
-

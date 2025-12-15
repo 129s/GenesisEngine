@@ -1,5 +1,6 @@
 #include "genesis/simulation/TelemetryCollector.hpp"
 
+#include "genesis/telemetry/SchemaVersions.hpp"
 #include "genesis/world/WorldDatabase.hpp"
 
 namespace genesis::simulation {
@@ -15,7 +16,7 @@ telemetry::TickTelemetry TelemetryCollector::collect(std::span<const telemetry::
                                                      std::uint64_t stepIndex,
                                                      float stepSeconds) const {
     telemetry::TickTelemetry tick{};
-    tick.schema_version = 5;
+    tick.schema_version = telemetry::kTickTelemetrySchemaVersion;
     tick.step = stepIndex;
     tick.stepSeconds = stepSeconds;
 

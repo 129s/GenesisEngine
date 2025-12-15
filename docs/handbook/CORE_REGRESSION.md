@@ -19,6 +19,9 @@ cmake --build build_core --parallel
 ctest --test-dir build_core --output-on-failure
 ```
 
+提示：
+- 当前 `ctest` 已包含一条 Runtime CLI 端到端回放用例（`RuntimeCli.RunWorldCycleScript`），用于覆盖 JSON 脚本→命令队列→执行→世界保存的最小闭环。
+
 关注的回归信号（示例）：
 - `genesis_runtime_tests`：事件队列、JSON 命令、快照 diff、涌现 smoke、多人回归
 - `RuntimeShortSoak.*`：短时稳定性与可观测性基线（默认纳入 `genesis_runtime_tests`）
@@ -40,7 +43,17 @@ cmake --build build_core --target genesis_runtime_cli
 .\build_core\src\genesis-runtime-cli.exe run-script data\scripts\world_cycle.json --root . --max-steps 256 --after-steps 32
 ```
 
+注意：`genesis-runtime-cli` 默认会校验 `TickTelemetry.schema_version` 与 `WorldAtlas.schema_version`（避免误用旧 DLL 导致“静默错读”）；如需临时绕过可追加 `--no-schema-check`（不推荐）。
+
 更多说明见：`docs/guides/headless_runtime_cli.md` 与 `docs/architecture/foundation/runtime-api.md`。
+
+## 3.0 一键回归（推荐）
+
+在 Windows PowerShell 下可直接使用脚本完成：配置→编译→ctest→CLI 回放：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_regression_core.ps1 -Config Debug -BuildDir build_core
+```
 
 ## 3.1 短 Soak：软指标报告（多样性 / 资源经济）
 

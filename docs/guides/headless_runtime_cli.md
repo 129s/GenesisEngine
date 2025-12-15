@@ -25,6 +25,7 @@ cmake --build build_headless --target genesis_runtime_cli
 - `--world <folder>`：启动时先加载一次世界（可选；脚本也可自行 `world.db.load`）
 - `--events-out <file>`：把执行过的 `RuntimeEventReport` 列表写到 JSON 文件
 - `--after-steps <n>`：脚本执行完后额外推进 n 步（用于观察非事件驱动的演化）
+- `--no-schema-check`：禁用 `schema_version` 校验（不推荐；仅用于排障/临时兼容）
 
 ## 短 Soak 指标报告（软指标，不做硬门禁）
 

@@ -1,0 +1,9 @@
+{
+  "name": "ctest-world-db-cycle",
+  "commands": [
+    { "label": "load-demo-world", "action": "world.db.load", "folder": "@GENESIS_TEST_WORLD_INPUT@", "waitForSuccess": true },
+    { "label": "consume-food", "action": "resource.consume", "interactionId": 1000, "amount": 10, "waitForSuccess": true },
+    { "label": "save-backup", "action": "world.db.save", "folder": "@GENESIS_TEST_WORLD_OUTPUT@", "waitForSuccess": true }
+  ]
+}
+

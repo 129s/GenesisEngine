@@ -32,6 +32,7 @@
 #include "FilesystemHelpers.hpp"
 #include "ImGuiLogSink.hpp"
 #include "sandbox/gui/style/DesignTokens.hpp"
+#include "genesis/telemetry/SchemaVersions.hpp"
 
 namespace genesis::sandbox::gui
 {
@@ -377,6 +378,14 @@ namespace genesis::sandbox::gui
             latest_snapshot_ = std::move(snapshot);
             if (latest_snapshot_)
             {
+                if (!schema_mismatch_reported_ && latest_snapshot_->telemetry.schema_version != genesis::telemetry::kTickTelemetrySchemaVersion)
+                {
+                    schema_mismatch_reported_ = true;
+                    runtime_bridge_->setPaused(true);
+                    spdlog::error("TickTelemetry schema_version mismatch: expected={} actual={}", genesis::telemetry::kTickTelemetrySchemaVersion, latest_snapshot_->telemetry.schema_version);
+                    pushToast("Telemetry schema_version mismatch: please rebuild GUI + runtime together (paused).", Style::DesignTokens::color(Style::ColorToken::Danger), 6.0);
+                }
+
                 updateAgentTrails(*latest_snapshot_);
                 if (ui_state_.inspector_selection_type == UiState::InspectorSelectionType::Agent)
                 {

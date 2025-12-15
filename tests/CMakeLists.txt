@@ -85,6 +85,7 @@ endif()
 
 # --- Runtime tests ---
 add_executable(genesis_runtime_tests
+    test_contract_docs_schema_versions.cpp
     test_runtime_events.cpp
     test_runtime_simulation_service.cpp
     test_runtime_e2e_smoke.cpp
@@ -116,6 +117,37 @@ add_custom_command(TARGET genesis_runtime_tests POST_BUILD
 )
 
 gtest_discover_tests(genesis_runtime_tests)
+
+# --- Runtime CLI regression (script replay) ---
+# Note: This guards the JSON command pipeline end-to-end (parse -> enqueue -> execute -> persist).
+add_dependencies(genesis_runtime_tests genesis_runtime_cli)
+
+set(GENESIS_CTEST_ARTIFACTS_DIR "${CMAKE_BINARY_DIR}/test_artifacts")
+file(MAKE_DIRECTORY "${GENESIS_CTEST_ARTIFACTS_DIR}")
+
+set(GENESIS_TEST_WORLD_INPUT "${CMAKE_SOURCE_DIR}/data/world_new")
+set(GENESIS_TEST_WORLD_OUTPUT "${GENESIS_CTEST_ARTIFACTS_DIR}/world_new_backup")
+set(GENESIS_TEST_RUNTIME_CLI_SCRIPT "${GENESIS_CTEST_ARTIFACTS_DIR}/world_cycle_ctest.json")
+
+file(TO_CMAKE_PATH "${GENESIS_TEST_WORLD_INPUT}" GENESIS_TEST_WORLD_INPUT)
+file(TO_CMAKE_PATH "${GENESIS_TEST_WORLD_OUTPUT}" GENESIS_TEST_WORLD_OUTPUT)
+file(TO_CMAKE_PATH "${GENESIS_TEST_RUNTIME_CLI_SCRIPT}" GENESIS_TEST_RUNTIME_CLI_SCRIPT)
+
+configure_file(
+    ${CMAKE_SOURCE_DIR}/tests/data/world_cycle_ctest.json.in
+    ${GENESIS_TEST_RUNTIME_CLI_SCRIPT}
+    @ONLY
+)
+
+add_test(
+    NAME RuntimeCli.RunWorldCycleScript
+    COMMAND ${CMAKE_COMMAND}
+        -DGENESIS_RUNTIME_CLI=$<TARGET_FILE:genesis_runtime_cli>
+        -DSCRIPT_PATH=${GENESIS_TEST_RUNTIME_CLI_SCRIPT}
+        -DROOT_PATH=${CMAKE_SOURCE_DIR}
+        -DOUT_DIR=${GENESIS_TEST_WORLD_OUTPUT}
+        -P ${CMAKE_SOURCE_DIR}/tests/cmake/run_runtime_cli_script.cmake
+)
 
 # --- World Model tests ---
 add_executable(genesis_world_model_tests

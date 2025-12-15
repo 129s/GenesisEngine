@@ -6,6 +6,8 @@
 #include <string_view>
 
 #include "genesis/runtime/Runtime.hpp"
+#include "genesis/runtime/SchemaVersions.hpp"
+#include "genesis/telemetry/SchemaVersions.hpp"
 
 namespace {
 
@@ -28,12 +30,12 @@ TEST(RuntimeShortSoak, WorldRemainsSaneForShortRun) {
 
     const auto atlas = runtime.worldAtlas();
     ASSERT_NE(atlas, nullptr);
-    EXPECT_EQ(atlas->schema_version, 2U);
+    EXPECT_EQ(atlas->schema_version, Genesis::Runtime::kWorldAtlasSchemaVersion);
 
     runtime.step(1);
     const auto* snapshot0 = runtime.latestSnapshot();
     ASSERT_NE(snapshot0, nullptr);
-    ASSERT_EQ(snapshot0->telemetry.schema_version, 5U);
+    ASSERT_EQ(snapshot0->telemetry.schema_version, genesis::telemetry::kTickTelemetrySchemaVersion);
     ASSERT_FALSE(snapshot0->telemetry.agents.empty());
     ASSERT_FALSE(snapshot0->telemetry.resources.empty());
 
@@ -50,7 +52,7 @@ TEST(RuntimeShortSoak, WorldRemainsSaneForShortRun) {
         ASSERT_NE(snapshot, nullptr);
 
         const auto& telemetry = snapshot->telemetry;
-        ASSERT_EQ(telemetry.schema_version, 5U);
+        ASSERT_EQ(telemetry.schema_version, genesis::telemetry::kTickTelemetrySchemaVersion);
 
         ASSERT_GE(telemetry.step, lastTelemetryStep);
         if (telemetry.step == lastTelemetryStep) {

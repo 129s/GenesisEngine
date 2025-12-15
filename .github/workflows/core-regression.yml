@@ -1,0 +1,170 @@
+name: core-regression
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_soak:
+        description: "Run short soak (uploads artifacts)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: core-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-core:
+    name: Windows (Core)
+    runs-on: windows-latest
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}\.cpmcache
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Cache CPM
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
+          restore-keys: |
+            ${{ runner.os }}-cpm-
+
+      - name: Configure (Core)
+        shell: pwsh
+        run: >
+          cmake -S . -B build_core -G Ninja
+          -DGENESISENGINE_ENABLE_TESTS=ON
+          -DGENESIS_BUILD_GUI=OFF
+          -DGENESIS_WITH_STYLE=OFF
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build (Core)
+        shell: pwsh
+        run: cmake --build build_core --parallel
+
+      - name: Test (ctest)
+        shell: pwsh
+        run: ctest --test-dir build_core --output-on-failure
+
+  ubuntu-soak:
+    name: Ubuntu (Short Soak, optional)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_soak }}
+    runs-on: ubuntu-latest
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpmcache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Cache CPM
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
+          restore-keys: |
+            ${{ runner.os }}-cpm-
+
+      - name: Configure (Core)
+        run: >
+          cmake -S . -B build_soak -G Ninja
+          -DGENESISENGINE_ENABLE_TESTS=OFF
+          -DGENESIS_BUILD_GUI=OFF
+          -DGENESIS_WITH_STYLE=OFF
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build (runtime-cli)
+        run: cmake --build build_soak --parallel --target genesis_runtime_cli
+
+      - name: Run soak
+        run: |
+          mkdir -p out/ci
+          ./build_soak/src/genesis-runtime-cli soak data/world_multiagent --root . --steps 800 --agents 12 --out out/ci/soak_metrics.json --summary-out out/ci/soak_summary.md --quiet
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-ci
+          path: out/ci
+
+  ubuntu-core:
+    name: Ubuntu (Core)
+    runs-on: ubuntu-latest
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpmcache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Cache CPM
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
+          restore-keys: |
+            ${{ runner.os }}-cpm-
+
+      - name: Configure (Core)
+        run: >
+          cmake -S . -B build_core -G Ninja
+          -DGENESISENGINE_ENABLE_TESTS=ON
+          -DGENESIS_BUILD_GUI=OFF
+          -DGENESIS_WITH_STYLE=OFF
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build (Core)
+        run: cmake --build build_core --parallel
+
+      - name: Test (ctest)
+        run: ctest --test-dir build_core --output-on-failure
+
+  windows-mingw-core:
+    name: Windows (Core, MinGW)
+    runs-on: windows-latest
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}\.cpmcache
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+
+      - name: Cache CPM
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: ${{ runner.os }}-mingw-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
+          restore-keys: |
+            ${{ runner.os }}-mingw-cpm-
+
+      - name: Configure (Core, MinGW)
+        shell: msys2 {0}
+        run: >
+          cmake -S . -B build_core_mingw -G Ninja
+          -DGENESISENGINE_ENABLE_TESTS=ON
+          -DGENESIS_BUILD_GUI=OFF
+          -DGENESIS_WITH_STYLE=OFF
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build (Core, MinGW)
+        shell: msys2 {0}
+        run: cmake --build build_core_mingw --parallel
+
+      - name: Test (ctest, MinGW)
+        shell: msys2 {0}
+        run: ctest --test-dir build_core_mingw --output-on-failure

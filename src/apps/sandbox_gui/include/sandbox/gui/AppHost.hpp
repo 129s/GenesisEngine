@@ -82,6 +82,7 @@ private:
     std::unique_ptr<RuntimeBridge> runtime_bridge_;
     std::optional<RuntimeBridge::Snapshot> latest_snapshot_;
     double speed_multiplier_ui_{1.0};
+    bool schema_mismatch_reported_{false};
 
     UiState ui_state_;
     WorldCommandController world_command_controller_;

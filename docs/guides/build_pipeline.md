@@ -59,6 +59,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 `ctest` 将自动运行已注册的 gtest 二进制及若干 CTest 条目（以 `tests/CMakeLists.txt` 为准）。
+其中包含一条 Runtime CLI 回放用例（`RuntimeCli.RunWorldCycleScript`），用于覆盖 “脚本→命令队列→执行→世界保存” 的最小闭环。
 
 ## 5. 世界生成（Worldgen）
 - Worldgen 可独立运行（通过 Runtime 命令 `world.db.generate` 或 headless 脚本），不再依赖旧的 `LocationGraph`。
@@ -76,6 +77,8 @@ ctest --test-dir build --output-on-failure
 3. 运行测试：`ctest --test-dir build --output-on-failure`
 4. （可选）通过沙盒 GUI 的 World Generation 面板或运行时命令脚本验证世界生成流程
 5. 在 `build/src/genesis-sandbox-gui` 目录下启动 GUI 进行回归验证
+
+Windows 一键回归（Core only）：`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_regression_core.ps1 -Config Debug -BuildDir build_core`
 
 若引入新依赖或修改工具链，请记得更新本文件并在 PR 描述中说明。
 

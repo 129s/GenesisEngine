@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "genesis/telemetry/SchemaVersions.hpp"
 #include "genesis/world/WorldTypes.hpp"
 #include "genesis/world/WorldDatabase.hpp"
 
@@ -93,7 +94,7 @@ struct MovementSnapshot {
 };
 
 struct TickTelemetry {
-    std::uint32_t schema_version{5};
+    std::uint32_t schema_version{kTickTelemetrySchemaVersion};
     std::uint64_t step{0};
     float stepSeconds{0.0f};
     std::vector<ResourceSnapshot> resources;

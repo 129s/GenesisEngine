@@ -17,6 +17,8 @@
 #include <nlohmann/json.hpp>
 
 #include "genesis/runtime/Runtime.hpp"
+#include "genesis/runtime/SchemaVersions.hpp"
+#include "genesis/telemetry/SchemaVersions.hpp"
 #include "genesis/world/ResourceTypeStrings.hpp"
 
 namespace {
@@ -29,6 +31,7 @@ struct CliOptions {
     std::filesystem::path scriptPath;
     std::uint64_t maxSteps{256};
     std::uint64_t afterSteps{0};
+    bool validateSchemas{true};
     bool quiet{false};
     bool exitOnFailure{true};
     std::optional<std::filesystem::path> eventsOutPath;
@@ -39,6 +42,7 @@ struct SoakOptions {
     std::filesystem::path worldFolder;
     std::uint64_t steps{5000};
     std::uint32_t agentCount{0};
+    bool validateSchemas{true};
     bool quiet{false};
     std::optional<std::filesystem::path> outPath;
     std::optional<std::filesystem::path> summaryOutPath;
@@ -56,6 +60,7 @@ void printUsage(std::ostream& out) {
            "  --world <folder>      Optional initial world folder (world.json + map_#.json)\n"
            "  --max-steps <n>       Max steps while waiting for script to finish (default: 256)\n"
            "  --after-steps <n>     Extra steps after script becomes idle (default: 0)\n"
+           "  --no-schema-check     Disable schema_version checks (unsafe)\n"
            "  --events-out <file>   Write executed RuntimeEventReport list as JSON\n"
            "  --steps <n>           Steps to simulate for soak (default: 5000)\n"
            "  --agents <n>          Spawn N agents at start (replaces any existing)\n"
@@ -64,6 +69,31 @@ void printUsage(std::ostream& out) {
            "  --quiet               Suppress per-event printing\n"
            "  --no-exit-on-failure  Always return 0 even if some commands fail\n"
            "  --help                Show this help\n";
+}
+
+[[nodiscard]] bool validateSnapshotSchemas(bool validateSchemas,
+                                           const Genesis::Runtime::SimulationSnapshot& snapshot,
+                                           const std::shared_ptr<const Genesis::Runtime::WorldAtlas>& atlas) {
+    if (!validateSchemas) {
+        return true;
+    }
+
+    bool ok = true;
+    if (snapshot.telemetry.schema_version != genesis::telemetry::kTickTelemetrySchemaVersion) {
+        std::cerr << "Telemetry schema_version mismatch: expected=" << genesis::telemetry::kTickTelemetrySchemaVersion
+                  << " actual=" << snapshot.telemetry.schema_version << "\n";
+        ok = false;
+    }
+    if (atlas && atlas->schema_version != Genesis::Runtime::kWorldAtlasSchemaVersion) {
+        std::cerr << "WorldAtlas schema_version mismatch: expected=" << Genesis::Runtime::kWorldAtlasSchemaVersion
+                  << " actual=" << atlas->schema_version << "\n";
+        ok = false;
+    }
+
+    if (!ok) {
+        std::cerr << "Hint: check whether genesis-runtime-cli.exe and genesis_runtime.dll come from the same build/commit.\n";
+    }
+    return ok;
 }
 
 [[nodiscard]] bool tryParseU64(std::string_view text, std::uint64_t& value) {
@@ -587,6 +617,10 @@ struct ResourceEconomy {
     if (!atlas) {
         std::cerr << "WorldAtlas unavailable\n";
         return 2;
+    }
+
+    if (!validateSnapshotSchemas(opts.validateSchemas, *initialSnapshot, atlas)) {
+        return 3;
     }
 
     std::unordered_map<std::string, std::uint64_t> actionTypeCounts;
@@ -1415,12 +1449,20 @@ struct ResourceEconomy {
 
     bool sawAnyEvents = false;
     std::uint64_t idleStreak = 0;
+    bool validatedSchemas = false;
 
     for (std::uint64_t i = 0; i < opts.maxSteps; ++i) {
         runtime.step(1);
         const auto* snapshot = runtime.latestSnapshot();
         if (!snapshot) {
             continue;
+        }
+
+        if (!validatedSchemas) {
+            if (!validateSnapshotSchemas(opts.validateSchemas, *snapshot, runtime.worldAtlas())) {
+                return 3;
+            }
+            validatedSchemas = true;
         }
 
         if (!snapshot->events.empty()) {
@@ -1535,6 +1577,10 @@ struct ParsedArgs {
                 opts.quiet = true;
                 continue;
             }
+            if (arg == "--no-schema-check") {
+                opts.validateSchemas = false;
+                continue;
+            }
             if (arg == "--no-exit-on-failure") {
                 opts.exitOnFailure = false;
                 continue;
@@ -1595,6 +1641,10 @@ struct ParsedArgs {
             }
             if (arg == "--quiet") {
                 opts.quiet = true;
+                continue;
+            }
+            if (arg == "--no-schema-check") {
+                opts.validateSchemas = false;
                 continue;
             }
 

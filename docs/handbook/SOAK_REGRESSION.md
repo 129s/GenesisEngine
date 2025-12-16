@@ -52,7 +52,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_soak.ps1 -UseMsv
 
 产物：`out/worldline/worldline_*.jsonl`。
 
-### 3.2 基准集合 Soak（覆盖更广）
+### 3.3 世界线→母题/转折候选（建议作为日常入口）
+
+对 `worldline_*.jsonl` 做数据驱动母题挖掘，并同时输出“转折窗口候选”（按窗口指标的 z-delta 排序；不依赖预制母题表）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\analyze_worldline_motifs.ps1 -InputPath out/worldline -Pattern "worldline_*.jsonl"
+```
+
+输出：`out/worldline/analysis/motifs_*.json`
+- `motifs[]`：跨世界复现的“统计母题”（链式关系）。
+- `turningPoints[]`：每个世界线的“转折窗口候选”（Top-N），用于人工快速定位“发生了变化”的区间再去读细节。
+
+### 3.4 基准集合 Soak（覆盖更广）
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_baseline_soak.ps1 -Preset short -Seed 1337

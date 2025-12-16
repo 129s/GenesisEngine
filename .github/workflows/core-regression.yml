@@ -9,6 +9,10 @@ on:
         description: "Run short soak (uploads artifacts)"
         type: boolean
         default: false
+      run_windows_soak:
+        description: "Run Windows short soak (uploads artifacts)"
+        type: boolean
+        default: false
 
 concurrency:
   group: core-regression-${{ github.ref }}
@@ -92,6 +96,54 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: soak-ci
+          path: out/ci
+
+  windows-soak:
+    name: Windows (Short Soak, optional)
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_windows_soak == 'true' }}
+    runs-on: windows-latest
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}\.cpmcache
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Cache CPM
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CPM_SOURCE_CACHE }}
+          key: ${{ runner.os }}-soak-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/**') }}
+          restore-keys: |
+            ${{ runner.os }}-soak-cpm-
+
+      - name: Configure (Core, soak)
+        shell: pwsh
+        run: >
+          cmake -S . -B build_soak -G Ninja
+          -DGENESISENGINE_ENABLE_TESTS=OFF
+          -DGENESIS_BUILD_GUI=OFF
+          -DGENESIS_WITH_STYLE=OFF
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build (runtime-cli)
+        shell: pwsh
+        run: cmake --build build_soak --parallel --target genesis_runtime_cli
+
+      - name: Run soak
+        shell: pwsh
+        run: >
+          New-Item -ItemType Directory -Force -Path out\\ci | Out-Null;
+          .\\build_soak\\src\\genesis-runtime-cli.exe
+          soak data\\world_multiagent --root . --steps 800 --agents 12
+          --out out\\ci\\soak_metrics.json --summary-out out\\ci\\soak_summary.md --quiet
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-ci-windows
           path: out/ci
 
   ubuntu-core:

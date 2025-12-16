@@ -18,6 +18,8 @@
 # Misc
 *.cache
 *.user
+*.bak
+.cpmcache/
 
 # Agent
 /.claude

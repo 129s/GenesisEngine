@@ -20,6 +20,8 @@
 *.user
 *.bak
 .cpmcache/
+__pycache__/
+*.pyc
 
 # Agent
 /.claude

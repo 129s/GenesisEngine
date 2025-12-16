@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "genesis/agents/Personality.hpp"
+
 namespace genesis::simulation {
 
 struct AgentPose2D {
@@ -21,6 +23,7 @@ struct MovementCommand2D {
 struct AgentSpawnParams2D {
     AgentPose2D location{};
     std::optional<MovementCommand2D> initialMovement{};
+    std::optional<genesis::agents::AgentPersonalityBig5> personality{};
 };
 
 } // namespace genesis::simulation

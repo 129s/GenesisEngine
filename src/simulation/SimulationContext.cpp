@@ -1,14 +1,38 @@
 #include "genesis/simulation/SimulationContext.hpp"
 
+#include <algorithm>
+#include <cstdint>
 #include <utility>
 
 #include "genesis/agents/CarriedResources.hpp"
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/agents/Personality.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/components/ResourceInventory.hpp"
 #include "genesis/world/components/ResourceSpawn.hpp"
 
 namespace genesis::simulation {
+
+namespace {
+[[nodiscard]] std::uint64_t mix_u64(std::uint64_t x) noexcept {
+    // splitmix64 finalizer
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+
+[[nodiscard]] float uniform01_from_u64(std::uint64_t x) noexcept {
+    const std::uint64_t v = mix_u64(x) >> 11; // top 53 bits
+    return static_cast<float>(static_cast<double>(v) * (1.0 / 9007199254740992.0)); // 2^53
+}
+
+[[nodiscard]] float centered01_from_seed(std::uint64_t seed, std::uint64_t saltA, std::uint64_t saltB) noexcept {
+    const float a = uniform01_from_u64(seed ^ saltA);
+    const float b = uniform01_from_u64(seed ^ saltB);
+    return std::clamp(0.5f * (a + b), 0.0f, 1.0f);
+}
+} // namespace
 
 SimulationContext::SimulationContext()
     : m_needSatisfier({})
@@ -101,6 +125,22 @@ std::uint32_t SimulationContext::createAgent(const AgentSpawnParams2D& params) {
         intent.targetY = params.initialMovement->targetY;
         intent.speed = params.initialMovement->speed;
         m_registry.emplace<agents::components::MovementIntent2D>(entity, intent);
+    }
+
+    if (params.personality) {
+        m_registry.emplace<agents::AgentPersonalityBig5>(entity, *params.personality);
+    } else {
+        const std::uint64_t seed = (static_cast<std::uint64_t>(entt::to_integral(entity)) << 1U)
+            ^ (static_cast<std::uint64_t>(location.mapId) << 33U)
+            ^ 0xC3A5C85C97CB3127ull;
+
+        agents::AgentPersonalityBig5 big5{};
+        big5.openness = centered01_from_seed(seed, 0x1ull, 0x2ull);
+        big5.conscientiousness = centered01_from_seed(seed, 0x3ull, 0x4ull);
+        big5.extraversion = centered01_from_seed(seed, 0x5ull, 0x6ull);
+        big5.agreeableness = centered01_from_seed(seed, 0x7ull, 0x8ull);
+        big5.neuroticism = centered01_from_seed(seed, 0x9ull, 0xAull);
+        m_registry.emplace<agents::AgentPersonalityBig5>(entity, big5);
     }
 
     return static_cast<std::uint32_t>(entt::to_integral(entity));

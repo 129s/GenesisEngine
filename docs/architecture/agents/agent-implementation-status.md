@@ -12,16 +12,16 @@
 |---|---|---:|---|---|
 | Need 数值模型（decay/threshold） | `docs/architecture/proposals/agents/agent-personality-big5.md`（部分） | `include/genesis/agents/Needs.hpp` | Spec | 当前以 Need 本身作为“属性”，无独立 Attributes 层。 |
 | NeedSystem 推进 | 同上 | `src/agents/NeedSystem.cpp` | Spec | 仅做线性 decay；无 baseCurve/jitter。 |
-| 选点/决策（Planner/Selector） | 同上（理念） | `src/agents/NeedSatisfier.cpp` | Spec | 当前是固定规则打分；不使用 Big5/Traits。 |
+| 选点/决策（Planner/Selector） | 同上（理念） | `src/agents/NeedSatisfier.cpp` | Spec | 规则打分 + Big5 权重缩放 + 确定性 jitter（用于打破稳态收敛）。 |
 | 决策可观测性（PlannerDecision） | 同上（链路） | `include/genesis/agents/Planner.hpp` | Spec | 仅用于 Telemetry/拥挤惩罚计数。 |
 | 行动队列（Move/Consume/Take/Produce） | 同上（链路） | `include/genesis/agents/ActionSystem.hpp`、`src/agents/ActionSystem.cpp` | Spec | 具备“生产作业时间+临界需求抢占中断”。 |
 | 自动补链（缺货→上游生产） | 文档未明确 | `src/agents/ProductionPlanner.cpp` | Spec | 当前是工程式 recovery 规划器，不代表“角色策略”。 |
 | Movement（直线/跨图 Portal） | 文档提到 | `include/genesis/agents/Movement2D.hpp`、`src/simulation/Movement2DSystem.cpp` | Spec | Tile 级路径未实现。 |
 | 工坊配方（meta.workshop） | 文档提到 | worldgen→Runtime 写 meta；执行见 `src/agents/ActionSystem.cpp` | Spec | recipe 选择目前发生在 recovery/执行层。 |
-| Big5 人格组件 | `docs/architecture/proposals/agents/agent-personality-big5.md` | `include/genesis/agents/Personality.hpp` | Proposal | 结构存在，但未被任何系统读取/写入。 |
+| Big5 人格组件 | `docs/architecture/proposals/agents/agent-personality-big5.md` | `include/genesis/agents/Personality.hpp`、`src/simulation/SimulationContext.cpp` | Spec | Agent 创建时会生成（或由 API 显式指定），并被 NeedSatisfier 读取。 |
 | Traits 组件与修饰 | `docs/architecture/proposals/agents/agent-personality-big5.md` | — | Proposal | 目前没有 AgentTraits 组件。 |
 | Attributes→Needs 数据驱动映射（JSON/YAML） | `docs/architecture/proposals/agents/agent-personality-big5.md` | — | Proposal | 目前无配置表读取与曲线映射。 |
-| Need jitter（由人格/seed 驱动） | `docs/architecture/proposals/agents/agent-personality-big5.md` | — | Proposal | 当前没有随机扰动层。 |
+| 选点 jitter（由人格/stepIndex 驱动） | `docs/architecture/proposals/agents/agent-personality-big5.md`（部分） | `src/agents/NeedSatisfier.cpp` | Spec | 确定性噪声：同 seed/配置可复现；用于引入分歧与转折窗口。 |
 | 记忆/关系/社交推断 | 未来设想 | — | Proposal | 尚未进入 core。 |
 
 ## 规范入口

@@ -8,6 +8,9 @@
 - 非目标：人格 Big5、Traits、属性→需求的数据驱动映射、记忆/关系/叙事系统（这些属于提案，见 proposal）。
 
 ## 数据模型（ECS 组件）
+- **人格（Big5）**
+  - `genesis::agents::AgentPersonalityBig5`：OCEAN（0~1）人格向量（`include/genesis/agents/Personality.hpp`）。
+  - 生成方式：Agent 创建时若未显式指定，则按 `entityId + mapId` 的确定性 RNG 生成（可复现、无外部脚本介入）。
 - **位置/移动**
   - `genesis::agents::components::AgentLocation2D`：Agent 当前所在 `mapId` 与 2D 坐标（`include/genesis/agents/Movement2D.hpp`）。
   - `genesis::agents::components::MovementIntent2D`：当前运动目标与速度（`include/genesis/agents/Movement2D.hpp`）。
@@ -48,12 +51,16 @@
 该顺序意味着：同一 tick 内的生产/消耗会先于 regen/decay 生效（regen/decay 在最后发生）。
 
 ## 决策语义（NeedSatisfier）
-NeedSatisfier 当前实现是固定规则打分（非人格/Traits、非数据驱动）：
+NeedSatisfier 当前实现是“规则打分 + 人格扰动”（非 Traits、非数据驱动映射）：
 - 触发条件：当某 Need 超过 `satisfiedThreshold + prepareMargin` 或已经 critical，才会尝试补给。
 - 评分要素：
-  - `travelCost`：同图欧式距离平方；跨图为最短路径 `totalCost + crossMapPenalty`。
-  - `scarcityPenalty`：资源点越空惩罚越大（按 `1 - current/capacity` 线性映射）。
-  - `crowdPenalty`：目标越拥挤惩罚越大（按其他 Agent 的 `PlannerDecision.target` 计数）。
+  - `travelCost`：同图欧式距离平方；跨图为最短路径 `totalCost + crossMapPenalty`（跨图惩罚受 `openness` 缩放）。
+  - `scarcityPenalty`：资源点越空惩罚越大（按 `1 - current/capacity` 线性映射；权重受 `neuroticism/conscientiousness/openness` 影响）。
+  - `crowdPenalty`：目标越拥挤惩罚越大（按其他 Agent 的 `PlannerDecision.target` 计数；权重受 `neuroticism/extraversion/agreeableness` 影响）。
+  - `decisionJitter`：每次选点会注入小幅确定性噪声（由 `stepIndex` 与 `entityId` 导出），用于打破“全体收敛到同一最优点”的稳态。
+- 行为倾向（宏观效果）：
+  - 高 `conscientiousness/neuroticism`：更早开始准备（更大的 prepareMargin）、更难切换目标（更高 switch margin）。
+  - 高 `openness`：跨图成本更低、噪声更大（更“游走/探索”）。
 - 默认参数见 `include/genesis/agents/NeedSatisfier.hpp`（如 `crossMapPenalty=500`、`demandPenaltyPerAgent=60` 等）。
 
 ## 工坊与生产
@@ -72,4 +79,3 @@ TickTelemetry 中与 Agent 模式直接相关的快照：
 - `actions[]`：ActionSnapshot（当前队列头动作与参数）
 - `workshopAttempts[]`、`resourceAttempts[]`：生产/取用尝试与失败原因  
 见 `include/genesis/telemetry/TelemetryBuffer.hpp` 与 `docs/architecture/foundation/telemetry-schema.md`。
-

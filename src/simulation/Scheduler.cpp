@@ -13,7 +13,7 @@ void Scheduler::update(entt::registry& registry, float deltaSeconds, std::uint64
         m_needSystem->update(registry, deltaSeconds);
     }
     if (m_needSatisfier && m_resourceSystem && m_worldDatabase) {
-        m_needSatisfier->update(registry, *m_worldDatabase, *m_resourceSystem, m_actionExecutor);
+        m_needSatisfier->update(registry, *m_worldDatabase, *m_resourceSystem, stepIndex, m_actionExecutor);
     }
     if (m_actionExecutor) {
         m_actionExecutor->update(registry, deltaSeconds);

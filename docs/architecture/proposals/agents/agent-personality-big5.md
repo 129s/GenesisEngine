@@ -1,6 +1,6 @@
 # Proposal · Agent Behavior & Personality（Big5 / Traits / 数据驱动 Needs）
 
-状态：**Proposal（未落地）**。  
+状态：**Proposal（部分落地）**。  
 本文件描述的是“期望的设计方向”，不代表当前代码行为。已落地规范请看：
 - `docs/architecture/agents/agent-model-v0.md`
 - `docs/architecture/agents/agent-implementation-status.md`
@@ -15,6 +15,13 @@
   - `Personality`：大五人格（OCEAN，0~1），组件 `AgentPersonalityBig5 { openness, conscientiousness, extraversion, agreeableness, neuroticism }`。
   - `Traits`：离散标签（`night_owl`、`gourmet`…），改变阈值、偏好或解锁特殊行动。
 - 行为链路（目标态）：属性更新 → NeedSystem 评估需求 → Planner 选取目标 → ActionExecutor / MovementSystem 执行 → Telemetry 记录结果。
+
+## 已落地子集（当前）
+- Big5 作为 Agent 组件已落地，并被 `NeedSatisfier` 用于：
+  - 距离/稀缺/拥挤惩罚的权重缩放；
+  - 准备阈值与目标切换“粘性”的缩放；
+  - 确定性 jitter（由 stepIndex 与 entityId 导出）以打破全体收敛。
+- 仍未落地：Attributes 层、Traits、数据驱动映射表与曲线/jitter 参数化。
 
 ## 属性与需求映射（目标态）
 - 每个 Need 通过数据定义（JSON/YAML/表格不限）：
@@ -64,4 +71,3 @@ score = w_dist * travelCost
 ## 实现约束（落地前提）
 - 需要引入组件：`AgentAttributes`、`AgentPersonalityBig5`、`AgentTraits`。
 - 需要补齐：配置表加载、数据驱动映射、Telemetry 扩展、GUI Inspector 展示。
-

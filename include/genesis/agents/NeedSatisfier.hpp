@@ -42,6 +42,7 @@ public:
     void update(entt::registry& registry,
                 world::WorldDatabase& db,
                 world::system::ResourceSystem& resourceSystem,
+                std::uint64_t stepIndex,
                 ActionExecutor* actionExecutor = nullptr) const;
 
 private:

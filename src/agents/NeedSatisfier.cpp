@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <optional>
 #include <unordered_map>
@@ -10,12 +11,27 @@
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/agents/Personality.hpp"
 #include "genesis/agents/Planner.hpp"
 #include "genesis/world/MapPathfinding.hpp"
 
 namespace genesis::agents {
 
 namespace {
+
+[[nodiscard]] std::uint64_t mix_u64(std::uint64_t x) noexcept {
+    // splitmix64 finalizer
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+
+[[nodiscard]] float signed01_from_u64(std::uint64_t x) noexcept {
+    const std::uint64_t v = mix_u64(x) >> 11; // top 53 bits
+    const double u01 = static_cast<double>(v) * (1.0 / 9007199254740992.0); // 2^53
+    return static_cast<float>(u01) * 2.0f - 1.0f;
+}
 
 NeedSample ensureSample(const NeedComponent& component,
                         NeedType type,
@@ -52,6 +68,7 @@ NeedSatisfier::NeedSatisfier(NeedSatisfierConfig config)
 void NeedSatisfier::update(entt::registry& registry,
                            world::WorldDatabase& db,
                            world::system::ResourceSystem& resourceSystem,
+                           std::uint64_t stepIndex,
                            ActionExecutor* actionExecutor) const {
     struct SpawnInfo {
         world::ResourceType type{world::ResourceType::Food};
@@ -100,6 +117,51 @@ void NeedSatisfier::update(entt::registry& registry,
             continue;
         }
 
+        const AgentPersonalityBig5 personality = [&]() -> AgentPersonalityBig5 {
+            if (const auto* p = registry.try_get<AgentPersonalityBig5>(entity)) {
+                return *p;
+            }
+            return {};
+        }();
+
+        const float openness = std::clamp(personality.openness, 0.0f, 1.0f);
+        const float conscientiousness = std::clamp(personality.conscientiousness, 0.0f, 1.0f);
+        const float extraversion = std::clamp(personality.extraversion, 0.0f, 1.0f);
+        const float agreeableness = std::clamp(personality.agreeableness, 0.0f, 1.0f);
+        const float neuroticism = std::clamp(personality.neuroticism, 0.0f, 1.0f);
+
+        const float planningHorizon = std::clamp(
+            1.0f + 1.10f * conscientiousness + 0.85f * neuroticism - 0.60f * openness,
+            0.40f,
+            2.20f);
+
+        const float wDist = std::clamp(1.0f + 0.90f * conscientiousness - 0.70f * openness, 0.35f, 2.50f);
+        const float wScar = std::clamp(1.0f + 1.20f * neuroticism + 0.60f * conscientiousness - 0.40f * openness, 0.20f, 3.00f);
+        const float wCrowd = std::clamp(1.0f + 1.10f * neuroticism - 0.90f * extraversion + 0.60f * agreeableness, 0.20f, 3.00f);
+
+        const float crossMapMultiplier = std::clamp(1.10f - 0.75f * openness, 0.25f, 1.50f);
+
+        const float switchMargin = std::max(0.0f, m_config.switchScoreMargin)
+            * std::clamp(0.65f + 0.85f * conscientiousness + 0.25f * neuroticism, 0.25f, 2.25f);
+
+        const std::uint64_t entitySeed = (static_cast<std::uint64_t>(entt::to_integral(entity)) << 1U)
+            ^ (static_cast<std::uint64_t>(location.mapId) << 33U)
+            ^ 0xA43B7D1C5E0F123Bull;
+
+        const float noiseSigma = std::clamp(
+            12.0f * (0.10f + 0.90f * openness) * (1.05f - 0.65f * conscientiousness) * (0.75f + 0.50f * neuroticism),
+            0.0f,
+            18.0f);
+
+        const auto scaledUnits = [&](std::uint32_t baseUnits) -> std::uint32_t {
+            const auto scaled = static_cast<std::uint32_t>(std::lround(static_cast<double>(baseUnits) * planningHorizon));
+            return std::max<std::uint32_t>(1U, scaled);
+        };
+
+        const auto scaledPrepare = [&](float baseMargin) -> float {
+            return std::max(0.0f, baseMargin) * planningHorizon;
+        };
+
         const auto costToInteraction = [&](const world::Interaction& inter) -> float {
             if (inter.mapId == location.mapId) {
                 const auto coord = inter.worldCoord();
@@ -114,7 +176,7 @@ void NeedSatisfier::update(entt::registry& registry,
                 return std::numeric_limits<float>::infinity();
             }
 
-            const float penalty = std::max(0.0f, m_config.crossMapPenalty);
+            const float penalty = std::max(0.0f, m_config.crossMapPenalty) * crossMapMultiplier;
             return penalty + static_cast<float>(mapPath->totalCost);
         };
 
@@ -181,6 +243,14 @@ void NeedSatisfier::update(entt::registry& registry,
                 : (1.0f - static_cast<float>(spawnInfo.current) / static_cast<float>(spawnInfo.capacity));
             const float scarcityPenalty = scarcity01 * 50.0f;
             const float crowdPenalty = demandPenalty(interaction, previousTarget);
+            float jitter = 0.0f;
+            if (noiseSigma > 0.0f) {
+                const std::uint64_t h = entitySeed
+                    ^ (static_cast<std::uint64_t>(stepIndex) * 0x9E3779B97F4A7C15ull)
+                    ^ (static_cast<std::uint64_t>(interaction) * 0xD1B54A32D192ED03ull)
+                    ^ (static_cast<std::uint64_t>(needIndex(need)) * 0x94D049BB133111EBull);
+                jitter = signed01_from_u64(h) * noiseSigma;
+            }
 
             Candidate c{};
             c.need = need;
@@ -189,7 +259,7 @@ void NeedSatisfier::update(entt::registry& registry,
             c.travelCost = travelCost;
             c.units = unitsPerRequest;
             c.reliefPerUnit = reliefPerUnit;
-            c.score = urgency * 1000.0f - travelCost - scarcityPenalty - crowdPenalty;
+            c.score = urgency * 1000.0f - wDist * travelCost - wScar * scarcityPenalty - wCrowd * crowdPenalty + jitter;
             return c;
         };
 
@@ -268,25 +338,25 @@ void NeedSatisfier::update(entt::registry& registry,
         std::optional<Candidate> best;
         considerNeed(NeedType::Hunger,
                      world::ResourceType::Food,
-                     m_config.hungerUnitsPerRequest,
+                     scaledUnits(m_config.hungerUnitsPerRequest),
                      m_config.hungerReliefPerUnit,
-                     m_config.hungerPrepareMargin,
+                     scaledPrepare(m_config.hungerPrepareMargin),
                      m_config.hungerPreferredLocator,
                      best);
 
         considerNeed(NeedType::Thirst,
                      world::ResourceType::Water,
-                     m_config.thirstUnitsPerRequest,
+                     scaledUnits(m_config.thirstUnitsPerRequest),
                      m_config.thirstReliefPerUnit,
-                     m_config.thirstPrepareMargin,
+                     scaledPrepare(m_config.thirstPrepareMargin),
                      m_config.thirstPreferredLocator,
                      best);
 
         considerNeed(NeedType::Social,
                      world::ResourceType::Social,
-                     m_config.socialUnitsPerRequest,
+                     scaledUnits(m_config.socialUnitsPerRequest),
                      m_config.socialReliefPerUnit,
-                     m_config.socialPrepareMargin,
+                     scaledPrepare(m_config.socialPrepareMargin),
                      m_config.socialPreferredLocator,
                      best);
 
@@ -341,26 +411,26 @@ void NeedSatisfier::update(entt::registry& registry,
 
                 evalKeep(NeedType::Hunger,
                          world::ResourceType::Food,
-                         m_config.hungerUnitsPerRequest,
+                         scaledUnits(m_config.hungerUnitsPerRequest),
                          m_config.hungerReliefPerUnit,
-                         m_config.hungerPrepareMargin);
+                         scaledPrepare(m_config.hungerPrepareMargin));
 
                 evalKeep(NeedType::Thirst,
                          world::ResourceType::Water,
-                         m_config.thirstUnitsPerRequest,
+                         scaledUnits(m_config.thirstUnitsPerRequest),
                          m_config.thirstReliefPerUnit,
-                         m_config.thirstPrepareMargin);
+                         scaledPrepare(m_config.thirstPrepareMargin));
 
                 evalKeep(NeedType::Social,
                          world::ResourceType::Social,
-                         m_config.socialUnitsPerRequest,
+                         scaledUnits(m_config.socialUnitsPerRequest),
                          m_config.socialReliefPerUnit,
-                         m_config.socialPrepareMargin);
+                         scaledPrepare(m_config.socialPrepareMargin));
             }
         }
 
         if (best && keep && best->interaction != keep->interaction) {
-            if (best->score < keep->score + std::max(0.0f, m_config.switchScoreMargin)) {
+            if (best->score < keep->score + switchMargin) {
                 best = keep;
             }
         } else if (!best && keep) {

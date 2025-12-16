@@ -11,6 +11,9 @@
 - **人格（Big5）**
   - `genesis::agents::AgentPersonalityBig5`：OCEAN（0~1）人格向量（`include/genesis/agents/Personality.hpp`）。
   - 生成方式：Agent 创建时若未显式指定，则按 `entityId + mapId` 的确定性 RNG 生成（可复现、无外部脚本介入）。
+- **经验（最小学习）**
+  - `genesis::agents::components::AgentExperience`：按 Need 维度记录“缓冲偏好”（`bufferMultiplier`），并随时间遗忘（`include/genesis/agents/Experience.hpp`）。
+  - 目前只学习一件事：当工坊作业被“临界需求抢占打断”或关键补给出现反复失败时，会提高对应 Need 的提前准备与一次性补给量（通过 NeedSatisfier 的 prepareMargin / unitsPerRequest 缩放体现）。
 - **位置/移动**
   - `genesis::agents::components::AgentLocation2D`：Agent 当前所在 `mapId` 与 2D 坐标（`include/genesis/agents/Movement2D.hpp`）。
   - `genesis::agents::components::MovementIntent2D`：当前运动目标与速度（`include/genesis/agents/Movement2D.hpp`）。

@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 
 #include "genesis/agents/CarriedResources.hpp"
+#include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/ProductionPlanner.hpp"
 #include "genesis/world/MapPathfinding.hpp"
@@ -37,11 +38,59 @@ constexpr const char* kReasonPlanningFailed = "PlanningFailed";
 constexpr const char* kReasonUnreachable = "Unreachable";
 constexpr const char* kReasonPreemptedCriticalNeed = "PreemptedCriticalNeed";
 
+constexpr float kExperienceMinMultiplier = 1.0f;
+constexpr float kExperienceMaxMultiplier = 3.0f;
+constexpr float kExperienceBumpPreempt = 0.18f;
+constexpr float kExperienceBumpStockoutVital = 0.06f;
+
 [[nodiscard]] std::string preemptedWithNeed(const char* needName) {
     std::string out(kReasonPreemptedCriticalNeed);
     out.push_back(':');
     out.append(needName);
     return out;
+}
+
+[[nodiscard]] bool isVitalNeed(NeedType need) noexcept {
+    switch (need) {
+    case NeedType::Hunger:
+    case NeedType::Thirst:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void decayExperience(entt::registry& registry, float deltaSeconds) {
+    if (!(deltaSeconds > 0.0f)) {
+        return;
+    }
+    auto view = registry.view<components::AgentExperience>();
+    for (auto entity : view) {
+        auto& exp = view.get<components::AgentExperience>(entity);
+        const float k = std::clamp(exp.forgetPerSecond * deltaSeconds, 0.0f, 1.0f);
+        if (k <= 0.0f) {
+            continue;
+        }
+        for (auto& m : exp.bufferMultiplier) {
+            const float delta = m - 1.0f;
+            m = 1.0f + delta * (1.0f - k);
+            m = std::clamp(m, kExperienceMinMultiplier, kExperienceMaxMultiplier);
+        }
+    }
+}
+
+void bumpNeedBuffer(entt::entity entity, NeedType need, float bump, entt::registry& registry) {
+    if (!(bump > 0.0f)) {
+        return;
+    }
+    auto& exp = registry.get_or_emplace<components::AgentExperience>(entity);
+    const auto idx = needIndex(need);
+    if (idx >= exp.bufferMultiplier.size()) {
+        return;
+    }
+    float m = std::clamp(exp.bufferMultiplier[idx], kExperienceMinMultiplier, kExperienceMaxMultiplier);
+    m *= (1.0f + bump);
+    exp.bufferMultiplier[idx] = std::clamp(m, kExperienceMinMultiplier, kExperienceMaxMultiplier);
 }
 
 [[nodiscard]] const char* needTypeName(NeedType need) {
@@ -283,15 +332,114 @@ void ActionExecutor::requestConsume(entt::entity entity,
     queue.tasks.push_back(consume);
 }
 
-void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
+void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
     m_workshopAttempts.clear();
     m_resourceAttempts.clear();
+
+    decayExperience(registry, deltaSeconds);
 
     auto view = registry.view<ActionQueue, components::AgentLocation2D>();
 
     for (auto entity : view) {
         auto& queue = view.get<ActionQueue>(entity);
         auto& location = view.get<components::AgentLocation2D>(entity);
+
+        const auto findBestInteractionFor = [&](genesis::world::ResourceType type) -> genesis::world::InteractionId {
+            genesis::world::InteractionId best = 0;
+            float bestCost = std::numeric_limits<float>::infinity();
+
+            m_resources.forEachSpawn(registry, [&](const auto& spawn, const auto& inventory) {
+                if (spawn.type != type) {
+                    return;
+                }
+
+                const auto inter = m_db.findInteraction(spawn.interaction);
+                if (!inter) {
+                    return;
+                }
+
+                float cost = 0.0f;
+                if (inter->mapId == location.mapId) {
+                    const auto coord = inter->worldCoord();
+                    const float dx = static_cast<float>(coord.first) - location.x;
+                    const float dy = static_cast<float>(coord.second) - location.y;
+                    cost = dx * dx + dy * dy;
+                } else {
+                    const auto path = genesis::world::shortestMapPath(m_db, location.mapId, inter->mapId);
+                    if (!path) {
+                        return;
+                    }
+                    cost = 500.0f + static_cast<float>(path->totalCost);
+                }
+
+                // Prefer non-empty targets when possible, but still allow empty workshops.
+                if (inventory.current == 0U) {
+                    cost += 250.0f;
+                }
+
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    best = spawn.interaction;
+                }
+            });
+
+            return best;
+        };
+
+        const auto ensureCriticalConsume = [&](NeedType criticalNeed, genesis::world::ResourceType criticalResource) -> bool {
+            for (const auto& t : queue.tasks) {
+                if (t.type == ActionType::ConsumeResource && t.need == criticalNeed) {
+                    return true;
+                }
+            }
+
+            const auto target = findBestInteractionFor(criticalResource);
+            if (target == 0) {
+                return false;
+            }
+
+            float buffer = 1.0f;
+            if (const auto* exp = registry.try_get<components::AgentExperience>(entity)) {
+                const auto idx = needIndex(criticalNeed);
+                if (idx < exp->bufferMultiplier.size()) {
+                    buffer = std::clamp(exp->bufferMultiplier[idx], kExperienceMinMultiplier, kExperienceMaxMultiplier);
+                }
+            }
+
+            std::uint32_t baseUnits = 1U;
+            float reliefPerUnit = 12.0f;
+            switch (criticalNeed) {
+            case NeedType::Hunger:
+                baseUnits = 2U;
+                reliefPerUnit = 12.0f;
+                break;
+            case NeedType::Thirst:
+                baseUnits = 2U;
+                reliefPerUnit = 12.0f;
+                break;
+            case NeedType::Social:
+                baseUnits = 1U;
+                reliefPerUnit = 20.0f;
+                break;
+            default:
+                baseUnits = 1U;
+                reliefPerUnit = 12.0f;
+                break;
+            }
+
+            const auto scaled = static_cast<std::uint32_t>(std::lround(static_cast<double>(baseUnits) * static_cast<double>(buffer)));
+
+            ActionTask consume{};
+            consume.type = ActionType::ConsumeResource;
+            consume.interaction = target;
+            consume.need = criticalNeed;
+            consume.resource = criticalResource;
+            consume.amount = std::max<std::uint32_t>(1U, scaled);
+            consume.retries = 0;
+            consume.reliefPerUnit = reliefPerUnit;
+            queue.tasks.emplace(queue.tasks.begin(), consume);
+            return true;
+        };
 
         const auto abandonAllActions = [&]() {
             queue.tasks.clear();
@@ -327,6 +475,8 @@ void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
             releaseWorkshopSlot(job.interaction, entity);
             registry.remove<components::WorkshopJob>(entity);
             abandonAllActions();
+
+            bumpNeedBuffer(entity, criticalNeed, kExperienceBumpPreempt, registry);
         };
 
         if (auto* needs = registry.try_get<NeedComponent>(entity)) {
@@ -335,12 +485,20 @@ void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
 
                 if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
                     if (job->outputType != criticalResource) {
-                        abortWorkshopJob(*job, criticalNeed);
-                        continue;
+                        // Take a break instead of throwing away progress: eat/drink first, then resume work.
+                        bumpNeedBuffer(entity, criticalNeed, kExperienceBumpPreempt, registry);
+                        releaseWorkshopSlot(job->interaction, entity);
+                        if (!ensureCriticalConsume(criticalNeed, criticalResource)) {
+                            abortWorkshopJob(*job, criticalNeed);
+                            continue;
+                        }
                     }
                 } else if (!queue.tasks.empty() && queue.tasks.front().type == ActionType::ProduceResource) {
                     if (queue.tasks.front().resource != criticalResource) {
-                        abandonAllActions();
+                        bumpNeedBuffer(entity, criticalNeed, kExperienceBumpPreempt, registry);
+                        if (!ensureCriticalConsume(criticalNeed, criticalResource)) {
+                            abandonAllActions();
+                        }
                     }
                 }
             }
@@ -633,11 +791,19 @@ void ActionExecutor::processConsume(entt::entity entity,
             m_resourceAttempts.push_back(std::move(attempt));
             queue.tasks.pop_front();
             queue.tasks.insert(queue.tasks.begin(), plan->begin(), plan->end());
+
+            if (isVitalNeed(task.need)) {
+                bumpNeedBuffer(entity, task.need, kExperienceBumpStockoutVital, registry);
+            }
             return;
         }
 
         attempt.failureReason = kReasonPlanningFailed;
         m_resourceAttempts.push_back(std::move(attempt));
+
+        if (isVitalNeed(task.need)) {
+            bumpNeedBuffer(entity, task.need, kExperienceBumpStockoutVital * 0.5f, registry);
+        }
         queue.tasks.pop_front();
         return;
     }
@@ -797,6 +963,10 @@ bool ActionExecutor::processProduce(entt::entity entity,
             registry.remove<components::WorkshopJob>(entity);
             queue.tasks.pop_front();
             return true;
+        }
+
+        if (!acquireWorkshopSlot(job->interaction, entity, slots)) {
+            return false;
         }
 
         if (job->workRemainingTicks > 0U) {

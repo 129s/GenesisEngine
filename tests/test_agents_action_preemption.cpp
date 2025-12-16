@@ -7,6 +7,7 @@
 
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/CarriedResources.hpp"
+#include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/messaging/EventBus.hpp"
@@ -15,11 +16,24 @@
 
 namespace genesis::tests {
 
-TEST(ActionExecutorPreemption, AbortsWorkshopJobWhenCriticalNeedDiffers) {
+TEST(ActionExecutorPreemption, PausesWorkshopJobToSatisfyCriticalNeed) {
     using json = nlohmann::json;
 
     genesis::world::InMemoryWorldDatabase db;
     db.addMap(genesis::world::Map{.id = 1, .name = "m1"});
+
+    genesis::world::Interaction foodSource{};
+    foodSource.id = 2000;
+    foodSource.mapId = 1;
+    foodSource.sceneId = 0;
+    foodSource.kind = genesis::world::InteractionKind::Resource;
+    foodSource.coordLocal = {0, 0};
+    foodSource.coordGlobal = {0, 0};
+    foodSource.name = "food_source";
+    foodSource.resourceType = genesis::world::ResourceType::Food;
+    foodSource.capacity = 10;
+    foodSource.regenPerStep = 0;
+    db.addInteraction(foodSource);
 
     genesis::world::Interaction workshop{};
     workshop.id = 1000;
@@ -77,6 +91,7 @@ TEST(ActionExecutorPreemption, AbortsWorkshopJobWhenCriticalNeedDiffers) {
     registry.emplace<genesis::agents::ActionQueue>(agent, std::move(queue));
 
     actions.update(registry, 0.0f);
+    ASSERT_TRUE(registry.any_of<genesis::agents::ActionQueue>(agent));
 
     auto& mutableNeeds = registry.get<genesis::agents::NeedComponent>(agent);
     mutableNeeds.needs.setState(genesis::agents::NeedType::Hunger, 90.0f);
@@ -85,9 +100,28 @@ TEST(ActionExecutorPreemption, AbortsWorkshopJobWhenCriticalNeedDiffers) {
 
     std::vector<genesis::telemetry::WorkshopAttemptSnapshot> attempts;
     actions.drainWorkshopAttemptSnapshots(attempts);
-    ASSERT_FALSE(attempts.empty());
-    EXPECT_EQ(attempts.back().failureReason, "PreemptedCriticalNeed:Hunger");
+    EXPECT_TRUE(attempts.empty());
+
+    const auto& q = registry.get<genesis::agents::ActionQueue>(agent);
+    ASSERT_FALSE(q.tasks.empty());
+    EXPECT_EQ(q.tasks.front().type, genesis::agents::ActionType::ProduceResource);
+
+    std::vector<genesis::telemetry::ResourceAttemptSnapshot> resourceAttempts;
+    actions.drainResourceAttemptSnapshots(resourceAttempts);
+    ASSERT_FALSE(resourceAttempts.empty());
+    bool ate = false;
+    for (const auto& ra : resourceAttempts) {
+        if (ra.action == "ConsumeResource" && ra.interactionId == 2000 && ra.obtainedUnits > 0U) {
+            ate = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(ate);
+
+    const auto* exp = registry.try_get<genesis::agents::components::AgentExperience>(agent);
+    ASSERT_NE(exp, nullptr);
+    const auto idx = genesis::agents::needIndex(genesis::agents::NeedType::Hunger);
+    EXPECT_GT(exp->bufferMultiplier[idx], 1.0f);
 }
 
 } // namespace genesis::tests
-

@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "genesis/agents/ActionSystem.hpp"
+#include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/agents/Personality.hpp"
@@ -169,13 +170,67 @@ void NeedSatisfier::update(entt::registry& registry,
             0.0f,
             18.0f);
 
-        const auto scaledUnits = [&](std::uint32_t baseUnits) -> std::uint32_t {
-            const auto scaled = static_cast<std::uint32_t>(std::lround(static_cast<double>(baseUnits) * planningHorizon));
+        const float hungerBuffer = [&]() -> float {
+            if (const auto* exp = registry.try_get<components::AgentExperience>(entity)) {
+                const auto idx = needIndex(NeedType::Hunger);
+                return std::clamp(exp->bufferMultiplier[idx], 1.0f, 3.0f);
+            }
+            return 1.0f;
+        }();
+        const float thirstBuffer = [&]() -> float {
+            if (const auto* exp = registry.try_get<components::AgentExperience>(entity)) {
+                const auto idx = needIndex(NeedType::Thirst);
+                return std::clamp(exp->bufferMultiplier[idx], 1.0f, 3.0f);
+            }
+            return 1.0f;
+        }();
+        const float socialBuffer = [&]() -> float {
+            if (const auto* exp = registry.try_get<components::AgentExperience>(entity)) {
+                const auto idx = needIndex(NeedType::Social);
+                return std::clamp(exp->bufferMultiplier[idx], 1.0f, 3.0f);
+            }
+            return 1.0f;
+        }();
+
+        const auto scaledUnits = [&](NeedType need, std::uint32_t baseUnits) -> std::uint32_t {
+            float buffer = 1.0f;
+            switch (need) {
+            case NeedType::Hunger:
+                buffer = hungerBuffer;
+                break;
+            case NeedType::Thirst:
+                buffer = thirstBuffer;
+                break;
+            case NeedType::Social:
+                buffer = socialBuffer;
+                break;
+            default:
+                buffer = 1.0f;
+                break;
+            }
+            const float horizon = planningHorizon * buffer;
+            const auto scaled = static_cast<std::uint32_t>(std::lround(static_cast<double>(baseUnits) * horizon));
             return std::max<std::uint32_t>(1U, scaled);
         };
 
-        const auto scaledPrepare = [&](float baseMargin) -> float {
-            return std::max(0.0f, baseMargin) * planningHorizon;
+        const auto scaledPrepare = [&](NeedType need, float baseMargin) -> float {
+            float buffer = 1.0f;
+            switch (need) {
+            case NeedType::Hunger:
+                buffer = hungerBuffer;
+                break;
+            case NeedType::Thirst:
+                buffer = thirstBuffer;
+                break;
+            case NeedType::Social:
+                buffer = socialBuffer;
+                break;
+            default:
+                buffer = 1.0f;
+                break;
+            }
+            const float horizon = planningHorizon * buffer;
+            return std::max(0.0f, baseMargin) * horizon;
         };
 
         const auto costToInteraction = [&](const world::Interaction& inter) -> float {
@@ -354,25 +409,25 @@ void NeedSatisfier::update(entt::registry& registry,
         std::optional<Candidate> best;
         considerNeed(NeedType::Hunger,
                      world::ResourceType::Food,
-                     scaledUnits(m_config.hungerUnitsPerRequest),
+                     scaledUnits(NeedType::Hunger, m_config.hungerUnitsPerRequest),
                      m_config.hungerReliefPerUnit,
-                     scaledPrepare(m_config.hungerPrepareMargin),
+                     scaledPrepare(NeedType::Hunger, m_config.hungerPrepareMargin),
                      m_config.hungerPreferredLocator,
                      best);
 
         considerNeed(NeedType::Thirst,
                      world::ResourceType::Water,
-                     scaledUnits(m_config.thirstUnitsPerRequest),
+                     scaledUnits(NeedType::Thirst, m_config.thirstUnitsPerRequest),
                      m_config.thirstReliefPerUnit,
-                     scaledPrepare(m_config.thirstPrepareMargin),
+                     scaledPrepare(NeedType::Thirst, m_config.thirstPrepareMargin),
                      m_config.thirstPreferredLocator,
                      best);
 
         considerNeed(NeedType::Social,
                      world::ResourceType::Social,
-                     scaledUnits(m_config.socialUnitsPerRequest),
+                     scaledUnits(NeedType::Social, m_config.socialUnitsPerRequest),
                      m_config.socialReliefPerUnit,
-                     scaledPrepare(m_config.socialPrepareMargin),
+                     scaledPrepare(NeedType::Social, m_config.socialPrepareMargin),
                      m_config.socialPreferredLocator,
                      best);
 
@@ -427,21 +482,21 @@ void NeedSatisfier::update(entt::registry& registry,
 
                 evalKeep(NeedType::Hunger,
                          world::ResourceType::Food,
-                         scaledUnits(m_config.hungerUnitsPerRequest),
+                         scaledUnits(NeedType::Hunger, m_config.hungerUnitsPerRequest),
                          m_config.hungerReliefPerUnit,
-                         scaledPrepare(m_config.hungerPrepareMargin));
+                         scaledPrepare(NeedType::Hunger, m_config.hungerPrepareMargin));
 
                 evalKeep(NeedType::Thirst,
                          world::ResourceType::Water,
-                         scaledUnits(m_config.thirstUnitsPerRequest),
+                         scaledUnits(NeedType::Thirst, m_config.thirstUnitsPerRequest),
                          m_config.thirstReliefPerUnit,
-                         scaledPrepare(m_config.thirstPrepareMargin));
+                         scaledPrepare(NeedType::Thirst, m_config.thirstPrepareMargin));
 
                 evalKeep(NeedType::Social,
                          world::ResourceType::Social,
-                         scaledUnits(m_config.socialUnitsPerRequest),
+                         scaledUnits(NeedType::Social, m_config.socialUnitsPerRequest),
                          m_config.socialReliefPerUnit,
-                         scaledPrepare(m_config.socialPrepareMargin));
+                         scaledPrepare(NeedType::Social, m_config.socialPrepareMargin));
             }
         }
 

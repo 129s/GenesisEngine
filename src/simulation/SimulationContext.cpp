@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "genesis/agents/CarriedResources.hpp"
+#include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/agents/Personality.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
@@ -117,6 +118,7 @@ std::uint32_t SimulationContext::createAgent(const AgentSpawnParams2D& params) {
     m_registry.emplace<agents::NeedComponent>(entity, std::move(needs));
 
     m_registry.emplace<agents::components::CarriedResources>(entity);
+    m_registry.emplace<agents::components::AgentExperience>(entity);
 
     if (params.initialMovement) {
         agents::components::MovementIntent2D intent{};

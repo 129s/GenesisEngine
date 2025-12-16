@@ -16,6 +16,7 @@
 - 版本提升时必须同步更新：
   - `docs/architecture/foundation/runtime-api.md`
   - 本文档的“变更记录”
+- 统一版本策略与门禁说明：见 `docs/architecture/foundation/schema-versioning.md`。
 - 推荐约定（当前仓库采用偏保守策略）：
   - **新增字段也提升版本**（即使是可选字段），用版本号显式驱动消费端适配。
 

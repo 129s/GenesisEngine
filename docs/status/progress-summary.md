@@ -1,52 +1,24 @@
 > 文档范围：面向当前/近期开发的进度与风险汇总；长期计划以 `docs/roadmap/README.md` 为准；具体任务请参考仓库 Issues/Milestones。
 # 项目进度概览
 
+> 当前方向：优先推进 Core 模拟与回归/Soak/Worldline 工具链；GUI 相关工作暂缓（若已存在实现则作为可选调试前端保留）。
+
 ## 最新进展（本次）
-- Sandbox GUI 窗口体验：
-  - 启动时自动根据主显示器工作区居中放置窗口，便于多显示器快速定位。
-- Sandbox GUI 主题：
-  - 基于 `build/src/serum.png` 精确取样重写 `DesignTokens` 背景/主色/语义色，统一交互亮度与描边对比。
-  - 新增 `docs/rendering/ui-palette.md` 说明色板与状态矩阵，为后续控件迁移提供基线。
-- Sandbox GUI 浏览器：
-  - 调整列表项 FramePadding，统一抬高行高，提升条目可读性和指针命中空间。
-  - 统一目录条目点击/聚焦配色，选中后 Hover 保持同色以消除交互瞬时闪烁。
-  - 补齐面板内边距、统一树节点缩进，并将详情卡片改为浮层覆盖，缩短上下留白后默认展示区域增大且仅目录树滚动。
-  - 分割线统一为 2px，并在拖拽时使用 Accent 高亮，同时扩大命中区域；全局启用同宽的 ImGui docking 分隔线保持面板一致性。
-- Docking 操作体验：
-  - 提升 ImGui docking 分割线厚度至 6px，并增加 TouchExtraPadding，扩大鼠标命中范围，布局调整更顺手。
-- Sandbox GUI 结构重构：
-  - 将 `AppHost` 单体实现拆分成 `AppHostCore/AppHostLayout/AppHostPanelWorld/AppHostPanelViews` 多个编译单元，并抽出 `CommandUiHelpers`、`FilesystemHelpers`、`ImGuiLogSink` 等私有头以复用逻辑。
-  - CMake 目标 `genesis_sandbox_gui` 已更新引用新的模块化结构，后续可按面板粒度维护与扩展。
-  - 控制栏与状态栏改为可停靠窗口，并提供缺省 Dock 布局，避免覆盖主视图区。
-- 运行时快照 diff 与事件注入 API：
-  - 新增 `Runtime::latestSnapshotDiff()` 与 `SimulationSnapshotDiff`，支持快速检测资源/需求/行动变化并携带事件日志。
-  - 引入 `Runtime::enqueueEvent` 命令队列，在每个模拟步执行并写入 `RuntimeEventReport`，用于 GUI 交互与自动化回放。
-  - 扩展双缓冲快照结构，捕获命令执行结果并在文档中更新使用指南。
-- 命令队列与 GUI 控制台迭代：
-  - `Runtime::enqueueEvent` 现返回事件 ID，支持 `runtimeHandler`/`onComplete`，并在单元测试中验证消息链路。
-  - `RuntimeBridge` 维护命令 pending/history 状态，新增 JSON 命令序列与世界加载/保存 handler（示例见 `data/scripts/world_cycle.json`，推荐 `world.db.*`）。
-  - World IO 面板通过命令队列提交 `world.db.load/save/reload`，避免 UI 线程直接操作运行时对象，降低线程竞争风险。
-- Sandbox GUI Inspector 基础版：
-  - Inspector 面板新增实体列表（Agent/Resource/Node 分组），详情面板支持查看需求、行动、Planner 结果与移动进度；搜索能力现统一迁移到 Browser。
-  - Map View 增加选中高亮、Agent 圆环强调及“一键定位/Scene 打开”按钮；支持跟随模式自动切换 Scene View。
-  - 将 Runtime 事件日志与需求 diff 整合进 Inspector，便于定位命令执行结果与本帧变化。
-- 构建与测试稳定性改进：
-  - 移除遗留的 `genesis_sandbox_cli` 目标及其测试脚本，避免重复维护 ASCII 工具链。
-  - 为 `genesis_runtime_tests` 增加 `Genesis::Engine` 链接，避免 Windows 下跨模块静态库初始化差异带来的崩溃。
-  - 在 `Runtime` 中初始化 SPDLOG 缺省 logger（最佳努力，不干扰外部设置）。
-  - 全部测试通过（33/33）。
-- 世界加载与可达性：
-  - 放宽世界载入对部分字段的强制要求，兼容部分历史 JSON；存在时解析回填（当前主线契约以 v2 WorldDatabase 为准）。
-  - 修正初始化出生点策略：优先选择“可达的资源所在位置”，避免噪声图孤岛导致长期无法消费。
-- 文档与路线图：
-  - 新增 `docs/roadmap/MVP_SCENE_INTERACTIVE.md`（Scene/Interactive 节点树重构的 MVP 范围与验收标准）。
-  - 在 `docs/roadmap/README.md` 补充引用。
+- 回归与可观测性闭环：
+  - Core Regression 继续作为门禁；Soak/Worldline 作为软对比证据（不门禁）。
+  - Worldline Chronicle v0：按窗口输出宏观证据，支撑跨 seed/配置/版本对比与母题抽取（见 `docs/architecture/foundation/worldline-chronicle.md`）。
+- 资源经济与生产链（机制侧）：
+  - 工坊生产：引入生产作业时间、并行槽位与临界需求抢占中断（并补齐协议文档）。
+- 文档整顿：
+  - 以代码已落地内容固化 Spec；设想/规划集中到 Proposal；并补齐对齐矩阵（Agents 层已完成一轮）。
+- GUI（暂缓）：
+  - 历史集中迭代记录已归档：`docs/status/history/2025-12-15_gui-runtime-ux.md`。
 
 ## 已完成工作
 - 核心框架：重建 C++20 构建骨架，集成 spdlog、entt、nlohmann::json、gtest，并实现基础的 Engine 循环、离散时间 SimulationClock 以及事件总线。
 - 世界模型：完成 `WorldDatabase`、加载/保存与示例世界（`world.json + map_{id}.json`），提供 Map/Scene/Interaction/Portal 查询与 Map 图最短路。
 - 资源系统：实现库存与产出调度，支持消耗事件、低库存告警，并新增单元测试保证补货逻辑正确。
-- 需求与行为：实现 NeedSystem、NeedSatisfier，并通过 HungerPlanner 将饥饿需求与资源消耗串联，增加位置与拥挤度感知、最短路径选择及决策记录。
+- 需求与行为：实现 NeedSystem、NeedSatisfier（固定规则打分选点），并通过 ActionExecutor/ResourceSystem 串联需求恢复与资源消耗；Telemetry 输出 `plannerDecisions[]` 等用于解释“为何选它”。
 - 移动系统：新增 Movement2DSystem，运行时采用 Map 内直线移动语义；Need/Action 在抵达目标后执行资源消耗，并补充对应单元测试。
 - 任务执行：落地 ActionExecutor 及 ActionQueue，将 Planner 决策映射到移动/消耗任务，联动 MovementSystem、ResourceSystem 与 NeedSystem，补充对应单元测试验证任务调度与饥饿恢复。
 - 遥测与日志：引入 TelemetryBuffer 捕获资源快照、需求状态、规划决策，并新增行动队列与代理位置快照；周期性输出资源/饥饿/平均旅行成本等核心指标。
@@ -61,23 +33,14 @@
 - 系统互联：天气、事件、经济、社交网络等子系统尚未对接，目前为单一需求闭环。
 - CI 与长时模拟：计划中的 24 小时回归和指标比对尚未配置，仍需在 pipelines 中补全。
 - 性能优化：规划/遥测引入更多计算后，需要在后续阶段进行性能与内存分析。
-- 端到端测试：补充完整 E2E 场景，用以验证 Planner → ActionExecutor → Needs 的闭环行为。
+- 端到端测试：补充完整 E2E 场景，用以验证 NeedSatisfier → ActionExecutor → Needs 的闭环行为。
 - 运行时封装：扩展 runtime API（快照对比、事件注入等），并实现 sandbox_gui、game 前端以复用统一模拟核心。
 
-## 下一阶段聚焦（P0 · Sprint-2 建议）
+## 下一阶段聚焦（建议 · 2 周）
 
-> 目标：在未来 10～14 天内补齐 GUI 运行时桥接、可回归验证与协议文档，为 Scene/Interactive 重构与 Inspector 深化提供稳定基线。
+> 目标：把“可回归 + 可解释 + 可对比”的证据链做厚，支撑你要的世界线/母题分析框架迭代。
 
-- 运行时桥接增强：完善命令队列在 `RuntimeBridge` 中的接入，提供示例脚本验证事件注入/回放，并确保线程模型与 GUI 消费逻辑一致。
-- GUI 自动化覆盖：固化端到端闭环测试场景（饥饿→规划→行动→补给），原 CLI 烟雾脚本已移除；补充 24 小时 soak 流程采集饥饿/库存/旅行成本指标。
-- Telemetry 与协议文档：统一快照 diff / Telemetry schema，扩写 `docs/architecture/foundation/runtime-api.md` 与 Inspector 数据字典，约束前端消费契约并做好版本标记。
-
-### 关键里程碑与交付
-1. 提交 `RuntimeBridge` 命令队列与事件脚本示例（含最小 UI 触发入口），并通过手动验收记录。
-2. 引入 GUI 端到端测试 Harness（gtest/ctest 或脚本形式）和最小断言集，纳入 CI；完成 24 小时 soak 脚本并记录指标阈值。
-3. 更新文档与 Telemetry schema（含版本号、字段说明、消费指引），并在 GUI 提交中强制校验 schema 版本。
-
-### 依赖与风险
-- 命令队列回放需要复核 Runtime 锁策略，必要时补充线程安全测试。
-- GUI 自动化运行依赖无头 OpenGL/ImGui 渲染方案，需在 Windows/Linux 上验证驱动兼容性。
-- 文档更新需同步至后续开发者，建议在提交后安排短会/公告确认契约变更。
+- Worldline 证据增强：补充更贴叙事的宏观窗口特征（阶段切分/变点提示、主体行为分布的漂移摘要）。
+- 母题工具链 v0：让 `worldline → 候选母题` 的离线分析脚本可批跑、可回放定位窗口/实体（以“尽量无预设”作为约束）。
+- Soak 基准集：固定一组配置/seed 作为对照集合，建立版本间的软对比报告模板（不门禁，但强留档）。
+- 文档对齐扩面：把 Interface/Meta 中仍夹杂的“设想/承诺”迁移到 Proposal，并在原文保留指针。

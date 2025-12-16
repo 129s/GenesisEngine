@@ -1,27 +1,26 @@
-# GenesisEngine 路线图（GUI 优先版）
+# GenesisEngine 路线图（Core + 工具链优先）
 
-> 2025-10-19 更新：Sandbox GUI 已成为主力观测与调试入口；CLI 支持即日起暂停；运行时架构完成“Core Runtime → Runtime Facade → Presentation”拆分；P0 阶段任务正式启动（目标 4 周内完成 GUI 里程碑 4 与回归基线）。
+> 2025-12-16 更新：优先夯实 Core 模拟与回归/Soak/Worldline 工具链（确定性、可观测、可对比、可解释）；Sandbox GUI 作为可选调试前端暂缓推进，避免 UI 牵引机制演进。
 
 ## 背景与更新要点
-- Sandbox CLI 在复杂地图与长时运行下存在频闪与调试效率瓶颈，即日起暂停支持，仅保留源码以备后续评估。
-- Sandbox GUI 已集成 RuntimeBridge、WorldAtlas 等模块，支持持续运行、快照读取与基本调试面板，后续里程碑围绕 GUI 演进展开。
-- 说明：这里的 “CLI 暂停” 指历史的交互式/渲染型 CLI（ASCII/实时渲染等）；用于回归与回放的 Headless 工具 `genesis-runtime-cli` 仍在支持矩阵内。
+- 交互式/渲染型 CLI（ASCII/实时渲染等）不再作为主入口；回归与批跑以 Headless 工具 `genesis-runtime-cli` 为主。
+- Sandbox GUI 代码与基础能力已存在，但当前迭代不以 GUI 为主战场（避免 UI 工作量遮蔽机制与可回归验证）。
 - 运行时架构调整为：单线程 Core Runtime 提供确定性模拟；Runtime Facade 暴露控制/查询/Telemetry 契约；前端通过只读快照消费数据，禁止直接操作 ECS。
 - 文档体系同步：GUI 架构、世界模型、运行时 API 均已拆分到 `docs/architecture`，路线图聚焦阶段目标与风险。
 - Runtime Facade 已提供事件命令队列与 `latestSnapshotDiff`，为 GUI Inspector 与自动化回放提供事件注入与断言基线。
 
 ## 目标与范围
 - 提供稳定、可扩展的模拟核心，前端统一经 Runtime Facade 访问。
-- 以 Sandbox GUI 为主战场，构建可视化调试、遥测分析与世界生成调参能力。
+- 以 Headless 回归/Soak/Worldline 工具链为主战场，形成“可回归验证 + 可解释观测 + 可对比证据”的闭环。
 - 支撑多需求、多系统互联的 Agent 行为，同时确保长时间运行的性能与诊断手段。
-- 暂停 CLI 发布与支持，后续调试与工具链以 GUI 为唯一入口。
+- GUI 作为可选调试前端：仅在需要交互式观测时启用，不绑定主线里程碑。
 
 ## 架构基线
 - **Simulation Kernel**：`SimulationHost/SimulationContext/Scheduler` + 系统集合（Movement/Needs/Planner/ActionExecutor/Resource 等），单线程按 `SimulationClock` 推进；世界数据以 `WorldDatabase`（`world.json + map_{id}.json`）为输入输出契约。
 - **Runtime Facade**：控制面（`run`/`pause`/`step`/`setSpeed`）、查询面（`latestSnapshot`、`latestSnapshotDiff`、WorldAtlas、TelemetryBuffer）、事件入口（命令队列/事件注入 + 快照对比，支撑回放与断言）。
 - **Presentation 层**：
-  - GUI（主力）：GLFW + OpenGL + Dear ImGui，RuntimeBridge 后台线程 + 环形快照缓冲。
-  - CLI（暂停）：移出支持矩阵，仅保留源码以便未来回滚或工具链复用。
+  - Headless（主力）：`genesis-runtime-cli` 负责回归/批跑/Soak/Worldline 产出与对比。
+  - GUI（可选/暂缓）：GLFW + OpenGL + Dear ImGui，RuntimeBridge 后台线程 + 环形快照缓冲。
   - Game（探索中）：未来与 GUI 共享 Runtime 契约。
 - **可观测性**：Telemetry Schema 与 Snapshot 双缓冲是协议演进核心；所有前端使用 schema version 校验以避免破坏性更新。
 
@@ -33,7 +32,7 @@
   - [x] Inspector 视图：实体列表/详情/地图联动的基础版本已上线，后续补充人格/Traits 等高级信息
   - [ ] RuntimeBridge Telemetry 配置：巩固指标采集与阈值告警面板草案
 - 测试与回归
-  - [ ] 端到端闭环用例：Planner → Executor → Need 恢复
+  - [ ] 端到端闭环用例：NeedSatisfier → ActionExecutor → Need 恢复
   - [ ] 24 小时离线长时模拟（指标追踪：饥饿/旅行成本/库存告警）
 - 文档与规范
   - [x] 整理 `docs` 目录、合并路线图
@@ -53,9 +52,9 @@
   - [ ] 长时运行（24h）回归脚本，纳入指标追踪（饥饿/库存/旅行成本）。
 - GUI 主线
   - [x] 里程碑 1-2：GLFW + ImGui Docking 框架、RuntimeBridge 后台线程、WorldAtlas 静态视图。
-  - [x] 里程碑 3：OCEAN 人格、命名标签、模拟时间语义化、第二资源点验证。
+  - [ ] 里程碑 3（proposal）：OCEAN 人格/画像、命名标签、模拟时间语义化、第二资源点验证。
   - [ ] 里程碑 3 文档补齐（可视化策略/Scene View 说明）。
-  - [x] 里程碑 4：Inspector 面板（实体列表、详情、Map 联动基础版完成，细化项见 `docs/architecture/INSPECTOR_PANEL.md`）。
+  - [x] 里程碑 4：Inspector 面板（实体列表、详情、Map 联动基础版完成；细化项见 `docs/architecture/interface/sandbox/inspector-panel.md`）。
 - 工程与支持
   - [ ] GUI 烟雾测试流水线：巩固可执行脚本 + 关键断言（CLI 流程暂停）。
   - [ ] 构建流水线：Windows/Linux GUI 构建、符号与依赖打包。

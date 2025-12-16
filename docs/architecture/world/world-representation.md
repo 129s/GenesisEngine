@@ -45,4 +45,4 @@
 ## 参考
 - 世界模型：`./world-model.md`
 - 世界生成：`./world-generation.md`
-- GUI：`../interface/sandbox/sandbox-gui-tilemap-rendering.md`
+- GUI（提案）：`../proposals/interface/sandbox/sandbox-gui-tilemap-rendering.md`

@@ -44,7 +44,7 @@
 ### Phase 2 · 语义与图形（1–2 周并行）
 - 颜色体系：定义状态色板（资源类型/行动类型/选中/警告/禁用），固化到样式与图例。
 - 图层与密度：Map 图例改为角落悬浮卡片；当勾选 Trails 时自动缩略长度并提供渐隐；在缩放阈值以下隐藏资源条形图。
-- Inspector 深化：按 docs/architecture/INSPECTOR_PANEL.md 接入人格/Traits 与历史趋势（最小 32 帧环形缓冲）。
+- Inspector 深化：按 `docs/architecture/interface/sandbox/inspector-panel.md` 接入人格/Traits 与历史趋势（最小 32 帧环形缓冲）。
 - 搜索与收藏：Inspector 列表增加星标收藏分组；搜索支持 	ype:agent tag:alpha 语法（可后续）。
 
 ## 具体改动建议（与代码位置）

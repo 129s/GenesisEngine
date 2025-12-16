@@ -1,4 +1,4 @@
-# GenesisEngine 重构蓝图（架构与核心模块）
+# Proposal · GenesisEngine 重构蓝图（架构与核心模块）
 
 > 版本：2025-10-23  
 > 作者：Codex（协同清扫）  

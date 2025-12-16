@@ -1,6 +1,6 @@
 # GenesisEngine · 核心架构总览（v3）
 
-> 面向引擎内核与运行时的贡献者；本文描述 v3 重构后的主干模块、分层职责与数据流。设计原则继承自 [`meta/vision.md`](../meta/vision.md)，具体命名空间规范见 [`meta/namespace-strategy.md`](../meta/namespace-strategy.md)。
+> 面向引擎内核与运行时的贡献者；本文描述 v3 重构后的主干模块、分层职责与数据流。设计原则继承自 [`meta/vision.md`](../meta/vision.md)，命名空间统一方案见提案 [`proposals/meta/namespace-strategy.md`](../proposals/meta/namespace-strategy.md)。
 
 ## 1. 分层视图
 

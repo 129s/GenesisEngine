@@ -92,3 +92,5 @@ Atlas 描述世界静态结构（Map 图）与每图可视元数据；只读、�
 - 兼容旧协议：保留 `latestSnapshot()`/`latestSnapshotDiff()` 的接口形式；字段迁移采用新增/弃用并行期
 - 版本化：`schema_version` 与 `world_version` 双轨控制；前端按版本刷新缓存与字段解析
 - 运行时不读取 Tilemap/碰撞；世界表达详见 `world-model.md`
+
+版本策略与门禁：见 `docs/architecture/foundation/schema-versioning.md`。

@@ -1,4 +1,4 @@
-# Open Questions / 后续决策点
+# Proposal · Open Questions / 后续决策点
 
 - **Tilemap 规模与分辨率**  
   - Root map 是否需要全覆盖 Tilemap？大世界是否采用多分辨率（外部低分辨率、内部高分辨率）？  

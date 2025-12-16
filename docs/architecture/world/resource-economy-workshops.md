@@ -15,6 +15,8 @@
 {
   "workshop": {
     "initial": 0,
+    "workTicksPerBatch": 3,
+    "slots": 2,
     "recipes": [
       {
         "outputUnits": 3,
@@ -36,6 +38,10 @@
 
 字段说明：
 - `initial`：初始库存（可选，默认 0；会被 `capacity` 上限截断）。
+- `workTicksPerBatch`：每个生产批次需要的工作 tick 数（可选，默认 1；必须 >0）。用于表达“短期成效少、投入大”的生产过程。
+- `slots`：并行槽位（可选，默认 0）。
+  - `0`：不限制并行（等价于无限槽位）。
+  - `>=1`：同一工坊最多允许 `slots` 名代理同时进行生产作业（超过则需要等待/换点）。
 - `recipes[]`：配方列表（至少一个）；每个元素包含：
   - `outputUnits`：每次生产批次产出单位数（>= 1）。
   - `inputs[]`：输入资源列表；每个元素包含：
@@ -51,6 +57,11 @@
 - 产出注入：只有当 Agent 在该 `interactionId` 执行生产动作后，库存才增长。
 - 消费：Agent 的消费仍然按“在目标资源点消耗库存”执行；当目标为工坊且库存不足时，Agent 会尝试获取输入、生产、再消费（见 action 规划）。
 
+### 生产作业时间与并行（v2 增量）
+- 生产不是“瞬间产出”：`ProduceResource` 会创建/推进一个生产作业（job），总耗时约为 `workTicksPerBatch * batches`。
+- 并行槽位：当 `slots>=1` 时，同一工坊同时允许的生产作业数受限；达到上限后，生产动作会暂时无法开始并在后续 tick 重试。为避免 Telemetry 噪声，当前实现不保证为每次“抢槽失败”写入 `workshopAttempts[]`；如需可观测，可在 Telemetry 侧演进专门字段或做降采样记录。
+- 临界需求抢占：当代理进入临界需求状态时，允许中断当前生产作业并切换到更紧迫的补给链路；这是为了让系统在长期运行下更稳定地避免“沉没成本锁死”。
+
 ## Worldgen 配置（TOML）
 基准世界通过 `worlddb.resources.workshop` 生成工坊 meta：
 
@@ -59,6 +70,8 @@
 output = "Food"
 initial = 0
 chance = 1.0
+work_ticks_per_batch = 3
+slots = 2
 recipes = [
   { output_units = 3, inputs = [{ type = "Water", units = 2 }] },
   { output_units = 5, inputs = [{ type = "Water", units = 1 }, { type = "Ore", units = 1 }] }

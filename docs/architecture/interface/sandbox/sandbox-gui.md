@@ -1,6 +1,6 @@
 # Architecture · Sandbox GUI
 
-Sandbox GUI 是主要的可视化与调试前端，消费 Runtime 的 Telemetry/WorldAtlas 数据完成世界渲染、指标监控与交互控制。本文概述模块划分、线程模型、性能策略与路线图。
+Sandbox GUI 是一个**可选**的可视化与调试前端，消费 Runtime 的 Telemetry/WorldAtlas 数据完成世界渲染、指标监控与交互控制。当前项目主线以 Headless 工具链（回归/Soak/Worldline）为先，GUI 方向暂缓推进；本文保留架构边界与实现要点，避免把提案写成“既成事实”。
 
 ## 模块划分
 - **AppHost**
@@ -13,8 +13,8 @@ Sandbox GUI 是主要的可视化与调试前端，消费 Runtime 的 Telemetry/
 - **Panels（ImGui）**
   - `MapView`：渲染 Map 图（`maps/mapEdges`）与每图交互点（含资源、Portal 等），提供摄像机控制、图例、过滤。
   - `SceneView`：渲染当前 Map 的 Tile 层，支持平移/缩放/图层开关/网格；与 MapView 选中同步。
-  - `Inspector`：展示实体属性、需求、人格、行动队列；支持 Follow、Teleporter。
-  - `TelemetryPanel`：绘制指标曲线（属性/需求强度、资源库存、系统耗时）。
+  - `Inspector`：展示实体基础信息（需求/行动/规划/资源尝试等）；人格/Traits 等属于 proposal。
+  - `TelemetryPanel`：展示当前帧摘要与关键指标；历史曲线/导出等属于后续扩展。
   - `Controls`：播放控制、速度倍率、单步、截图/录制；显示 `world_version`、`schema_version`。
   - `WorldGen`：热更新 MapConfig，触发世界重生成，并展示校验结果。
 
@@ -45,12 +45,14 @@ Sandbox GUI 是主要的可视化与调试前端，消费 Runtime 的 Telemetry/
 - 与 Runtime API：严格通过 `IRuntimeControl`/`IRuntimeQuery` 交互，不直接访问 ECS。
 
 ## 路线图参考
+> 下列为提案级里程碑，仅用于拆解与讨论，不代表当前实现承诺。
+
 1. **MVP**：RuntimeBridge、MapView、Controls；基础 Telemetry 可视化，支持世界刷新。
 2. **P1**：Inspector、Telemetry 曲线、SceneView 基础渲染、Portal 高亮。
 3. **P2**：Tilemap 优化（裁剪/缓存/二进制格式）、多窗口布局保存、截图/录像。
 4. **P3**：Chunk 级流式加载、性能分析工具、UI 自动化测试挂钩。
 
 更多细节见：
-- [`sandbox-gui-sim-loop.md`](./sandbox-gui-sim-loop.md)：模拟循环、人格 Demo、验收标准。
-- [`sandbox-gui-tilemap-rendering.md`](./sandbox-gui-tilemap-rendering.md)：Tilemap 资源、渲染管线、二进制协议。
+- [`sandbox-gui-sim-loop.md`](./sandbox-gui-sim-loop.md)：模拟循环可视化边界与当前缺口（proposal 标注）。
+- Proposal：`docs/architecture/proposals/interface/sandbox/sandbox-gui-tilemap-rendering.md`（Tilemap 资源、渲染管线、二进制协议）。
 - [`inspector-panel.md`](./inspector-panel.md)：Inspector 交互设计与数据要求。

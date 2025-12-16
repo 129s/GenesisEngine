@@ -55,6 +55,12 @@ cmake --build build_core --target genesis_runtime_cli
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_regression_core.ps1 -Config Debug -BuildDir build_core
 ```
 
+如果希望强制使用 MSVC（而不是 MinGW/Clang 等），可追加 `-UseMsvc`（脚本会加载 VS DevCmd 环境）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_regression_core.ps1 -UseMsvc -Generator "Ninja" -Config Debug -BuildDir build_core_msvc
+```
+
 ## 3.1 短 Soak：软指标报告（多样性 / 资源经济）
 
 说明：Soak 报告用于版本间对比与调参，不作为 CI 硬门禁；CI 侧仍以单元/集成测试的“硬契约”与短 soak 的不变量断言为主。
@@ -62,6 +68,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_regression_core.
 ```powershell
 .\build_core\src\genesis-runtime-cli.exe soak data\world_multiagent --root . --steps 5000 --out out\soak_metrics.json
 ```
+
+长时与回归策略（方案 A：非门禁）见：`docs/handbook/SOAK_REGRESSION.md`（含 `scripts/run_soak.ps1` 与报告对比脚本）。
 
 ## 3.2 基准世界集合（建议用 worldgen 生成）
 

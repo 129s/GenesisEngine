@@ -49,6 +49,12 @@ cmake --build build_headless --target genesis_runtime_cli
 .\build_headless\src\genesis-runtime-cli.exe soak data\world_multiagent --root . --steps 5000 --out out\soak_metrics.json --summary-out out\summary.md
 ```
 
+长时/守护运行（按墙钟时间停止，可用于 24h 离线回归）：
+
+```powershell
+.\build_headless\src\genesis-runtime-cli.exe soak data\world_multiagent --root . --steps 999999999 --wall-seconds 86400 --out out\soak_metrics.json --summary-out out\summary.md --progress-every 50000
+```
+
 输出字段要点：
 - `diversity.actionTypes`：按 `telemetry.actions[].currentAction` 聚合的计数与熵（bits）
 - `diversity.plannerTargets`：按 `telemetry.plannerDecisions[].target` 聚合的计数与熵（bits）
@@ -56,3 +62,8 @@ cmake --build build_headless --target genesis_runtime_cli
 - `resourceEconomy.stockoutSteps`：历史字段（任意资源点为 0 即计数，包含工坊初始为 0，易恒满）
 - `resourceEconomy.stockoutStepsSources / stockoutStepsWorkshops`：更可读的拆分统计
 - `summary`：面向人工汇报的摘要（工坊产出 vs 自然再生、stockout 拆分、基于“热度+缺货”的瓶颈候选 `bottlenecksTop`，以及 `switching/specialization` 与 `resourceEconomy.avgOscillation`）
+
+补充字段（长时运行相关）：
+- `stepsRequested`：请求执行的步数（`--steps`）
+- `wallSecondsLimit` / `endedByWallTime`：是否因 `--wall-seconds` 提前停止
+- `elapsedSeconds`：本次 soak 墙钟耗时

@@ -1,6 +1,8 @@
-# Sandbox GUI · Scene View 渲染计划（对齐新世界模型）
+# Proposal · Sandbox GUI · Scene View Tilemap 渲染计划（对齐新世界模型）
 
 目标：在 Sandbox GUI 中提供基于 Tilemap 的 Scene View，可视化每张 Map 的 Tile 层、Portal/交互点与代理位置；严格遵守“只读 Telemetry/Atlas”的并发边界。注意：运行时不读取 Tilemap/碰撞，GUI 仅渲染，不做局部寻路。
+
+> 状态：提案（未作为当前主线实现目标）。当前可视化/线程边界请以 `docs/architecture/interface/sandbox/sandbox-gui.md` 与 `docs/architecture/foundation/runtime-api.md` 为准。
 
 ## 1) 范围与目标
 - 展示：渲染当前 Map 的 Tile 层（insideView 等）与可选缩略图。
@@ -11,7 +13,7 @@
 非目标：Tile 动画、实时编辑器、动态瓦片修改、光照/粒子、局部 A* 与碰撞计算。
 
 ## 2) 数据与契约
-- 渲染协议见 [world/world-representation.md](../../world/world-representation.md)：Atlas 提供 `maps/mapEdges` 与每图的 `scenes/interactions/portals[/tilemap]`；交互点坐标用于落点与高亮。
+- 渲染协议见 [world/world-representation.md](../../../world/world-representation.md)：Atlas 提供 `maps/mapEdges` 与每图的 `scenes/interactions/portals[/tilemap]`；交互点坐标用于落点与高亮。
 - `TilemapMeta`（Atlas 可选字段）：`{ width,height,tileW,tileH, ... }`；仅表现尺寸与资源引用。
 - Telemetry：`agents[]` 暴露 `mapId` 与 `position(x,y)`；可选 `movement{from,to,t01}` 用于显示跨图段的过渡。
 
@@ -61,4 +63,3 @@ struct TilemapMeta {
 ## 9) 版本与线程
 - Atlas/Telemetry 均带 `world_version`；GUI 在版本变更时刷新缓存。
 - 不跨线程访问 ECS；UI 线程仅读取 Atlas/Telemetry。
-

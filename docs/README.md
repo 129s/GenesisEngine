@@ -18,7 +18,9 @@
 - Telemetry Schema（TickTelemetry）：`docs/architecture/foundation/telemetry-schema.md`
 - 世界模型：`docs/architecture/world/world-model.md`
 - 世界生成流程：`docs/architecture/world/world-generation.md`
-- 行为与人格建模：`docs/architecture/agents/agent-personality-big5.md`
+- Agent 模式规范（已落地）：`docs/architecture/agents/agent-model-v0.md`
+- Agent 文档-代码对齐矩阵：`docs/architecture/agents/agent-implementation-status.md`
+- Proposal：Big5/Traits/数据驱动 Needs：`docs/architecture/proposals/agents/agent-personality-big5.md`
 - Graph → ASCII 映射（历史资料）：`docs/architecture/archive/graph-to-grid.md`
 - 渲染表示：`docs/architecture/world/world-representation.md`
 - 区块化 Tile 图探索：`docs/architecture/world/chunked-tile-graph.md`
@@ -30,7 +32,7 @@
 - 临时待办（转向 Issue/里程碑前的过渡）：`docs/status/todo.md`
 
 ## 使用与构建
-- 沙盒 GUI：参考 `docs/architecture/interface/sandbox/sandbox-gui.md` 与 `docs/troubleshooting/sandbox_gui.md` 获取当前主流程说明。
+- 沙盒 GUI（可选调试前端）：参考 `docs/architecture/interface/sandbox/sandbox-gui.md` 与 `docs/troubleshooting/sandbox_gui.md` 获取主流程说明。
 - 运行时封装：核心模拟逻辑以 `genesis_runtime` 动态库形式对外提供 API，前端二进制（如 GUI/Game）复用同一接口。
 - Headless 工具：`docs/guides/headless_runtime_cli.md`（用于脚本回放与回归）
 

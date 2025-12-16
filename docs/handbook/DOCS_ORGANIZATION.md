@@ -9,6 +9,7 @@
   - 内容：按时间的进展记录（周报/双周报）、已完成/进行中/风险、下阶段重点；链接到 Issues/PR。
   - 不包含：长期路线与承诺（这在 Roadmap）。
   - 更新节奏：持续（每周/每迭代）。
+- History（归档，可选）：把一次性的大段阶段记录（例如某次集中 UI/UX 迭代清单）移入 `docs/status/history/`，在 `progress-summary.md` 只保留摘要与链接，避免“历史噪声”挤压当前主线。
 - Backlog（待办）：任务收敛地，建议在 Issue Tracker（GitHub/GitLab）维护。
   - 文档中的 `docs/status/todo.md` 仅作临时收集，条目应尽快迁移到 Issue/Milestone。
 - ADR（架构决策记录）：记录重要技术/架构决策及取舍。
@@ -19,9 +20,13 @@
   - 不替代 Status；不记录内部探索性进展。
 - Guides/Playbooks（指南）：操作性文档（构建、运行、工具、调试）。
 - Architecture（架构）：系统设计、模型与集成方案。
+- Proposal（提案/RFC）：未落地的设想与方案草案（不作为当前实现规范）。
+  - 位置建议：`docs/architecture/proposals/`（按领域分子目录）。
+  - 要求：标题显式标注 Proposal；并链接到对应的 Spec/代码落点与状态矩阵。
 
 ## 目录结构建议
 - `docs/architecture/`：世界模型、图→网格、Tile 融合、区块图、生成设计等。
+- `docs/architecture/proposals/`：架构/机制提案（未落地的设计稿，与 Spec 分离）。
 - `docs/guides/`：CLI 使用、开发脚本、调试与测试指南。
 - `docs/roadmap/`：统一路线图、里程碑拆分、历史路线图（只读）。
 - `docs/status/`：进度概览、周报、临时待办（迁移到 Issue）。

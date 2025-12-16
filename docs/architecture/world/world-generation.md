@@ -110,7 +110,7 @@ social = { density = 0.1, capacity = 12, rate = 2 }
 - 工具：离线可视化导出（Scene/Interaction 快照）。
 
 ——
-相关文档：`world/world-model.md`（数据契约）、`world/world-representation.md`（渲染参考）、`../interface/sandbox/sandbox-gui-tilemap-rendering.md`（Tilemap 消费）。
+相关文档：`world/world-model.md`（数据契约）、`world/world-representation.md`（渲染参考）、`../proposals/interface/sandbox/sandbox-gui-tilemap-rendering.md`（Tilemap 消费提案）。
 
 ## 11. 运行时整合与 Sandbox GUI（对齐新模型）
 - 运行时加载：先加载 `world.json`（Map 图）再按需加载各 `map_{id}.json`（Scene/Interaction/Portal/TilemapMeta）。
@@ -119,4 +119,3 @@ social = { density = 0.1, capacity = 12, rate = 2 }
   - World Generation：生成→落盘→加载的分步按钮；可选生成 Tilemap。
   - Map 选择：切换当前 Map 的可视；Portal/MapEdge 可视化与过滤（频道/白名单）。
   - Inspector：交互点为一等公民（可选中/定位），Scene 仅用于分组浏览。
-

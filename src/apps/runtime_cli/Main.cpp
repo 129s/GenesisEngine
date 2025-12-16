@@ -40,12 +40,19 @@ struct CliOptions {
 struct SoakOptions {
     std::filesystem::path rootPath{"."};
     std::filesystem::path worldFolder;
+    std::optional<std::filesystem::path> worldgenConfigPath;
+    std::optional<std::uint64_t> worldgenSeed;
+    std::optional<std::filesystem::path> generatedWorldOutFolder;
     std::uint64_t steps{5000};
+    std::optional<std::uint64_t> wallSeconds;
     std::uint32_t agentCount{0};
+    std::uint64_t progressEvery{0};
+    std::uint64_t windowSteps{5000};
     bool validateSchemas{true};
     bool quiet{false};
     std::optional<std::filesystem::path> outPath;
     std::optional<std::filesystem::path> summaryOutPath;
+    std::optional<std::filesystem::path> worldlineOutPath;
 };
 
 void printUsage(std::ostream& out) {
@@ -53,7 +60,7 @@ void printUsage(std::ostream& out) {
            "\n"
            "Usage:\n"
            "  genesis-runtime-cli run-script <script.json> [options]\n"
-           "  genesis-runtime-cli soak <world-folder> [options]\n"
+           "  genesis-runtime-cli soak [<world-folder>] [options]\n"
            "\n"
            "Options:\n"
            "  --root <path>         Base path for resolving relative paths in script (default: .)\n"
@@ -63,12 +70,19 @@ void printUsage(std::ostream& out) {
            "  --no-schema-check     Disable schema_version checks (unsafe)\n"
            "  --events-out <file>   Write executed RuntimeEventReport list as JSON\n"
            "  --steps <n>           Steps to simulate for soak (default: 5000)\n"
-           "  --agents <n>          Spawn N agents at start (replaces any existing)\n"
-           "  --out <file>          Write soak metrics report as JSON\n"
-           "  --summary-out <file>  Write 1-page Markdown summary for soak\n"
-           "  --quiet               Suppress per-event printing\n"
-           "  --no-exit-on-failure  Always return 0 even if some commands fail\n"
-           "  --help                Show this help\n";
+           "  --wall-seconds <n>    Stop soak after N wall-clock seconds (optional)\n"
+            "  --agents <n>          Spawn N agents at start (replaces any existing)\n"
+            "  --worldgen-config <file> Generate a world from TOML config before soak\n"
+            "  --seed <n>            Seed for world generation (with --worldgen-config)\n"
+            "  --generated-world-out <folder> Output folder for generated world DB\n"
+            "  --out <file>          Write soak metrics report as JSON\n"
+            "  --summary-out <file>  Write 1-page Markdown summary for soak\n"
+            "  --worldline-out <file> Write per-window worldline JSONL (macro evidence; not a log)\n"
+            "  --window-steps <n>    Window size for worldline (default: 5000)\n"
+           "  --progress-every <n>  Print progress every N steps (0 disables)\n"
+            "  --quiet               Suppress per-event printing\n"
+            "  --no-exit-on-failure  Always return 0 even if some commands fail\n"
+            "  --help                Show this help\n";
 }
 
 [[nodiscard]] bool validateSnapshotSchemas(bool validateSchemas,
@@ -560,14 +574,42 @@ struct ResourceEconomy {
 };
 
 [[nodiscard]] int runSoak(const SoakOptions& opts) {
-    if (opts.worldFolder.empty()) {
-        std::cerr << "Missing world folder\n";
+    if (opts.worldFolder.empty() && !opts.worldgenConfigPath) {
+        std::cerr << "Missing world folder (or use --worldgen-config)\n";
         return 2;
     }
 
     Genesis::Runtime::RuntimeConfig config{};
-    config.initialWorldPath = resolvePathIfRelative(opts.rootPath, opts.worldFolder);
+    if (!opts.worldgenConfigPath) {
+        config.initialWorldPath = resolvePathIfRelative(opts.rootPath, opts.worldFolder);
+    }
     Genesis::Runtime::Runtime runtime(config);
+
+    std::filesystem::path loadedWorldFolder = config.initialWorldPath ? *config.initialWorldPath : std::filesystem::path{};
+
+    if (opts.worldgenConfigPath) {
+        const auto configPath = resolvePathIfRelative(opts.rootPath, *opts.worldgenConfigPath);
+        std::optional<std::filesystem::path> outFolder;
+        if (opts.generatedWorldOutFolder) {
+            outFolder = resolvePathIfRelative(opts.rootPath, *opts.generatedWorldOutFolder);
+        }
+
+        const auto gen = runtime.generateWorldFromConfig(configPath, opts.worldgenSeed, outFolder);
+        if (!gen.success || !gen.outputPath) {
+            std::cerr << "World generation failed: " << (gen.error.empty() ? "unknown error" : gen.error) << "\n";
+            for (const auto& line : gen.logs) {
+                std::cerr << "  " << line << "\n";
+            }
+            return 2;
+        }
+
+        const auto load = runtime.loadWorldFromFile(*gen.outputPath);
+        if (!load.success) {
+            std::cerr << "Failed to load generated world: " << (load.error.empty() ? "unknown error" : load.error) << "\n";
+            return 2;
+        }
+        loadedWorldFolder = *gen.outputPath;
+    }
 
     runtime.step(1);
     const auto* initialSnapshot = runtime.latestSnapshot();
@@ -621,6 +663,11 @@ struct ResourceEconomy {
 
     if (!validateSnapshotSchemas(opts.validateSchemas, *initialSnapshot, atlas)) {
         return 3;
+    }
+
+    if (opts.windowSteps == 0) {
+        std::cerr << "--window-steps must be > 0\n";
+        return 2;
     }
 
     std::unordered_map<std::string, std::uint64_t> actionTypeCounts;
@@ -677,6 +724,244 @@ struct ResourceEconomy {
 
     double utilizationSum = 0.0;
     std::uint64_t utilizationSamples = 0;
+
+    struct WorldlineWindowAgg {
+        std::uint64_t steps{0};
+        std::uint64_t needSamples{0};
+        std::uint64_t criticalNeedSamples{0};
+        double plannerTravelCostSum{0.0};
+        std::uint64_t plannerTravelCostSamples{0};
+        std::unordered_map<std::string, std::uint64_t> actionTypeCounts;
+        std::unordered_map<std::uint32_t, std::uint64_t> plannerTargetCounts;
+        std::uint64_t stockoutStepsAny{0};
+        std::uint64_t stockoutStepsSources{0};
+        std::uint64_t stockoutStepsWorkshops{0};
+        std::uint64_t stepsWithAnyConsumption{0};
+        std::uint64_t stepsWithAnyRegen{0};
+        std::uint64_t stepsWithAnyDecay{0};
+        std::uint64_t productionAttempts{0};
+        std::uint64_t productionSucceeded{0};
+        std::uint64_t productionFailed{0};
+        std::unordered_map<std::string, std::uint64_t> productionFailureReasons;
+        std::uint64_t resourceAttempts{0};
+        std::uint64_t resourceSucceeded{0};
+        std::uint64_t resourceFailed{0};
+        std::unordered_map<std::string, std::uint64_t> resourceFailureReasons;
+
+        void clear() {
+            steps = 0;
+            needSamples = 0;
+            criticalNeedSamples = 0;
+            plannerTravelCostSum = 0.0;
+            plannerTravelCostSamples = 0;
+            actionTypeCounts.clear();
+            plannerTargetCounts.clear();
+            stockoutStepsAny = 0;
+            stockoutStepsSources = 0;
+            stockoutStepsWorkshops = 0;
+            stepsWithAnyConsumption = 0;
+            stepsWithAnyRegen = 0;
+            stepsWithAnyDecay = 0;
+            productionAttempts = 0;
+            productionSucceeded = 0;
+            productionFailed = 0;
+            productionFailureReasons.clear();
+            resourceAttempts = 0;
+            resourceSucceeded = 0;
+            resourceFailed = 0;
+            resourceFailureReasons.clear();
+        }
+    };
+
+    auto buildWorldlineCountsJson = [](const WorldlineWindowAgg& agg) {
+        json actionCountsJson = json::object();
+        for (const auto& [k, v] : agg.actionTypeCounts) {
+            actionCountsJson[k] = v;
+        }
+
+        json plannerCountsJson = json::object();
+        for (const auto& [k, v] : agg.plannerTargetCounts) {
+            plannerCountsJson[std::to_string(k)] = v;
+        }
+
+        json resourceFailureReasonsJson = json::object();
+        for (const auto& [k, v] : agg.resourceFailureReasons) {
+            resourceFailureReasonsJson[k] = v;
+        }
+
+        json productionFailureReasonsJson = json::object();
+        for (const auto& [k, v] : agg.productionFailureReasons) {
+            productionFailureReasonsJson[k] = v;
+        }
+
+        return json{
+            {"actionTypes", std::move(actionCountsJson)},
+            {"plannerTargets", std::move(plannerCountsJson)},
+            {"resourceFailureReasons", std::move(resourceFailureReasonsJson)},
+            {"productionFailureReasons", std::move(productionFailureReasonsJson)},
+        };
+    };
+
+    auto buildWorldlineMetricsJson = [&](const WorldlineWindowAgg& agg) {
+        const double stepCount = static_cast<double>(std::max<std::uint64_t>(1, agg.steps));
+        const double criticalNeedRate = agg.needSamples > 0 ? static_cast<double>(agg.criticalNeedSamples) / static_cast<double>(agg.needSamples) : 0.0;
+        const double stockoutShareAny = agg.steps > 0 ? static_cast<double>(agg.stockoutStepsAny) / stepCount : 0.0;
+        const double actionEntropy = entropyBitsFromCounts(agg.actionTypeCounts);
+        const double plannerTargetEntropy = entropyBitsFromCounts(agg.plannerTargetCounts);
+        const double plannerTravelCostMean = agg.plannerTravelCostSamples > 0 ? (agg.plannerTravelCostSum / static_cast<double>(agg.plannerTravelCostSamples)) : 0.0;
+
+        return json{
+            {"criticalNeedRate", criticalNeedRate},
+            {"stockoutShareAny", stockoutShareAny},
+            {"stockoutShareSources", agg.steps > 0 ? static_cast<double>(agg.stockoutStepsSources) / stepCount : 0.0},
+            {"stockoutShareWorkshops", agg.steps > 0 ? static_cast<double>(agg.stockoutStepsWorkshops) / stepCount : 0.0},
+            {"stepsWithAnyConsumption", agg.stepsWithAnyConsumption},
+            {"stepsWithAnyRegen", agg.stepsWithAnyRegen},
+            {"stepsWithAnyDecay", agg.stepsWithAnyDecay},
+            {"actionEntropyBits", actionEntropy},
+            {"plannerTargetEntropyBits", plannerTargetEntropy},
+            {"plannerTravelCostMean", plannerTravelCostMean},
+            {"resourceAttempts", agg.resourceAttempts},
+            {"resourceFailed", agg.resourceFailed},
+            {"productionAttempts", agg.productionAttempts},
+            {"productionFailed", agg.productionFailed},
+        };
+    };
+
+    std::optional<std::ofstream> worldlineOut;
+    if (opts.worldlineOutPath) {
+        const auto outputPath = resolvePathIfRelative(opts.rootPath, *opts.worldlineOutPath);
+        worldlineOut.emplace(outputPath, std::ios::out | std::ios::trunc);
+        if (!worldlineOut->is_open()) {
+            std::cerr << "Failed to write worldline: " << outputPath.string() << "\n";
+            return 2;
+        }
+
+        json meta;
+        meta["kind"] = "runtime_worldline_meta";
+        meta["schema_version"] = 1;
+        meta["worldFolder"] = loadedWorldFolder.empty() ? std::string{} : std::filesystem::absolute(loadedWorldFolder).string();
+        if (opts.worldgenConfigPath) {
+            meta["worldgenConfig"] = resolvePathIfRelative(opts.rootPath, *opts.worldgenConfigPath).string();
+        }
+        if (opts.worldgenSeed) {
+            meta["worldSeed"] = *opts.worldgenSeed;
+        } else if (runtime.lastSeed().has_value()) {
+            meta["worldSeed"] = *runtime.lastSeed();
+        }
+        meta["windowSteps"] = opts.windowSteps;
+        meta["stepsRequested"] = opts.steps;
+        if (opts.wallSeconds) {
+            meta["wallSecondsLimit"] = *opts.wallSeconds;
+        }
+        meta["agentCountRequested"] = opts.agentCount;
+        meta["agentCountInitial"] = static_cast<std::uint32_t>(initialSnapshot->telemetry.agents.size());
+        meta["telemetrySchemaVersion"] = initialSnapshot->telemetry.schema_version;
+        meta["atlas"] = {{"schema_version", atlas->schema_version}, {"world_version", atlas->world_version}};
+        meta["worldVersion"] = runtime.worldVersion();
+        if (runtime.lastSeed().has_value()) {
+            meta["lastSeed"] = *runtime.lastSeed();
+        }
+        (*worldlineOut) << meta.dump() << "\n";
+    }
+
+    WorldlineWindowAgg windowAgg;
+    std::uint64_t worldlineWindowIndex = 0;
+    std::uint64_t worldlineWindowStartStep = 0;
+    std::uint64_t worldlineStep = 0;
+
+    auto ingestWorldlineWindow = [&](const genesis::telemetry::TickTelemetry& telemetry) {
+        windowAgg.steps++;
+        windowAgg.needSamples += telemetry.needs.size();
+        for (const auto& need : telemetry.needs) {
+            if (need.critical) {
+                windowAgg.criticalNeedSamples++;
+            }
+        }
+        for (const auto& action : telemetry.actions) {
+            windowAgg.actionTypeCounts[action.currentAction]++;
+        }
+        for (const auto& decision : telemetry.plannerDecisions) {
+            windowAgg.plannerTargetCounts[decision.target]++;
+            if (std::isfinite(decision.travelCost)) {
+                windowAgg.plannerTravelCostSum += static_cast<double>(decision.travelCost);
+                windowAgg.plannerTravelCostSamples++;
+            }
+        }
+
+        bool anyStockout = false;
+        bool anyStockoutSource = false;
+        bool anyStockoutWorkshop = false;
+        bool anyConsumption = false;
+        bool anyRegen = false;
+        bool anyDecay = false;
+
+        for (const auto& resource : telemetry.resources) {
+            if (resource.current == 0U) {
+                anyStockout = true;
+                const bool isWorkshop = workshopByInteraction.contains(resource.interactionId) ? workshopByInteraction.at(resource.interactionId) : false;
+                if (isWorkshop) {
+                    anyStockoutWorkshop = true;
+                } else {
+                    anyStockoutSource = true;
+                }
+            }
+            if (resource.consumed > 0U) {
+                anyConsumption = true;
+            }
+            if (resource.produced > 0U) {
+                anyRegen = true;
+            }
+            if (resource.decayed > 0U) {
+                anyDecay = true;
+            }
+        }
+
+        if (anyStockout) {
+            windowAgg.stockoutStepsAny++;
+        }
+        if (anyStockoutSource) {
+            windowAgg.stockoutStepsSources++;
+        }
+        if (anyStockoutWorkshop) {
+            windowAgg.stockoutStepsWorkshops++;
+        }
+        if (anyConsumption) {
+            windowAgg.stepsWithAnyConsumption++;
+        }
+        if (anyRegen) {
+            windowAgg.stepsWithAnyRegen++;
+        }
+        if (anyDecay) {
+            windowAgg.stepsWithAnyDecay++;
+        }
+
+        for (const auto& attempt : telemetry.workshopAttempts) {
+            windowAgg.productionAttempts++;
+            const bool ok = attempt.failureReason.empty() && attempt.producedUnits > 0U;
+            if (ok) {
+                windowAgg.productionSucceeded++;
+            } else {
+                windowAgg.productionFailed++;
+                if (!attempt.failureReason.empty()) {
+                    windowAgg.productionFailureReasons[attempt.failureReason]++;
+                }
+            }
+        }
+
+        for (const auto& attempt : telemetry.resourceAttempts) {
+            windowAgg.resourceAttempts++;
+            const bool ok = attempt.failureReason.empty() && attempt.obtainedUnits > 0U;
+            if (ok) {
+                windowAgg.resourceSucceeded++;
+            } else {
+                windowAgg.resourceFailed++;
+                if (!attempt.failureReason.empty()) {
+                    windowAgg.resourceFailureReasons[attempt.failureReason]++;
+                }
+            }
+        }
+    };
 
     auto ingestTelemetry = [&](const genesis::telemetry::TickTelemetry& telemetry) {
         if (!telemetry.needs.empty()) {
@@ -857,13 +1142,73 @@ struct ResourceEconomy {
 
     ingestTelemetry(initialSnapshot->telemetry);
 
+    const auto startedAt = std::chrono::steady_clock::now();
+    const auto worldlineStartedAt = startedAt;
+    std::uint64_t stepsExecuted = 0;
+    bool endedByWallTime = false;
+
+    auto flushWorldlineWindow = [&](std::uint64_t windowEndStep) {
+        if (worldlineOut.has_value()) {
+            json window;
+            window["kind"] = "runtime_worldline_window";
+            window["schema_version"] = 1;
+            window["index"] = worldlineWindowIndex;
+            window["stepStart"] = worldlineWindowStartStep;
+            window["stepEnd"] = windowEndStep;
+            window["steps"] = (windowEndStep >= worldlineWindowStartStep) ? (windowEndStep - worldlineWindowStartStep + 1) : 0;
+            window["elapsedSeconds"] = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - worldlineStartedAt).count();
+            window["metrics"] = buildWorldlineMetricsJson(windowAgg);
+            window["counts"] = buildWorldlineCountsJson(windowAgg);
+            (*worldlineOut) << window.dump() << "\n";
+        }
+
+        windowAgg.clear();
+        worldlineWindowIndex++;
+        worldlineWindowStartStep = windowEndStep + 1;
+    };
+
+    auto ingestWorldlineStep = [&](const genesis::telemetry::TickTelemetry& telemetry) {
+        ingestWorldlineWindow(telemetry);
+        const auto windowLen = (worldlineStep >= worldlineWindowStartStep) ? (worldlineStep - worldlineWindowStartStep + 1) : 0;
+        if (windowLen >= opts.windowSteps) {
+            flushWorldlineWindow(worldlineStep);
+        }
+        worldlineStep++;
+    };
+
+    if (worldlineOut.has_value()) {
+        ingestWorldlineStep(initialSnapshot->telemetry);
+    }
+
     for (std::uint64_t i = 0; i < opts.steps; ++i) {
+        if (opts.wallSeconds) {
+            const auto elapsedSecs = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - startedAt).count();
+            if (elapsedSecs >= static_cast<long long>(*opts.wallSeconds)) {
+                endedByWallTime = true;
+                break;
+            }
+        }
+
         runtime.step(1);
+        stepsExecuted = i + 1;
+
+        if (opts.progressEvery > 0 && (stepsExecuted % opts.progressEvery) == 0 && !opts.quiet) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - startedAt).count();
+            std::cout << "[progress] steps=" << stepsExecuted << " elapsedSeconds=" << std::fixed << std::setprecision(1) << elapsed << "\n";
+        }
+
         const auto* snapshot = runtime.latestSnapshot();
         if (!snapshot) {
             continue;
         }
         ingestTelemetry(snapshot->telemetry);
+        if (worldlineOut.has_value()) {
+            ingestWorldlineStep(snapshot->telemetry);
+        }
+    }
+
+    if (worldlineOut.has_value() && windowAgg.steps > 0) {
+        flushWorldlineWindow(worldlineStep - 1);
     }
 
     std::uint64_t totalCapacity = 0;
@@ -926,8 +1271,22 @@ struct ResourceEconomy {
 
     json report;
     report["kind"] = "runtime_soak_metrics";
-    report["worldFolder"] = resolvePathIfRelative(opts.rootPath, opts.worldFolder).string();
-    report["steps"] = opts.steps;
+    report["worldFolder"] = loadedWorldFolder.empty() ? std::string{} : std::filesystem::absolute(loadedWorldFolder).string();
+    if (opts.worldgenConfigPath) {
+        report["worldgenConfig"] = resolvePathIfRelative(opts.rootPath, *opts.worldgenConfigPath).string();
+    }
+    if (opts.worldgenSeed) {
+        report["worldSeed"] = *opts.worldgenSeed;
+    } else if (runtime.lastSeed().has_value()) {
+        report["worldSeed"] = *runtime.lastSeed();
+    }
+    report["steps"] = stepsExecuted;
+    report["stepsRequested"] = opts.steps;
+    if (opts.wallSeconds) {
+        report["wallSecondsLimit"] = *opts.wallSeconds;
+    }
+    report["endedByWallTime"] = endedByWallTime;
+    report["elapsedSeconds"] = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - startedAt).count();
     report["agentCount"] = opts.agentCount > 0 ? opts.agentCount : static_cast<std::uint32_t>(initialSnapshot->telemetry.agents.size());
     report["worldVersion"] = runtime.worldVersion();
     report["atlas"] = {{"schema_version", atlas->schema_version}, {"world_version", atlas->world_version}};
@@ -1629,12 +1988,16 @@ struct ParsedArgs {
         parsed.kind = ParsedArgs::CommandKind::Soak;
         auto& opts = parsed.soak;
 
-        if (argc < 3) {
-            return std::nullopt;
+        int i = 2;
+        if (i < argc) {
+            const std::string_view maybeFolder{argv[i]};
+            if (!maybeFolder.empty() && maybeFolder.rfind("--", 0) != 0) {
+                opts.worldFolder = argv[i];
+                i++;
+            }
         }
-        opts.worldFolder = argv[2];
 
-        for (int i = 3; i < argc; ++i) {
+        for (; i < argc; ++i) {
             const std::string_view arg{argv[i]};
             if (arg == "--help" || arg == "-h") {
                 return std::nullopt;
@@ -1648,12 +2011,22 @@ struct ParsedArgs {
                 continue;
             }
 
-            if ((arg == "--root" || arg == "--steps" || arg == "--out" || arg == "--summary-out") && i + 1 >= argc) {
+            if ((arg == "--root" || arg == "--steps" || arg == "--wall-seconds" || arg == "--out" || arg == "--summary-out" || arg == "--progress-every" ||
+                 arg == "--agents" || arg == "--worldline-out" || arg == "--window-steps" || arg == "--worldgen-config" || arg == "--seed" || arg == "--generated-world-out") &&
+                i + 1 >= argc) {
                 return std::nullopt;
             }
 
             if (arg == "--root") {
                 opts.rootPath = argv[++i];
+                continue;
+            }
+            if (arg == "--wall-seconds") {
+                std::uint64_t v = 0;
+                if (!tryParseU64(argv[++i], v)) {
+                    return std::nullopt;
+                }
+                opts.wallSeconds = v;
                 continue;
             }
             if (arg == "--out") {
@@ -1662,6 +2035,14 @@ struct ParsedArgs {
             }
             if (arg == "--summary-out") {
                 opts.summaryOutPath = std::filesystem::path(argv[++i]);
+                continue;
+            }
+            if (arg == "--progress-every") {
+                std::uint64_t v = 0;
+                if (!tryParseU64(argv[++i], v)) {
+                    return std::nullopt;
+                }
+                opts.progressEvery = v;
                 continue;
             }
             if (arg == "--steps") {
@@ -1678,6 +2059,34 @@ struct ParsedArgs {
                     return std::nullopt;
                 }
                 opts.agentCount = static_cast<std::uint32_t>(v);
+                continue;
+            }
+            if (arg == "--worldline-out") {
+                opts.worldlineOutPath = std::filesystem::path(argv[++i]);
+                continue;
+            }
+            if (arg == "--window-steps") {
+                std::uint64_t v = 0;
+                if (!tryParseU64(argv[++i], v)) {
+                    return std::nullopt;
+                }
+                opts.windowSteps = v;
+                continue;
+            }
+            if (arg == "--worldgen-config") {
+                opts.worldgenConfigPath = std::filesystem::path(argv[++i]);
+                continue;
+            }
+            if (arg == "--generated-world-out") {
+                opts.generatedWorldOutFolder = std::filesystem::path(argv[++i]);
+                continue;
+            }
+            if (arg == "--seed") {
+                std::uint64_t v = 0;
+                if (!tryParseU64(argv[++i], v)) {
+                    return std::nullopt;
+                }
+                opts.worldgenSeed = v;
                 continue;
             }
 

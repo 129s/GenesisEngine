@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "genesis/telemetry/SchemaVersions.hpp"
+#include "genesis/telemetry/Namespace.hpp"
 #include "genesis/world/WorldTypes.hpp"
 #include "genesis/world/WorldDatabase.hpp"
 

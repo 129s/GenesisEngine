@@ -169,6 +169,10 @@ struct WorldDbResourceSettings
         std::uint32_t initial{0};
         // 将该资源点标记为工坊的概率（0..1）。默认 1 表示“该类型资源点全部为工坊”（保持历史行为）。
         double chance{1.0};
+        // 每个 batch 的“工坊作业”持续的仿真步数（>=1）；1 表示等价于“瞬时生产”（保持历史行为）。
+        std::uint32_t work_ticks_per_batch{1};
+        // 同一工坊可并行工作的槽位数；0 表示“不限制”（保持历史行为）。
+        std::uint32_t slots{0};
         std::vector<WorkshopRecipe> recipes{};
     };
 

@@ -308,6 +308,8 @@ target_include_directories(genesis_runtime
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
+target_compile_definitions(genesis_runtime PRIVATE GENESIS_RUNTIME_EXPORTS)
+
 target_link_libraries(genesis_runtime
     PUBLIC
         Genesis::WorldModel

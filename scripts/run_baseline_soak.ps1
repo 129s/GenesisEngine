@@ -2,6 +2,7 @@ param(
   [string]$Generator = "Ninja",
   [string]$Config = "Release",
   [string]$BuildDir = "build_baseline_core",
+  [switch]$UseMsvc,
   [ValidateSet("default", "short", "long")]
   [string]$Preset = "default",
   [UInt64]$Steps = 5000,
@@ -12,6 +13,53 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $buildPath = Join-Path $repoRoot $BuildDir
+
+$cpmCache = $env:CPM_SOURCE_CACHE
+if ([string]::IsNullOrWhiteSpace($cpmCache)) {
+  $cpmCache = Join-Path $repoRoot ".cpmcache"
+  $env:CPM_SOURCE_CACHE = $cpmCache
+}
+New-Item -ItemType Directory -Force -Path $cpmCache | Out-Null
+
+function Import-MsvcDevEnv {
+  $candidates = @()
+  if (-not [string]::IsNullOrWhiteSpace($env:VSINSTALLDIR)) {
+    $candidates += $env:VSINSTALLDIR
+  }
+  $candidates += @(
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community",
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional",
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise"
+  )
+
+  $vsDevCmd = $null
+  foreach ($root in $candidates) {
+    if ([string]::IsNullOrWhiteSpace($root)) { continue }
+    $p = Join-Path $root "Common7\\Tools\\VsDevCmd.bat"
+    if (Test-Path $p) {
+      $vsDevCmd = $p
+      break
+    }
+  }
+  if ($null -eq $vsDevCmd) {
+    throw "VS DevCmd not found. Install Visual Studio 2022 with C++ workload, or run from a VS Developer Prompt."
+  }
+
+  $envLines = cmd.exe /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set"
+  foreach ($line in $envLines) {
+    if ($line -match "^(?<k>[^=]+)=(?<v>.*)$") {
+      $key = $Matches["k"]
+      $value = $Matches["v"]
+      if (-not [string]::IsNullOrWhiteSpace($key)) {
+        Set-Item -Path ("Env:{0}" -f $key) -Value $value
+      }
+    }
+  }
+}
+
+if ($UseMsvc) {
+  Import-MsvcDevEnv
+}
 
 if (-not $PSBoundParameters.ContainsKey("Steps")) {
   switch ($Preset) {
@@ -32,10 +80,15 @@ Ensure-Dir (Join-Path $repoRoot "out\\baselines")
 Ensure-Dir (Join-Path $repoRoot "out\\metrics")
 Ensure-Dir (Join-Path $repoRoot "out\\baseline_scripts")
 
-& cmake -S $repoRoot -B $buildPath -G $Generator `
-  -DGENESISENGINE_ENABLE_TESTS=ON `
-  -DGENESIS_BUILD_GUI=OFF `
-  -DGENESIS_WITH_STYLE=OFF | Write-Host
+$cmakeArgs = @("-S", $repoRoot, "-B", $buildPath, "-G", $Generator)
+$cmakeArgs += "-DGENESISENGINE_ENABLE_TESTS=ON"
+$cmakeArgs += "-DGENESIS_BUILD_GUI=OFF"
+$cmakeArgs += "-DGENESIS_WITH_STYLE=OFF"
+if ($Generator -eq "Ninja") {
+  $cmakeArgs += ("-DCMAKE_BUILD_TYPE={0}" -f $Config)
+}
+
+& cmake @cmakeArgs | Write-Host
 
 & cmake --build $buildPath --parallel --config $Config --target genesis_runtime_cli | Write-Host
 

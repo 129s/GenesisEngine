@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 
+#include "genesis/runtime/Export.hpp"
 #include "genesis/simulation/AgentApi.hpp"
 #include "genesis/simulation/Namespace.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
@@ -25,7 +26,7 @@ namespace telemetry = genesis::telemetry;
 namespace world = Genesis::World;
 
 
-class SimulationService {
+class GENESIS_RUNTIME_API SimulationService {
 public:
     using SnapshotCallback = std::function<void(const telemetry::TickTelemetry&)>;
 

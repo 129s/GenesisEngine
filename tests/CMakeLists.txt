@@ -165,11 +165,13 @@ gtest_discover_tests(genesis_world_model_tests)
 
 add_executable(genesis_agents_tests
     test_agents_production_planner.cpp
+    test_agents_action_preemption.cpp
 )
 
 target_link_libraries(genesis_agents_tests
     PRIVATE
         Genesis::Agents
+        Genesis::World
         Genesis::WorldModel
         GTest::gtest_main
 )

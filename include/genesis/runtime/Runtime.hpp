@@ -11,6 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "genesis/runtime/Export.hpp"
 #include "genesis/runtime/SimulationSnapshot.hpp"
 #include "genesis/runtime/SnapshotDiff.hpp"
 #include "genesis/runtime/WorldAtlas.hpp"
@@ -42,7 +43,7 @@ struct RuntimeConfig {
     std::function<std::unique_ptr<SimulationService>()> simulationFactory;
 };
 
-class Runtime {
+class GENESIS_RUNTIME_API Runtime {
 public:
     explicit Runtime(RuntimeConfig config = {});
     ~Runtime();
@@ -111,6 +112,6 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-std::unique_ptr<Runtime> createRuntime(RuntimeConfig config = {});
+GENESIS_RUNTIME_API std::unique_ptr<Runtime> createRuntime(RuntimeConfig config = {});
 
 } // namespace Genesis::Runtime

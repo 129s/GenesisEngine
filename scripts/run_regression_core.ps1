@@ -2,6 +2,7 @@ param(
   [string]$Generator = "Ninja",
   [string]$Config = "Release",
   [string]$BuildDir = "build_regression_core",
+  [switch]$UseMsvc,
   [switch]$SkipRuntimeCliScript,
   [string]$RuntimeCliScript = "data/scripts/world_cycle.json",
   [UInt64]$RuntimeCliMaxSteps = 256,
@@ -17,10 +18,60 @@ function Ensure-Dir([string]$Path) {
   New-Item -ItemType Directory -Force -Path $Path | Out-Null
 }
 
+$cpmCache = $env:CPM_SOURCE_CACHE
+if ([string]::IsNullOrWhiteSpace($cpmCache)) {
+  $cpmCache = Join-Path $repoRoot ".cpmcache"
+  $env:CPM_SOURCE_CACHE = $cpmCache
+}
+Ensure-Dir $cpmCache
+
+function Import-MsvcDevEnv {
+  $candidates = @()
+  if (-not [string]::IsNullOrWhiteSpace($env:VSINSTALLDIR)) {
+    $candidates += $env:VSINSTALLDIR
+  }
+  $candidates += @(
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community",
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional",
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise"
+  )
+
+  $vsDevCmd = $null
+  foreach ($root in $candidates) {
+    if ([string]::IsNullOrWhiteSpace($root)) { continue }
+    $p = Join-Path $root "Common7\\Tools\\VsDevCmd.bat"
+    if (Test-Path $p) {
+      $vsDevCmd = $p
+      break
+    }
+  }
+  if ($null -eq $vsDevCmd) {
+    throw "VS DevCmd not found. Install Visual Studio 2022 with C++ workload, or run from a VS Developer Prompt."
+  }
+
+  $envLines = cmd.exe /c "`"$vsDevCmd`" -arch=x64 -host_arch=x64 && set"
+  foreach ($line in $envLines) {
+    if ($line -match "^(?<k>[^=]+)=(?<v>.*)$") {
+      $key = $Matches["k"]
+      $value = $Matches["v"]
+      if (-not [string]::IsNullOrWhiteSpace($key)) {
+        Set-Item -Path ("Env:{0}" -f $key) -Value $value
+      }
+    }
+  }
+}
+
+if ($UseMsvc) {
+  Import-MsvcDevEnv
+}
+
 $args = @("-S", $repoRoot, "-B", $buildPath, "-G", $Generator)
 $args += "-DGENESISENGINE_ENABLE_TESTS=ON"
 $args += "-DGENESIS_BUILD_GUI=OFF"
 $args += "-DGENESIS_WITH_STYLE=OFF"
+if ($Generator -eq "Ninja") {
+  $args += ("-DCMAKE_BUILD_TYPE={0}" -f $Config)
+}
 
 & cmake @args | Write-Host
 & cmake --build $buildPath --parallel --config $Config | Write-Host

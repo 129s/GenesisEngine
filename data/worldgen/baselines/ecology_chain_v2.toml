@@ -1,0 +1,72 @@
+[world]
+name = "baseline_ecology_chain_v2_worktime"
+
+[topology.cluster]
+min_clusters = 1
+max_clusters = 1
+min_nodes_per_cluster = 3
+max_nodes_per_cluster = 3
+
+[topology.corridor]
+enabled = false
+
+[layout.grid]
+cell_width = 7.0
+cell_height = 5.0
+columns = 2
+margin = 2.0
+
+[tilemap]
+tile_size = 32
+base_extent = 28
+
+[worlddb.resources]
+per_map = 4
+types = ["Water", "Ore", "Tool", "Food", "Social"]
+weights = [1.0, 1.0, 0.4, 0.8, 0.8]
+capacity = 36
+regen_per_step = 2
+decay_per_step = 1
+decay_types = ["Food"]
+
+# MapId: root=1, cluster nodes=2..4
+# 强制空间分离：Water(源) -> Ore(源)+Tool(工坊) -> Food(工坊) -> Social(工坊)
+map_overrides = [
+  { map = 1, types = ["Water"], weights = [1.0] },
+  { map = 2, types = ["Ore", "Tool"], weights = [0.75, 0.25] },
+  { map = 3, types = ["Food"], weights = [1.0] },
+  { map = 4, types = ["Social"], weights = [1.0] }
+]
+
+[[worlddb.resources.workshop]]
+output = "Tool"
+initial = 0
+chance = 1.0
+work_ticks_per_batch = 12
+slots = 1
+recipes = [
+  { output_units = 1, inputs = [{ type = "Ore", units = 3 }] }
+]
+
+[[worlddb.resources.workshop]]
+output = "Food"
+initial = 0
+chance = 1.0
+work_ticks_per_batch = 10
+slots = 1
+recipes = [
+  { output_units = 3, inputs = [{ type = "Water", units = 2 }] },
+  { output_units = 9, inputs = [{ type = "Water", units = 2 }, { type = "Tool", units = 1, consumable = false }] }
+]
+
+[[worlddb.resources.workshop]]
+output = "Social"
+initial = 0
+chance = 1.0
+work_ticks_per_batch = 8
+slots = 1
+recipes = [
+  { output_units = 2, inputs = [{ type = "Food", units = 1 }, { type = "Water", units = 1 }] },
+  { output_units = 6, inputs = [{ type = "Food", units = 1 }, { type = "Tool", units = 1, consumable = false }] }
+]
+

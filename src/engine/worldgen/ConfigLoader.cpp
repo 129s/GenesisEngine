@@ -436,6 +436,20 @@ WorldDbSettings parse_worlddb_settings(const toml::table& root)
                         spec.chance = *chance;
                     }
 
+                    if (auto work_ticks = read_size_t(w, "work_ticks_per_batch"))
+                    {
+                        if (*work_ticks == 0)
+                        {
+                            throw std::runtime_error("worlddb.resources.workshop.work_ticks_per_batch 必须大于 0");
+                        }
+                        spec.work_ticks_per_batch = static_cast<std::uint32_t>(*work_ticks);
+                    }
+
+                    if (auto slots = read_size_t(w, "slots"))
+                    {
+                        spec.slots = static_cast<std::uint32_t>(*slots);
+                    }
+
                     if (const auto* recipes_node = w.get("recipes"))
                     {
                         if (!recipes_node->is_array())

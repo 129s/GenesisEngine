@@ -337,6 +337,10 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
 
         json workshop{};
         workshop["initial"] = spec->initial;
+        workshop["workTicksPerBatch"] = std::max<std::uint32_t>(1U, spec->work_ticks_per_batch);
+        if (spec->slots > 0U) {
+            workshop["slots"] = spec->slots;
+        }
         workshop["recipes"] = json::array();
 
         for (const auto& recipe : spec->recipes)

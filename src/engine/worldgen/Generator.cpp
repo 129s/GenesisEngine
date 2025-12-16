@@ -144,11 +144,23 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
 
     // 注意：只给 Scene 生成子资源节点
     const auto original_count = topology.nodes.size();
+    {
+        std::size_t sceneCount = 0;
+        for (std::size_t i = 0; i < original_count; ++i)
+        {
+            if (topology.nodes[i].kind == DraftNodeKind::Scene)
+            {
+                sceneCount++;
+            }
+        }
+        topology.nodes.reserve(topology.nodes.size() + sceneCount * config.worlddb.resources.per_map);
+    }
     std::size_t ordinal = 0;
     for (std::size_t i = 0; i < original_count; ++i)
     {
-        const auto& node = topology.nodes[i];
-        if (node.kind != DraftNodeKind::Scene)
+        const auto kind = topology.nodes[i].kind;
+        const auto parentLocalId = topology.nodes[i].local_id;
+        if (kind != DraftNodeKind::Scene)
         {
             continue;
         }
@@ -156,7 +168,7 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
         const auto count = config.worlddb.resources.per_map;
         for (std::size_t j = 0; j < count; ++j)
         {
-            const auto mapId = static_cast<std::uint32_t>(node.local_id + 1);
+            const auto mapId = static_cast<std::uint32_t>(parentLocalId + 1);
             const auto type = pickType(mapId, ordinal++);
             const auto typeTag = std::string("resource_type=") + resource_type_name(type);
 
@@ -164,7 +176,7 @@ void add_interactive_resources(TopologyDraft& topology, const GeneratorConfig& c
             resource.local_id = id++;
             resource.kind = DraftNodeKind::InteractiveResource;
             resource.label = (count == 1) ? "resource" : ("resource_" + std::to_string(j));
-            resource.parent = node.local_id;
+            resource.parent = parentLocalId;
             resource.tags = {"resource", typeTag};
             topology.nodes.push_back(std::move(resource));
         }

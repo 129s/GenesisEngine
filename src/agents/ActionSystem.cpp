@@ -1,11 +1,16 @@
 #include "genesis/agents/ActionSystem.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string>
 #include <unordered_map>
+#include <utility>
+
+#include <nlohmann/json.hpp>
 
 #include "genesis/agents/CarriedResources.hpp"
 #include "genesis/agents/Needs.hpp"
@@ -30,6 +35,100 @@ constexpr const char* kReasonUnknown = "Unknown";
 constexpr const char* kReasonStockout = "Stockout";
 constexpr const char* kReasonPlanningFailed = "PlanningFailed";
 constexpr const char* kReasonUnreachable = "Unreachable";
+constexpr const char* kReasonPreemptedCriticalNeed = "PreemptedCriticalNeed";
+
+[[nodiscard]] std::string preemptedWithNeed(const char* needName) {
+    std::string out(kReasonPreemptedCriticalNeed);
+    out.push_back(':');
+    out.append(needName);
+    return out;
+}
+
+[[nodiscard]] const char* needTypeName(NeedType need) {
+    switch (need) {
+    case NeedType::Hunger:
+        return "Hunger";
+    case NeedType::Thirst:
+        return "Thirst";
+    case NeedType::Energy:
+        return "Energy";
+    case NeedType::Social:
+        return "Social";
+    case NeedType::Count:
+        break;
+    }
+    return "Unknown";
+}
+
+[[nodiscard]] std::optional<std::pair<NeedType, genesis::world::ResourceType>> criticalNeedResource(
+    const NeedComponent& component) {
+    struct Candidate {
+        NeedType need{NeedType::Hunger};
+        genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
+        float severity{0.0f};
+    };
+
+    std::optional<Candidate> best;
+
+    const auto consider = [&](NeedType need, genesis::world::ResourceType resource) {
+        const auto* state = component.needs.state(need);
+        const auto* descriptor = component.needs.descriptor(need);
+        if (!state || !descriptor) {
+            return;
+        }
+        if (state->value < descriptor->criticalThreshold) {
+            return;
+        }
+        const float denom = std::max(1.0f, descriptor->maxValue - descriptor->criticalThreshold);
+        const float severity = (state->value - descriptor->criticalThreshold) / denom;
+        if (!best || severity > best->severity) {
+            best = Candidate{need, resource, severity};
+        }
+    };
+
+    consider(NeedType::Hunger, genesis::world::ResourceType::Food);
+    consider(NeedType::Thirst, genesis::world::ResourceType::Water);
+    consider(NeedType::Social, genesis::world::ResourceType::Social);
+
+    if (!best) {
+        return std::nullopt;
+    }
+    return std::make_pair(best->need, best->resource);
+}
+
+[[nodiscard]] std::uint32_t readPositiveU32Or(const nlohmann::json& obj, const char* key, std::uint32_t fallback) {
+    if (!obj.contains(key)) {
+        return std::max<std::uint32_t>(1U, fallback);
+    }
+    const auto& v = obj.at(key);
+    if (v.is_number_unsigned()) {
+        return std::max<std::uint32_t>(1U, v.get<std::uint32_t>());
+    }
+    if (v.is_number_integer()) {
+        const auto i = v.get<std::int64_t>();
+        if (i > 0) {
+            return static_cast<std::uint32_t>(i);
+        }
+    }
+    return std::max<std::uint32_t>(1U, fallback);
+}
+
+[[nodiscard]] std::uint32_t readU32Or(const nlohmann::json& obj, const char* key, std::uint32_t fallback) {
+    if (!obj.contains(key)) {
+        return fallback;
+    }
+    const auto& v = obj.at(key);
+    if (v.is_number_unsigned()) {
+        return v.get<std::uint32_t>();
+    }
+    if (v.is_number_integer()) {
+        const auto i = v.get<std::int64_t>();
+        if (i >= 0 && i <= static_cast<std::int64_t>(std::numeric_limits<std::uint32_t>::max())) {
+            return static_cast<std::uint32_t>(i);
+        }
+    }
+    return fallback;
+}
 
 [[nodiscard]] std::string unreachableWithDetail(const char* detail) {
     std::string out(kReasonUnreachable);
@@ -49,8 +148,8 @@ constexpr const char* kReasonUnreachable = "Unreachable";
 }
 
 [[nodiscard]] bool anyReachableResourceType(const genesis::world::WorldDatabase& db,
-                                            genesis::world::MapId startMap,
-                                            genesis::world::ResourceType type) {
+                                             genesis::world::MapId startMap,
+                                             genesis::world::ResourceType type) {
     for (const auto& m : db.maps()) {
         for (const auto& it : db.interactions(m.id)) {
             if (it.kind != genesis::world::InteractionKind::Resource) {
@@ -67,6 +166,41 @@ constexpr const char* kReasonUnreachable = "Unreachable";
     }
     return false;
 }
+} // namespace
+
+namespace components {
+
+struct WorkshopJob {
+    genesis::world::InteractionId interaction{0};
+    genesis::world::ResourceType outputType{genesis::world::ResourceType::Food};
+    std::uint32_t plannedBatches{0};
+    std::uint32_t outputUnitsPerBatch{1};
+    std::uint32_t workTotalTicks{0};
+    std::uint32_t workRemainingTicks{0};
+    std::array<std::uint32_t, components::CarriedResources::kTypeCount> reservedConsumables{};
+};
+
+} // namespace components
+
+namespace {
+
+[[nodiscard]] genesis::world::ResourceType resourceTypeFromIndex(std::size_t idx) {
+    switch (idx) {
+    case 0:
+        return genesis::world::ResourceType::Food;
+    case 1:
+        return genesis::world::ResourceType::Water;
+    case 2:
+        return genesis::world::ResourceType::Social;
+    case 3:
+        return genesis::world::ResourceType::Ore;
+    case 4:
+        return genesis::world::ResourceType::Tool;
+    default:
+        return genesis::world::ResourceType::Food;
+    }
+}
+
 } // namespace
 
 ActionExecutor::ActionExecutor(genesis::world::WorldDatabase& db, genesis::world::system::ResourceSystem& resources)
@@ -159,6 +293,59 @@ void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
         auto& queue = view.get<ActionQueue>(entity);
         auto& location = view.get<components::AgentLocation2D>(entity);
 
+        const auto abandonAllActions = [&]() {
+            queue.tasks.clear();
+            if (registry.any_of<components::MovementIntent2D>(entity)) {
+                registry.remove<components::MovementIntent2D>(entity);
+            }
+        };
+
+        const auto abortWorkshopJob = [&](components::WorkshopJob& job, NeedType criticalNeed) {
+            auto* carried = registry.try_get<components::CarriedResources>(entity);
+            if (!carried) {
+                carried = &registry.emplace<components::CarriedResources>(entity);
+            }
+
+            for (std::size_t idx = 0; idx < job.reservedConsumables.size(); ++idx) {
+                const auto amount = job.reservedConsumables[idx];
+                if (amount == 0U) {
+                    continue;
+                }
+                carried->add(resourceTypeFromIndex(idx), amount);
+            }
+
+            telemetry::WorkshopAttemptSnapshot attempt{};
+            attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+            attempt.interactionId = job.interaction;
+            attempt.outputType = job.outputType;
+            attempt.wantedBatches = std::max<std::uint32_t>(1U, job.plannedBatches);
+            attempt.wantedUnits = std::max<std::uint32_t>(1U, job.outputUnitsPerBatch) * attempt.wantedBatches;
+            attempt.producedUnits = 0U;
+            attempt.failureReason = preemptedWithNeed(needTypeName(criticalNeed));
+            m_workshopAttempts.push_back(std::move(attempt));
+
+            releaseWorkshopSlot(job.interaction, entity);
+            registry.remove<components::WorkshopJob>(entity);
+            abandonAllActions();
+        };
+
+        if (auto* needs = registry.try_get<NeedComponent>(entity)) {
+            if (auto critical = criticalNeedResource(*needs)) {
+                const auto [criticalNeed, criticalResource] = *critical;
+
+                if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
+                    if (job->outputType != criticalResource) {
+                        abortWorkshopJob(*job, criticalNeed);
+                        continue;
+                    }
+                } else if (!queue.tasks.empty() && queue.tasks.front().type == ActionType::ProduceResource) {
+                    if (queue.tasks.front().resource != criticalResource) {
+                        abandonAllActions();
+                    }
+                }
+            }
+        }
+
         bool advanced = true;
         while (advanced && !queue.tasks.empty()) {
             auto& task = queue.tasks.front();
@@ -178,8 +365,7 @@ void ActionExecutor::update(entt::registry& registry, float /*deltaSeconds*/) {
                 advanced = true;
                 break;
             case ActionType::ProduceResource:
-                processProduce(entity, queue, location, registry);
-                advanced = true;
+                advanced = processProduce(entity, queue, location, registry);
                 break;
             }
         }
@@ -561,12 +747,12 @@ void ActionExecutor::processTake(entt::entity entity,
     queue.tasks.pop_front();
 }
 
-void ActionExecutor::processProduce(entt::entity entity,
-                                    ActionQueue& queue,
-                                    components::AgentLocation2D& location,
-                                    entt::registry& registry) {
+bool ActionExecutor::processProduce(entt::entity entity,
+                                   ActionQueue& queue,
+                                   components::AgentLocation2D& location,
+                                   entt::registry& registry) {
     if (queue.tasks.empty()) {
-        return;
+        return true;
     }
 
     auto& task = queue.tasks.front();
@@ -580,7 +766,7 @@ void ActionExecutor::processProduce(entt::entity entity,
         attempt.failureReason = kReasonMissingInteraction;
         m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
-        return;
+        return true;
     }
 
     const auto targetMap = it->mapId;
@@ -594,7 +780,53 @@ void ActionExecutor::processProduce(entt::entity entity,
         move.interaction = task.interaction;
         move.speed = 1.0f;
         queue.tasks.emplace(queue.tasks.begin(), move);
-        return;
+        return false;
+    }
+
+    std::uint32_t workTicksPerBatch = 1U;
+    std::uint32_t slots = 0U;
+    if (it->meta && it->meta->contains("workshop") && (*it->meta)["workshop"].is_object()) {
+        const auto& metaWorkshop = (*it->meta)["workshop"];
+        workTicksPerBatch = readPositiveU32Or(metaWorkshop, "workTicksPerBatch", 1U);
+        slots = readU32Or(metaWorkshop, "slots", 0U);
+    }
+
+    if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
+        if (job->interaction != task.interaction || job->outputType != task.resource) {
+            releaseWorkshopSlot(job->interaction, entity);
+            registry.remove<components::WorkshopJob>(entity);
+            queue.tasks.pop_front();
+            return true;
+        }
+
+        if (job->workRemainingTicks > 0U) {
+            job->workRemainingTicks--;
+        }
+        if (job->workRemainingTicks > 0U) {
+            return false;
+        }
+
+        const std::uint32_t plannedBatches = std::max<std::uint32_t>(1U, job->plannedBatches);
+        const std::uint32_t outputUnitsPerBatch = std::max<std::uint32_t>(1U, job->outputUnitsPerBatch);
+        const std::uint32_t wantedUnits = outputUnitsPerBatch * plannedBatches;
+        const std::uint32_t producedUnits = m_resources.produceAtInteraction(registry, task.interaction, wantedUnits);
+
+        telemetry::WorkshopAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.interactionId = task.interaction;
+        attempt.outputType = task.resource;
+        attempt.wantedBatches = std::max<std::uint32_t>(1U, task.batches);
+        attempt.wantedUnits = outputUnitsPerBatch * attempt.wantedBatches;
+        attempt.producedUnits = producedUnits;
+        if (producedUnits == 0U) {
+            attempt.failureReason = kReasonOutputFull;
+        }
+        m_workshopAttempts.push_back(std::move(attempt));
+
+        releaseWorkshopSlot(job->interaction, entity);
+        registry.remove<components::WorkshopJob>(entity);
+        queue.tasks.pop_front();
+        return true;
     }
 
     const auto recipes = parseWorkshopRecipes(*it);
@@ -607,7 +839,7 @@ void ActionExecutor::processProduce(entt::entity entity,
         attempt.failureReason = kReasonNoRecipes;
         m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
-        return;
+        return true;
     }
 
     auto* carried = registry.try_get<components::CarriedResources>(entity);
@@ -620,7 +852,7 @@ void ActionExecutor::processProduce(entt::entity entity,
         attempt.failureReason = kReasonNoCarriedResources;
         m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
-        return;
+        return true;
     }
 
     const auto state = m_resources.spawnState(registry, task.interaction);
@@ -633,7 +865,7 @@ void ActionExecutor::processProduce(entt::entity entity,
         attempt.failureReason = kReasonNoSpawnState;
         m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
-        return;
+        return true;
     }
 
     const auto wantedBatches = std::max<std::uint32_t>(1U, task.batches);
@@ -741,32 +973,95 @@ void ActionExecutor::processProduce(entt::entity entity,
         }
         m_workshopAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
-        return;
+        return true;
+    }
+
+    if (!acquireWorkshopSlot(task.interaction, entity, slots)) {
+        return false;
     }
 
     const auto outputUnits = std::max<std::uint32_t>(1U, bestRecipe->outputUnits);
+
+    if (workTicksPerBatch <= 1U) {
+        for (const auto& input : bestRecipe->inputs) {
+            if (input.consumable) {
+                carried->remove(input.type, input.units * bestBatches);
+            }
+        }
+
+        const std::uint32_t wantedUnits = outputUnits * bestBatches;
+        const std::uint32_t producedUnits = m_resources.produceAtInteraction(registry, task.interaction, wantedUnits);
+
+        telemetry::WorkshopAttemptSnapshot attempt{};
+        attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        attempt.interactionId = task.interaction;
+        attempt.outputType = task.resource;
+        attempt.wantedBatches = wantedBatches;
+        attempt.wantedUnits = outputUnits * wantedBatches;
+        attempt.producedUnits = producedUnits;
+        if (producedUnits == 0U) {
+            attempt.failureReason = kReasonOutputFull;
+        }
+        m_workshopAttempts.push_back(std::move(attempt));
+
+        releaseWorkshopSlot(task.interaction, entity);
+        queue.tasks.pop_front();
+        return true;
+    }
+
+    components::WorkshopJob job{};
+    job.interaction = task.interaction;
+    job.outputType = task.resource;
+    job.plannedBatches = bestBatches;
+    job.outputUnitsPerBatch = outputUnits;
+    job.workTotalTicks = workTicksPerBatch * std::max<std::uint32_t>(1U, bestBatches);
+    job.workRemainingTicks = job.workTotalTicks;
     for (const auto& input : bestRecipe->inputs) {
-        if (input.consumable) {
-            carried->remove(input.type, input.units * bestBatches);
+        if (!input.consumable) {
+            continue;
+        }
+        const std::uint32_t used = input.units * bestBatches;
+        const auto removed = carried->remove(input.type, used);
+        const auto idx = components::resourceTypeIndex(input.type);
+        if (idx < job.reservedConsumables.size()) {
+            job.reservedConsumables[idx] += removed;
         }
     }
 
-    const std::uint32_t wantedUnits = outputUnits * bestBatches;
-    const std::uint32_t producedUnits = m_resources.produceAtInteraction(registry, task.interaction, wantedUnits);
-
-    telemetry::WorkshopAttemptSnapshot attempt{};
-    attempt.entityId = static_cast<std::uint32_t>(entt::to_integral(entity));
-    attempt.interactionId = task.interaction;
-    attempt.outputType = task.resource;
-    attempt.wantedBatches = wantedBatches;
-    attempt.wantedUnits = outputUnits * wantedBatches;
-    attempt.producedUnits = producedUnits;
-    if (producedUnits == 0U) {
-        attempt.failureReason = kReasonOutputFull;
+    registry.emplace_or_replace<components::WorkshopJob>(entity, std::move(job));
+    auto& active = registry.get<components::WorkshopJob>(entity);
+    if (active.workRemainingTicks > 0U) {
+        active.workRemainingTicks--;
     }
-    m_workshopAttempts.push_back(std::move(attempt));
+    return active.workRemainingTicks == 0U;
+}
 
-    queue.tasks.pop_front();
+bool ActionExecutor::acquireWorkshopSlot(genesis::world::InteractionId interaction, entt::entity worker, std::uint32_t slots) {
+    if (slots == 0U) {
+        return true;
+    }
+    slots = std::max<std::uint32_t>(1U, slots);
+    auto& workers = m_workshopWorkers[interaction];
+    if (std::find(workers.begin(), workers.end(), worker) != workers.end()) {
+        return true;
+    }
+    if (workers.size() >= static_cast<std::size_t>(slots)) {
+        return false;
+    }
+    workers.push_back(worker);
+    return true;
+}
+
+void ActionExecutor::releaseWorkshopSlot(genesis::world::InteractionId interaction, entt::entity worker) {
+    auto it = m_workshopWorkers.find(interaction);
+    if (it == m_workshopWorkers.end()) {
+        return;
+    }
+    auto& workers = it->second;
+    workers.erase(std::remove(workers.begin(), workers.end(), worker), workers.end());
+    if (workers.empty()) {
+        m_workshopWorkers.erase(it);
+    }
 }
 
 } // namespace genesis::agents

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "genesis/world/WorldDatabase.hpp"
+#include "genesis/world/Namespace.hpp"
 
 namespace genesis::world {
 
@@ -26,7 +27,3 @@ struct WorldDbLoadResult {
 WorldDbLoadResult loadWorldDatabaseFromFolder(const std::filesystem::path& folder);
 
 } // namespace genesis::world
-
-namespace Genesis {
-namespace World = genesis::world;
-} // namespace Genesis

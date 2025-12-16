@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <unordered_map>
 #include <vector>
 
 #include <entt/entt.hpp>
@@ -68,13 +69,16 @@ private:
     void processMove(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
     void processConsume(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
     void processTake(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
-    void processProduce(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
+    bool processProduce(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
+    bool acquireWorkshopSlot(genesis::world::InteractionId interaction, entt::entity worker, std::uint32_t slots);
+    void releaseWorkshopSlot(genesis::world::InteractionId interaction, entt::entity worker);
 
     genesis::world::WorldDatabase& m_db;
     genesis::world::system::ResourceSystem& m_resources;
 
     std::vector<telemetry::WorkshopAttemptSnapshot> m_workshopAttempts;
     std::vector<telemetry::ResourceAttemptSnapshot> m_resourceAttempts;
+    std::unordered_map<genesis::world::InteractionId, std::vector<entt::entity>> m_workshopWorkers;
 };
 
 } // namespace genesis::agents

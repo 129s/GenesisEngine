@@ -319,12 +319,58 @@ def _alignment_mask(values_a: Sequence[float], values_b: Sequence[float], sign: 
     return [s >= threshold for s in scores]
 
 
+def _turning_points_for_run(features: Dict[str, List[float]], top_turns: int, k_features: int) -> List[Dict[str, object]]:
+    """
+    Find candidate "turning points" (macro inflection windows) without a predefined taxonomy.
+
+    Method:
+      - z-score each feature within a run
+      - compute per-window absolute z-delta: |z[t] - z[t-1]|
+      - turning score for window t is the sum of top-k feature deltas
+    """
+    if top_turns <= 0 or k_features <= 0:
+        return []
+
+    feature_names = sorted([k for k, v in features.items() if len(v) >= 2])
+    if not feature_names:
+        return []
+
+    z_by_feature: Dict[str, List[float]] = {k: _zscore(features[k]) for k in feature_names}
+    n = min(len(v) for v in z_by_feature.values())
+    if n < 2:
+        return []
+
+    windows: List[Dict[str, object]] = []
+    for t in range(1, n):
+        deltas: List[Tuple[str, float]] = []
+        for k in feature_names:
+            z = z_by_feature[k]
+            if t >= len(z):
+                continue
+            deltas.append((k, abs(z[t] - z[t - 1])))
+        deltas.sort(key=lambda kv: kv[1], reverse=True)
+        top = deltas[:k_features]
+        score = float(sum(v for _, v in top))
+        windows.append(
+            {
+                "index": int(t),
+                "score": score,
+                "contributors": [{"feature": k, "absZDelta": float(v)} for k, v in top],
+            }
+        )
+
+    windows.sort(key=lambda w: float(w["score"]), reverse=True)
+    return windows[:top_turns]
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="Worldline file, folder, or glob (JSONL).")
     ap.add_argument("--pattern", default="worldline_*.jsonl", help="Pattern when --input is a folder.")
     ap.add_argument("--top-edges", type=int, default=30, help="Keep top-K directed edges by |lag-corr|.")
     ap.add_argument("--top-motifs", type=int, default=40, help="Keep top-K motifs by support+coverage score.")
+    ap.add_argument("--top-turns", type=int, default=8, help="Per-run turning point candidates to report.")
+    ap.add_argument("--turn-k-features", type=int, default=6, help="Top-K feature deltas per turning point.")
     ap.add_argument("--direction-margin", type=float, default=0.02, help="Minimum |corr_ab|-|corr_ba| to pick a direction.")
     ap.add_argument("--state-quantile", type=float, default=0.9, help="Quantile for 'high state' activation (low=1-q).")
     ap.add_argument("--min-windows", type=int, default=6, help="Ignore runs with fewer windows than this.")
@@ -486,6 +532,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     motif_list = [m for m in motif_list if (m["supportWorlds"] > 0 and m["meanD"] > 0.0)]
     motif_list = motif_list[: max(1, args.top_motifs)]
 
+    turning_points: List[Dict[str, object]] = []
+    for r in runs:
+        f = run_features[r.path]
+        turning_points.append(
+            {
+                "path": r.path,
+                "windows": len(r.windows),
+                "candidates": _turning_points_for_run(f, args.top_turns, args.turn_k_features),
+            }
+        )
+
     out_dir = os.path.join("out", "worldline", "analysis")
     if not args.out:
         os.makedirs(out_dir, exist_ok=True)
@@ -496,13 +553,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     report = {
         "kind": "worldline_motif_report",
-        "schema_version": 1,
+        "schema_version": 2,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "params": {
             "input": args.input,
             "pattern": args.pattern,
             "top_edges": args.top_edges,
             "top_motifs": args.top_motifs,
+            "top_turns": args.top_turns,
+            "turn_k_features": args.turn_k_features,
             "direction_margin": args.direction_margin,
             "state_quantile": args.state_quantile,
             "min_windows": args.min_windows,
@@ -511,6 +570,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "features": features,
         "edges": directed_edges,
         "motifs": motif_list,
+        "turningPoints": turning_points,
     }
 
     with open(args.out, "w", encoding="utf-8") as f:

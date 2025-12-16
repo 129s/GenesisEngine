@@ -144,8 +144,24 @@ void NeedSatisfier::update(entt::registry& registry,
         const float switchMargin = std::max(0.0f, m_config.switchScoreMargin)
             * std::clamp(0.65f + 0.85f * conscientiousness + 0.25f * neuroticism, 0.25f, 2.25f);
 
+        const auto quantize01u16 = [](float v) -> std::uint64_t {
+            const float clamped = std::clamp(v, 0.0f, 1.0f);
+            const float scaled = clamped * 65535.0f;
+            const auto q = static_cast<std::uint64_t>(std::lround(static_cast<double>(scaled)));
+            return (q > 65535ull) ? 65535ull : q;
+        };
+
+        const std::uint64_t packedBig5 =
+            quantize01u16(openness)
+            | (quantize01u16(conscientiousness) << 16U)
+            | (quantize01u16(extraversion) << 32U)
+            | (quantize01u16(agreeableness) << 48U);
+        const std::uint64_t personalityHash =
+            mix_u64(packedBig5 ^ (quantize01u16(neuroticism) * 0x9E3779B97F4A7C15ull));
+
         const std::uint64_t entitySeed = (static_cast<std::uint64_t>(entt::to_integral(entity)) << 1U)
             ^ (static_cast<std::uint64_t>(location.mapId) << 33U)
+            ^ personalityHash
             ^ 0xA43B7D1C5E0F123Bull;
 
         const float noiseSigma = std::clamp(

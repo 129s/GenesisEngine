@@ -16,6 +16,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "genesis/agents/Personality.hpp"
 #include "genesis/runtime/Runtime.hpp"
 #include "genesis/runtime/SchemaVersions.hpp"
 #include "genesis/telemetry/SchemaVersions.hpp"
@@ -24,6 +25,32 @@
 namespace {
 
 using json = nlohmann::json;
+
+namespace {
+[[nodiscard]] std::uint64_t mix_u64(std::uint64_t x) noexcept {
+    // splitmix64 finalizer
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+
+[[nodiscard]] float uniform01_from_u64(std::uint64_t x) noexcept {
+    const std::uint64_t v = mix_u64(x) >> 11; // top 53 bits
+    return static_cast<float>(static_cast<double>(v) * (1.0 / 9007199254740992.0)); // 2^53
+}
+
+[[nodiscard]] genesis::agents::AgentPersonalityBig5 big5FromWorldSeed(std::uint64_t worldSeed, std::uint32_t agentIndex) noexcept {
+    const std::uint64_t base = worldSeed ^ (static_cast<std::uint64_t>(agentIndex) * 0xD1B54A32D192ED03ull) ^ 0x9E3779B97F4A7C15ull;
+    genesis::agents::AgentPersonalityBig5 p{};
+    p.openness = uniform01_from_u64(base ^ 0x11ull);
+    p.conscientiousness = uniform01_from_u64(base ^ 0x22ull);
+    p.extraversion = uniform01_from_u64(base ^ 0x33ull);
+    p.agreeableness = uniform01_from_u64(base ^ 0x44ull);
+    p.neuroticism = uniform01_from_u64(base ^ 0x55ull);
+    return p;
+}
+} // namespace
 
 struct CliOptions {
     std::filesystem::path rootPath{"."};
@@ -637,6 +664,13 @@ struct ResourceEconomy {
     }
 
     if (opts.agentCount > 0) {
+        std::uint64_t worldSeed = 0;
+        if (opts.worldgenSeed) {
+            worldSeed = *opts.worldgenSeed;
+        } else if (runtime.lastSeed().has_value()) {
+            worldSeed = *runtime.lastSeed();
+        }
+
         for (const auto& agent : initialSnapshot->telemetry.agents) {
             runtime.deleteAgent(agent.entityId);
         }
@@ -645,6 +679,9 @@ struct ResourceEconomy {
             params.location.mapId = 1;
             params.location.x = 0.0f;
             params.location.y = 0.0f;
+            if (worldSeed != 0) {
+                params.personality = big5FromWorldSeed(worldSeed, i);
+            }
             (void)runtime.createAgent(params);
         }
         runtime.step(1);

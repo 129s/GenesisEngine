@@ -1,7 +1,7 @@
 # Sandbox GUI · Inspector 面板
 
 ## 目标
-- 为内部开发者提供统一的实体观察与调试入口，支持选中/跟随、字段查看与高亮，覆盖需求→决策→行动链路；人格/Traits/属性映射属于 proposal。
+- 为内部开发者提供统一的实体观察与调试入口，支持选中/跟随、字段查看与高亮，覆盖需求→决策→行动链路；Traits/显式 Attributes/属性映射属于 proposal。
 
 ## 当前实现（2025-10-19）
 - 实体列表：按 Agent / Resource / Node 三类展示，依托 Browser 负责筛选/搜索；选中后自动高亮对应地图节点。
@@ -15,7 +15,7 @@
 - 快照导出：Agent / Resource / Node 详情提供 “Copy JSON” 按钮，复制结构化快照（含 Telemetry / Atlas 上下文），便于日志分析与回归测试。
 
 ## 待完善清单
-- Agent 详情需补充最近日志与更细粒度的行动/生产信息；人格 Big5、Traits、属性映射属于 proposal。
+- Agent 详情需补充最近日志与更细粒度的行动/生产信息；人格 Big5（core 已落地但 GUI 未展示）、Traits、属性映射属于 proposal。
 - Resource 需展示消耗历史与再生速率趋势。
 - Portal/Scene 详情尚未落地。
 - （改由 Browser 实现的）搜索与标签过滤迁移完成，Inspector 后续聚焦编辑与详情强化。
@@ -28,7 +28,8 @@
 - **Agent 详情**
   - 基本信息：`entityId`、`name`、`mapId`、`position(x,y)`、当前交互点/Portal（若有）。
   - 需求：值、阈值与临界标记、最近一次满足时间（若可得）。
-  - 人格与 Traits：Proposal（未落地，见 `docs/architecture/proposals/agents/agent-personality-big5.md`）。
+  - 人格（Big5）：core 已落地；Inspector 展示待补（见 `docs/architecture/agents/agent-model-v0.md`）。
+  - Traits：Proposal（未落地，见 `docs/architecture/proposals/agents/agent-personality-big5.md`）。
   - 行动队列：当前行动、目标节点（Portal/交互点）、剩余步数、计划长度。
   - 当前目标链：Need → Planner 结果 → 执行动作摘要。
   - 近期日志（可选）：最近 N 步的需求/行动变更。

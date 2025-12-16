@@ -10,6 +10,7 @@
 ## 对齐矩阵（节选）
 | 模块/概念 | 文档来源 | 代码落点（如果有） | 状态 | 备注 |
 |---|---|---:|---|---|
+| 统一链路：属性→需求→动机→行动→学习 | `docs/architecture/proposals/agents/agent-lifecycle-attributes-needs-learning.md` | 见下方各子项 | Spec | v0 已形成最小闭环；目标态与后续拆分（Attributes/结构化 outcome）仍在 proposal。 |
 | Need 数值模型（decay/threshold） | `docs/architecture/proposals/agents/agent-personality-big5.md`（部分） | `include/genesis/agents/Needs.hpp` | Spec | 当前以 Need 本身作为“属性”，无独立 Attributes 层。 |
 | NeedSystem 推进 | 同上 | `src/agents/NeedSystem.cpp` | Spec | 仅做线性 decay；无 baseCurve/jitter。 |
 | 选点/决策（Planner/Selector） | 同上（理念） | `src/agents/NeedSatisfier.cpp` | Spec | 规则打分 + Big5 权重缩放 + 确定性 jitter（用于打破稳态收敛）。 |

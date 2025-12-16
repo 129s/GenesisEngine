@@ -5,7 +5,16 @@
 
 ## 范围与非目标
 - 范围：Headless Runtime/Core Simulation（不含 GUI 表现层）。
-- 非目标：人格 Big5、Traits、属性→需求的数据驱动映射、记忆/关系/叙事系统（这些属于提案，见 proposal）。
+- 非目标：Traits、显式 Attributes 层、属性→需求的数据驱动映射、记忆/关系/社交推断/叙事系统（这些属于提案，见 `docs/architecture/proposals/`）。
+
+## 核心链路（当前落地子集）
+当前 v0 已经形成可回归验证的最小闭环，但 **Attributes 尚未独立**（Needs 同时扮演内部状态）：
+- 内部状态：`NeedComponent/NeedCollection` 随时间推进（NeedSystem）。
+- 动机/选点：`NeedSatisfier` 依据 urgency + 评分（含 Big5 权重与确定性 jitter）选择补给目标。
+- 行动执行：`ActionExecutor` 执行 `Move/Consume/Take/Produce`；缺货时 `ProductionPlanner` 递归补链。
+- 学习写回：`AgentExperience.bufferMultiplier` 从“关键补给失败/临界抢占”学习，影响后续准备阈值与一次性补给量，并随时间遗忘。
+
+统一链路的目标态与分阶段落地规划见：`docs/architecture/proposals/agents/agent-lifecycle-attributes-needs-learning.md`。
 
 ## 数据模型（ECS 组件）
 - **人格（Big5）**

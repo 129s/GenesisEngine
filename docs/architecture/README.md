@@ -21,7 +21,8 @@
 - **Agents / Behavior Layer**
   - [agents/agent-model-v0.md](agents/agent-model-v0.md)：Agent 模式 v0（已落地规范，代码对齐）。
   - [agents/agent-implementation-status.md](agents/agent-implementation-status.md)：Agent 文档-代码对齐矩阵（做了什么/没做什么）。
-  - Proposal：[`proposals/agents/agent-personality-big5.md`](proposals/agents/agent-personality-big5.md)（Big5/Traits/数据驱动 Needs，未落地）。
+  - Proposal：[`proposals/agents/agent-lifecycle-attributes-needs-learning.md`](proposals/agents/agent-lifecycle-attributes-needs-learning.md)（统一链路，部分已落地）。
+  - Proposal：[`proposals/agents/agent-personality-big5.md`](proposals/agents/agent-personality-big5.md)（Big5/Traits/数据驱动 Needs，部分已落地）。
 - **Interface & Rendering**
   - Sandbox GUI：[`interface/sandbox/sandbox-gui.md`](interface/sandbox/sandbox-gui.md)、[`sandbox-gui-sim-loop.md`](interface/sandbox/sandbox-gui-sim-loop.md)、[`sandbox-gui-scene-unification.md`](interface/sandbox/sandbox-gui-scene-unification.md)、[`inspector-panel.md`](interface/sandbox/inspector-panel.md)。
   - 渲染体系：[`interface/rendering/rendering-modes.md`](interface/rendering/rendering-modes.md)、[`interface/rendering/zero-asset-rendering.md`](interface/rendering/zero-asset-rendering.md)；更多细节见 `../rendering/README.md`。

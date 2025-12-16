@@ -8,6 +8,7 @@
 #include <entt/entt.hpp>
 
 #include "genesis/agents/ActionSystem.hpp"
+#include "genesis/agents/LearningSystem.hpp"
 #include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/agents/Planner.hpp"
@@ -67,6 +68,7 @@ private:
     messaging::EventBus m_eventBus;
     agents::NeedSystem m_needSystem;
     agents::NeedSatisfier m_needSatisfier;
+    agents::LearningSystem m_learningSystem;
     std::unique_ptr<agents::ActionExecutor> m_actionExecutor;
     std::unique_ptr<world::system::ResourceSystem> m_resourceSystem;
     Movement2DSystem m_movementSystem;

@@ -5,8 +5,10 @@
 #include <utility>
 
 #include "genesis/agents/CarriedResources.hpp"
+#include "genesis/agents/Beliefs.hpp"
 #include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/agents/Outcomes.hpp"
 #include "genesis/agents/Personality.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 #include "genesis/world/components/ResourceInventory.hpp"
@@ -71,6 +73,7 @@ SimulationContext::SimulationContext()
 void SimulationContext::bindScheduler() {
     m_scheduler.setNeedSystem(&m_needSystem);
     m_scheduler.setNeedSatisfier(&m_needSatisfier);
+    m_scheduler.setLearningSystem(&m_learningSystem);
     m_scheduler.setMovementSystem(&m_movementSystem);
     m_scheduler.setActionExecutor(m_actionExecutor.get());
     m_scheduler.setResourceSystem(m_resourceSystem.get());
@@ -119,6 +122,8 @@ std::uint32_t SimulationContext::createAgent(const AgentSpawnParams2D& params) {
 
     m_registry.emplace<agents::components::CarriedResources>(entity);
     m_registry.emplace<agents::components::AgentExperience>(entity);
+    m_registry.emplace<agents::components::AgentBeliefs>(entity);
+    m_registry.emplace<agents::components::AgentOutcomeBuffer>(entity);
 
     if (params.initialMovement) {
         agents::components::MovementIntent2D intent{};

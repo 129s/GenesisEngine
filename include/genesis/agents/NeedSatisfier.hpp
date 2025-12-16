@@ -18,6 +18,7 @@ struct NeedSatisfierConfig {
     float crossMapPenalty{500.0f};
     float demandPenaltyPerAgent{60.0f};
     float switchScoreMargin{50.0f};
+    float stockoutRiskPenalty{80.0f};
 
     std::uint32_t hungerUnitsPerRequest{2};
     float hungerReliefPerUnit{12.0f};

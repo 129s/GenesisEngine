@@ -14,7 +14,9 @@
 | Need 数值模型（decay/threshold） | `docs/architecture/proposals/agents/agent-personality-big5.md`（部分） | `include/genesis/agents/Needs.hpp` | Spec | 当前以 Need 本身作为“属性”，无独立 Attributes 层。 |
 | NeedSystem 推进 | 同上 | `src/agents/NeedSystem.cpp` | Spec | 仅做线性 decay；无 baseCurve/jitter。 |
 | 选点/决策（Planner/Selector） | 同上（理念） | `src/agents/NeedSatisfier.cpp` | Spec | 规则打分 + Big5 权重缩放 + 确定性 jitter（用于打破稳态收敛）。 |
-| 经验/学习（最小闭环） | `docs/architecture/proposals/agents/agent-personality-big5.md`（理念） | `include/genesis/agents/Experience.hpp`、`src/agents/ActionSystem.cpp`、`src/agents/NeedSatisfier.cpp` | Spec | 从“抢占打断/关键补给失败”学习，提高生存 Need 的缓冲倾向并随时间遗忘；同时允许“先补给再继续作业”。 |
+| 经验/学习（最小闭环） | `docs/architecture/proposals/agents/agent-personality-big5.md`（理念） | `include/genesis/agents/Experience.hpp`、`src/agents/LearningSystem.cpp`、`src/agents/NeedSatisfier.cpp` | Spec | 从结构化 outcome（抢占/缺货/规划失败）学习，提高生存 Need 的缓冲倾向并随时间遗忘；同时允许“先补给再继续作业”。 |
+| Outcome 缓冲（行动结果事件） | `docs/architecture/proposals/agents/agent-lifecycle-attributes-needs-learning.md` | `include/genesis/agents/Outcomes.hpp`、`src/agents/ActionSystem.cpp` | Spec | ActionExecutor 产出资源尝试/临界抢占等 outcome，供 LearningSystem 消费；与 Telemetry attempt 并行存在。 |
+| Beliefs（主观风险估计） | `docs/architecture/proposals/agents/agent-lifecycle-attributes-needs-learning.md` | `include/genesis/agents/Beliefs.hpp`、`src/agents/LearningSystem.cpp`、`src/agents/NeedSatisfier.cpp` | Spec | 目前仅落地“目标交互点 stockout 风险 EMA”，并作为 NeedSatisfier 的风险惩罚项参与评分。 |
 | 决策可观测性（PlannerDecision） | 同上（链路） | `include/genesis/agents/Planner.hpp` | Spec | 仅用于 Telemetry/拥挤惩罚计数。 |
 | 行动队列（Move/Consume/Take/Produce） | 同上（链路） | `include/genesis/agents/ActionSystem.hpp`、`src/agents/ActionSystem.cpp` | Spec | 具备“生产作业时间+临界需求抢占（优先补给，必要时才中断）”。 |
 | 自动补链（缺货→上游生产） | 文档未明确 | `src/agents/ProductionPlanner.cpp` | Spec | 当前是工程式 recovery 规划器，不代表“角色策略”。 |

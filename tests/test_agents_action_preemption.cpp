@@ -8,6 +8,7 @@
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/CarriedResources.hpp"
 #include "genesis/agents/Experience.hpp"
+#include "genesis/agents/LearningSystem.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/messaging/EventBus.hpp"
@@ -117,6 +118,9 @@ TEST(ActionExecutorPreemption, PausesWorkshopJobToSatisfyCriticalNeed) {
         }
     }
     EXPECT_TRUE(ate);
+
+    genesis::agents::LearningSystem learning;
+    learning.update(registry, 0.0f);
 
     const auto* exp = registry.try_get<genesis::agents::components::AgentExperience>(agent);
     ASSERT_NE(exp, nullptr);

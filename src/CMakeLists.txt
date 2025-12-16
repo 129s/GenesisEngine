@@ -209,6 +209,7 @@ set_target_properties(genesis_base PROPERTIES
 
 set(GENESIS_AGENTS_SOURCES
     agents/ActionSystem.cpp
+    agents/LearningSystem.cpp
     agents/NeedSystem.cpp
     agents/NeedSatisfier.cpp
     agents/ProductionPlanner.cpp

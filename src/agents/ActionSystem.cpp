@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 
 #include "genesis/agents/CarriedResources.hpp"
+#include "genesis/agents/Outcomes.hpp"
 #include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/ProductionPlanner.hpp"
@@ -38,11 +39,6 @@ constexpr const char* kReasonPlanningFailed = "PlanningFailed";
 constexpr const char* kReasonUnreachable = "Unreachable";
 constexpr const char* kReasonPreemptedCriticalNeed = "PreemptedCriticalNeed";
 
-constexpr float kExperienceMinMultiplier = 1.0f;
-constexpr float kExperienceMaxMultiplier = 3.0f;
-constexpr float kExperienceBumpPreempt = 0.18f;
-constexpr float kExperienceBumpStockoutVital = 0.06f;
-
 [[nodiscard]] std::string preemptedWithNeed(const char* needName) {
     std::string out(kReasonPreemptedCriticalNeed);
     out.push_back(':');
@@ -50,47 +46,30 @@ constexpr float kExperienceBumpStockoutVital = 0.06f;
     return out;
 }
 
-[[nodiscard]] bool isVitalNeed(NeedType need) noexcept {
-    switch (need) {
-    case NeedType::Hunger:
-    case NeedType::Thirst:
-        return true;
-    default:
-        return false;
-    }
+components::AgentOutcomeBuffer& ensureOutcomeBuffer(entt::entity entity, entt::registry& registry) {
+    return registry.get_or_emplace<components::AgentOutcomeBuffer>(entity);
 }
 
-void decayExperience(entt::registry& registry, float deltaSeconds) {
-    if (!(deltaSeconds > 0.0f)) {
-        return;
-    }
-    auto view = registry.view<components::AgentExperience>();
-    for (auto entity : view) {
-        auto& exp = view.get<components::AgentExperience>(entity);
-        const float k = std::clamp(exp.forgetPerSecond * deltaSeconds, 0.0f, 1.0f);
-        if (k <= 0.0f) {
-            continue;
-        }
-        for (auto& m : exp.bufferMultiplier) {
-            const float delta = m - 1.0f;
-            m = 1.0f + delta * (1.0f - k);
-            m = std::clamp(m, kExperienceMinMultiplier, kExperienceMaxMultiplier);
-        }
-    }
+void recordCriticalPreempt(entt::entity entity, NeedType need, entt::registry& registry) {
+    auto& outcomes = ensureOutcomeBuffer(entity, registry);
+    outcomes.criticalPreempts.push_back(CriticalPreemptOutcome{need});
 }
 
-void bumpNeedBuffer(entt::entity entity, NeedType need, float bump, entt::registry& registry) {
-    if (!(bump > 0.0f)) {
-        return;
-    }
-    auto& exp = registry.get_or_emplace<components::AgentExperience>(entity);
-    const auto idx = needIndex(need);
-    if (idx >= exp.bufferMultiplier.size()) {
-        return;
-    }
-    float m = std::clamp(exp.bufferMultiplier[idx], kExperienceMinMultiplier, kExperienceMaxMultiplier);
-    m *= (1.0f + bump);
-    exp.bufferMultiplier[idx] = std::clamp(m, kExperienceMinMultiplier, kExperienceMaxMultiplier);
+void recordResourceAttempt(entt::entity entity,
+                           const ActionTask& task,
+                           const telemetry::ResourceAttemptSnapshot& attempt,
+                           ResourceAttemptFailure failure,
+                           entt::registry& registry) {
+    auto& outcomes = ensureOutcomeBuffer(entity, registry);
+    ResourceAttemptOutcome o{};
+    o.interaction = attempt.interactionId;
+    o.resourceType = attempt.resourceType;
+    o.need = task.need;
+    o.wantedUnits = attempt.wantedUnits;
+    o.obtainedUnits = attempt.obtainedUnits;
+    o.recoveryPlanned = attempt.recoveryPlanned;
+    o.failure = failure;
+    outcomes.resourceAttempts.push_back(o);
 }
 
 [[nodiscard]] const char* needTypeName(NeedType need) {
@@ -336,8 +315,6 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
     m_workshopAttempts.clear();
     m_resourceAttempts.clear();
 
-    decayExperience(registry, deltaSeconds);
-
     auto view = registry.view<ActionQueue, components::AgentLocation2D>();
 
     for (auto entity : view) {
@@ -386,7 +363,8 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
             return best;
         };
 
-        const auto ensureCriticalConsume = [&](NeedType criticalNeed, genesis::world::ResourceType criticalResource) -> bool {
+        const auto ensureCriticalConsume = [&](NeedType criticalNeed, genesis::world::ResourceType criticalResource, bool& inserted) -> bool {
+            inserted = false;
             for (const auto& t : queue.tasks) {
                 if (t.type == ActionType::ConsumeResource && t.need == criticalNeed) {
                     return true;
@@ -402,7 +380,7 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
             if (const auto* exp = registry.try_get<components::AgentExperience>(entity)) {
                 const auto idx = needIndex(criticalNeed);
                 if (idx < exp->bufferMultiplier.size()) {
-                    buffer = std::clamp(exp->bufferMultiplier[idx], kExperienceMinMultiplier, kExperienceMaxMultiplier);
+                    buffer = std::clamp(exp->bufferMultiplier[idx], 1.0f, 3.0f);
                 }
             }
 
@@ -438,6 +416,7 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
             consume.retries = 0;
             consume.reliefPerUnit = reliefPerUnit;
             queue.tasks.emplace(queue.tasks.begin(), consume);
+            inserted = true;
             return true;
         };
 
@@ -475,8 +454,6 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
             releaseWorkshopSlot(job.interaction, entity);
             registry.remove<components::WorkshopJob>(entity);
             abandonAllActions();
-
-            bumpNeedBuffer(entity, criticalNeed, kExperienceBumpPreempt, registry);
         };
 
         if (auto* needs = registry.try_get<NeedComponent>(entity)) {
@@ -486,18 +463,25 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
                 if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
                     if (job->outputType != criticalResource) {
                         // Take a break instead of throwing away progress: eat/drink first, then resume work.
-                        bumpNeedBuffer(entity, criticalNeed, kExperienceBumpPreempt, registry);
                         releaseWorkshopSlot(job->interaction, entity);
-                        if (!ensureCriticalConsume(criticalNeed, criticalResource)) {
+                        bool inserted = false;
+                        if (!ensureCriticalConsume(criticalNeed, criticalResource, inserted)) {
+                            recordCriticalPreempt(entity, criticalNeed, registry);
                             abortWorkshopJob(*job, criticalNeed);
                             continue;
+                        }
+                        if (inserted) {
+                            recordCriticalPreempt(entity, criticalNeed, registry);
                         }
                     }
                 } else if (!queue.tasks.empty() && queue.tasks.front().type == ActionType::ProduceResource) {
                     if (queue.tasks.front().resource != criticalResource) {
-                        bumpNeedBuffer(entity, criticalNeed, kExperienceBumpPreempt, registry);
-                        if (!ensureCriticalConsume(criticalNeed, criticalResource)) {
+                        bool inserted = false;
+                        if (!ensureCriticalConsume(criticalNeed, criticalResource, inserted)) {
+                            recordCriticalPreempt(entity, criticalNeed, registry);
                             abandonAllActions();
+                        } else if (inserted) {
+                            recordCriticalPreempt(entity, criticalNeed, registry);
                         }
                     }
                 }
@@ -684,6 +668,7 @@ void ActionExecutor::processConsume(entt::entity entity,
         attempt.resourceType = task.resource;
         attempt.wantedUnits = task.amount;
         attempt.failureReason = kReasonMissingInteraction;
+        recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::MissingInteraction, registry);
         m_resourceAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
@@ -705,6 +690,7 @@ void ActionExecutor::processConsume(entt::entity entity,
                 attempt.resourceType = task.resource;
                 attempt.wantedUnits = task.amount;
                 attempt.failureReason = unreachableWithDetail("NoPath");
+                recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::Unreachable, registry);
                 m_resourceAttempts.push_back(std::move(attempt));
                 queue.tasks.pop_front();
                 return;
@@ -726,6 +712,7 @@ void ActionExecutor::processConsume(entt::entity entity,
                 attempt.resourceType = task.resource;
                 attempt.wantedUnits = task.amount;
                 attempt.failureReason = unreachableWithDetail("NoPortal");
+                recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::Unreachable, registry);
                 m_resourceAttempts.push_back(std::move(attempt));
                 queue.tasks.pop_front();
                 return;
@@ -788,26 +775,21 @@ void ActionExecutor::processConsume(entt::entity entity,
         if (auto plan = planner.buildRecoveryPlan(req)) {
             attempt.failureReason = kReasonStockout;
             attempt.recoveryPlanned = true;
+            recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::Stockout, registry);
             m_resourceAttempts.push_back(std::move(attempt));
             queue.tasks.pop_front();
             queue.tasks.insert(queue.tasks.begin(), plan->begin(), plan->end());
-
-            if (isVitalNeed(task.need)) {
-                bumpNeedBuffer(entity, task.need, kExperienceBumpStockoutVital, registry);
-            }
             return;
         }
 
         attempt.failureReason = kReasonPlanningFailed;
+        recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::PlanningFailed, registry);
         m_resourceAttempts.push_back(std::move(attempt));
-
-        if (isVitalNeed(task.need)) {
-            bumpNeedBuffer(entity, task.need, kExperienceBumpStockoutVital * 0.5f, registry);
-        }
         queue.tasks.pop_front();
         return;
     }
 
+    recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::None, registry);
     m_resourceAttempts.push_back(std::move(attempt));
     queue.tasks.pop_front();
 }
@@ -830,6 +812,7 @@ void ActionExecutor::processTake(entt::entity entity,
         attempt.resourceType = task.resource;
         attempt.wantedUnits = task.amount;
         attempt.failureReason = kReasonMissingInteraction;
+        recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::MissingInteraction, registry);
         m_resourceAttempts.push_back(std::move(attempt));
         queue.tasks.pop_front();
         return;
@@ -851,6 +834,7 @@ void ActionExecutor::processTake(entt::entity entity,
                 attempt.resourceType = task.resource;
                 attempt.wantedUnits = task.amount;
                 attempt.failureReason = unreachableWithDetail("NoPath");
+                recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::Unreachable, registry);
                 m_resourceAttempts.push_back(std::move(attempt));
                 queue.tasks.pop_front();
                 return;
@@ -872,6 +856,7 @@ void ActionExecutor::processTake(entt::entity entity,
                 attempt.resourceType = task.resource;
                 attempt.wantedUnits = task.amount;
                 attempt.failureReason = unreachableWithDetail("NoPortal");
+                recordResourceAttempt(entity, task, attempt, ResourceAttemptFailure::Unreachable, registry);
                 m_resourceAttempts.push_back(std::move(attempt));
                 queue.tasks.pop_front();
                 return;
@@ -905,9 +890,12 @@ void ActionExecutor::processTake(entt::entity entity,
     attempt.resourceType = task.resource;
     attempt.wantedUnits = want;
     attempt.obtainedUnits = taken;
+    ResourceAttemptFailure failure = ResourceAttemptFailure::None;
     if (taken == 0U) {
         attempt.failureReason = kReasonStockout;
+        failure = ResourceAttemptFailure::Stockout;
     }
+    recordResourceAttempt(entity, task, attempt, failure, registry);
     m_resourceAttempts.push_back(std::move(attempt));
     carried->add(task.resource, taken);
     queue.tasks.pop_front();

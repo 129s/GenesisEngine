@@ -54,9 +54,10 @@
 
 ## Tick 顺序（调度约束）
 当前调度顺序为（见 `src/simulation/Scheduler.cpp`）：
+0) `LearningSystem.update`：消费结构化 outcome，更新/遗忘学习参数（Experience/Beliefs）  
 1) `NeedSystem.update`：需求随时间上升  
 2) `NeedSatisfier.update`：选择目标并下发动作（若已有队列/移动则跳过）  
-3) `ActionExecutor.update`：执行 Consume/Take/Produce 与队列推进  
+3) `ActionExecutor.update`：执行 Consume/Take/Produce 与队列推进（并产出 outcome/attempt）  
 4) `Movement2DSystem.update`：根据 intent 推进位置（含跨图）  
 5) `ResourceSystem.tick`：源点 regen、库存腐败 decay
 

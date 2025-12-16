@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "genesis/agents/ActionSystem.hpp"
+#include "genesis/agents/Beliefs.hpp"
 #include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Needs.hpp"
 #include "genesis/agents/Movement2D.hpp"
@@ -139,6 +140,7 @@ void NeedSatisfier::update(entt::registry& registry,
         const float wDist = std::clamp(1.0f + 0.90f * conscientiousness - 0.70f * openness, 0.35f, 2.50f);
         const float wScar = std::clamp(1.0f + 1.20f * neuroticism + 0.60f * conscientiousness - 0.40f * openness, 0.20f, 3.00f);
         const float wCrowd = std::clamp(1.0f + 1.10f * neuroticism - 0.90f * extraversion + 0.60f * agreeableness, 0.20f, 3.00f);
+        const float wRisk = std::clamp(0.60f + 1.25f * neuroticism + 0.35f * conscientiousness - 0.25f * openness, 0.15f, 3.00f);
 
         const float crossMapMultiplier = std::clamp(1.10f - 0.75f * openness, 0.25f, 1.50f);
 
@@ -314,6 +316,13 @@ void NeedSatisfier::update(entt::registry& registry,
                 : (1.0f - static_cast<float>(spawnInfo.current) / static_cast<float>(spawnInfo.capacity));
             const float scarcityPenalty = scarcity01 * 50.0f;
             const float crowdPenalty = demandPenalty(interaction, previousTarget);
+            const float stockoutRisk01 = [&]() -> float {
+                if (const auto* beliefs = registry.try_get<components::AgentBeliefs>(entity)) {
+                    return std::clamp(beliefs->stockoutRisk(interaction), 0.0f, 1.0f);
+                }
+                return 0.15f;
+            }();
+            const float riskPenalty = stockoutRisk01 * std::max(0.0f, m_config.stockoutRiskPenalty);
             float jitter = 0.0f;
             if (noiseSigma > 0.0f) {
                 const std::uint64_t h = entitySeed
@@ -330,7 +339,12 @@ void NeedSatisfier::update(entt::registry& registry,
             c.travelCost = travelCost;
             c.units = unitsPerRequest;
             c.reliefPerUnit = reliefPerUnit;
-            c.score = urgency * 1000.0f - wDist * travelCost - wScar * scarcityPenalty - wCrowd * crowdPenalty + jitter;
+            c.score = urgency * 1000.0f
+                - wDist * travelCost
+                - wScar * scarcityPenalty
+                - wCrowd * crowdPenalty
+                - wRisk * riskPenalty
+                + jitter;
             return c;
         };
 

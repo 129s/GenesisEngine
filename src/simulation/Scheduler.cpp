@@ -1,6 +1,7 @@
 #include "genesis/simulation/Scheduler.hpp"
 
 #include "genesis/agents/ActionSystem.hpp"
+#include "genesis/agents/LearningSystem.hpp"
 #include "genesis/agents/NeedSatisfier.hpp"
 #include "genesis/agents/NeedSystem.hpp"
 #include "genesis/simulation/Movement2DSystem.hpp"
@@ -9,6 +10,9 @@
 namespace genesis::simulation {
 
 void Scheduler::update(entt::registry& registry, float deltaSeconds, std::uint64_t stepIndex) const {
+    if (m_learningSystem) {
+        m_learningSystem->update(registry, deltaSeconds);
+    }
     if (m_needSystem) {
         m_needSystem->update(registry, deltaSeconds);
     }

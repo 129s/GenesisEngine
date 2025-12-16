@@ -53,6 +53,7 @@ def _quantile(sorted_values: Sequence[float], q: float) -> float:
 @dataclass(frozen=True)
 class WorldlineWindow:
     index: int
+    steps: int
     metrics: Dict[str, float]
     counts: Dict[str, Dict[str, float]]
 
@@ -82,6 +83,7 @@ def _read_worldline(path: str) -> WorldlineRun:
                 continue
 
             idx = int(obj.get("index", len(windows)))
+            steps = int(obj.get("steps", 0))
             metrics_in = obj.get("metrics", {}) or {}
             counts_in = obj.get("counts", {}) or {}
 
@@ -100,7 +102,7 @@ def _read_worldline(path: str) -> WorldlineRun:
                         inner[str(k)] = float(v)
                 counts[str(group_key)] = inner
 
-            windows.append(WorldlineWindow(index=idx, metrics=metrics, counts=counts))
+            windows.append(WorldlineWindow(index=idx, steps=steps, metrics=metrics, counts=counts))
 
     windows.sort(key=lambda w: w.index)
     return WorldlineRun(path=path, meta=meta, windows=windows)
@@ -371,6 +373,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--top-motifs", type=int, default=40, help="Keep top-K motifs by support+coverage score.")
     ap.add_argument("--top-turns", type=int, default=8, help="Per-run turning point candidates to report.")
     ap.add_argument("--turn-k-features", type=int, default=6, help="Top-K feature deltas per turning point.")
+    ap.add_argument("--keep-partials", action="store_true", help="Keep partial last windows (steps < windowSteps).")
     ap.add_argument("--direction-margin", type=float, default=0.02, help="Minimum |corr_ab|-|corr_ba| to pick a direction.")
     ap.add_argument("--state-quantile", type=float, default=0.9, help="Quantile for 'high state' activation (low=1-q).")
     ap.add_argument("--min-windows", type=int, default=6, help="Ignore runs with fewer windows than this.")
@@ -381,6 +384,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     runs: List[WorldlineRun] = []
     for p in input_paths:
         r = _read_worldline(p)
+        # Drop partial last windows by default; they tend to dominate turning-point scores and correlations.
+        if not args.keep_partials:
+            win_steps = int(r.meta.get("windowSteps", 0) or 0) if isinstance(r.meta, dict) else 0
+            if win_steps > 0:
+                r = WorldlineRun(path=r.path, meta=r.meta, windows=[w for w in r.windows if int(w.steps) >= win_steps])
         if len(r.windows) >= args.min_windows:
             runs.append(r)
     if not runs:
@@ -553,7 +561,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     report = {
         "kind": "worldline_motif_report",
-        "schema_version": 2,
+        "schema_version": 3,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "params": {
             "input": args.input,
@@ -562,6 +570,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "top_motifs": args.top_motifs,
             "top_turns": args.top_turns,
             "turn_k_features": args.turn_k_features,
+            "keep_partials": bool(args.keep_partials),
             "direction_margin": args.direction_margin,
             "state_quantile": args.state_quantile,
             "min_windows": args.min_windows,

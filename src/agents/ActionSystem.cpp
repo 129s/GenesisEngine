@@ -506,45 +506,48 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
                 if (!isVitalNeed(criticalNeed)) {
                     // Social "critical" should not preempt work globally; it is handled by normal planning/actions.
                 } else {
-
-                const auto alreadyHasCriticalConsume = [&]() -> bool {
-                    for (const auto& t : queue.tasks) {
-                        if (t.type == ActionType::ConsumeResource && t.need == criticalNeed) {
-                            return true;
-                        }
-                    }
-                    return false;
-                };
-
-                const auto preemptForCriticalNeed = [&](bool mustAbortWorkshop) {
-                    bool inserted = false;
-                    if (!ensureCriticalConsume(criticalNeed, criticalResource, inserted)) {
-                        recordCriticalPreempt(entity, criticalNeed, registry);
-                        if (mustAbortWorkshop) {
-                            if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
-                                abortWorkshopJob(*job, criticalNeed);
-                                return;
+                    const auto alreadyHasCriticalConsume = [&]() -> bool {
+                        for (const auto& t : queue.tasks) {
+                            if (t.type == ActionType::ConsumeResource && t.need == criticalNeed) {
+                                return true;
                             }
                         }
-                        abandonAllActions();
-                        return;
-                    }
-                    if (inserted) {
-                        recordCriticalPreempt(entity, criticalNeed, registry);
-                    }
-                };
+                        return false;
+                    };
 
-                if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
-                    if (job->outputType != criticalResource && !alreadyHasCriticalConsume()) {
-                        // Take a break instead of throwing away progress: eat/drink first, then resume work.
-                        releaseWorkshopSlot(job->interaction, entity);
-                        preemptForCriticalNeed(true);
-                    }
-                } else if (!alreadyHasCriticalConsume()) {
-                    // Any non-critical work (including socializing) yields to vital needs.
-                    preemptForCriticalNeed(false);
-                }
+                    const auto preemptForCriticalNeed = [&](bool mustAbortWorkshop) {
+                        bool inserted = false;
+                        if (!ensureCriticalConsume(criticalNeed, criticalResource, inserted)) {
+                            recordCriticalPreempt(entity, criticalNeed, registry);
+                            if (mustAbortWorkshop) {
+                                if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
+                                    abortWorkshopJob(*job, criticalNeed);
+                                    return;
+                                }
+                            }
+                            abandonAllActions();
+                            return;
+                        }
+                        if (inserted) {
+                            recordCriticalPreempt(entity, criticalNeed, registry);
+                        }
+                    };
 
+                    if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
+                        if (job->outputType != criticalResource && !alreadyHasCriticalConsume()) {
+                            // Take a break instead of throwing away progress: eat/drink first, then resume work.
+                            releaseWorkshopSlot(job->interaction, entity);
+                            preemptForCriticalNeed(true);
+                        }
+                    } else if (!queue.tasks.empty() && !alreadyHasCriticalConsume()) {
+                        const auto& front = queue.tasks.front();
+                        const bool shouldYield =
+                            (front.type == ActionType::ProduceResource && front.resource != criticalResource)
+                            || (front.type == ActionType::SocializeWithAgent);
+                        if (shouldYield) {
+                            preemptForCriticalNeed(false);
+                        }
+                    }
                 }
             }
         }

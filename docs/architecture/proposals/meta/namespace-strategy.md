@@ -2,6 +2,19 @@
 
 > 目标：明确 GenesisEngine 代码库的命名空间标准，为后续逐步迁移提供依据。
 
+## 已落地（Phase 1：过渡别名）
+当前仓库已加入 **namespace alias 过渡层**，以便新代码/工具可以统一使用 `Genesis::` 写法，同时保持 ABI 与实现命名空间不变：
+- 头文件：`include/genesis/NamespaceAliases.hpp`
+- 约定：仅引入 alias，不进行 `namespace genesis::x` → `namespace Genesis::X` 的破坏性重命名。
+
+示例：
+```cpp
+#include "genesis/NamespaceAliases.hpp"
+#include "genesis/agents/Needs.hpp"
+
+Genesis::Agents::NeedType t = Genesis::Agents::NeedType::Hunger;
+```
+
 ## 现状与问题
 - 核心模块沿用小写 `genesis::core / genesis::worldgen / Genesis::Runtime`，Sandbox GUI 也已调整为 `genesis::sandbox::gui`，而 Style 子系统仍保持首字母大写的 `Genesis::Style`，不同约定并存。
 - 调用方在不同模块间切换时需要频繁添加双重 `namespace` 别名，降低可读性并增加出错概率。

@@ -1354,6 +1354,12 @@ void ActionExecutor::processSocialize(entt::entity entity,
         }
     }
 
+    // Record social interaction as a learning signal (handled by LearningSystem).
+    {
+        auto& outcomes = ensureOutcomeBuffer(entity, registry);
+        outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId});
+    }
+
     registry.remove<components::SocialJob>(entity);
     queue.tasks.pop_front();
 }

@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "genesis/agents/Beliefs.hpp"
 #include "genesis/agents/Experience.hpp"
@@ -92,6 +95,19 @@ void decayBeliefs(entt::registry& registry, float deltaSeconds, float forgetPerS
     return 1.0f;
 }
 
+[[nodiscard]] float socialShareWeight(const LearningSystemConfig& config, entt::entity receiver, const entt::registry& registry) noexcept {
+    if (!(config.socialBeliefShareStrength > 0.0f)) {
+        return 0.0f;
+    }
+    float agreeableness = 0.5f;
+    if (const auto* p = registry.try_get<AgentPersonalityBig5>(receiver)) {
+        agreeableness = std::clamp(p->agreeableness, 0.0f, 1.0f);
+    }
+    const float scale = learningScale(receiver, registry);
+    const float w = config.socialBeliefShareStrength * scale * (0.25f + 0.75f * agreeableness);
+    return std::clamp(w, 0.0f, 1.0f);
+}
+
 } // namespace
 
 LearningSystem::LearningSystem(LearningSystemConfig config)
@@ -102,9 +118,190 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
     decayBeliefs(registry, deltaSeconds, m_config.beliefForgetPerSecond);
 
     auto view = registry.view<components::AgentOutcomeBuffer>();
+
+    // --- Social belief sharing: build a stable set of unique interaction pairs for this tick. ---
+    struct SocialPair {
+        entt::entity a{entt::null};
+        entt::entity b{entt::null};
+
+        [[nodiscard]] bool operator<(const SocialPair& other) const noexcept {
+            const auto ai = static_cast<std::uint32_t>(entt::to_integral(a));
+            const auto bi = static_cast<std::uint32_t>(entt::to_integral(b));
+            const auto aj = static_cast<std::uint32_t>(entt::to_integral(other.a));
+            const auto bj = static_cast<std::uint32_t>(entt::to_integral(other.b));
+            if (ai != aj) return ai < aj;
+            return bi < bj;
+        }
+
+        [[nodiscard]] bool operator==(const SocialPair& other) const noexcept {
+            return a == other.a && b == other.b;
+        }
+    };
+
+    std::vector<SocialPair> socialPairs;
+    if (m_config.socialBeliefShareStrength > 0.0f && m_config.socialBeliefShareTopK > 0U) {
+        for (auto entity : view) {
+            const auto& outcomes = view.get<components::AgentOutcomeBuffer>(entity);
+            for (const auto& s : outcomes.socialInteractions) {
+                if (s.partnerEntityId == 0U) {
+                    continue;
+                }
+                const auto partner = static_cast<entt::entity>(s.partnerEntityId);
+                if (partner == entt::null || !registry.valid(partner)) {
+                    continue;
+                }
+                if (partner == entity) {
+                    continue;
+                }
+                SocialPair pair{entity, partner};
+                const auto ai = static_cast<std::uint32_t>(entt::to_integral(pair.a));
+                const auto bi = static_cast<std::uint32_t>(entt::to_integral(pair.b));
+                if (bi < ai) {
+                    std::swap(pair.a, pair.b);
+                }
+                socialPairs.push_back(pair);
+            }
+        }
+        std::sort(socialPairs.begin(), socialPairs.end());
+        socialPairs.erase(std::unique(socialPairs.begin(), socialPairs.end()), socialPairs.end());
+    }
+
+    // Snapshot beliefs to avoid order dependence in the main loop.
+    struct BeliefSnapshot {
+        float priorStockoutRisk{0.15f};
+        std::unordered_map<std::uint32_t, float> stockoutRiskEmaByInteraction;
+    };
+
+    std::unordered_map<std::uint32_t, BeliefSnapshot> beliefSnapshots;
+    beliefSnapshots.reserve(socialPairs.size() * 2U);
+    auto snapshotBeliefs = [&](entt::entity entity) {
+        const auto key = static_cast<std::uint32_t>(entt::to_integral(entity));
+        if (beliefSnapshots.find(key) != beliefSnapshots.end()) {
+            return;
+        }
+        if (const auto* beliefs = registry.try_get<components::AgentBeliefs>(entity)) {
+            BeliefSnapshot snap;
+            snap.priorStockoutRisk = beliefs->priorStockoutRisk;
+            snap.stockoutRiskEmaByInteraction.reserve(beliefs->interactions.size());
+            for (const auto& [interactionId, b] : beliefs->interactions) {
+                snap.stockoutRiskEmaByInteraction.emplace(interactionId, std::clamp(b.stockoutRiskEma, 0.0f, 1.0f));
+            }
+            beliefSnapshots.emplace(key, std::move(snap));
+        }
+    };
+
+    for (const auto& pair : socialPairs) {
+        snapshotBeliefs(pair.a);
+        snapshotBeliefs(pair.b);
+    }
+
+    struct BlendAccum {
+        float weightSum{0.0f};
+        float weightedValueSum{0.0f};
+    };
+
+    std::unordered_map<std::uint32_t, std::unordered_map<std::uint32_t, BlendAccum>> socialBlendByEntity;
+
+    auto topInteractionsToShare = [&](const BeliefSnapshot& src) {
+        struct Entry {
+            std::uint32_t interaction{0};
+            float risk{0.0f};
+            float deviation{0.0f};
+        };
+        std::vector<Entry> items;
+        items.reserve(src.stockoutRiskEmaByInteraction.size());
+        for (const auto& [interaction, risk] : src.stockoutRiskEmaByInteraction) {
+            const float dev = std::abs(risk - src.priorStockoutRisk);
+            if (dev < std::max(0.0f, m_config.socialBeliefShareMinDeviation)) {
+                continue;
+            }
+            items.push_back(Entry{interaction, risk, dev});
+        }
+        std::sort(items.begin(), items.end(), [](const Entry& a, const Entry& b) {
+            if (a.deviation != b.deviation) return a.deviation > b.deviation;
+            if (a.risk != b.risk) return a.risk > b.risk;
+            return a.interaction < b.interaction;
+        });
+        if (items.size() > m_config.socialBeliefShareTopK) {
+            items.resize(m_config.socialBeliefShareTopK);
+        }
+        return items;
+    };
+
+    auto addBlend = [&](entt::entity dst, std::uint32_t interaction, float w, float srcRisk) {
+        if (!(w > 0.0f)) {
+            return;
+        }
+        const auto key = static_cast<std::uint32_t>(entt::to_integral(dst));
+        auto& m = socialBlendByEntity[key];
+        auto& acc = m[interaction];
+        acc.weightSum += w;
+        acc.weightedValueSum += w * std::clamp(srcRisk, 0.0f, 1.0f);
+    };
+
+    for (const auto& pair : socialPairs) {
+        const auto aKey = static_cast<std::uint32_t>(entt::to_integral(pair.a));
+        const auto bKey = static_cast<std::uint32_t>(entt::to_integral(pair.b));
+        const auto aIt = beliefSnapshots.find(aKey);
+        const auto bIt = beliefSnapshots.find(bKey);
+        if (aIt == beliefSnapshots.end() || bIt == beliefSnapshots.end()) {
+            continue;
+        }
+
+        const float wab = socialShareWeight(m_config, pair.a, registry);
+        const float wba = socialShareWeight(m_config, pair.b, registry);
+        if (wab <= 0.0f && wba <= 0.0f) {
+            continue;
+        }
+
+        const auto topA = topInteractionsToShare(aIt->second);
+        const auto topB = topInteractionsToShare(bIt->second);
+
+        for (const auto& e : topB) {
+            addBlend(pair.a, e.interaction, wab, e.risk);
+        }
+        for (const auto& e : topA) {
+            addBlend(pair.b, e.interaction, wba, e.risk);
+        }
+    }
+
+    for (const auto& [entityKey, blends] : socialBlendByEntity) {
+        const auto entity = static_cast<entt::entity>(entityKey);
+        auto* beliefs = registry.try_get<components::AgentBeliefs>(entity);
+        if (!beliefs) {
+            continue;
+        }
+        const auto snapIt = beliefSnapshots.find(entityKey);
+        if (snapIt == beliefSnapshots.end()) {
+            continue;
+        }
+        const auto& snap = snapIt->second;
+
+        for (const auto& [interaction, acc] : blends) {
+            if (!(acc.weightSum > 0.0f)) {
+                continue;
+            }
+            float base = snap.priorStockoutRisk;
+            if (const auto it = snap.stockoutRiskEmaByInteraction.find(interaction); it != snap.stockoutRiskEmaByInteraction.end()) {
+                base = it->second;
+            }
+            const float srcMean = acc.weightedValueSum / acc.weightSum;
+            const float w = std::clamp(acc.weightSum, 0.0f, 1.0f);
+            const float blended = std::clamp(base * (1.0f - w) + srcMean * w, 0.0f, 1.0f);
+            auto& entry = beliefs->interactions[interaction];
+            if (entry.stockoutRiskEma < 0.0f || entry.stockoutRiskEma > 1.0f) {
+                entry.stockoutRiskEma = beliefs->priorStockoutRisk;
+            }
+            entry.stockoutRiskEma = blended;
+        }
+    }
+
     for (auto entity : view) {
         auto& outcomes = view.get<components::AgentOutcomeBuffer>(entity);
         if (outcomes.resourceAttempts.empty() && outcomes.criticalPreempts.empty()) {
+            if (!outcomes.socialInteractions.empty()) {
+                outcomes.clear();
+            }
             continue;
         }
 
@@ -179,4 +376,3 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
 }
 
 } // namespace genesis::agents
-

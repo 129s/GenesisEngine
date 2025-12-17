@@ -51,6 +51,36 @@ TEST(LearningSystemBeliefs, UpdatesStockoutRiskEma) {
     EXPECT_LT(afterSuccess, afterStockout);
 }
 
+TEST(LearningSystemBeliefs, SharesStockoutRiskViaSocialInteraction) {
+    entt::registry registry;
+    const auto a = registry.create();
+    const auto b = registry.create();
+
+    auto& beliefsA = registry.emplace<genesis::agents::components::AgentBeliefs>(a);
+    auto& beliefsB = registry.emplace<genesis::agents::components::AgentBeliefs>(b);
+
+    beliefsA.priorStockoutRisk = 0.15f;
+    beliefsB.priorStockoutRisk = 0.15f;
+
+    beliefsA.interactions[2000].stockoutRiskEma = 1.0f;
+    beliefsB.interactions[2000].stockoutRiskEma = 0.0f;
+
+    auto& outcomes = registry.emplace<genesis::agents::components::AgentOutcomeBuffer>(a);
+    outcomes.socialInteractions.push_back(genesis::agents::SocialInteractionOutcome{
+        static_cast<std::uint32_t>(entt::to_integral(b)),
+    });
+
+    genesis::agents::LearningSystemConfig cfg{};
+    cfg.socialBeliefShareStrength = 1.0f;
+    cfg.socialBeliefShareMinDeviation = 0.0f;
+    cfg.socialBeliefShareTopK = 1;
+    genesis::agents::LearningSystem learning(cfg);
+    learning.update(registry, 0.0f);
+
+    EXPECT_NEAR(beliefsA.stockoutRisk(2000), 0.375f, 1e-5f);
+    EXPECT_NEAR(beliefsB.stockoutRisk(2000), 0.625f, 1e-5f);
+}
+
 TEST(NeedSatisfierBeliefs, PenalizesHighStockoutRiskTarget) {
     genesis::world::InMemoryWorldDatabase db;
     db.addMap(genesis::world::Map{.id = 1, .name = "m1"});
@@ -119,4 +149,3 @@ TEST(NeedSatisfierBeliefs, PenalizesHighStockoutRiskTarget) {
 }
 
 } // namespace genesis::tests
-

@@ -31,6 +31,10 @@ struct CriticalPreemptOutcome {
     NeedType need{NeedType::Hunger};
 };
 
+struct SocialInteractionOutcome {
+    std::uint32_t partnerEntityId{0};
+};
+
 } // namespace genesis::agents
 
 namespace genesis::agents::components {
@@ -38,10 +42,12 @@ namespace genesis::agents::components {
 struct AgentOutcomeBuffer {
     std::vector<genesis::agents::ResourceAttemptOutcome> resourceAttempts;
     std::vector<genesis::agents::CriticalPreemptOutcome> criticalPreempts;
+    std::vector<genesis::agents::SocialInteractionOutcome> socialInteractions;
 
     void clear() noexcept {
         resourceAttempts.clear();
         criticalPreempts.clear();
+        socialInteractions.clear();
     }
 };
 

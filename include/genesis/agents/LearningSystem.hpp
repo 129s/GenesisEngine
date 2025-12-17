@@ -16,6 +16,11 @@ struct LearningSystemConfig {
     // --- Beliefs (EMA) ---
     float beliefStockoutAlpha{0.22f};
     float beliefForgetPerSecond{0.06f};
+
+    // --- Social belief sharing (when agents socialize) ---
+    float socialBeliefShareStrength{0.06f}; // 0 disables sharing
+    float socialBeliefShareMinDeviation{0.10f}; // ignore near-prior beliefs
+    std::uint32_t socialBeliefShareTopK{2}; // top-K interactions to share per partner
 };
 
 class LearningSystem {
@@ -29,4 +34,3 @@ private:
 };
 
 } // namespace genesis::agents
-

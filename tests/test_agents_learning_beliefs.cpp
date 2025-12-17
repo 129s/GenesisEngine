@@ -69,6 +69,7 @@ TEST(LearningSystemBeliefs, SharesStockoutRiskViaSocialInteraction) {
     outcomes.socialInteractions.push_back(genesis::agents::SocialInteractionOutcome{
         static_cast<std::uint32_t>(entt::to_integral(b)),
         true,
+        genesis::agents::SocialInteractionFailure::None,
     });
 
     genesis::agents::LearningSystemConfig cfg{};

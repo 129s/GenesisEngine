@@ -19,6 +19,9 @@ struct LearningSystemConfig {
 
     // --- Partner beliefs (EMA) ---
     float beliefPartnerReliabilityAlpha{0.18f};
+    float beliefPartnerRejectAlphaFactor{1.00f};
+    float beliefPartnerTimeoutAlphaFactor{0.35f};
+    float beliefPartnerNoShowAlphaFactor{1.25f};
     float beliefPartnerForgetPerSecond{0.03f};
     float beliefPartnerMinAbsDeviationToKeep{0.01f};
 

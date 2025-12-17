@@ -42,6 +42,9 @@ struct NeedSatisfierConfig {
     std::uint32_t socialInteractTicksPerUnit{8};
     std::function<world::InteractionId(entt::entity)> socialPreferredLocator{};
 
+    // Social negotiation (meet proposals).
+    std::uint32_t socialMeetProposalTtlSteps{160};
+
     // Social partner preference based on learned relationships.
     // Bonus is multiplied by affinity in [-1, 1] and personality-scaled in NeedSatisfier.
     float socialPartnerAffinityBonus{140.0f};

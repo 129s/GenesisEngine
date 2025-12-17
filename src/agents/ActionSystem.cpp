@@ -50,6 +50,10 @@ components::AgentOutcomeBuffer& ensureOutcomeBuffer(entt::entity entity, entt::r
     return registry.get_or_emplace<components::AgentOutcomeBuffer>(entity);
 }
 
+[[nodiscard]] bool isNullEntityId(std::uint32_t id) noexcept {
+    return static_cast<entt::entity>(id) == entt::null;
+}
+
 void recordCriticalPreempt(entt::entity entity, NeedType need, entt::registry& registry) {
     auto& outcomes = ensureOutcomeBuffer(entity, registry);
     outcomes.criticalPreempts.push_back(CriticalPreemptOutcome{need});
@@ -333,7 +337,7 @@ void ActionExecutor::requestSocialize(entt::entity entity,
                                       std::uint32_t workTicks,
                                       float relief,
                                       entt::registry& registry) {
-    if (partnerEntityId == 0U) {
+    if (isNullEntityId(partnerEntityId)) {
         return;
     }
 
@@ -612,7 +616,7 @@ bool ActionExecutor::hasPendingConsume(const ActionQueue& queue,
 }
 
 bool ActionExecutor::hasPendingSocialize(const ActionQueue& queue, std::uint32_t partnerEntityId) const {
-    if (partnerEntityId == 0U) {
+    if (isNullEntityId(partnerEntityId)) {
         return false;
     }
     return std::any_of(queue.tasks.begin(), queue.tasks.end(), [&](const ActionTask& task) {
@@ -1283,9 +1287,12 @@ void ActionExecutor::processSocialize(entt::entity entity,
     const auto partner = static_cast<entt::entity>(task.targetEntityId);
     if (partner == entt::null || !registry.valid(partner) || !registry.all_of<components::AgentLocation2D>(partner)) {
         // Record failed attempt as a learning signal (handled by LearningSystem).
-        if (task.targetEntityId != 0U) {
+        if (!isNullEntityId(task.targetEntityId)) {
             auto& outcomes = ensureOutcomeBuffer(entity, registry);
-            outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId, false});
+            outcomes.socialInteractions.push_back(SocialInteractionOutcome{
+                task.targetEntityId,
+                false,
+                SocialInteractionFailure::Reject});
         }
         queue.tasks.pop_front();
         if (registry.any_of<components::SocialJob>(entity)) {
@@ -1297,9 +1304,12 @@ void ActionExecutor::processSocialize(entt::entity entity,
     const auto& partnerLoc = registry.get<components::AgentLocation2D>(partner);
     if (partnerLoc.mapId != location.mapId) {
         // Record failed attempt as a learning signal (handled by LearningSystem).
-        if (task.targetEntityId != 0U) {
+        if (!isNullEntityId(task.targetEntityId)) {
             auto& outcomes = ensureOutcomeBuffer(entity, registry);
-            outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId, false});
+            outcomes.socialInteractions.push_back(SocialInteractionOutcome{
+                task.targetEntityId,
+                false,
+                SocialInteractionFailure::Reject});
         }
         queue.tasks.pop_front();
         if (registry.any_of<components::SocialJob>(entity)) {
@@ -1334,6 +1344,60 @@ void ActionExecutor::processSocialize(entt::entity entity,
         return;
     }
 
+    const auto partnerAccepts = [&]() -> bool {
+        // If the partner is already engaged in another social job, treat as unavailable.
+        if (const auto* pJob = registry.try_get<components::SocialJob>(partner)) {
+            return pJob->partnerEntityId == static_cast<std::uint32_t>(entt::to_integral(entity));
+        }
+
+        // If the partner is busy with a non-social action, require explicit reciprocity.
+        const auto selfId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        bool partnerReciprocates = false;
+        if (const auto* pQueue = registry.try_get<ActionQueue>(partner)) {
+            partnerReciprocates = std::any_of(pQueue->tasks.begin(), pQueue->tasks.end(), [&](const ActionTask& t) {
+                return t.type == ActionType::SocializeWithAgent && t.targetEntityId == selfId;
+            });
+
+            if (!pQueue->tasks.empty() && !partnerReciprocates) {
+                return false;
+            }
+        }
+
+        // Otherwise, accept if the partner actually wants social contact (based on their own need),
+        // or if they have explicitly reciprocated via their current plan.
+        if (partnerReciprocates) {
+            return true;
+        }
+
+        const auto* pNeeds = registry.try_get<NeedComponent>(partner);
+        if (!pNeeds) {
+            // In runtime every agent has needs; keep behavior permissive for simplified unit tests.
+            return true;
+        }
+        const auto* pState = pNeeds->needs.state(NeedType::Social);
+        const auto* pDesc = pNeeds->needs.descriptor(NeedType::Social);
+        if (!pState || !pDesc) {
+            return true;
+        }
+        const float denom = std::max(1.0f, pDesc->maxValue - pDesc->satisfiedThreshold);
+        const float urgency01 = std::clamp((pState->value - pDesc->satisfiedThreshold) / denom, 0.0f, 1.0f);
+        return urgency01 >= 0.10f;
+    }();
+
+    if (!partnerAccepts) {
+        // Record failed attempt as a learning signal (handled by LearningSystem).
+        if (!isNullEntityId(task.targetEntityId)) {
+            auto& outcomes = ensureOutcomeBuffer(entity, registry);
+            outcomes.socialInteractions.push_back(SocialInteractionOutcome{
+                task.targetEntityId,
+                false,
+                SocialInteractionFailure::Reject});
+        }
+        registry.remove<components::SocialJob>(entity);
+        queue.tasks.pop_front();
+        return;
+    }
+
     auto* needs = registry.try_get<NeedComponent>(entity);
     if (needs) {
         auto* state = needs->needs.state(NeedType::Social);
@@ -1364,10 +1428,31 @@ void ActionExecutor::processSocialize(entt::entity entity,
         }
     }
 
+    // If the partner had a reciprocal social action targeting this agent, clear it to avoid duplicate work
+    // and order-dependent "snub" outcomes.
+    {
+        const auto selfId = static_cast<std::uint32_t>(entt::to_integral(entity));
+        if (auto* pQueue = registry.try_get<ActionQueue>(partner)) {
+            auto& tasks = pQueue->tasks;
+            tasks.erase(std::remove_if(tasks.begin(), tasks.end(), [&](const ActionTask& t) {
+                return t.type == ActionType::SocializeWithAgent && t.targetEntityId == selfId;
+            }), tasks.end());
+        }
+        if (registry.any_of<components::SocialJob>(partner)) {
+            auto& pJob = registry.get<components::SocialJob>(partner);
+            if (pJob.partnerEntityId == selfId) {
+                registry.remove<components::SocialJob>(partner);
+            }
+        }
+    }
+
     // Record social interaction as a learning signal (handled by LearningSystem).
     {
         auto& outcomes = ensureOutcomeBuffer(entity, registry);
-        outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId, true});
+        outcomes.socialInteractions.push_back(SocialInteractionOutcome{
+            task.targetEntityId,
+            true,
+            SocialInteractionFailure::None});
     }
 
     registry.remove<components::SocialJob>(entity);

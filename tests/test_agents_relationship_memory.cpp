@@ -7,6 +7,7 @@
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/LearningSystem.hpp"
 #include "genesis/agents/Movement2D.hpp"
+#include "genesis/agents/NeedSystem.hpp"
 #include "genesis/agents/Relations.hpp"
 #include "genesis/messaging/EventBus.hpp"
 #include "genesis/world/WorldDatabase.hpp"
@@ -30,6 +31,23 @@ TEST(AgentsRelationshipMemory, BondsFormViaSuccessfulSocialize) {
 
     registry.emplace<genesis::agents::components::AgentLocation2D>(a, genesis::agents::components::AgentLocation2D{1, 0.0f, 0.0f});
     registry.emplace<genesis::agents::components::AgentLocation2D>(b, genesis::agents::components::AgentLocation2D{1, 0.0f, 0.0f});
+
+    genesis::agents::NeedDescriptor social{};
+    social.type = genesis::agents::NeedType::Social;
+    social.minValue = 0.0f;
+    social.maxValue = 100.0f;
+    social.satisfiedThreshold = 30.0f;
+    social.criticalThreshold = 80.0f;
+
+    genesis::agents::NeedComponent needsA{};
+    needsA.needs.setDescriptor(social);
+    needsA.needs.setState(genesis::agents::NeedType::Social, 90.0f);
+    registry.emplace<genesis::agents::NeedComponent>(a, needsA);
+
+    genesis::agents::NeedComponent needsB{};
+    needsB.needs.setDescriptor(social);
+    needsB.needs.setState(genesis::agents::NeedType::Social, 90.0f);
+    registry.emplace<genesis::agents::NeedComponent>(b, needsB);
 
     actions.requestSocialize(a, static_cast<std::uint32_t>(entt::to_integral(b)), 1, 10.0f, registry);
 
@@ -60,4 +78,3 @@ TEST(AgentsRelationshipMemory, BondsFormViaSuccessfulSocialize) {
 }
 
 } // namespace genesis::tests
-

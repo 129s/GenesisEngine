@@ -12,6 +12,9 @@ namespace genesis::agents {
 enum class AffordanceKind : std::uint8_t {
     ConsumeFromInteraction,
     SocializeWithAgent,
+    ProposeMeetWithAgent,
+    AttendMeeting,
+    RejectMeeting,
 };
 
 struct Affordance {
@@ -35,4 +38,3 @@ struct Affordance {
 };
 
 } // namespace genesis::agents
-

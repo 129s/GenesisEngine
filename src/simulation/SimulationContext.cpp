@@ -8,6 +8,7 @@
 #include "genesis/agents/Beliefs.hpp"
 #include "genesis/agents/Commitments.hpp"
 #include "genesis/agents/Experience.hpp"
+#include "genesis/agents/Meetings.hpp"
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/agents/Outcomes.hpp"
 #include "genesis/agents/Personality.hpp"
@@ -125,6 +126,8 @@ std::uint32_t SimulationContext::createAgent(const AgentSpawnParams2D& params) {
     m_registry.emplace<agents::components::AgentExperience>(entity);
     m_registry.emplace<agents::components::AgentBeliefs>(entity);
     m_registry.emplace<agents::components::AgentCommitment>(entity);
+    m_registry.emplace<agents::components::AgentSocialInbox>(entity);
+    m_registry.emplace<agents::components::AgentSocialMeetState>(entity);
     m_registry.emplace<agents::components::AgentOutcomeBuffer>(entity);
 
     if (params.initialMovement) {

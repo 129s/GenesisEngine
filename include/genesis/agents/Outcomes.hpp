@@ -31,9 +31,17 @@ struct CriticalPreemptOutcome {
     NeedType need{NeedType::Hunger};
 };
 
+enum class SocialInteractionFailure : std::uint8_t {
+    None = 0,
+    Reject,
+    Timeout,
+    NoShow
+};
+
 struct SocialInteractionOutcome {
     std::uint32_t partnerEntityId{0};
     bool success{true};
+    SocialInteractionFailure failure{SocialInteractionFailure::None};
 };
 
 } // namespace genesis::agents

@@ -132,6 +132,10 @@ Learning 的职责是把 outcome 写回可学习参数（“怎么做/怎么预�
 - 取消“对方在移动就过滤掉”的硬规则；用 success 概率、等待成本与违约后果表达。
 - 引入 outcome：拒绝/爽约/延期，进入 beliefs/attitudes 学习。
 
+当前落地子集（v0）：
+- `include/genesis/agents/Meetings.hpp`：`AgentSocialInbox`（proposal 收件箱）+ `AgentSocialMeetState`（会合承诺）。
+- `src/agents/NeedSatisfier.cpp`：以 `ProposeMeetWithAgent/AttendMeeting` 两类 affordance 形成“提议→接受→奔赴固定会合点→等待→会合后触发一次社交”的最小闭环；到期未会合写入失败 `SocialInteractionOutcome`，驱动 `beliefs.meetReliability` 学习。
+
 ## 5. 非目标（明确避免）
 
 - 不在 runtime 内置“章节/标题/母题词表/剧情注入”。

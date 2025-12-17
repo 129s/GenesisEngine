@@ -42,6 +42,9 @@
 - **承诺（Commitment v0）**
   - `genesis::agents::components::AgentCommitment`：对当前选择的目标形成“短期持有”的承诺（`include/genesis/agents/Commitments.hpp`）。
   - 作用：把“保持目标/减少抖动”的行为从特殊分支抽象为承诺对象；切换目标存在 break 代价（在 hold 窗口内更强，窗口外弱化）。
+- **社交协商（Meet v0）**
+  - `genesis::agents::components::AgentSocialInbox`：收件箱（meet proposal 列表），用于 `propose/accept/timeout` 的最小协商闭环（`include/genesis/agents/Meetings.hpp`）。
+  - `genesis::agents::components::AgentSocialMeetState`：会合承诺（Proposed/Accepted），失败原因细分为 Reject/Timeout/NoShow，并写入 outcome 供学习（`include/genesis/agents/Meetings.hpp`、`include/genesis/agents/Outcomes.hpp`）。
 - **位置/移动**
   - `genesis::agents::components::AgentLocation2D`：Agent 当前所在 `mapId` 与 2D 坐标（`include/genesis/agents/Movement2D.hpp`）。
   - `genesis::agents::components::MovementIntent2D`：当前运动目标与速度（`include/genesis/agents/Movement2D.hpp`）。
@@ -67,7 +70,7 @@
   - 执行行动队列；必要时插入 `MoveToInteraction`；
   - `ConsumeResource/TakeResource`：从 `ResourceSystem` 消耗资源，写 Telemetry Attempt；
   - `ProduceResource`：解析工坊配方，消耗输入并向工坊库存产出；
-  - `SocializeWithAgent`：接近指定 partner 并进行定时社交；接触成功时双方降低 Social need；同时写入社交 outcome 供学习系统消费（`src/agents/ActionSystem.cpp`）。
+  - `SocializeWithAgent`：接近指定 partner 并进行定时社交；当 partner **接受**（互相选择或 partner 自身也需要社交）时双方降低 Social need；否则记录失败 outcome 作为学习信号（`src/agents/ActionSystem.cpp`）。
   - 若 `ConsumeResource` 因缺货失败，会调用 `ProductionPlanner` 自动补链（`src/agents/ActionSystem.cpp`、`src/agents/ProductionPlanner.cpp`）。
 - **Movement2DSystem**
   - 处理 `MovementIntent2D`，在地图内直线移动；跨图时走 Portal（`src/simulation/Movement2DSystem.cpp`）。

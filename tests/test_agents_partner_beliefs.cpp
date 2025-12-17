@@ -26,8 +26,14 @@ TEST(LearningSystemBeliefs, UpdatesPartnerMeetReliabilityEma) {
     registry.emplace<genesis::agents::components::AgentBeliefs>(b);
 
     auto& outA = registry.emplace<genesis::agents::components::AgentOutcomeBuffer>(a);
-    outA.socialInteractions.push_back(genesis::agents::SocialInteractionOutcome{static_cast<std::uint32_t>(entt::to_integral(b)), false});
-    outA.socialInteractions.push_back(genesis::agents::SocialInteractionOutcome{static_cast<std::uint32_t>(entt::to_integral(b)), true});
+    outA.socialInteractions.push_back(genesis::agents::SocialInteractionOutcome{
+        static_cast<std::uint32_t>(entt::to_integral(b)),
+        false,
+        genesis::agents::SocialInteractionFailure::Reject});
+    outA.socialInteractions.push_back(genesis::agents::SocialInteractionOutcome{
+        static_cast<std::uint32_t>(entt::to_integral(b)),
+        true,
+        genesis::agents::SocialInteractionFailure::None});
 
     genesis::agents::LearningSystemConfig cfg{};
     cfg.beliefPartnerForgetPerSecond = 0.0f;
@@ -100,4 +106,3 @@ TEST(NeedSatisfierBeliefs, PrefersReliableSocialPartner) {
 }
 
 } // namespace genesis::tests
-

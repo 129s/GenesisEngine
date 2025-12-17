@@ -27,6 +27,10 @@ namespace {
     }
 }
 
+[[nodiscard]] bool isNullEntityId(std::uint32_t id) noexcept {
+    return static_cast<entt::entity>(id) == entt::null;
+}
+
 void decayExperience(entt::registry& registry,
                      float deltaSeconds,
                      float minMultiplier,
@@ -198,6 +202,7 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
         entt::entity src{entt::null};
         entt::entity dst{entt::null};
         bool success{true};
+        SocialInteractionFailure failure{SocialInteractionFailure::None};
 
         [[nodiscard]] bool operator<(const DirectedSocial& other) const noexcept {
             const auto si = static_cast<std::uint32_t>(entt::to_integral(src));
@@ -206,6 +211,7 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
             const auto dj = static_cast<std::uint32_t>(entt::to_integral(other.dst));
             if (si != sj) return si < sj;
             if (di != dj) return di < dj;
+            if (failure != other.failure) return static_cast<int>(failure) < static_cast<int>(other.failure);
             return static_cast<int>(success) < static_cast<int>(other.success);
         }
     };
@@ -215,14 +221,14 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
     for (auto entity : view) {
         const auto& outcomes = view.get<components::AgentOutcomeBuffer>(entity);
         for (const auto& s : outcomes.socialInteractions) {
-            if (s.partnerEntityId == 0U) {
+            if (isNullEntityId(s.partnerEntityId)) {
                 continue;
             }
             const auto partner = static_cast<entt::entity>(s.partnerEntityId);
             if (partner == entt::null || !registry.valid(partner) || partner == entity) {
                 continue;
             }
-            directedSocial.push_back(DirectedSocial{entity, partner, s.success});
+            directedSocial.push_back(DirectedSocial{entity, partner, s.success, s.failure});
         }
     }
     std::sort(directedSocial.begin(), directedSocial.end());
@@ -266,13 +272,30 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
                 continue;
             }
             const float scale = learningScale(e.src, registry);
-            const float alpha = std::clamp(m_config.beliefPartnerReliabilityAlpha * scale, 0.0f, 1.0f);
+            float alphaFactor = 1.0f;
+            if (!e.success) {
+                switch (e.failure) {
+                case SocialInteractionFailure::Reject:
+                    alphaFactor = m_config.beliefPartnerRejectAlphaFactor;
+                    break;
+                case SocialInteractionFailure::Timeout:
+                    alphaFactor = m_config.beliefPartnerTimeoutAlphaFactor;
+                    break;
+                case SocialInteractionFailure::NoShow:
+                    alphaFactor = m_config.beliefPartnerNoShowAlphaFactor;
+                    break;
+                default:
+                    alphaFactor = 1.0f;
+                    break;
+                }
+            }
+            const float alpha = std::clamp(m_config.beliefPartnerReliabilityAlpha * scale * std::max(0.0f, alphaFactor), 0.0f, 1.0f);
             if (alpha <= 0.0f) {
                 continue;
             }
 
             const auto partnerKey = static_cast<std::uint32_t>(entt::to_integral(e.dst));
-            if (partnerKey == 0U) {
+            if (isNullEntityId(partnerKey)) {
                 continue;
             }
             auto& entry = beliefs->partners[partnerKey];
@@ -308,7 +331,10 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
         for (auto entity : view) {
             const auto& outcomes = view.get<components::AgentOutcomeBuffer>(entity);
             for (const auto& s : outcomes.socialInteractions) {
-                if (s.partnerEntityId == 0U) {
+                if (!s.success) {
+                    continue;
+                }
+                if (isNullEntityId(s.partnerEntityId)) {
                     continue;
                 }
                 const auto partner = static_cast<entt::entity>(s.partnerEntityId);

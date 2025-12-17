@@ -12,6 +12,8 @@
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/Affordances.hpp"
 #include "genesis/agents/Commitments.hpp"
+#include "genesis/agents/Meetings.hpp"
+#include "genesis/agents/Outcomes.hpp"
 #include "genesis/agents/PlannerTargetEncoding.hpp"
 #include "genesis/agents/Beliefs.hpp"
 #include "genesis/agents/Experience.hpp"
@@ -36,6 +38,14 @@ namespace {
 
 [[nodiscard]] entt::entity decodeAgentTarget(std::uint32_t target) noexcept {
     return static_cast<entt::entity>(decodeAgentPlannerTargetEntityId(target));
+}
+
+[[nodiscard]] std::uint32_t entityId(entt::entity entity) noexcept {
+    return static_cast<std::uint32_t>(entt::to_integral(entity));
+}
+
+[[nodiscard]] bool isNullEntityId(std::uint32_t id) noexcept {
+    return static_cast<entt::entity>(id) == entt::null;
 }
 
 [[nodiscard]] std::uint64_t mix_u64(std::uint64_t x) noexcept {
@@ -67,6 +77,58 @@ NeedSample ensureSample(const NeedComponent& component,
     sample.satisfied = state.value <= descriptor.satisfiedThreshold;
     sample.critical = state.value >= descriptor.criticalThreshold;
     return sample;
+}
+
+[[nodiscard]] std::optional<world::InteractionId> chooseRendezvousInteraction(const world::WorldDatabase& db,
+                                                                             const components::AgentLocation2D& a,
+                                                                             const components::AgentLocation2D& b) {
+    if (a.mapId == 0 || a.mapId != b.mapId) {
+        return std::nullopt;
+    }
+    const auto interactions = db.interactions(a.mapId);
+    if (interactions.empty()) {
+        return std::nullopt;
+    }
+
+    const float mx = 0.5f * (a.x + b.x);
+    const float my = 0.5f * (a.y + b.y);
+
+    std::optional<world::InteractionId> bestId;
+    float bestDist2 = std::numeric_limits<float>::infinity();
+
+    for (const auto& inter : interactions) {
+        if (inter.kind == world::InteractionKind::Portal) {
+            continue;
+        }
+        const auto coord = inter.worldCoord();
+        const float ix = static_cast<float>(coord.first);
+        const float iy = static_cast<float>(coord.second);
+        const float dx = ix - mx;
+        const float dy = iy - my;
+        const float d2 = dx * dx + dy * dy;
+        if (!bestId || d2 < bestDist2) {
+            bestId = inter.id;
+            bestDist2 = d2;
+        }
+    }
+
+    return bestId;
+}
+
+[[nodiscard]] bool isAtInteraction(const world::WorldDatabase& db,
+                                  const components::AgentLocation2D& loc,
+                                  world::InteractionId interaction) {
+    if (interaction == 0) {
+        return false;
+    }
+    const auto it = db.findInteraction(interaction);
+    if (!it) {
+        return false;
+    }
+    const auto coord = it->worldCoord();
+    const float tx = static_cast<float>(coord.first);
+    const float ty = static_cast<float>(coord.second);
+    return (loc.mapId == it->mapId && loc.x == tx && loc.y == ty);
 }
 
 } // namespace
@@ -128,6 +190,68 @@ void NeedSatisfier::update(entt::registry& registry,
     for (auto entity : view) {
         auto& component = view.get<NeedComponent>(entity);
         const auto& location = view.get<components::AgentLocation2D>(entity);
+        const auto selfId = entityId(entity);
+
+        auto& meetState = registry.get_or_emplace<components::AgentSocialMeetState>(entity);
+        auto& inbox = registry.get_or_emplace<components::AgentSocialInbox>(entity);
+
+        // Purge expired proposals (bounded growth).
+        if (!inbox.proposals.empty()) {
+            inbox.proposals.erase(std::remove_if(inbox.proposals.begin(), inbox.proposals.end(), [&](const components::SocialMeetProposal& p) {
+                return isNullEntityId(p.fromEntityId) || p.meetingInteractionId == 0U || stepIndex >= p.expireAtStep;
+            }), inbox.proposals.end());
+        }
+
+        const auto recordMeetFailure = [&](entt::entity src, std::uint32_t dstId, SocialInteractionFailure reason) {
+            if (isNullEntityId(dstId)) {
+                return;
+            }
+            auto& outcomes = registry.get_or_emplace<components::AgentOutcomeBuffer>(src);
+            outcomes.socialInteractions.push_back(SocialInteractionOutcome{dstId, false, reason});
+        };
+
+        if (meetState.status != components::SocialMeetStatus::None) {
+            if (isNullEntityId(meetState.partnerEntityId) || meetState.meetingInteractionId == 0U) {
+                meetState = {};
+            } else if (!db.findInteraction(meetState.meetingInteractionId)) {
+                const auto reason = (meetState.status == components::SocialMeetStatus::Accepted)
+                    ? SocialInteractionFailure::NoShow
+                    : SocialInteractionFailure::Timeout;
+                recordMeetFailure(entity, meetState.partnerEntityId, reason);
+                meetState = {};
+            } else if (stepIndex >= meetState.expireAtStep) {
+                const auto partnerEntity = static_cast<entt::entity>(meetState.partnerEntityId);
+                const auto partnerId = meetState.partnerEntityId;
+                const auto reason = (meetState.status == components::SocialMeetStatus::Accepted)
+                    ? SocialInteractionFailure::NoShow
+                    : SocialInteractionFailure::Timeout;
+
+                if (meetState.status == components::SocialMeetStatus::Proposed) {
+                    // Only the proposer holds this state, so always record the failure.
+                    recordMeetFailure(entity, partnerId, reason);
+                    if (registry.valid(partnerEntity)) {
+                        if (auto* pMeet = registry.try_get<components::AgentSocialMeetState>(partnerEntity)) {
+                            if (pMeet->partnerEntityId == selfId && pMeet->meetingInteractionId == meetState.meetingInteractionId) {
+                                *pMeet = {};
+                            }
+                        }
+                    }
+                } else if (meetState.status == components::SocialMeetStatus::Accepted) {
+                    if (registry.valid(partnerEntity) && selfId < partnerId) {
+                        recordMeetFailure(entity, partnerId, reason);
+                        recordMeetFailure(partnerEntity, selfId, reason);
+                        if (auto* pMeet = registry.try_get<components::AgentSocialMeetState>(partnerEntity)) {
+                            if (pMeet->partnerEntityId == selfId && pMeet->meetingInteractionId == meetState.meetingInteractionId) {
+                                *pMeet = {};
+                            }
+                        }
+                    } else if (!registry.valid(partnerEntity)) {
+                        recordMeetFailure(entity, partnerId, reason);
+                    }
+                }
+                meetState = {};
+            }
+        }
 
         if (actionExecutor && actionExecutor->hasPendingActions(entity, registry)) {
             continue;
@@ -165,6 +289,61 @@ void NeedSatisfier::update(entt::registry& registry,
             * std::clamp(0.65f + 0.85f * conscientiousness + 0.25f * neuroticism, 0.25f, 2.25f);
 
         auto& commitment = registry.get_or_emplace<components::AgentCommitment>(entity);
+
+        // If a rendezvous has been accepted, treat it as a strong short-term commitment:
+        // go to the meeting point and wait, unless a vital need is already critical.
+        if (meetState.status == components::SocialMeetStatus::Accepted && actionExecutor) {
+            const bool hungerCritical = [&]() {
+                if (const auto* state = component.needs.state(NeedType::Hunger)) {
+                    if (const auto* desc = component.needs.descriptor(NeedType::Hunger)) {
+                        return state->value >= desc->criticalThreshold;
+                    }
+                }
+                return false;
+            }();
+            const bool thirstCritical = [&]() {
+                if (const auto* state = component.needs.state(NeedType::Thirst)) {
+                    if (const auto* desc = component.needs.descriptor(NeedType::Thirst)) {
+                        return state->value >= desc->criticalThreshold;
+                    }
+                }
+                return false;
+            }();
+
+            if (!(hungerCritical || thirstCritical)) {
+                const auto partnerEntity = static_cast<entt::entity>(meetState.partnerEntityId);
+                const bool atMeet = isAtInteraction(db, location, meetState.meetingInteractionId);
+                if (!atMeet) {
+                    actionExecutor->requestMoveToInteraction(entity, meetState.meetingInteractionId, 1.0f, registry);
+                    continue;
+                }
+
+                if (partnerEntity != entt::null
+                    && registry.valid(partnerEntity)
+                    && registry.all_of<components::AgentLocation2D>(partnerEntity)) {
+                    const auto& partnerLoc = registry.get<components::AgentLocation2D>(partnerEntity);
+                    if (isAtInteraction(db, partnerLoc, meetState.meetingInteractionId)) {
+                        if (auto* pMeet = registry.try_get<components::AgentSocialMeetState>(partnerEntity)) {
+                            if (pMeet->status == components::SocialMeetStatus::Accepted
+                                && pMeet->partnerEntityId == selfId
+                                && pMeet->meetingInteractionId == meetState.meetingInteractionId) {
+                                const auto partnerId = meetState.partnerEntityId;
+                                if (selfId < partnerId) {
+                                    const auto ticks = std::max<std::uint32_t>(1U, m_config.socialInteractTicksPerUnit);
+                                    actionExecutor->requestSocialize(entity, partnerId, ticks, m_config.socialReliefPerUnit, registry);
+                                    meetState = {};
+                                    *pMeet = {};
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                // Wait at the rendezvous.
+                continue;
+            }
+        }
 
         const auto quantize01u16 = [](float v) -> std::uint64_t {
             const float clamped = std::clamp(v, 0.0f, 1.0f);
@@ -452,6 +631,237 @@ void NeedSatisfier::update(entt::registry& registry,
             return c;
         };
 
+        const auto buildSocialProposalCandidate = [&](NeedType need,
+                                                      std::uint32_t unitsPerRequest,
+                                                      float reliefPerUnit,
+                                                      float activation,
+                                                      entt::entity partnerEntity,
+                                                      world::InteractionId meetingInteraction,
+                                                      float partnerUrgency01,
+                                                      float partnerAvailability01) -> std::optional<Candidate> {
+            if (partnerEntity == entt::null || !registry.valid(partnerEntity) || meetingInteraction == 0) {
+                return std::nullopt;
+            }
+            if (!registry.all_of<components::AgentLocation2D>(partnerEntity)) {
+                return std::nullopt;
+            }
+            const auto& partnerLoc = registry.get<components::AgentLocation2D>(partnerEntity);
+            if (partnerLoc.mapId != location.mapId) {
+                return std::nullopt;
+            }
+
+            const auto it = db.findInteraction(meetingInteraction);
+            if (!it || it->mapId != location.mapId || it->kind == world::InteractionKind::Portal) {
+                return std::nullopt;
+            }
+
+            const auto coord = it->worldCoord();
+            const float mx = static_cast<float>(coord.first);
+            const float my = static_cast<float>(coord.second);
+            const float dx = mx - location.x;
+            const float dy = my - location.y;
+            const float travelCost = dx * dx + dy * dy;
+
+            const float crowdPenalty = demandPenalty(meetingInteraction, previousTarget);
+            float jitter = 0.0f;
+            if (noiseSigma > 0.0f) {
+                const std::uint64_t h = entitySeed
+                    ^ (static_cast<std::uint64_t>(stepIndex) * 0x9E3779B97F4A7C15ull)
+                    ^ (static_cast<std::uint64_t>(meetingInteraction) * 0xD1B54A32D192ED03ull)
+                    ^ (static_cast<std::uint64_t>(needIndex(need)) * 0x94D049BB133111EBull);
+                jitter = signed01_from_u64(h) * noiseSigma;
+            }
+
+            // Prefer partners who also want social contact (more "natural" interactions).
+            const float partnerBonus = 160.0f * std::clamp(partnerUrgency01, 0.0f, 1.0f);
+
+            float affinity = 0.0f;
+            if (const auto* rel = registry.try_get<components::AgentRelations>(entity)) {
+                const auto partnerKey = entityId(partnerEntity);
+                if (const auto it2 = rel->affinityByPartner.find(partnerKey); it2 != rel->affinityByPartner.end()) {
+                    affinity = std::clamp(it2->second, -1.0f, 1.0f);
+                }
+            }
+
+            const float affinityWeight =
+                std::max(0.0f, m_config.socialPartnerAffinityBonus)
+                * std::clamp(0.25f + 0.75f * agreeableness, 0.0f, 1.0f)
+                * std::clamp(0.25f + 0.75f * (1.0f - openness), 0.0f, 1.0f);
+            const float affinityBonus = affinityWeight * affinity;
+
+            const float availability01 = std::clamp(partnerAvailability01, 0.0f, 1.0f);
+            const float reliability01 = [&]() -> float {
+                const auto partnerKey = entityId(partnerEntity);
+                if (const auto* beliefs = registry.try_get<components::AgentBeliefs>(entity)) {
+                    return std::clamp(beliefs->meetReliability(partnerKey), 0.0f, 1.0f);
+                }
+                return 0.65f;
+            }();
+            const float predicted01 = availability01 * reliability01;
+            const float predictedPenalty = (1.0f - predicted01)
+                * 240.0f
+                * std::clamp(0.35f + 0.65f * conscientiousness, 0.0f, 1.0f);
+
+            Candidate c{};
+            c.kind = AffordanceKind::ProposeMeetWithAgent;
+            c.primaryNeed = need;
+            c.resource = world::ResourceType::Social;
+            c.interactionId = meetingInteraction;
+            c.targetEntityId = entityId(partnerEntity);
+            c.travelCost = travelCost;
+            c.units = unitsPerRequest;
+            c.reliefPerUnit = reliefPerUnit;
+            c.score = std::clamp(activation, 0.0f, 1.0f) * 1000.0f
+                + predicted01 * (partnerBonus + affinityBonus)
+                - wDist * travelCost
+                - wCrowd * crowdPenalty
+                - predictedPenalty
+                + jitter;
+            return c;
+        };
+
+        const auto buildAttendMeetingCandidate = [&](NeedType need,
+                                                     std::uint32_t unitsPerRequest,
+                                                     float reliefPerUnit,
+                                                     float activation,
+                                                     const components::SocialMeetProposal& proposal) -> std::optional<Candidate> {
+            if (isNullEntityId(proposal.fromEntityId) || proposal.meetingInteractionId == 0U) {
+                return std::nullopt;
+            }
+            const auto proposerEntity = static_cast<entt::entity>(proposal.fromEntityId);
+            if (proposerEntity == entt::null || !registry.valid(proposerEntity)) {
+                return std::nullopt;
+            }
+            if (!registry.all_of<components::AgentLocation2D>(proposerEntity)) {
+                return std::nullopt;
+            }
+
+            const auto it = db.findInteraction(proposal.meetingInteractionId);
+            if (!it || it->mapId != location.mapId || it->kind == world::InteractionKind::Portal) {
+                return std::nullopt;
+            }
+
+            const auto coord = it->worldCoord();
+            const float mx = static_cast<float>(coord.first);
+            const float my = static_cast<float>(coord.second);
+            const float dx = mx - location.x;
+            const float dy = my - location.y;
+            const float travelCost = dx * dx + dy * dy;
+
+            const float crowdPenalty = demandPenalty(proposal.meetingInteractionId, previousTarget);
+            float jitter = 0.0f;
+            if (noiseSigma > 0.0f) {
+                const std::uint64_t h = entitySeed
+                    ^ (static_cast<std::uint64_t>(stepIndex) * 0x9E3779B97F4A7C15ull)
+                    ^ (static_cast<std::uint64_t>(proposal.meetingInteractionId) * 0xD1B54A32D192ED03ull)
+                    ^ (static_cast<std::uint64_t>(needIndex(need)) * 0x94D049BB133111EBull);
+                jitter = signed01_from_u64(h) * noiseSigma;
+            }
+
+            float affinity = 0.0f;
+            if (const auto* rel = registry.try_get<components::AgentRelations>(entity)) {
+                if (const auto it2 = rel->affinityByPartner.find(proposal.fromEntityId); it2 != rel->affinityByPartner.end()) {
+                    affinity = std::clamp(it2->second, -1.0f, 1.0f);
+                }
+            }
+            const float affinityWeight =
+                std::max(0.0f, m_config.socialPartnerAffinityBonus)
+                * std::clamp(0.25f + 0.75f * agreeableness, 0.0f, 1.0f)
+                * std::clamp(0.25f + 0.75f * (1.0f - openness), 0.0f, 1.0f);
+            const float affinityBonus = affinityWeight * affinity;
+
+            const float reliability01 = [&]() -> float {
+                if (const auto* beliefs = registry.try_get<components::AgentBeliefs>(entity)) {
+                    return std::clamp(beliefs->meetReliability(proposal.fromEntityId), 0.0f, 1.0f);
+                }
+                return 0.65f;
+            }();
+
+            Candidate c{};
+            c.kind = AffordanceKind::AttendMeeting;
+            c.primaryNeed = need;
+            c.resource = world::ResourceType::Social;
+            c.interactionId = proposal.meetingInteractionId;
+            c.targetEntityId = proposal.fromEntityId;
+            c.travelCost = travelCost;
+            c.units = unitsPerRequest;
+            c.reliefPerUnit = reliefPerUnit;
+            c.score = std::clamp(activation, 0.0f, 1.0f) * 1000.0f
+                + reliability01 * 120.0f
+                + affinityBonus
+                - wDist * travelCost
+                - wCrowd * crowdPenalty
+                + jitter;
+            return c;
+        };
+
+        const auto buildRejectMeetingCandidate = [&](NeedType need,
+                                                     float activation,
+                                                     const components::SocialMeetProposal& proposal) -> std::optional<Candidate> {
+            if (isNullEntityId(proposal.fromEntityId) || proposal.meetingInteractionId == 0U) {
+                return std::nullopt;
+            }
+            const auto proposerEntity = static_cast<entt::entity>(proposal.fromEntityId);
+            if (proposerEntity == entt::null || !registry.valid(proposerEntity)) {
+                return std::nullopt;
+            }
+            if (!registry.all_of<components::AgentLocation2D>(proposerEntity)) {
+                return std::nullopt;
+            }
+            const auto it = db.findInteraction(proposal.meetingInteractionId);
+            if (!it || it->mapId != location.mapId || it->kind == world::InteractionKind::Portal) {
+                return std::nullopt;
+            }
+            const auto coord = it->worldCoord();
+            const float mx = static_cast<float>(coord.first);
+            const float my = static_cast<float>(coord.second);
+            const float dx = mx - location.x;
+            const float dy = my - location.y;
+            const float travelCost = dx * dx + dy * dy;
+
+            const float crowdPenalty = demandPenalty(proposal.meetingInteractionId, previousTarget);
+            float jitter = 0.0f;
+            if (noiseSigma > 0.0f) {
+                const std::uint64_t h = entitySeed
+                    ^ (static_cast<std::uint64_t>(stepIndex) * 0x9E3779B97F4A7C15ull)
+                    ^ (static_cast<std::uint64_t>(proposal.meetingInteractionId) * 0xD1B54A32D192ED03ull)
+                    ^ (static_cast<std::uint64_t>(needIndex(need)) * 0x94D049BB133111EBull);
+                jitter = signed01_from_u64(h) * noiseSigma;
+            }
+
+            const float reliability01 = [&]() -> float {
+                if (const auto* beliefs = registry.try_get<components::AgentBeliefs>(entity)) {
+                    return std::clamp(beliefs->meetReliability(proposal.fromEntityId), 0.0f, 1.0f);
+                }
+                return 0.65f;
+            }();
+
+            float affinity = 0.0f;
+            if (const auto* rel = registry.try_get<components::AgentRelations>(entity)) {
+                if (const auto it2 = rel->affinityByPartner.find(proposal.fromEntityId); it2 != rel->affinityByPartner.end()) {
+                    affinity = std::clamp(it2->second, -1.0f, 1.0f);
+                }
+            }
+
+            Candidate c{};
+            c.kind = AffordanceKind::RejectMeeting;
+            c.primaryNeed = need;
+            c.resource = world::ResourceType::Social;
+            c.interactionId = proposal.meetingInteractionId;
+            c.targetEntityId = proposal.fromEntityId;
+            c.travelCost = travelCost;
+            c.units = 0;
+            c.reliefPerUnit = 0.0f;
+            c.score =
+                (1.0f - std::clamp(activation, 0.0f, 1.0f)) * 260.0f
+                + (1.0f - reliability01) * 180.0f
+                + std::clamp(-affinity, 0.0f, 1.0f) * 120.0f
+                + 0.25f * wDist * travelCost
+                + 0.40f * wCrowd * crowdPenalty
+                + jitter;
+            return c;
+        };
+
         std::vector<Candidate> affordances;
         affordances.reserve(48);
 
@@ -476,78 +886,104 @@ void NeedSatisfier::update(entt::registry& registry,
 
             const float prepareThreshold = descriptor->satisfiedThreshold + prepareMargin;
             const float activation = activation01_with_prepare(need, *state, *descriptor, prepareThreshold);
-            if (activation <= 0.0f) {
+            if (activation <= 0.0f && need != NeedType::Social) {
                 return;
             }
 
-            // 1) preferred locator（如果存在）
-            if (preferredLocator) {
-                const auto preferred = preferredLocator(entity);
-                auto spawnIt = spawnByInteraction.find(preferred);
-                if (spawnIt != spawnByInteraction.end()) {
+            if (activation > 0.0f) {
+                // 1) preferred locator（如果存在）
+                if (preferredLocator) {
+                    const auto preferred = preferredLocator(entity);
+                    auto spawnIt = spawnByInteraction.find(preferred);
+                    if (spawnIt != spawnByInteraction.end()) {
+                        emitAffordance(buildCandidate(need,
+                                                      resource,
+                                                      unitsPerRequest,
+                                                      reliefPerUnit,
+                                                      activation,
+                                                      preferred,
+                                                      spawnIt->second));
+                    }
+                }
+
+                // 2) 遍历资源刷点，选“综合最优”的目标
+                resourceSystem.forEachSpawn(registry, [&](const auto& spawn, const auto& inventory) {
+                    if (spawn.type != resource) {
+                        return;
+                    }
+                    if (inventory.current == 0U) {
+                        const auto inter = db.findInteraction(spawn.interaction);
+                        if (!inter || !isWorkshopInteraction(*inter)) {
+                            return;
+                        }
+                    }
+                    SpawnInfo info{};
+                    info.type = spawn.type;
+                    info.current = inventory.current;
+                    info.capacity = inventory.capacity;
                     emitAffordance(buildCandidate(need,
                                                   resource,
                                                   unitsPerRequest,
                                                   reliefPerUnit,
                                                   activation,
-                                                  preferred,
-                                                  spawnIt->second));
-                }
+                                                  spawn.interaction,
+                                                  info));
+                });
             }
-
-            // 2) 遍历资源刷点，选“综合最优”的目标
-            resourceSystem.forEachSpawn(registry, [&](const auto& spawn, const auto& inventory) {
-                if (spawn.type != resource) {
-                    return;
-                }
-                if (inventory.current == 0U) {
-                    const auto inter = db.findInteraction(spawn.interaction);
-                    if (!inter || !isWorkshopInteraction(*inter)) {
-                        return;
-                    }
-                }
-                SpawnInfo info{};
-                info.type = spawn.type;
-                info.current = inventory.current;
-                info.capacity = inventory.capacity;
-                emitAffordance(buildCandidate(need,
-                                              resource,
-                                              unitsPerRequest,
-                                              reliefPerUnit,
-                                              activation,
-                                              spawn.interaction,
-                                              info));
-            });
 
             // 3) Social 特例：和其他 agent 互动（不依赖 Social 资源生产链）
             if (need == NeedType::Social) {
-                auto partnerView = registry.view<NeedComponent, components::AgentLocation2D>();
-                for (auto partner : partnerView) {
-                    if (partner == entity) {
-                        continue;
-                    }
-                    const auto& partnerNeeds = partnerView.get<NeedComponent>(partner);
-                    auto* pState = partnerNeeds.needs.state(NeedType::Social);
-                    const auto* pDesc = partnerNeeds.needs.descriptor(NeedType::Social);
-                    float partnerUrgency = 0.0f;
-                    if (pState && pDesc) {
-                        partnerUrgency = urgency01(*pState, *pDesc);
-                    }
+                const float activationForProposals = std::max(activation, 0.05f);
+                // (a) Incoming proposals -> accept/attend/reject candidates.
+                for (const auto& p : inbox.proposals) {
+                    emitAffordance(buildAttendMeetingCandidate(need, unitsPerRequest, reliefPerUnit, activationForProposals, p));
+                    emitAffordance(buildRejectMeetingCandidate(need, activationForProposals, p));
+                }
 
-                    float partnerAvailability = 1.0f;
-                    if (registry.any_of<components::MovementIntent2D>(partner)) {
-                        partnerAvailability *= 0.35f;
+                // (b) Outgoing proposals -> propose candidates (only if not already committed).
+                if (activation > 0.0f && meetState.status == components::SocialMeetStatus::None && inbox.proposals.empty()) {
+                    auto partnerView = registry.view<NeedComponent, components::AgentLocation2D>();
+                    for (auto partner : partnerView) {
+                        if (partner == entity) {
+                            continue;
+                        }
+                        const auto& partnerNeeds = partnerView.get<NeedComponent>(partner);
+                        auto* pState = partnerNeeds.needs.state(NeedType::Social);
+                        const auto* pDesc = partnerNeeds.needs.descriptor(NeedType::Social);
+                        float partnerUrgency = 0.0f;
+                        if (pState && pDesc) {
+                            partnerUrgency = urgency01(*pState, *pDesc);
+                        }
+
+                        float partnerAvailability = 1.0f;
+                        if (registry.any_of<components::MovementIntent2D>(partner)) {
+                            partnerAvailability *= 0.35f;
+                        }
+                        if (actionExecutor && actionExecutor->hasPendingActions(partner, registry)) {
+                            partnerAvailability *= 0.45f;
+                        }
+
+                        const auto& partnerLoc = partnerView.get<components::AgentLocation2D>(partner);
+                        const auto rendezvous = chooseRendezvousInteraction(db, location, partnerLoc);
+                        if (rendezvous) {
+                            emitAffordance(buildSocialProposalCandidate(need,
+                                                                        unitsPerRequest,
+                                                                        reliefPerUnit,
+                                                                        activation,
+                                                                        partner,
+                                                                        *rendezvous,
+                                                                        partnerUrgency,
+                                                                        partnerAvailability));
+                        } else {
+                            emitAffordance(buildSocialPartnerCandidate(need,
+                                                                       unitsPerRequest,
+                                                                       reliefPerUnit,
+                                                                       activation,
+                                                                       partner,
+                                                                       partnerUrgency,
+                                                                       partnerAvailability));
+                        }
                     }
-                    if (actionExecutor && actionExecutor->hasPendingActions(partner, registry)) {
-                        partnerAvailability *= 0.45f;
-                    }
-                    emitAffordance(buildSocialPartnerCandidate(need,
-                                                               unitsPerRequest,
-                                                               reliefPerUnit,
-                                                               activation,
-                                                               partner,
-                                                               partnerUrgency,
-                                                               partnerAvailability));
                 }
             }
         };
@@ -608,7 +1044,10 @@ void NeedSatisfier::update(entt::registry& registry,
                 if (a.kind != commitment.kind) {
                     continue;
                 }
-                if (a.kind == AffordanceKind::SocializeWithAgent) {
+                if (a.kind == AffordanceKind::SocializeWithAgent
+                    || a.kind == AffordanceKind::ProposeMeetWithAgent
+                    || a.kind == AffordanceKind::AttendMeeting
+                    || a.kind == AffordanceKind::RejectMeeting) {
                     if (a.targetEntityId != commitment.targetEntityId) {
                         continue;
                     }
@@ -692,7 +1131,76 @@ void NeedSatisfier::update(entt::registry& registry,
                                                                 components::PlannerDecision{best->interactionId, best->travelCost, best->score});
 
         if (actionExecutor) {
-            if (best->kind == AffordanceKind::SocializeWithAgent && best->targetEntityId != 0U) {
+            if (best->kind == AffordanceKind::ProposeMeetWithAgent && !isNullEntityId(best->targetEntityId)) {
+                const auto partnerEntity = static_cast<entt::entity>(best->targetEntityId);
+                if (registry.valid(partnerEntity)) {
+                    auto& partnerInbox = registry.get_or_emplace<components::AgentSocialInbox>(partnerEntity);
+                    const bool already = std::any_of(partnerInbox.proposals.begin(),
+                                                     partnerInbox.proposals.end(),
+                                                     [&](const components::SocialMeetProposal& p) {
+                                                         return p.fromEntityId == selfId
+                                                             && p.meetingInteractionId == best->interactionId
+                                                             && stepIndex < p.expireAtStep;
+                                                     });
+                    if (!already) {
+                        const std::uint64_t ttl = std::max<std::uint32_t>(1U, m_config.socialMeetProposalTtlSteps);
+                        const std::uint64_t expire = stepIndex + ttl;
+                        partnerInbox.proposals.push_back(components::SocialMeetProposal{selfId, best->interactionId, stepIndex, expire});
+                        meetState.status = components::SocialMeetStatus::Proposed;
+                        meetState.partnerEntityId = best->targetEntityId;
+                        meetState.meetingInteractionId = best->interactionId;
+                        meetState.createdAtStep = stepIndex;
+                        meetState.expireAtStep = expire;
+                    }
+                }
+            } else if (best->kind == AffordanceKind::RejectMeeting && !isNullEntityId(best->targetEntityId)) {
+                const auto proposerEntity = static_cast<entt::entity>(best->targetEntityId);
+                if (registry.valid(proposerEntity)) {
+                    auto& proposerOutcomes = registry.get_or_emplace<components::AgentOutcomeBuffer>(proposerEntity);
+                    proposerOutcomes.socialInteractions.push_back(SocialInteractionOutcome{selfId, false, SocialInteractionFailure::Reject});
+
+                    if (auto* proposerMeet = registry.try_get<components::AgentSocialMeetState>(proposerEntity)) {
+                        if (proposerMeet->status == components::SocialMeetStatus::Proposed
+                            && proposerMeet->partnerEntityId == selfId
+                            && proposerMeet->meetingInteractionId == best->interactionId) {
+                            *proposerMeet = {};
+                        }
+                    }
+                }
+                inbox.proposals.erase(std::remove_if(inbox.proposals.begin(), inbox.proposals.end(), [&](const components::SocialMeetProposal& p) {
+                    return p.fromEntityId == best->targetEntityId && p.meetingInteractionId == best->interactionId;
+                }), inbox.proposals.end());
+            } else if (best->kind == AffordanceKind::AttendMeeting && !isNullEntityId(best->targetEntityId)) {
+                const auto proposerEntity = static_cast<entt::entity>(best->targetEntityId);
+                if (registry.valid(proposerEntity)) {
+                    std::uint64_t expire = stepIndex + std::max<std::uint32_t>(1U, m_config.socialMeetProposalTtlSteps);
+                    for (const auto& p : inbox.proposals) {
+                        if (p.fromEntityId == best->targetEntityId && p.meetingInteractionId == best->interactionId) {
+                            expire = p.expireAtStep;
+                            break;
+                        }
+                    }
+
+                    meetState.status = components::SocialMeetStatus::Accepted;
+                    meetState.partnerEntityId = best->targetEntityId;
+                    meetState.meetingInteractionId = best->interactionId;
+                    meetState.createdAtStep = stepIndex;
+                    meetState.expireAtStep = expire;
+
+                    auto& proposerMeet = registry.get_or_emplace<components::AgentSocialMeetState>(proposerEntity);
+                    proposerMeet.status = components::SocialMeetStatus::Accepted;
+                    proposerMeet.partnerEntityId = selfId;
+                    proposerMeet.meetingInteractionId = best->interactionId;
+                    proposerMeet.createdAtStep = stepIndex;
+                    proposerMeet.expireAtStep = expire;
+
+                    inbox.proposals.erase(std::remove_if(inbox.proposals.begin(), inbox.proposals.end(), [&](const components::SocialMeetProposal& p) {
+                        return p.fromEntityId == best->targetEntityId && p.meetingInteractionId == best->interactionId;
+                    }), inbox.proposals.end());
+
+                    actionExecutor->requestMoveToInteraction(entity, best->interactionId, 1.0f, registry);
+                }
+            } else if (best->kind == AffordanceKind::SocializeWithAgent && !isNullEntityId(best->targetEntityId)) {
                 const auto ticks = std::max<std::uint32_t>(1U, m_config.socialInteractTicksPerUnit) * std::max<std::uint32_t>(1U, best->units);
                 actionExecutor->requestSocialize(entity, best->targetEntityId, ticks, best->reliefPerUnit * static_cast<float>(best->units), registry);
             } else {

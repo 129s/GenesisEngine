@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "genesis/runtime/RuntimeEvents.hpp"
+#include "genesis/telemetry/Namespace.hpp"
 #include "genesis/telemetry/TelemetryBuffer.hpp"
 
 namespace Genesis::Runtime {

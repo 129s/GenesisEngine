@@ -5,6 +5,7 @@
 #include <optional>
 #include <vector>
 
+#include "genesis/telemetry/Namespace.hpp"
 #include "genesis/runtime/SimulationSnapshot.hpp"
 
 namespace Genesis::Runtime {

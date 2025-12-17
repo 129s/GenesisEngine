@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "genesis/world/Namespace.hpp"
 #include "genesis/world/WorldTypes.hpp"
 
 namespace genesis::world {
@@ -138,7 +139,3 @@ private:
 };
 
 } // namespace genesis::world
-
-namespace Genesis {
-namespace World = genesis::world;
-} // namespace Genesis

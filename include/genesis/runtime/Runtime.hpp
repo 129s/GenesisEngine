@@ -21,6 +21,7 @@
 #include "genesis/simulation/AgentApi.hpp"
 #include "genesis/simulation/Namespace.hpp"
 #include "genesis/agents/Namespace.hpp"
+#include "genesis/telemetry/Namespace.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
 #include "genesis/agents/Movement2D.hpp"

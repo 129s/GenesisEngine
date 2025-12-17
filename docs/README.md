@@ -12,6 +12,7 @@
 - 故障排查（GUI/运行时常见问题）：`docs/troubleshooting/`（GUI：`docs/troubleshooting/sandbox_gui.md`）
 
 - 文档组织与边界：`docs/handbook/DOCS_ORGANIZATION.md`
+- 代码约定（Namespace 等）：`docs/handbook/CODING_CONVENTIONS.md`
 - 内核回归闭环（Headless 优先）：`docs/handbook/CORE_REGRESSION.md`
 - 架构概览：`docs/architecture/README.md`
 - 愿景与设计原则：`docs/architecture/meta/vision.md`

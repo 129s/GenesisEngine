@@ -6,6 +6,7 @@
 ## Agents
 - `agents/agent-personality-big5.md`：Big5/Traits/数据驱动 Needs（部分已落地）。
 - `agents/agent-lifecycle-attributes-needs-learning.md`：统一链路（属性→需求→动机→行动→学习→调整，部分已落地）。
+- `agents/agent-model-sascol.md`：SASCOL（State/Affordance/Selection/Commitment/Outcome/Learning）统一决策与学习闭环（未落地）。
 
 ## Interface / Sandbox GUI
 - `interface/sandbox/sandbox-gui-ux-redesign.md`：GUI UX 重构设计稿（提案/含历史记录，不作为当前规范）。

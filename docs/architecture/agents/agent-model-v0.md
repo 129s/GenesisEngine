@@ -22,6 +22,7 @@
   - `AgentRelations`：对他人形成亲和度记忆（成功社交增益/失败社交惩罚），并参与社交选伴评分。
 
 统一链路的目标态与分阶段落地规划见：`docs/architecture/proposals/agents/agent-lifecycle-attributes-needs-learning.md`。
+进一步的统一抽象（去分支化/去硬过滤/显式承诺与协商）见：`docs/architecture/proposals/agents/agent-model-sascol.md`。
 
 ## 数据模型（ECS 组件）
 - **人格（Big5）**

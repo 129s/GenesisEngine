@@ -21,6 +21,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_soak.ps1 -UseMsv
 
 包含：
 - `schema_version`：Worldline 自身 schema 版本（独立于 Telemetry schema）
+- 备注：当前实现已升级到 `schema_version=2`（`stockoutShare*` 口径更新，见下）。
 - `worldFolder`、`windowSteps`、`stepsRequested`、`wallSecondsLimit?`
 - `agentCountRequested`、`agentCountInitial`
 - `worldVersion`、`lastSeed?`
@@ -39,7 +40,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_soak.ps1 -UseMsv
 
 当前 v0 输出的 `metrics` 包括：
 - `criticalNeedRate`：窗口内 need 样本中 critical 的比例
-- `stockoutShareAny/Sources/Workshops`：窗口内出现资源=0 的步占比（总/来源/工坊）
+- `stockoutShareAny/Sources/Workshops`：窗口内“资源交互点缺货占比”的平均值（总/来源/工坊），计算方式：对每一步求 `(#current==0)/(#total)`，再在窗口内取平均。
 - `stepsWithAnyConsumption/Regen/Decay`：窗口内出现对应事件的步数
 - `actionEntropyBits`：行动类型分布熵（bit）
 - `plannerTargetEntropyBits`：Planner 目标交互点分布熵（bit）

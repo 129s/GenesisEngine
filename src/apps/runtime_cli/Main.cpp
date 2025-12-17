@@ -774,9 +774,12 @@ struct ResourceEconomy {
 	        std::unordered_map<std::uint32_t, std::uint64_t> plannerTargetCounts;
 	        std::uint64_t socializeEvents{0};
 	        std::unordered_map<std::uint32_t, std::uint64_t> socializePartnerCounts;
-	        std::uint64_t stockoutStepsAny{0};
-	        std::uint64_t stockoutStepsSources{0};
-	        std::uint64_t stockoutStepsWorkshops{0};
+	        std::uint64_t stockoutInteractionSamplesAnyTotal{0};
+	        std::uint64_t stockoutInteractionSamplesAnyZero{0};
+	        std::uint64_t stockoutInteractionSamplesSourcesTotal{0};
+	        std::uint64_t stockoutInteractionSamplesSourcesZero{0};
+	        std::uint64_t stockoutInteractionSamplesWorkshopsTotal{0};
+	        std::uint64_t stockoutInteractionSamplesWorkshopsZero{0};
 	        std::uint64_t stepsWithAnyConsumption{0};
 	        std::uint64_t stepsWithAnyRegen{0};
         std::uint64_t stepsWithAnyDecay{0};
@@ -799,9 +802,12 @@ struct ResourceEconomy {
 	            plannerTargetCounts.clear();
 	            socializeEvents = 0;
 	            socializePartnerCounts.clear();
-	            stockoutStepsAny = 0;
-	            stockoutStepsSources = 0;
-	            stockoutStepsWorkshops = 0;
+	            stockoutInteractionSamplesAnyTotal = 0;
+	            stockoutInteractionSamplesAnyZero = 0;
+	            stockoutInteractionSamplesSourcesTotal = 0;
+	            stockoutInteractionSamplesSourcesZero = 0;
+	            stockoutInteractionSamplesWorkshopsTotal = 0;
+	            stockoutInteractionSamplesWorkshopsZero = 0;
 	            stepsWithAnyConsumption = 0;
 	            stepsWithAnyRegen = 0;
             stepsWithAnyDecay = 0;
@@ -851,23 +857,28 @@ struct ResourceEconomy {
 	        };
 	    };
 
-    auto buildWorldlineMetricsJson = [&](const WorldlineWindowAgg& agg) {
-        const double stepCount = static_cast<double>(std::max<std::uint64_t>(1, agg.steps));
-        const double criticalNeedRate = agg.needSamples > 0 ? static_cast<double>(agg.criticalNeedSamples) / static_cast<double>(agg.needSamples) : 0.0;
-        const double stockoutShareAny = agg.steps > 0 ? static_cast<double>(agg.stockoutStepsAny) / stepCount : 0.0;
-        const double actionEntropy = entropyBitsFromCounts(agg.actionTypeCounts);
-        const double plannerTargetEntropy = entropyBitsFromCounts(agg.plannerTargetCounts);
-        const double plannerTravelCostMean = agg.plannerTravelCostSamples > 0 ? (agg.plannerTravelCostSum / static_cast<double>(agg.plannerTravelCostSamples)) : 0.0;
+	    auto buildWorldlineMetricsJson = [&](const WorldlineWindowAgg& agg) {
+	        const double criticalNeedRate = agg.needSamples > 0 ? static_cast<double>(agg.criticalNeedSamples) / static_cast<double>(agg.needSamples) : 0.0;
+	        const double stockoutShareAny = agg.stockoutInteractionSamplesAnyTotal > 0
+	            ? static_cast<double>(agg.stockoutInteractionSamplesAnyZero) / static_cast<double>(agg.stockoutInteractionSamplesAnyTotal)
+	            : 0.0;
+	        const double actionEntropy = entropyBitsFromCounts(agg.actionTypeCounts);
+	        const double plannerTargetEntropy = entropyBitsFromCounts(agg.plannerTargetCounts);
+	        const double plannerTravelCostMean = agg.plannerTravelCostSamples > 0 ? (agg.plannerTravelCostSum / static_cast<double>(agg.plannerTravelCostSamples)) : 0.0;
 
-        return json{
-            {"criticalNeedRate", criticalNeedRate},
-            {"stockoutShareAny", stockoutShareAny},
-            {"stockoutShareSources", agg.steps > 0 ? static_cast<double>(agg.stockoutStepsSources) / stepCount : 0.0},
-            {"stockoutShareWorkshops", agg.steps > 0 ? static_cast<double>(agg.stockoutStepsWorkshops) / stepCount : 0.0},
-            {"stepsWithAnyConsumption", agg.stepsWithAnyConsumption},
-            {"stepsWithAnyRegen", agg.stepsWithAnyRegen},
-            {"stepsWithAnyDecay", agg.stepsWithAnyDecay},
-            {"actionEntropyBits", actionEntropy},
+	        return json{
+	            {"criticalNeedRate", criticalNeedRate},
+	            {"stockoutShareAny", stockoutShareAny},
+	            {"stockoutShareSources", agg.stockoutInteractionSamplesSourcesTotal > 0
+	                ? static_cast<double>(agg.stockoutInteractionSamplesSourcesZero) / static_cast<double>(agg.stockoutInteractionSamplesSourcesTotal)
+	                : 0.0},
+	            {"stockoutShareWorkshops", agg.stockoutInteractionSamplesWorkshopsTotal > 0
+	                ? static_cast<double>(agg.stockoutInteractionSamplesWorkshopsZero) / static_cast<double>(agg.stockoutInteractionSamplesWorkshopsTotal)
+	                : 0.0},
+	            {"stepsWithAnyConsumption", agg.stepsWithAnyConsumption},
+	            {"stepsWithAnyRegen", agg.stepsWithAnyRegen},
+	            {"stepsWithAnyDecay", agg.stepsWithAnyDecay},
+	            {"actionEntropyBits", actionEntropy},
             {"plannerTargetEntropyBits", plannerTargetEntropy},
             {"plannerTravelCostMean", plannerTravelCostMean},
             {"resourceAttempts", agg.resourceAttempts},
@@ -886,13 +897,13 @@ struct ResourceEconomy {
             return 2;
         }
 
-        json meta;
-        meta["kind"] = "runtime_worldline_meta";
-        meta["schema_version"] = 1;
-        meta["worldFolder"] = loadedWorldFolder.empty() ? std::string{} : std::filesystem::absolute(loadedWorldFolder).string();
-        if (opts.worldgenConfigPath) {
-            meta["worldgenConfig"] = resolvePathIfRelative(opts.rootPath, *opts.worldgenConfigPath).string();
-        }
+	        json meta;
+	        meta["kind"] = "runtime_worldline_meta";
+	        meta["schema_version"] = 2;
+	        meta["worldFolder"] = loadedWorldFolder.empty() ? std::string{} : std::filesystem::absolute(loadedWorldFolder).string();
+	        if (opts.worldgenConfigPath) {
+	            meta["worldgenConfig"] = resolvePathIfRelative(opts.rootPath, *opts.worldgenConfigPath).string();
+	        }
         if (opts.worldgenSeed) {
             meta["worldSeed"] = *opts.worldgenSeed;
         } else if (runtime.lastSeed().has_value()) {
@@ -947,26 +958,35 @@ struct ResourceEconomy {
 	            }
 	        }
 
-        bool anyStockout = false;
-        bool anyStockoutSource = false;
-        bool anyStockoutWorkshop = false;
-        bool anyConsumption = false;
-        bool anyRegen = false;
-        bool anyDecay = false;
+	        bool anyConsumption = false;
+	        bool anyRegen = false;
+	        bool anyDecay = false;
+	        std::uint64_t stockoutAnyTotal = 0;
+	        std::uint64_t stockoutAnyZero = 0;
+	        std::uint64_t stockoutSourcesTotal = 0;
+	        std::uint64_t stockoutSourcesZero = 0;
+	        std::uint64_t stockoutWorkshopsTotal = 0;
+	        std::uint64_t stockoutWorkshopsZero = 0;
 
-        for (const auto& resource : telemetry.resources) {
-            if (resource.current == 0U) {
-                anyStockout = true;
-                const bool isWorkshop = workshopByInteraction.contains(resource.interactionId) ? workshopByInteraction.at(resource.interactionId) : false;
-                if (isWorkshop) {
-                    anyStockoutWorkshop = true;
-                } else {
-                    anyStockoutSource = true;
-                }
-            }
-            if (resource.consumed > 0U) {
-                anyConsumption = true;
-            }
+	        for (const auto& resource : telemetry.resources) {
+	            const bool isWorkshop = workshopByInteraction.contains(resource.interactionId) ? workshopByInteraction.at(resource.interactionId) : false;
+	            stockoutAnyTotal++;
+	            if (isWorkshop) {
+	                stockoutWorkshopsTotal++;
+	            } else {
+	                stockoutSourcesTotal++;
+	            }
+	            if (resource.current == 0U) {
+	                stockoutAnyZero++;
+	                if (isWorkshop) {
+	                    stockoutWorkshopsZero++;
+	                } else {
+	                    stockoutSourcesZero++;
+	                }
+	            }
+	            if (resource.consumed > 0U) {
+	                anyConsumption = true;
+	            }
             if (resource.produced > 0U) {
                 anyRegen = true;
             }
@@ -975,28 +995,26 @@ struct ResourceEconomy {
             }
         }
 
-        if (anyStockout) {
-            windowAgg.stockoutStepsAny++;
-        }
-        if (anyStockoutSource) {
-            windowAgg.stockoutStepsSources++;
-        }
-        if (anyStockoutWorkshop) {
-            windowAgg.stockoutStepsWorkshops++;
-        }
-        if (anyConsumption) {
-            windowAgg.stepsWithAnyConsumption++;
-        }
-        if (anyRegen) {
+	        if (anyConsumption) {
+	            windowAgg.stepsWithAnyConsumption++;
+	        }
+	        if (anyRegen) {
             windowAgg.stepsWithAnyRegen++;
         }
-        if (anyDecay) {
-            windowAgg.stepsWithAnyDecay++;
-        }
+	        if (anyDecay) {
+	            windowAgg.stepsWithAnyDecay++;
+	        }
 
-        for (const auto& attempt : telemetry.workshopAttempts) {
-            windowAgg.productionAttempts++;
-            const bool ok = attempt.failureReason.empty() && attempt.producedUnits > 0U;
+	        windowAgg.stockoutInteractionSamplesAnyTotal += stockoutAnyTotal;
+	        windowAgg.stockoutInteractionSamplesAnyZero += stockoutAnyZero;
+	        windowAgg.stockoutInteractionSamplesSourcesTotal += stockoutSourcesTotal;
+	        windowAgg.stockoutInteractionSamplesSourcesZero += stockoutSourcesZero;
+	        windowAgg.stockoutInteractionSamplesWorkshopsTotal += stockoutWorkshopsTotal;
+	        windowAgg.stockoutInteractionSamplesWorkshopsZero += stockoutWorkshopsZero;
+
+	        for (const auto& attempt : telemetry.workshopAttempts) {
+	            windowAgg.productionAttempts++;
+	            const bool ok = attempt.failureReason.empty() && attempt.producedUnits > 0U;
             if (ok) {
                 windowAgg.productionSucceeded++;
             } else {
@@ -1208,14 +1226,14 @@ struct ResourceEconomy {
     std::uint64_t stepsExecuted = 0;
     bool endedByWallTime = false;
 
-    auto flushWorldlineWindow = [&](std::uint64_t windowEndStep) {
-        if (worldlineOut.has_value()) {
-            json window;
-            window["kind"] = "runtime_worldline_window";
-            window["schema_version"] = 1;
-            window["index"] = worldlineWindowIndex;
-            window["stepStart"] = worldlineWindowStartStep;
-            window["stepEnd"] = windowEndStep;
+	    auto flushWorldlineWindow = [&](std::uint64_t windowEndStep) {
+	        if (worldlineOut.has_value()) {
+	            json window;
+	            window["kind"] = "runtime_worldline_window";
+	            window["schema_version"] = 2;
+	            window["index"] = worldlineWindowIndex;
+	            window["stepStart"] = worldlineWindowStartStep;
+	            window["stepEnd"] = windowEndStep;
             window["steps"] = (windowEndStep >= worldlineWindowStartStep) ? (windowEndStep - worldlineWindowStartStep + 1) : 0;
             window["elapsedSeconds"] = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - worldlineStartedAt).count();
             window["metrics"] = buildWorldlineMetricsJson(windowAgg);

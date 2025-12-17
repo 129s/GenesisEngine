@@ -14,4 +14,5 @@
 ## Meta
 - `meta/genesis-engine-rearchitecture.md`：重构蓝图（提案）。
 - `meta/namespace-strategy.md`：命名空间统一方案（提案）。
+- `meta/narrative-observability-lenses.md`：叙事可观测性镜头（离线分析框架提案）。
 - `meta/open-questions.md`：仍待决策的开放问题集合（提案）。

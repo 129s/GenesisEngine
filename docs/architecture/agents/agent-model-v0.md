@@ -5,14 +5,21 @@
 
 ## 范围与非目标
 - 范围：Headless Runtime/Core Simulation（不含 GUI 表现层）。
-- 非目标：Traits、显式 Attributes 层、属性→需求的数据驱动映射、记忆/关系/社交推断/叙事系统（这些属于提案，见 `docs/architecture/proposals/`）。
+- 非目标：Traits、显式 Attributes 层、属性→需求的数据驱动映射、叙事系统（这些属于提案，见 `docs/architecture/proposals/`）。
+
+说明：
+- v0 已包含最小学习闭环（Experience/Beliefs）与最小社交闭环（SocializeWithAgent + 社交信念传播 + 关系亲和度记忆）。
+- 但这些仅作为“行为动力学/学习信号”，不等同于叙事层的“关系/母题/章节”等高阶语义对象。
 
 ## 核心链路（当前落地子集）
 当前 v0 已经形成可回归验证的最小闭环，但 **Attributes 尚未独立**（Needs 同时扮演内部状态）：
 - 内部状态：`NeedComponent/NeedCollection` 随时间推进（NeedSystem）。
 - 动机/选点：`NeedSatisfier` 依据 urgency + 评分（含 Big5 权重与确定性 jitter）选择补给目标。
 - 行动执行：`ActionExecutor` 执行 `Move/Consume/Take/Produce`；缺货时 `ProductionPlanner` 递归补链。
-- 学习写回：`AgentExperience.bufferMultiplier` 从“关键补给失败/临界抢占”学习，影响后续准备阈值与一次性补给量，并随时间遗忘。
+- 学习写回：
+  - `AgentExperience.bufferMultiplier`：从“关键补给失败/临界抢占”学习，影响后续准备阈值与一次性补给量，并随时间遗忘。
+  - `AgentBeliefs`：对交互点缺货风险进行 EMA 学习，并参与选点评分（风险惩罚）。
+  - `AgentRelations`：对他人形成亲和度记忆（成功社交增益/失败社交惩罚），并参与社交选伴评分。
 
 统一链路的目标态与分阶段落地规划见：`docs/architecture/proposals/agents/agent-lifecycle-attributes-needs-learning.md`。
 
@@ -23,6 +30,14 @@
 - **经验（最小学习）**
   - `genesis::agents::components::AgentExperience`：按 Need 维度记录“缓冲偏好”（`bufferMultiplier`），并随时间遗忘（`include/genesis/agents/Experience.hpp`）。
   - 目前只学习一件事：当工坊作业被“临界需求抢占打断”或关键补给出现反复失败时，会提高对应 Need 的提前准备与一次性补给量（通过 NeedSatisfier 的 prepareMargin / unitsPerRequest 缩放体现）。
+- **信念（Beliefs）**
+  - `genesis::agents::components::AgentBeliefs`：对交互点的缺货风险进行 EMA 学习（`include/genesis/agents/Beliefs.hpp`）。
+  - 写入时机：LearningSystem 消费结构化 outcome（资源尝试）更新；并可在社交时传播。
+  - 读取时机：NeedSatisfier 将 `stockoutRisk` 作为风险惩罚项参与评分。
+- **关系亲和度记忆（最小社交学习）**
+  - `genesis::agents::components::AgentRelations`：对他人形成亲和度记忆（`include/genesis/agents/Relations.hpp`）。
+  - 写入时机：LearningSystem 消费社交 outcome（成功/失败）更新，并随时间衰减回中性。
+  - 读取时机：NeedSatisfier 在社交选伴评分中加入亲和度项（用于打破“随机社交”并允许形成稳定互动结构）。
 - **位置/移动**
   - `genesis::agents::components::AgentLocation2D`：Agent 当前所在 `mapId` 与 2D 坐标（`include/genesis/agents/Movement2D.hpp`）。
   - `genesis::agents::components::MovementIntent2D`：当前运动目标与速度（`include/genesis/agents/Movement2D.hpp`）。
@@ -33,7 +48,7 @@
   - `genesis::agents::components::PlannerDecision`：每 tick 写入的“当前目标/成本/评分”，用于 Telemetry（`include/genesis/agents/Planner.hpp`）。
 - **行动队列**
   - `genesis::agents::ActionQueue`：`ActionTask` 队列（`include/genesis/agents/ActionSystem.hpp`）。
-  - `ActionType`：`MoveToInteraction / ConsumeResource / TakeResource / ProduceResource`（同上）。
+  - `ActionType`：`MoveToInteraction / ConsumeResource / TakeResource / ProduceResource / SocializeWithAgent`（同上）。
 - **随身资源**
   - `genesis::agents::components::CarriedResources`：按资源类型分槽的随身库存（`include/genesis/agents/CarriedResources.hpp`）。
 
@@ -42,10 +57,13 @@
 - **NeedSatisfier（当前的“选点/决策”实现）**
   - 读取 Need 状态，计算 urgency，并在可达交互点中选择“最合适”的目标资源点；
   - 写入 `PlannerDecision`，并向 `ActionExecutor` 申请 `ConsumeResource`（`src/agents/NeedSatisfier.cpp`）。
+- **LearningSystem（学习系统）**
+  - 消费结构化 outcome，更新 Experience/Beliefs/Relations，并进行遗忘/衰减（`src/agents/LearningSystem.cpp`）。
 - **ActionExecutor**
   - 执行行动队列；必要时插入 `MoveToInteraction`；
   - `ConsumeResource/TakeResource`：从 `ResourceSystem` 消耗资源，写 Telemetry Attempt；
   - `ProduceResource`：解析工坊配方，消耗输入并向工坊库存产出；
+  - `SocializeWithAgent`：接近指定 partner 并进行定时社交；接触成功时双方降低 Social need；同时写入社交 outcome 供学习系统消费（`src/agents/ActionSystem.cpp`）。
   - 若 `ConsumeResource` 因缺货失败，会调用 `ProductionPlanner` 自动补链（`src/agents/ActionSystem.cpp`、`src/agents/ProductionPlanner.cpp`）。
 - **Movement2DSystem**
   - 处理 `MovementIntent2D`，在地图内直线移动；跨图时走 Portal（`src/simulation/Movement2DSystem.cpp`）。
@@ -54,7 +72,7 @@
 
 ## Tick 顺序（调度约束）
 当前调度顺序为（见 `src/simulation/Scheduler.cpp`）：
-0) `LearningSystem.update`：消费结构化 outcome，更新/遗忘学习参数（Experience/Beliefs）  
+0) `LearningSystem.update`：消费结构化 outcome，更新/遗忘学习参数（Experience/Beliefs/Relations）  
 1) `NeedSystem.update`：需求随时间上升  
 2) `NeedSatisfier.update`：选择目标并下发动作（若已有队列/移动则跳过）  
 3) `ActionExecutor.update`：执行 Consume/Take/Produce 与队列推进（并产出 outcome/attempt）  
@@ -70,7 +88,12 @@ NeedSatisfier 当前实现是“规则打分 + 人格扰动”（非 Traits、�
   - `travelCost`：同图欧式距离平方；跨图为最短路径 `totalCost + crossMapPenalty`（跨图惩罚受 `openness` 缩放）。
   - `scarcityPenalty`：资源点越空惩罚越大（按 `1 - current/capacity` 线性映射；权重受 `neuroticism/conscientiousness/openness` 影响）。
   - `crowdPenalty`：目标越拥挤惩罚越大（按其他 Agent 的 `PlannerDecision.target` 计数；权重受 `neuroticism/extraversion/agreeableness` 影响）。
+  - `riskPenalty`：对目标交互点的主观缺货风险惩罚（来自 `AgentBeliefs.stockoutRisk`；权重受人格缩放）。
   - `decisionJitter`：每次选点会注入小幅确定性噪声（由 `stepIndex` 与 `entityId` 导出），用于打破“全体收敛到同一最优点”的稳态。
+- 社交选伴（Need=Social）额外要素：
+  - 候选集：同地图的其他 Agent（会跳过 partner 的移动/待执行动作；该部分未来可能抽象为更原子的“可交互性/承诺”机制）。
+  - `partnerBonus`：偏好与“也想社交”的 partner 互动（更自然的相遇）。
+  - `affinityBonus`：偏好与历史亲和度更高的 partner 互动（来自 `AgentRelations`）。
 - 行为倾向（宏观效果）：
   - 高 `conscientiousness/neuroticism`：更早开始准备（更大的 prepareMargin）、更难切换目标（更高 switch margin）。
   - 高 `openness`：跨图成本更低、噪声更大（更“游走/探索”）。

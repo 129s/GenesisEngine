@@ -55,3 +55,12 @@
 - 事件 schema 版本与兼容策略（建议沿用 `schema_version` + append-only 字段）。
 - 初版要记录哪些事件类型（建议从既有 outcome/telemetry 可直接提取的事件开始）。
 - Entity 标识体系：如何稳定引用 agent/交互点/组织等（避免依赖临时句柄）。
+
+## 已落地（当前实现）
+
+- Runtime：`genesis-runtime-cli soak` 支持 `--eventline-out/--eventline-agent/--eventline-agent-index`
+- Schema：`docs/architecture/foundation/eventline-schema.md`
+- 离线库：`scripts/genesis_lenses/`（纯标准库；可组合算子基建）
+- 单对象渲染：`scripts/observe_agent_eventline.py`
+- 跨 seed 对比：`scripts/compare_agent_eventlines.py`
+- 批量流水线：`scripts/run_observability_batch.ps1`

@@ -13,6 +13,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_soak.ps1 -UseMsv
 
 输出：`out/worldline/worldline_*.jsonl`
 
+与 Worldline 并行的“对象演化事实流”：
+- Eventline schema：`docs/architecture/foundation/eventline-schema.md`
+- 单对象渲染：`scripts/observe_agent_eventline.ps1`
+- 跨 seed 对比：`scripts/compare_agent_eventlines.ps1`
+- 一键批量（worldline+eventline+报告）：`scripts/run_observability_batch.ps1`
+
 ## 2. 文件结构（按行）
 
 ### 2.1 Meta 行（第 1 行）

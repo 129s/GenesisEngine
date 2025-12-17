@@ -7,6 +7,7 @@
 #include <optional>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/Affordances.hpp"
@@ -295,6 +296,17 @@ void NeedSatisfier::update(entt::registry& registry,
             return static_cast<float>(demand) * std::max(0.0f, m_config.demandPenaltyPerAgent);
         };
 
+        const auto activation01_with_prepare =
+            [&](NeedType need, const NeedState& state, const NeedDescriptor& descriptor, float prepareThreshold) -> float {
+            const auto sample = ensureSample(component, need, descriptor, state);
+            if (state.value < prepareThreshold && !sample.critical) {
+                return 0.0f;
+            }
+            const float denom = std::max(1.0f, descriptor.maxValue - prepareThreshold);
+            const float x = (state.value - prepareThreshold) / denom;
+            return std::clamp(x, 0.0f, 1.0f);
+        };
+
         const auto buildCandidate = [&](NeedType need,
                                         world::ResourceType resource,
                                         std::uint32_t unitsPerRequest,
@@ -429,13 +441,22 @@ void NeedSatisfier::update(entt::registry& registry,
             return c;
         };
 
+        std::vector<Candidate> affordances;
+        affordances.reserve(48);
+
+        const auto emitAffordance = [&](const std::optional<Candidate>& candidate) {
+            if (!candidate.has_value()) {
+                return;
+            }
+            affordances.push_back(*candidate);
+        };
+
         auto considerNeed = [&](NeedType need,
                                 world::ResourceType resource,
                                 std::uint32_t unitsPerRequest,
                                 float reliefPerUnit,
                                 float prepareMargin,
-                                const std::function<world::InteractionId(entt::entity)>& preferredLocator,
-                                std::optional<Candidate>& best) {
+                                const std::function<world::InteractionId(entt::entity)>& preferredLocator) {
             auto* state = component.needs.state(need);
             const auto* descriptor = component.needs.descriptor(need);
             if (!state || !descriptor) {
@@ -443,15 +464,7 @@ void NeedSatisfier::update(entt::registry& registry,
             }
 
             const float prepareThreshold = descriptor->satisfiedThreshold + prepareMargin;
-            const float activation = [&]() -> float {
-                const auto sample = ensureSample(component, need, *descriptor, *state);
-                if (state->value < prepareThreshold && !sample.critical) {
-                    return 0.0f;
-                }
-                const float denom = std::max(1.0f, descriptor->maxValue - prepareThreshold);
-                const float x = (state->value - prepareThreshold) / denom;
-                return std::clamp(x, 0.0f, 1.0f);
-            }();
+            const float activation = activation01_with_prepare(need, *state, *descriptor, prepareThreshold);
             if (activation <= 0.0f) {
                 return;
             }
@@ -461,17 +474,13 @@ void NeedSatisfier::update(entt::registry& registry,
                 const auto preferred = preferredLocator(entity);
                 auto spawnIt = spawnByInteraction.find(preferred);
                 if (spawnIt != spawnByInteraction.end()) {
-                    if (auto candidate = buildCandidate(need,
-                                                        resource,
-                                                        unitsPerRequest,
-                                                        reliefPerUnit,
-                                                        activation,
-                                                        preferred,
-                                                        spawnIt->second)) {
-                        if (!best || candidate->score > best->score) {
-                            best = std::move(candidate);
-                        }
-                    }
+                    emitAffordance(buildCandidate(need,
+                                                  resource,
+                                                  unitsPerRequest,
+                                                  reliefPerUnit,
+                                                  activation,
+                                                  preferred,
+                                                  spawnIt->second));
                 }
             }
 
@@ -490,17 +499,13 @@ void NeedSatisfier::update(entt::registry& registry,
                 info.type = spawn.type;
                 info.current = inventory.current;
                 info.capacity = inventory.capacity;
-                if (auto candidate = buildCandidate(need,
-                                                    resource,
-                                                    unitsPerRequest,
-                                                    reliefPerUnit,
-                                                    activation,
-                                                    spawn.interaction,
-                                                    info)) {
-                    if (!best || candidate->score > best->score) {
-                        best = std::move(candidate);
-                    }
-                }
+                emitAffordance(buildCandidate(need,
+                                              resource,
+                                              unitsPerRequest,
+                                              reliefPerUnit,
+                                              activation,
+                                              spawn.interaction,
+                                              info));
             });
 
             // 3) Social 特例：和其他 agent 互动（不依赖 Social 资源生产链）
@@ -525,22 +530,17 @@ void NeedSatisfier::update(entt::registry& registry,
                     if (actionExecutor && actionExecutor->hasPendingActions(partner, registry)) {
                         partnerAvailability *= 0.45f;
                     }
-                    if (auto candidate = buildSocialPartnerCandidate(need,
-                                                                     unitsPerRequest,
-                                                                     reliefPerUnit,
-                                                                     activation,
-                                                                     partner,
-                                                                     partnerUrgency,
-                                                                     partnerAvailability)) {
-                        if (!best || candidate->score > best->score) {
-                            best = std::move(candidate);
-                        }
-                    }
+                    emitAffordance(buildSocialPartnerCandidate(need,
+                                                               unitsPerRequest,
+                                                               reliefPerUnit,
+                                                               activation,
+                                                               partner,
+                                                               partnerUrgency,
+                                                               partnerAvailability));
                 }
             }
         };
 
-        std::optional<Candidate> best;
         struct NeedSpec {
             NeedType need{NeedType::Hunger};
             world::ResourceType resource{world::ResourceType::Food};
@@ -576,8 +576,14 @@ void NeedSatisfier::update(entt::registry& registry,
                          spec.unitsPerRequest,
                          spec.reliefPerUnit,
                          spec.prepareMargin,
-                         spec.preferredLocator,
-                         best);
+                         spec.preferredLocator);
+        }
+
+        std::optional<Candidate> best;
+        for (const auto& a : affordances) {
+            if (!best || a.score > best->score) {
+                best = a;
+            }
         }
 
         std::optional<Candidate> keep;
@@ -608,15 +614,7 @@ void NeedSatisfier::update(entt::registry& registry,
                         return;
                     }
                     const float prepareThreshold = descriptor->satisfiedThreshold + prepareMargin;
-                    const float activation = [&]() -> float {
-                        const auto sample = ensureSample(component, need, *descriptor, *state);
-                        if (state->value < prepareThreshold && !sample.critical) {
-                            return 0.0f;
-                        }
-                        const float denom = std::max(1.0f, descriptor->maxValue - prepareThreshold);
-                        const float x = (state->value - prepareThreshold) / denom;
-                        return std::clamp(x, 0.0f, 1.0f);
-                    }();
+                    const float activation = activation01_with_prepare(need, *state, *descriptor, prepareThreshold);
                     if (activation <= 0.0f) {
                         return;
                     }
@@ -658,15 +656,7 @@ void NeedSatisfier::update(entt::registry& registry,
                 const auto* descriptor = component.needs.descriptor(NeedType::Social);
                 if (state && descriptor) {
                     const float prepareThreshold = descriptor->satisfiedThreshold + scaledPrepare(NeedType::Social, m_config.socialPrepareMargin);
-                    const float activation = [&]() -> float {
-                        const auto sample = ensureSample(component, NeedType::Social, *descriptor, *state);
-                        if (state->value < prepareThreshold && !sample.critical) {
-                            return 0.0f;
-                        }
-                        const float denom = std::max(1.0f, descriptor->maxValue - prepareThreshold);
-                        const float x = (state->value - prepareThreshold) / denom;
-                        return std::clamp(x, 0.0f, 1.0f);
-                    }();
+                    const float activation = activation01_with_prepare(NeedType::Social, *state, *descriptor, prepareThreshold);
                     if (activation > 0.0f) {
                         float partnerUrgency = 0.0f;
                         if (auto* pNeeds = registry.try_get<NeedComponent>(partner)) {

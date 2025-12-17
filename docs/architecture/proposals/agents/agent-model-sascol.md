@@ -112,6 +112,10 @@ Learning 的职责是把 outcome 写回可学习参数（“怎么做/怎么预�
   - Commitment：当前 action queue（先当作隐式 commitment）
   - Outcome/Learning：现有结构化 outcome 与学习写回
 
+当前落地进度（截至本提案最后更新）：
+- 已引入最小 `Affordance` 数据结构：`include/genesis/agents/Affordances.hpp`
+- `NeedSatisfier` 内部已以“生成 affordances 列表 → 统一择优”的方式组织候选：`src/agents/NeedSatisfier.cpp`
+
 ### Phase 1：去分支化（同一套公式覆盖 hunger/thirst/social）
 - 让 “需求维度” 只影响权重/成本曲线，不引入新的 if 分支。
 - 用 “affordance 的属性”描述行为差异（资源类型、单位收益、等待/移动成本），而不是写三套触发器。
@@ -129,4 +133,3 @@ Learning 的职责是把 outcome 写回可学习参数（“怎么做/怎么预�
 - 不在 runtime 内置“章节/标题/母题词表/剧情注入”。
 - 不把“朋友/同事/组织”这类宏观标签硬编码为 agent 内部语义（只允许离线分析派生）。
 - 不引入“预制计划模板集合”让 agent 选剧本；affordances 必须来自环境与规则的系统性枚举。
-

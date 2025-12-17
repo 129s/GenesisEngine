@@ -33,6 +33,7 @@ struct NeedSatisfierConfig {
     std::uint32_t socialUnitsPerRequest{1};
     float socialReliefPerUnit{20.0f};
     float socialPrepareMargin{5.0f};
+    std::uint32_t socialInteractTicksPerUnit{8};
     std::function<world::InteractionId(entt::entity)> socialPreferredLocator{};
 };
 

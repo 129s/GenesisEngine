@@ -88,6 +88,16 @@ void recordResourceAttempt(entt::entity entity,
     return "Unknown";
 }
 
+[[nodiscard]] bool isVitalNeed(NeedType need) noexcept {
+    switch (need) {
+    case NeedType::Hunger:
+    case NeedType::Thirst:
+        return true;
+    default:
+        return false;
+    }
+}
+
 [[nodiscard]] std::optional<std::pair<NeedType, genesis::world::ResourceType>> criticalNeedResource(
     const NeedComponent& component) {
     struct Candidate {
@@ -208,6 +218,13 @@ struct WorkshopJob {
     std::array<std::uint32_t, components::CarriedResources::kTypeCount> reservedConsumables{};
 };
 
+struct SocialJob {
+    std::uint32_t partnerEntityId{0};
+    std::uint32_t workTotalTicks{0};
+    std::uint32_t workRemainingTicks{0};
+    float relief{0.0f};
+};
+
 } // namespace components
 
 namespace {
@@ -309,6 +326,33 @@ void ActionExecutor::requestConsume(entt::entity entity,
     consume.retries = 0;
     consume.reliefPerUnit = reliefPerUnit;
     queue.tasks.push_back(consume);
+}
+
+void ActionExecutor::requestSocialize(entt::entity entity,
+                                      std::uint32_t partnerEntityId,
+                                      std::uint32_t workTicks,
+                                      float relief,
+                                      entt::registry& registry) {
+    if (partnerEntityId == 0U) {
+        return;
+    }
+
+    ensureQueue(entity, registry);
+    auto& queue = registry.get<ActionQueue>(entity);
+
+    if (hasPendingSocialize(queue, partnerEntityId)) {
+        return;
+    }
+
+    ActionTask socialize{};
+    socialize.type = ActionType::SocializeWithAgent;
+    socialize.targetEntityId = partnerEntityId;
+    socialize.speed = 1.0f;
+    socialize.need = NeedType::Social;
+    socialize.resource = genesis::world::ResourceType::Social;
+    socialize.amount = std::max<std::uint32_t>(1U, workTicks);
+    socialize.reliefPerUnit = relief;
+    queue.tasks.push_back(socialize);
 }
 
 void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
@@ -459,31 +503,48 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
         if (auto* needs = registry.try_get<NeedComponent>(entity)) {
             if (auto critical = criticalNeedResource(*needs)) {
                 const auto [criticalNeed, criticalResource] = *critical;
+                if (!isVitalNeed(criticalNeed)) {
+                    // Social "critical" should not preempt work globally; it is handled by normal planning/actions.
+                } else {
+
+                const auto alreadyHasCriticalConsume = [&]() -> bool {
+                    for (const auto& t : queue.tasks) {
+                        if (t.type == ActionType::ConsumeResource && t.need == criticalNeed) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+
+                const auto preemptForCriticalNeed = [&](bool mustAbortWorkshop) {
+                    bool inserted = false;
+                    if (!ensureCriticalConsume(criticalNeed, criticalResource, inserted)) {
+                        recordCriticalPreempt(entity, criticalNeed, registry);
+                        if (mustAbortWorkshop) {
+                            if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
+                                abortWorkshopJob(*job, criticalNeed);
+                                return;
+                            }
+                        }
+                        abandonAllActions();
+                        return;
+                    }
+                    if (inserted) {
+                        recordCriticalPreempt(entity, criticalNeed, registry);
+                    }
+                };
 
                 if (auto* job = registry.try_get<components::WorkshopJob>(entity)) {
-                    if (job->outputType != criticalResource) {
+                    if (job->outputType != criticalResource && !alreadyHasCriticalConsume()) {
                         // Take a break instead of throwing away progress: eat/drink first, then resume work.
                         releaseWorkshopSlot(job->interaction, entity);
-                        bool inserted = false;
-                        if (!ensureCriticalConsume(criticalNeed, criticalResource, inserted)) {
-                            recordCriticalPreempt(entity, criticalNeed, registry);
-                            abortWorkshopJob(*job, criticalNeed);
-                            continue;
-                        }
-                        if (inserted) {
-                            recordCriticalPreempt(entity, criticalNeed, registry);
-                        }
+                        preemptForCriticalNeed(true);
                     }
-                } else if (!queue.tasks.empty() && queue.tasks.front().type == ActionType::ProduceResource) {
-                    if (queue.tasks.front().resource != criticalResource) {
-                        bool inserted = false;
-                        if (!ensureCriticalConsume(criticalNeed, criticalResource, inserted)) {
-                            recordCriticalPreempt(entity, criticalNeed, registry);
-                            abandonAllActions();
-                        } else if (inserted) {
-                            recordCriticalPreempt(entity, criticalNeed, registry);
-                        }
-                    }
+                } else if (!alreadyHasCriticalConsume()) {
+                    // Any non-critical work (including socializing) yields to vital needs.
+                    preemptForCriticalNeed(false);
+                }
+
                 }
             }
         }
@@ -508,6 +569,10 @@ void ActionExecutor::update(entt::registry& registry, float deltaSeconds) {
                 break;
             case ActionType::ProduceResource:
                 advanced = processProduce(entity, queue, location, registry);
+                break;
+            case ActionType::SocializeWithAgent:
+                processSocialize(entity, queue, location, registry);
+                advanced = false;
                 break;
             }
         }
@@ -540,6 +605,15 @@ bool ActionExecutor::hasPendingConsume(const ActionQueue& queue,
                                        genesis::world::ResourceType type) const {
     return std::any_of(queue.tasks.begin(), queue.tasks.end(), [&](const ActionTask& task) {
         return task.type == ActionType::ConsumeResource && task.interaction == interaction && task.resource == type;
+    });
+}
+
+bool ActionExecutor::hasPendingSocialize(const ActionQueue& queue, std::uint32_t partnerEntityId) const {
+    if (partnerEntityId == 0U) {
+        return false;
+    }
+    return std::any_of(queue.tasks.begin(), queue.tasks.end(), [&](const ActionTask& task) {
+        return task.type == ActionType::SocializeWithAgent && task.targetEntityId == partnerEntityId;
     });
 }
 
@@ -1192,6 +1266,93 @@ bool ActionExecutor::processProduce(entt::entity entity,
         active.workRemainingTicks--;
     }
     return active.workRemainingTicks == 0U;
+}
+
+void ActionExecutor::processSocialize(entt::entity entity,
+                                      ActionQueue& queue,
+                                      components::AgentLocation2D& location,
+                                      entt::registry& registry) {
+    if (queue.tasks.empty()) {
+        return;
+    }
+
+    auto& task = queue.tasks.front();
+    const auto partner = static_cast<entt::entity>(task.targetEntityId);
+    if (partner == entt::null || !registry.valid(partner) || !registry.all_of<components::AgentLocation2D>(partner)) {
+        queue.tasks.pop_front();
+        if (registry.any_of<components::SocialJob>(entity)) {
+            registry.remove<components::SocialJob>(entity);
+        }
+        return;
+    }
+
+    const auto& partnerLoc = registry.get<components::AgentLocation2D>(partner);
+    if (partnerLoc.mapId != location.mapId) {
+        queue.tasks.pop_front();
+        if (registry.any_of<components::SocialJob>(entity)) {
+            registry.remove<components::SocialJob>(entity);
+        }
+        return;
+    }
+
+    const float dx = partnerLoc.x - location.x;
+    const float dy = partnerLoc.y - location.y;
+    const float dist2 = dx * dx + dy * dy;
+    constexpr float kMeetEpsilon2 = 0.05f * 0.05f;
+    if (dist2 > kMeetEpsilon2) {
+        auto& intent = registry.get_or_emplace<components::MovementIntent2D>(entity);
+        intent.targetMapId = location.mapId;
+        intent.targetX = partnerLoc.x;
+        intent.targetY = partnerLoc.y;
+        intent.speed = std::max(task.speed, kMinSpeed);
+        return;
+    }
+
+    auto& job = registry.get_or_emplace<components::SocialJob>(entity);
+    if (job.partnerEntityId != task.targetEntityId || job.workTotalTicks == 0U) {
+        job.partnerEntityId = task.targetEntityId;
+        job.workTotalTicks = std::max<std::uint32_t>(1U, task.amount);
+        job.workRemainingTicks = job.workTotalTicks;
+        job.relief = task.reliefPerUnit;
+    }
+
+    if (job.workRemainingTicks > 0U) {
+        --job.workRemainingTicks;
+        return;
+    }
+
+    auto* needs = registry.try_get<NeedComponent>(entity);
+    if (needs) {
+        auto* state = needs->needs.state(NeedType::Social);
+        const auto* descriptor = needs->needs.descriptor(NeedType::Social);
+        if (state && descriptor) {
+            state->value = std::max(descriptor->minValue, state->value - std::max(0.0f, job.relief));
+            state->clamp(*descriptor);
+            needs->lastSamples[needIndex(NeedType::Social)] = std::nullopt;
+        }
+    }
+
+    // Co-located social contact benefits both sides (even if only one initiated).
+    if (registry.valid(partner) && registry.all_of<components::AgentLocation2D>(partner)) {
+        const auto& pLoc = registry.get<components::AgentLocation2D>(partner);
+        const float pdx = pLoc.x - location.x;
+        const float pdy = pLoc.y - location.y;
+        const float pd2 = pdx * pdx + pdy * pdy;
+        if (pLoc.mapId == location.mapId && pd2 <= kMeetEpsilon2) {
+            if (auto* pNeeds = registry.try_get<NeedComponent>(partner)) {
+                auto* pState = pNeeds->needs.state(NeedType::Social);
+                const auto* pDesc = pNeeds->needs.descriptor(NeedType::Social);
+                if (pState && pDesc) {
+                    pState->value = std::max(pDesc->minValue, pState->value - std::max(0.0f, job.relief));
+                    pState->clamp(*pDesc);
+                    pNeeds->lastSamples[needIndex(NeedType::Social)] = std::nullopt;
+                }
+            }
+        }
+    }
+
+    registry.remove<components::SocialJob>(entity);
+    queue.tasks.pop_front();
 }
 
 bool ActionExecutor::acquireWorkshopSlot(genesis::world::InteractionId interaction, entt::entity worker, std::uint32_t slots) {

@@ -364,6 +364,9 @@ void SimulationContext::collectActionSnapshots(std::vector<telemetry::ActionSnap
             case agents::ActionType::ProduceResource:
                 snap.currentAction = "ProduceResource";
                 break;
+            case agents::ActionType::SocializeWithAgent:
+                snap.currentAction = "SocializeWithAgent";
+                break;
             }
         }
         out.push_back(std::move(snap));

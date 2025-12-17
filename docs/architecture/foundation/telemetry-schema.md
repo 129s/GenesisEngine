@@ -64,7 +64,7 @@
 ### 2.5 ActionSnapshot
 
 - `entityId:uint32`：对应代理实体 ID。
-- `currentAction:string`：当前动作类型（例如 `MoveToInteraction/ConsumeResource/TakeResource/ProduceResource/Idle` 等）。
+- `currentAction:string`：当前动作类型（例如 `MoveToInteraction/ConsumeResource/TakeResource/ProduceResource/SocializeWithAgent/Idle` 等）。
 - `queueLength:uint32`：行动队列长度。
 - `target:InteractionId(uint32)`：当前动作目标（如移动/消耗/生产的交互点）。
 - `speed:float`：移动速度（仅在移动相关动作时有意义）。

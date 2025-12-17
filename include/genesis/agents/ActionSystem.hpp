@@ -24,12 +24,14 @@ enum class ActionType {
     MoveToInteraction,
     ConsumeResource,
     TakeResource,
-    ProduceResource
+    ProduceResource,
+    SocializeWithAgent
 };
 
 struct ActionTask {
     ActionType type{ActionType::MoveToInteraction};
     genesis::world::InteractionId interaction{0};
+    std::uint32_t targetEntityId{0};
     float speed{1.0f};
     NeedType need{NeedType::Hunger};
     genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
@@ -56,6 +58,12 @@ public:
                         float reliefPerUnit,
                         entt::registry& registry);
 
+    void requestSocialize(entt::entity entity,
+                          std::uint32_t partnerEntityId,
+                          std::uint32_t workTicks,
+                          float relief,
+                          entt::registry& registry);
+
     void update(entt::registry& registry, float deltaSeconds);
 
     [[nodiscard]] bool hasPendingActions(entt::entity entity, const entt::registry& registry) const;
@@ -66,10 +74,12 @@ public:
 private:
     void ensureQueue(entt::entity entity, entt::registry& registry);
     bool hasPendingConsume(const ActionQueue& queue, genesis::world::InteractionId interaction, genesis::world::ResourceType type) const;
+    bool hasPendingSocialize(const ActionQueue& queue, std::uint32_t partnerEntityId) const;
     void processMove(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
     void processConsume(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
     void processTake(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
     bool processProduce(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
+    void processSocialize(entt::entity entity, ActionQueue& queue, genesis::agents::components::AgentLocation2D& location, entt::registry& registry);
     bool acquireWorkshopSlot(genesis::world::InteractionId interaction, entt::entity worker, std::uint32_t slots);
     void releaseWorkshopSlot(genesis::world::InteractionId interaction, entt::entity worker);
 

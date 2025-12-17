@@ -21,6 +21,20 @@ namespace genesis::agents {
 
 namespace {
 
+constexpr std::uint32_t kAgentTargetMask = 0x80000000u;
+
+[[nodiscard]] std::uint32_t encodeAgentTarget(entt::entity entity) noexcept {
+    return kAgentTargetMask | static_cast<std::uint32_t>(entt::to_integral(entity));
+}
+
+[[nodiscard]] bool isAgentTarget(std::uint32_t target) noexcept {
+    return (target & kAgentTargetMask) != 0U;
+}
+
+[[nodiscard]] entt::entity decodeAgentTarget(std::uint32_t target) noexcept {
+    return static_cast<entt::entity>(target & ~kAgentTargetMask);
+}
+
 [[nodiscard]] std::uint64_t mix_u64(std::uint64_t x) noexcept {
     // splitmix64 finalizer
     x += 0x9E3779B97F4A7C15ull;
@@ -263,6 +277,7 @@ void NeedSatisfier::update(entt::registry& registry,
             NeedType need{NeedType::Hunger};
             world::ResourceType resource{world::ResourceType::Food};
             world::InteractionId interaction{0};
+            std::uint32_t partnerEntityId{0};
             float travelCost{0.0f};
             float score{0.0f};
             std::uint32_t units{0};
@@ -336,6 +351,7 @@ void NeedSatisfier::update(entt::registry& registry,
             c.need = need;
             c.resource = resource;
             c.interaction = interaction;
+            c.partnerEntityId = 0;
             c.travelCost = travelCost;
             c.units = unitsPerRequest;
             c.reliefPerUnit = reliefPerUnit;
@@ -344,6 +360,56 @@ void NeedSatisfier::update(entt::registry& registry,
                 - wScar * scarcityPenalty
                 - wCrowd * crowdPenalty
                 - wRisk * riskPenalty
+                + jitter;
+            return c;
+        };
+
+        const auto buildSocialPartnerCandidate = [&](NeedType need,
+                                                     std::uint32_t unitsPerRequest,
+                                                     float reliefPerUnit,
+                                                     float urgency,
+                                                     entt::entity partnerEntity,
+                                                     float partnerUrgency01) -> std::optional<Candidate> {
+            if (partnerEntity == entt::null || !registry.valid(partnerEntity)) {
+                return std::nullopt;
+            }
+            if (!registry.all_of<components::AgentLocation2D>(partnerEntity)) {
+                return std::nullopt;
+            }
+            const auto& partnerLoc = registry.get<components::AgentLocation2D>(partnerEntity);
+            if (partnerLoc.mapId != location.mapId) {
+                return std::nullopt;
+            }
+            const float dx = partnerLoc.x - location.x;
+            const float dy = partnerLoc.y - location.y;
+            const float travelCost = dx * dx + dy * dy;
+
+            const world::InteractionId interaction = encodeAgentTarget(partnerEntity);
+            const float crowdPenalty = demandPenalty(interaction, previousTarget);
+            float jitter = 0.0f;
+            if (noiseSigma > 0.0f) {
+                const std::uint64_t h = entitySeed
+                    ^ (static_cast<std::uint64_t>(stepIndex) * 0x9E3779B97F4A7C15ull)
+                    ^ (static_cast<std::uint64_t>(interaction) * 0xD1B54A32D192ED03ull)
+                    ^ (static_cast<std::uint64_t>(needIndex(need)) * 0x94D049BB133111EBull);
+                jitter = signed01_from_u64(h) * noiseSigma;
+            }
+
+            // Prefer partners who also want social contact (more "natural" interactions).
+            const float partnerBonus = 160.0f * std::clamp(partnerUrgency01, 0.0f, 1.0f);
+
+            Candidate c{};
+            c.need = need;
+            c.resource = world::ResourceType::Social;
+            c.interaction = interaction;
+            c.partnerEntityId = static_cast<std::uint32_t>(entt::to_integral(partnerEntity));
+            c.travelCost = travelCost;
+            c.units = unitsPerRequest;
+            c.reliefPerUnit = reliefPerUnit;
+            c.score = urgency * 1000.0f
+                + partnerBonus
+                - wDist * travelCost
+                - wCrowd * crowdPenalty
                 + jitter;
             return c;
         };
@@ -418,6 +484,39 @@ void NeedSatisfier::update(entt::registry& registry,
                     }
                 }
             });
+
+            // 3) Social 特例：和其他 agent 互动（不依赖 Social 资源生产链）
+            if (need == NeedType::Social) {
+                auto partnerView = registry.view<NeedComponent, components::AgentLocation2D>();
+                for (auto partner : partnerView) {
+                    if (partner == entity) {
+                        continue;
+                    }
+                    if (registry.any_of<components::MovementIntent2D>(partner)) {
+                        continue;
+                    }
+                    if (actionExecutor && actionExecutor->hasPendingActions(partner, registry)) {
+                        continue;
+                    }
+                    const auto& partnerNeeds = partnerView.get<NeedComponent>(partner);
+                    auto* pState = partnerNeeds.needs.state(NeedType::Social);
+                    const auto* pDesc = partnerNeeds.needs.descriptor(NeedType::Social);
+                    float partnerUrgency = 0.0f;
+                    if (pState && pDesc) {
+                        partnerUrgency = urgency01(*pState, *pDesc);
+                    }
+                    if (auto candidate = buildSocialPartnerCandidate(need,
+                                                                     unitsPerRequest,
+                                                                     reliefPerUnit,
+                                                                     urgency,
+                                                                     partner,
+                                                                     partnerUrgency)) {
+                        if (!best || candidate->score > best->score) {
+                            best = std::move(candidate);
+                        }
+                    }
+                }
+            }
         };
 
         std::optional<Candidate> best;
@@ -446,7 +545,7 @@ void NeedSatisfier::update(entt::registry& registry,
                      best);
 
         std::optional<Candidate> keep;
-        if (previousTarget != 0) {
+        if (previousTarget != 0 && !isAgentTarget(previousTarget)) {
             const auto spawnIt = spawnByInteraction.find(previousTarget);
             bool keepAllowed = false;
             if (spawnIt != spawnByInteraction.end()) {
@@ -512,6 +611,35 @@ void NeedSatisfier::update(entt::registry& registry,
                          m_config.socialReliefPerUnit,
                          scaledPrepare(NeedType::Social, m_config.socialPrepareMargin));
             }
+        } else if (previousTarget != 0 && isAgentTarget(previousTarget)) {
+            const auto partner = decodeAgentTarget(previousTarget);
+            if (registry.valid(partner) && registry.all_of<components::AgentLocation2D>(partner)) {
+                auto* state = component.needs.state(NeedType::Social);
+                const auto* descriptor = component.needs.descriptor(NeedType::Social);
+                if (state && descriptor) {
+                    const auto sample = ensureSample(component, NeedType::Social, *descriptor, *state);
+                    const float prepareThreshold = descriptor->satisfiedThreshold + scaledPrepare(NeedType::Social, m_config.socialPrepareMargin);
+                    if (state->value >= prepareThreshold || sample.critical) {
+                        const float urgency = urgency01(*state, *descriptor);
+                        if (urgency > 0.0f) {
+                            float partnerUrgency = 0.0f;
+                            if (auto* pNeeds = registry.try_get<NeedComponent>(partner)) {
+                                auto* pState = pNeeds->needs.state(NeedType::Social);
+                                const auto* pDesc = pNeeds->needs.descriptor(NeedType::Social);
+                                if (pState && pDesc) {
+                                    partnerUrgency = urgency01(*pState, *pDesc);
+                                }
+                            }
+                            keep = buildSocialPartnerCandidate(NeedType::Social,
+                                                               scaledUnits(NeedType::Social, m_config.socialUnitsPerRequest),
+                                                               m_config.socialReliefPerUnit,
+                                                               urgency,
+                                                               partner,
+                                                               partnerUrgency);
+                        }
+                    }
+                }
+            }
         }
 
         if (best && keep && best->interaction != keep->interaction) {
@@ -555,13 +683,18 @@ void NeedSatisfier::update(entt::registry& registry,
                                                                 components::PlannerDecision{best->interaction, best->travelCost, best->score});
 
         if (actionExecutor) {
-            actionExecutor->requestConsume(entity,
-                                           best->interaction,
-                                           best->need,
-                                           best->resource,
-                                           best->units,
-                                           best->reliefPerUnit,
-                                           registry);
+            if (best->need == NeedType::Social && best->partnerEntityId != 0U) {
+                const auto ticks = std::max<std::uint32_t>(1U, m_config.socialInteractTicksPerUnit) * std::max<std::uint32_t>(1U, best->units);
+                actionExecutor->requestSocialize(entity, best->partnerEntityId, ticks, best->reliefPerUnit * static_cast<float>(best->units), registry);
+            } else {
+                actionExecutor->requestConsume(entity,
+                                               best->interaction,
+                                               best->need,
+                                               best->resource,
+                                               best->units,
+                                               best->reliefPerUnit,
+                                               registry);
+            }
             continue;
         }
 

@@ -81,6 +81,9 @@ struct SoakOptions {
     std::optional<std::filesystem::path> outPath;
     std::optional<std::filesystem::path> summaryOutPath;
     std::optional<std::filesystem::path> worldlineOutPath;
+    std::optional<std::filesystem::path> eventlineOutPath;
+    std::optional<std::uint32_t> eventlineAgentId;
+    std::optional<std::uint32_t> eventlineAgentIndex;
 };
 
 void printUsage(std::ostream& out) {
@@ -106,6 +109,9 @@ void printUsage(std::ostream& out) {
             "  --out <file>          Write soak metrics report as JSON\n"
             "  --summary-out <file>  Write 1-page Markdown summary for soak\n"
             "  --worldline-out <file> Write per-window worldline JSONL (macro evidence; not a log)\n"
+            "  --eventline-out <file> Write per-event eventline JSONL for one agent (object evolution; sparse facts)\n"
+            "  --eventline-agent <id> Agent entityId to observe (with --eventline-out)\n"
+            "  --eventline-agent-index <i> Observe i-th agent (sorted by entityId; with --eventline-out)\n"
             "  --window-steps <n>    Window size for worldline (default: 5000)\n"
            "  --progress-every <n>  Print progress every N steps (0 disables)\n"
             "  --quiet               Suppress per-event printing\n"
@@ -718,6 +724,7 @@ struct ResourceEconomy {
     for (const auto& a : initialSnapshot->telemetry.agents) {
         agentIds.push_back(a.entityId);
     }
+    std::sort(agentIds.begin(), agentIds.end());
 
     std::unordered_map<std::uint32_t, std::uint64_t> produceTicksByAgent;
     std::unordered_map<std::uint32_t, std::uint64_t> takeTicksByAgent;
@@ -891,6 +898,10 @@ struct ResourceEconomy {
     std::optional<std::ofstream> worldlineOut;
     if (opts.worldlineOutPath) {
         const auto outputPath = resolvePathIfRelative(opts.rootPath, *opts.worldlineOutPath);
+        if (outputPath.has_parent_path()) {
+            std::error_code ec;
+            std::filesystem::create_directories(outputPath.parent_path(), ec);
+        }
         worldlineOut.emplace(outputPath, std::ios::out | std::ios::trunc);
         if (!worldlineOut->is_open()) {
             std::cerr << "Failed to write worldline: " << outputPath.string() << "\n";
@@ -924,6 +935,291 @@ struct ResourceEconomy {
         }
         (*worldlineOut) << meta.dump() << "\n";
     }
+
+    // --- Eventline: sparse per-event facts for observing one agent's evolution over time. ---
+    std::optional<std::ofstream> eventlineOut;
+    std::optional<std::uint32_t> eventlineAgentId;
+    struct EventlineState {
+        bool initialized{false};
+        std::uint32_t entityId{0};
+        std::uint32_t lastMapId{0};
+        genesis::world::InteractionId lastPlannerTarget{0};
+        std::string lastAction;
+        std::unordered_map<std::string, float> lastNeedValue;
+        std::unordered_map<std::string, bool> lastNeedCritical;
+
+        bool socialInProgress{false};
+        std::uint32_t socialPartner{0};
+        float socialIntendedRelief{0.0f};
+        float socialPrevNeedValue{0.0f};
+    };
+    EventlineState eventlineState{};
+
+    if (opts.eventlineOutPath) {
+        const auto outputPath = resolvePathIfRelative(opts.rootPath, *opts.eventlineOutPath);
+        if (outputPath.has_parent_path()) {
+            std::error_code ec;
+            std::filesystem::create_directories(outputPath.parent_path(), ec);
+        }
+        eventlineOut.emplace(outputPath, std::ios::out | std::ios::trunc);
+        if (!eventlineOut->is_open()) {
+            std::cerr << "Failed to write eventline: " << outputPath.string() << "\n";
+            return 2;
+        }
+
+        if (opts.eventlineAgentId) {
+            eventlineAgentId = *opts.eventlineAgentId;
+        } else if (opts.eventlineAgentIndex) {
+            const auto idx = *opts.eventlineAgentIndex;
+            if (agentIds.empty() || idx >= agentIds.size()) {
+                std::cerr << "--eventline-agent-index out of range (agents=" << agentIds.size() << ")\n";
+                return 2;
+            }
+            eventlineAgentId = agentIds[idx];
+        } else {
+            if (agentIds.empty()) {
+                std::cerr << "No agents available for --eventline-out\n";
+                return 2;
+            }
+            eventlineAgentId = agentIds.front();
+        }
+
+        eventlineState.entityId = *eventlineAgentId;
+        eventlineState.lastNeedValue.reserve(8);
+        eventlineState.lastNeedCritical.reserve(8);
+
+        json meta;
+        meta["kind"] = "runtime_eventline_meta";
+        meta["schema_version"] = 1;
+        meta["worldFolder"] = loadedWorldFolder.empty() ? std::string{} : std::filesystem::absolute(loadedWorldFolder).string();
+        if (opts.worldgenConfigPath) {
+            meta["worldgenConfig"] = resolvePathIfRelative(opts.rootPath, *opts.worldgenConfigPath).string();
+        }
+        if (opts.worldgenSeed) {
+            meta["worldSeed"] = *opts.worldgenSeed;
+        } else if (runtime.lastSeed().has_value()) {
+            meta["worldSeed"] = *runtime.lastSeed();
+        }
+        meta["stepsRequested"] = opts.steps;
+        meta["agentCountInitial"] = static_cast<std::uint32_t>(initialSnapshot->telemetry.agents.size());
+        meta["telemetrySchemaVersion"] = initialSnapshot->telemetry.schema_version;
+        meta["agentEntityId"] = *eventlineAgentId;
+        meta["agentIndexSortedByEntityId"] = [&]() -> std::int64_t {
+            for (std::size_t i = 0; i < agentIds.size(); ++i) {
+                if (agentIds[i] == *eventlineAgentId) return static_cast<std::int64_t>(i);
+            }
+            return -1;
+        }();
+        meta["params"] = {
+            {"needDeltaAbsMin", 8.0},
+            {"socialSuccessDeltaFrac", 0.25},
+            {"notes", "eventline is sparse facts for one observed agent; not a full log"},
+        };
+        (*eventlineOut) << meta.dump() << "\n";
+    }
+
+    auto ingestEventlineStep = [&](const genesis::telemetry::TickTelemetry& telemetry) {
+        if (!eventlineOut.has_value() || !eventlineAgentId.has_value()) {
+            return;
+        }
+
+        const std::uint64_t step = telemetry.step;
+        const auto entityId = *eventlineAgentId;
+
+        auto emit = [&](const char* type, const json& payload) {
+            json e;
+            e["kind"] = "runtime_eventline_event";
+            e["schema_version"] = 1;
+            e["step"] = step;
+            e["entityId"] = entityId;
+            e["type"] = type;
+            e["payload"] = payload;
+            (*eventlineOut) << e.dump() << "\n";
+        };
+
+        const auto* agentSnap = [&]() -> const genesis::telemetry::AgentSnapshot* {
+            for (const auto& a : telemetry.agents) {
+                if (a.entityId == entityId) {
+                    return &a;
+                }
+            }
+            return nullptr;
+        }();
+
+        const auto* plannerSnap = [&]() -> const genesis::telemetry::PlannerSnapshot* {
+            for (const auto& p : telemetry.plannerDecisions) {
+                if (p.entityId == entityId) {
+                    return &p;
+                }
+            }
+            return nullptr;
+        }();
+
+        const auto* actionSnap = [&]() -> const genesis::telemetry::ActionSnapshot* {
+            for (const auto& a : telemetry.actions) {
+                if (a.entityId == entityId) {
+                    return &a;
+                }
+            }
+            return nullptr;
+        }();
+
+        std::unordered_map<std::string, genesis::telemetry::NeedSnapshot> needsByName;
+        needsByName.reserve(8);
+        for (const auto& n : telemetry.needs) {
+            if (n.entityId != entityId) {
+                continue;
+            }
+            needsByName.emplace(n.needName, n);
+        }
+
+        if (!eventlineState.initialized) {
+            eventlineState.initialized = true;
+            if (agentSnap) {
+                eventlineState.lastMapId = agentSnap->mapId;
+            }
+            if (plannerSnap) {
+                eventlineState.lastPlannerTarget = plannerSnap->target;
+            }
+            if (actionSnap) {
+                eventlineState.lastAction = actionSnap->currentAction;
+            }
+            for (const auto& [name, n] : needsByName) {
+                eventlineState.lastNeedValue[name] = n.value;
+                eventlineState.lastNeedCritical[name] = n.critical;
+            }
+
+            json init;
+            init["mapId"] = agentSnap ? agentSnap->mapId : 0U;
+            init["pos"] = agentSnap ? json{{"x", agentSnap->position.x}, {"y", agentSnap->position.y}} : json::object();
+            init["plannerTarget"] = plannerSnap ? plannerSnap->target : 0U;
+            init["action"] = actionSnap ? actionSnap->currentAction : std::string{};
+            init["needs"] = json::object();
+            for (const auto& [name, n] : needsByName) {
+                init["needs"][name] = {{"value", n.value}, {"critical", n.critical}};
+            }
+            emit("initial_state", init);
+        }
+
+        if (agentSnap) {
+            if (eventlineState.lastMapId != agentSnap->mapId) {
+                emit("map_change", {{"from", eventlineState.lastMapId}, {"to", agentSnap->mapId}});
+                eventlineState.lastMapId = agentSnap->mapId;
+            }
+        }
+
+        if (plannerSnap) {
+            if (eventlineState.lastPlannerTarget != plannerSnap->target) {
+                emit("planner_target_change",
+                     {{"from", eventlineState.lastPlannerTarget},
+                      {"to", plannerSnap->target},
+                      {"travelCost", plannerSnap->travelCost},
+                      {"score", plannerSnap->score},
+                      {"toIsAgentTarget", genesis::agents::isAgentPlannerTarget(static_cast<std::uint32_t>(plannerSnap->target))}});
+                eventlineState.lastPlannerTarget = plannerSnap->target;
+            }
+        }
+
+        if (actionSnap) {
+            if (eventlineState.lastAction != actionSnap->currentAction) {
+                emit("action_change",
+                     {{"from", eventlineState.lastAction},
+                      {"to", actionSnap->currentAction},
+                      {"queueLength", actionSnap->queueLength},
+                      {"target", actionSnap->target},
+                      {"targetEntityId", actionSnap->targetEntityId},
+                      {"resourceTypeId", static_cast<std::uint32_t>(actionSnap->resource)},
+                      {"resourceType", genesis::world::resourceTypeName(actionSnap->resource)},
+                      {"amount", actionSnap->amount},
+                      {"reliefPerUnit", actionSnap->reliefPerUnit},
+                      {"speed", actionSnap->speed}});
+
+                if (eventlineState.lastAction == "SocializeWithAgent" && eventlineState.socialInProgress) {
+                    float socialNow = eventlineState.socialPrevNeedValue;
+                    if (const auto it = needsByName.find("Social"); it != needsByName.end()) {
+                        socialNow = it->second.value;
+                    }
+                    const float delta = socialNow - eventlineState.socialPrevNeedValue;
+                    const float intended = std::max(0.0f, eventlineState.socialIntendedRelief);
+                    const float successDeltaThreshold = -0.25f * intended;
+                    const bool inferredSuccess = (intended > 0.0f) ? (delta <= successDeltaThreshold) : (delta < -0.5f);
+                    emit("social_attempt_end",
+                         {{"partnerEntityId", eventlineState.socialPartner},
+                          {"intendedRelief", intended},
+                          {"socialDelta", delta},
+                          {"inferredSuccess", inferredSuccess}});
+                    eventlineState.socialInProgress = false;
+                    eventlineState.socialPartner = 0;
+                    eventlineState.socialIntendedRelief = 0.0f;
+                }
+
+                if (actionSnap->currentAction == "SocializeWithAgent" && actionSnap->targetEntityId != 0U) {
+                    float socialNow = 0.0f;
+                    if (const auto it = needsByName.find("Social"); it != needsByName.end()) {
+                        socialNow = it->second.value;
+                    }
+                    eventlineState.socialInProgress = true;
+                    eventlineState.socialPartner = actionSnap->targetEntityId;
+                    eventlineState.socialIntendedRelief = actionSnap->reliefPerUnit;
+                    eventlineState.socialPrevNeedValue = socialNow;
+                    emit("social_attempt_start",
+                         {{"partnerEntityId", eventlineState.socialPartner}, {"intendedRelief", eventlineState.socialIntendedRelief}, {"socialValue", socialNow}});
+                }
+
+                eventlineState.lastAction = actionSnap->currentAction;
+            }
+        }
+
+        constexpr float kNeedDeltaAbsMin = 8.0f;
+        for (const auto& [name, n] : needsByName) {
+            const auto prevCritIt = eventlineState.lastNeedCritical.find(name);
+            const bool prevCrit = (prevCritIt != eventlineState.lastNeedCritical.end()) ? prevCritIt->second : false;
+            if (prevCritIt == eventlineState.lastNeedCritical.end() || prevCrit != n.critical) {
+                emit("need_critical_transition", {{"need", name}, {"from", prevCrit}, {"to", n.critical}, {"value", n.value}});
+                eventlineState.lastNeedCritical[name] = n.critical;
+            }
+
+            const auto prevValIt = eventlineState.lastNeedValue.find(name);
+            const float prevVal = (prevValIt != eventlineState.lastNeedValue.end()) ? prevValIt->second : n.value;
+            const float dv = n.value - prevVal;
+            if (std::abs(dv) >= kNeedDeltaAbsMin) {
+                emit("need_delta", {{"need", name}, {"delta", dv}, {"from", prevVal}, {"to", n.value}, {"critical", n.critical}});
+            }
+            eventlineState.lastNeedValue[name] = n.value;
+
+            if (eventlineState.socialInProgress && name == "Social") {
+                eventlineState.socialPrevNeedValue = n.value;
+            }
+        }
+
+        for (const auto& attempt : telemetry.resourceAttempts) {
+            if (attempt.entityId != entityId) {
+                continue;
+            }
+            emit("resource_attempt",
+                 {{"action", attempt.action},
+                  {"interactionId", attempt.interactionId},
+                  {"resourceTypeId", static_cast<std::uint32_t>(attempt.resourceType)},
+                  {"resourceType", genesis::world::resourceTypeName(attempt.resourceType)},
+                  {"wantedUnits", attempt.wantedUnits},
+                  {"obtainedUnits", attempt.obtainedUnits},
+                  {"recoveryPlanned", attempt.recoveryPlanned},
+                  {"failureReason", attempt.failureReason}});
+        }
+        for (const auto& attempt : telemetry.workshopAttempts) {
+            if (attempt.entityId != entityId) {
+                continue;
+            }
+            emit("workshop_attempt",
+                 {{"interactionId", attempt.interactionId},
+                  {"outputTypeId", static_cast<std::uint32_t>(attempt.outputType)},
+                  {"outputType", genesis::world::resourceTypeName(attempt.outputType)},
+                  {"wantedBatches", attempt.wantedBatches},
+                  {"wantedUnits", attempt.wantedUnits},
+                  {"producedUnits", attempt.producedUnits},
+                  {"failureReason", attempt.failureReason}});
+        }
+    };
 
     WorldlineWindowAgg windowAgg;
     std::uint64_t worldlineWindowIndex = 0;
@@ -1258,6 +1554,9 @@ struct ResourceEconomy {
     if (worldlineOut.has_value()) {
         ingestWorldlineStep(initialSnapshot->telemetry);
     }
+    if (eventlineOut.has_value()) {
+        ingestEventlineStep(initialSnapshot->telemetry);
+    }
 
     for (std::uint64_t i = 0; i < opts.steps; ++i) {
         if (opts.wallSeconds) {
@@ -1283,6 +1582,9 @@ struct ResourceEconomy {
         ingestTelemetry(snapshot->telemetry);
         if (worldlineOut.has_value()) {
             ingestWorldlineStep(snapshot->telemetry);
+        }
+        if (eventlineOut.has_value()) {
+            ingestEventlineStep(snapshot->telemetry);
         }
     }
 
@@ -2091,7 +2393,8 @@ struct ParsedArgs {
             }
 
             if ((arg == "--root" || arg == "--steps" || arg == "--wall-seconds" || arg == "--out" || arg == "--summary-out" || arg == "--progress-every" ||
-                 arg == "--agents" || arg == "--worldline-out" || arg == "--window-steps" || arg == "--worldgen-config" || arg == "--seed" || arg == "--generated-world-out") &&
+                 arg == "--agents" || arg == "--worldline-out" || arg == "--window-steps" || arg == "--worldgen-config" || arg == "--seed" || arg == "--generated-world-out" ||
+                 arg == "--eventline-out" || arg == "--eventline-agent" || arg == "--eventline-agent-index") &&
                 i + 1 >= argc) {
                 return std::nullopt;
             }
@@ -2142,6 +2445,26 @@ struct ParsedArgs {
             }
             if (arg == "--worldline-out") {
                 opts.worldlineOutPath = std::filesystem::path(argv[++i]);
+                continue;
+            }
+            if (arg == "--eventline-out") {
+                opts.eventlineOutPath = std::filesystem::path(argv[++i]);
+                continue;
+            }
+            if (arg == "--eventline-agent") {
+                std::uint64_t v = 0;
+                if (!tryParseU64(argv[++i], v) || v > std::numeric_limits<std::uint32_t>::max()) {
+                    return std::nullopt;
+                }
+                opts.eventlineAgentId = static_cast<std::uint32_t>(v);
+                continue;
+            }
+            if (arg == "--eventline-agent-index") {
+                std::uint64_t v = 0;
+                if (!tryParseU64(argv[++i], v) || v > std::numeric_limits<std::uint32_t>::max()) {
+                    return std::nullopt;
+                }
+                opts.eventlineAgentIndex = static_cast<std::uint32_t>(v);
                 continue;
             }
             if (arg == "--window-steps") {

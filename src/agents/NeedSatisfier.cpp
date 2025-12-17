@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "genesis/agents/ActionSystem.hpp"
+#include "genesis/agents/PlannerTargetEncoding.hpp"
 #include "genesis/agents/Beliefs.hpp"
 #include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Needs.hpp"
@@ -21,18 +22,16 @@ namespace genesis::agents {
 
 namespace {
 
-constexpr std::uint32_t kAgentTargetMask = 0x80000000u;
-
 [[nodiscard]] std::uint32_t encodeAgentTarget(entt::entity entity) noexcept {
-    return kAgentTargetMask | static_cast<std::uint32_t>(entt::to_integral(entity));
+    return encodeAgentPlannerTargetEntityId(static_cast<std::uint32_t>(entt::to_integral(entity)));
 }
 
 [[nodiscard]] bool isAgentTarget(std::uint32_t target) noexcept {
-    return (target & kAgentTargetMask) != 0U;
+    return isAgentPlannerTarget(target);
 }
 
 [[nodiscard]] entt::entity decodeAgentTarget(std::uint32_t target) noexcept {
-    return static_cast<entt::entity>(target & ~kAgentTargetMask);
+    return static_cast<entt::entity>(decodeAgentPlannerTargetEntityId(target));
 }
 
 [[nodiscard]] std::uint64_t mix_u64(std::uint64_t x) noexcept {

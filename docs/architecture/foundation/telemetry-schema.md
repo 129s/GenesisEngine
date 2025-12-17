@@ -1,4 +1,4 @@
-# Telemetry Schema（TickTelemetry v5）
+# Telemetry Schema（TickTelemetry v6）
 
 本文档定义运行时对外暴露的 **TickTelemetry** 数据结构（GUI/工具链消费的只读快照内容之一），并提供最小的版本演进记录，作为“可观测性闭环”的协议基线。
 
@@ -20,13 +20,13 @@
 - 推荐约定（当前仓库采用偏保守策略）：
   - **新增字段也提升版本**（即使是可选字段），用版本号显式驱动消费端适配。
 
-## 2. TickTelemetry（v3）字段字典
+## 2. TickTelemetry（v6）字段字典
 
 代码定义：`include/genesis/telemetry/TelemetryBuffer.hpp`
 
 ### 2.1 顶层字段
 
-- `schema_version:uint32`：Telemetry 协议版本（当前为 5）。
+- `schema_version:uint32`：Telemetry 协议版本（当前为 6）。
 - `step:uint64`：模拟步号（离散时间）。
 - `stepSeconds:float`：单步的时间长度（秒），由 `SimulationClock::stepDuration()` 推导；用于把“每步统计”换算为“每秒速率”。
 - `agents:AgentSnapshot[]`：代理位置与身份摘要。
@@ -67,6 +67,7 @@
 - `currentAction:string`：当前动作类型（例如 `MoveToInteraction/ConsumeResource/TakeResource/ProduceResource/SocializeWithAgent/Idle` 等）。
 - `queueLength:uint32`：行动队列长度。
 - `target:InteractionId(uint32)`：当前动作目标（如移动/消耗/生产的交互点）。
+- `targetEntityId:uint32`：当前动作的实体目标（仅 `SocializeWithAgent` 有意义；否则为 0）。
 - `speed:float`：移动速度（仅在移动相关动作时有意义）。
 - `resource:ResourceType(enum)`：与当前动作相关的资源类型（例如消费/取货/生产的资源）。
 - `amount:uint32`：与当前动作相关的数量（例如本次想消耗/取货的单位数）。

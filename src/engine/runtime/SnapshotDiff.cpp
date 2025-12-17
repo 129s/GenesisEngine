@@ -94,7 +94,8 @@ std::string actionKey(const telemetry::ActionSnapshot& snapshot) {
 
 bool actionEqual(const telemetry::ActionSnapshot& lhs, const telemetry::ActionSnapshot& rhs) {
     return lhs.entityId == rhs.entityId && lhs.currentAction == rhs.currentAction && lhs.queueLength == rhs.queueLength && lhs.target == rhs.target &&
-           lhs.speed == rhs.speed && lhs.resource == rhs.resource && lhs.amount == rhs.amount && lhs.reliefPerUnit == rhs.reliefPerUnit;
+           lhs.targetEntityId == rhs.targetEntityId && lhs.speed == rhs.speed && lhs.resource == rhs.resource && lhs.amount == rhs.amount &&
+           lhs.reliefPerUnit == rhs.reliefPerUnit;
 }
 
 std::string agentKey(const telemetry::AgentSnapshot& snapshot) {

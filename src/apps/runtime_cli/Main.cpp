@@ -17,6 +17,7 @@
 #include <nlohmann/json.hpp>
 
 #include "genesis/agents/Personality.hpp"
+#include "genesis/agents/PlannerTargetEncoding.hpp"
 #include "genesis/runtime/Runtime.hpp"
 #include "genesis/runtime/SchemaVersions.hpp"
 #include "genesis/telemetry/SchemaVersions.hpp"
@@ -512,14 +513,15 @@ void normalizeScriptPaths(json& script, const std::filesystem::path& root) {
     out << "\n";
 
     out << "## 动作与行为\n\n";
-    if (summary.contains("actions") && summary.at("actions").is_object() && summary.at("actions").contains("counts")) {
-        const auto& actions = summary.at("actions").at("counts");
-        out << "- ConsumeResource: `" << actions.value("ConsumeResource", 0ULL) << "`\n";
-        out << "- TakeResource: `" << actions.value("TakeResource", 0ULL) << "`\n";
-        out << "- ProduceResource: `" << actions.value("ProduceResource", 0ULL) << "`\n";
-        out << "- MoveToInteraction: `" << actions.value("MoveToInteraction", 0ULL) << "`\n";
-    }
-    out << "\n";
+	    if (summary.contains("actions") && summary.at("actions").is_object() && summary.at("actions").contains("counts")) {
+	        const auto& actions = summary.at("actions").at("counts");
+	        out << "- ConsumeResource: `" << actions.value("ConsumeResource", 0ULL) << "`\n";
+	        out << "- TakeResource: `" << actions.value("TakeResource", 0ULL) << "`\n";
+	        out << "- ProduceResource: `" << actions.value("ProduceResource", 0ULL) << "`\n";
+	        out << "- MoveToInteraction: `" << actions.value("MoveToInteraction", 0ULL) << "`\n";
+	        out << "- SocializeWithAgent: `" << actions.value("SocializeWithAgent", 0ULL) << "`\n";
+	    }
+	    out << "\n";
 
     if (summary.contains("switching")) {
         const auto& switching = summary.at("switching");
@@ -762,19 +764,21 @@ struct ResourceEconomy {
     double utilizationSum = 0.0;
     std::uint64_t utilizationSamples = 0;
 
-    struct WorldlineWindowAgg {
-        std::uint64_t steps{0};
-        std::uint64_t needSamples{0};
-        std::uint64_t criticalNeedSamples{0};
-        double plannerTravelCostSum{0.0};
-        std::uint64_t plannerTravelCostSamples{0};
-        std::unordered_map<std::string, std::uint64_t> actionTypeCounts;
-        std::unordered_map<std::uint32_t, std::uint64_t> plannerTargetCounts;
-        std::uint64_t stockoutStepsAny{0};
-        std::uint64_t stockoutStepsSources{0};
-        std::uint64_t stockoutStepsWorkshops{0};
-        std::uint64_t stepsWithAnyConsumption{0};
-        std::uint64_t stepsWithAnyRegen{0};
+	    struct WorldlineWindowAgg {
+	        std::uint64_t steps{0};
+	        std::uint64_t needSamples{0};
+	        std::uint64_t criticalNeedSamples{0};
+	        double plannerTravelCostSum{0.0};
+	        std::uint64_t plannerTravelCostSamples{0};
+	        std::unordered_map<std::string, std::uint64_t> actionTypeCounts;
+	        std::unordered_map<std::uint32_t, std::uint64_t> plannerTargetCounts;
+	        std::uint64_t socializeEvents{0};
+	        std::unordered_map<std::uint32_t, std::uint64_t> socializePartnerCounts;
+	        std::uint64_t stockoutStepsAny{0};
+	        std::uint64_t stockoutStepsSources{0};
+	        std::uint64_t stockoutStepsWorkshops{0};
+	        std::uint64_t stepsWithAnyConsumption{0};
+	        std::uint64_t stepsWithAnyRegen{0};
         std::uint64_t stepsWithAnyDecay{0};
         std::uint64_t productionAttempts{0};
         std::uint64_t productionSucceeded{0};
@@ -785,19 +789,21 @@ struct ResourceEconomy {
         std::uint64_t resourceFailed{0};
         std::unordered_map<std::string, std::uint64_t> resourceFailureReasons;
 
-        void clear() {
-            steps = 0;
-            needSamples = 0;
-            criticalNeedSamples = 0;
-            plannerTravelCostSum = 0.0;
-            plannerTravelCostSamples = 0;
-            actionTypeCounts.clear();
-            plannerTargetCounts.clear();
-            stockoutStepsAny = 0;
-            stockoutStepsSources = 0;
-            stockoutStepsWorkshops = 0;
-            stepsWithAnyConsumption = 0;
-            stepsWithAnyRegen = 0;
+	        void clear() {
+	            steps = 0;
+	            needSamples = 0;
+	            criticalNeedSamples = 0;
+	            plannerTravelCostSum = 0.0;
+	            plannerTravelCostSamples = 0;
+	            actionTypeCounts.clear();
+	            plannerTargetCounts.clear();
+	            socializeEvents = 0;
+	            socializePartnerCounts.clear();
+	            stockoutStepsAny = 0;
+	            stockoutStepsSources = 0;
+	            stockoutStepsWorkshops = 0;
+	            stepsWithAnyConsumption = 0;
+	            stepsWithAnyRegen = 0;
             stepsWithAnyDecay = 0;
             productionAttempts = 0;
             productionSucceeded = 0;
@@ -810,34 +816,40 @@ struct ResourceEconomy {
         }
     };
 
-    auto buildWorldlineCountsJson = [](const WorldlineWindowAgg& agg) {
-        json actionCountsJson = json::object();
-        for (const auto& [k, v] : agg.actionTypeCounts) {
-            actionCountsJson[k] = v;
-        }
+	    auto buildWorldlineCountsJson = [](const WorldlineWindowAgg& agg) {
+	        json actionCountsJson = json::object();
+	        for (const auto& [k, v] : agg.actionTypeCounts) {
+	            actionCountsJson[k] = v;
+	        }
 
-        json plannerCountsJson = json::object();
-        for (const auto& [k, v] : agg.plannerTargetCounts) {
-            plannerCountsJson[std::to_string(k)] = v;
-        }
+	        json plannerCountsJson = json::object();
+	        for (const auto& [k, v] : agg.plannerTargetCounts) {
+	            plannerCountsJson[std::to_string(k)] = v;
+	        }
 
-        json resourceFailureReasonsJson = json::object();
-        for (const auto& [k, v] : agg.resourceFailureReasons) {
-            resourceFailureReasonsJson[k] = v;
-        }
+	        json socialJson = json::object();
+	        socialJson["events"] = agg.socializeEvents;
+	        socialJson["uniquePartners"] = agg.socializePartnerCounts.size();
+	        socialJson["partnerEntropyBits"] = entropyBitsFromCounts(agg.socializePartnerCounts);
+
+	        json resourceFailureReasonsJson = json::object();
+	        for (const auto& [k, v] : agg.resourceFailureReasons) {
+	            resourceFailureReasonsJson[k] = v;
+	        }
 
         json productionFailureReasonsJson = json::object();
         for (const auto& [k, v] : agg.productionFailureReasons) {
             productionFailureReasonsJson[k] = v;
         }
 
-        return json{
-            {"actionTypes", std::move(actionCountsJson)},
-            {"plannerTargets", std::move(plannerCountsJson)},
-            {"resourceFailureReasons", std::move(resourceFailureReasonsJson)},
-            {"productionFailureReasons", std::move(productionFailureReasonsJson)},
-        };
-    };
+	        return json{
+	            {"actionTypes", std::move(actionCountsJson)},
+	            {"plannerTargets", std::move(plannerCountsJson)},
+	            {"social", std::move(socialJson)},
+	            {"resourceFailureReasons", std::move(resourceFailureReasonsJson)},
+	            {"productionFailureReasons", std::move(productionFailureReasonsJson)},
+	        };
+	    };
 
     auto buildWorldlineMetricsJson = [&](const WorldlineWindowAgg& agg) {
         const double stepCount = static_cast<double>(std::max<std::uint64_t>(1, agg.steps));
@@ -907,24 +919,33 @@ struct ResourceEconomy {
     std::uint64_t worldlineWindowStartStep = 0;
     std::uint64_t worldlineStep = 0;
 
-    auto ingestWorldlineWindow = [&](const genesis::telemetry::TickTelemetry& telemetry) {
-        windowAgg.steps++;
-        windowAgg.needSamples += telemetry.needs.size();
-        for (const auto& need : telemetry.needs) {
+	    auto ingestWorldlineWindow = [&](const genesis::telemetry::TickTelemetry& telemetry) {
+	        windowAgg.steps++;
+	        windowAgg.needSamples += telemetry.needs.size();
+	        for (const auto& need : telemetry.needs) {
             if (need.critical) {
                 windowAgg.criticalNeedSamples++;
             }
         }
-        for (const auto& action : telemetry.actions) {
-            windowAgg.actionTypeCounts[action.currentAction]++;
-        }
-        for (const auto& decision : telemetry.plannerDecisions) {
-            windowAgg.plannerTargetCounts[decision.target]++;
-            if (std::isfinite(decision.travelCost)) {
-                windowAgg.plannerTravelCostSum += static_cast<double>(decision.travelCost);
-                windowAgg.plannerTravelCostSamples++;
-            }
-        }
+	        for (const auto& action : telemetry.actions) {
+	            windowAgg.actionTypeCounts[action.currentAction]++;
+	            if (action.currentAction == "SocializeWithAgent") {
+	                windowAgg.socializeEvents++;
+	                if (action.targetEntityId != 0U) {
+	                    windowAgg.socializePartnerCounts[action.targetEntityId]++;
+	                }
+	            }
+	        }
+	        for (const auto& decision : telemetry.plannerDecisions) {
+	            if (decision.target == 0U || genesis::agents::isAgentPlannerTarget(static_cast<std::uint32_t>(decision.target))) {
+	                continue;
+	            }
+	            windowAgg.plannerTargetCounts[decision.target]++;
+	            if (std::isfinite(decision.travelCost)) {
+	                windowAgg.plannerTravelCostSum += static_cast<double>(decision.travelCost);
+	                windowAgg.plannerTravelCostSamples++;
+	            }
+	        }
 
         bool anyStockout = false;
         bool anyStockoutSource = false;
@@ -1027,16 +1048,19 @@ struct ResourceEconomy {
                 takeTicksByAgent[action.entityId]++;
             }
         }
-        for (const auto& decision : telemetry.plannerDecisions) {
-            plannerTargetCounts[decision.target]++;
-            if (decision.target != 0) {
-                const auto prev = lastPlannerTargetByAgent.contains(decision.entityId) ? lastPlannerTargetByAgent[decision.entityId] : 0U;
-                if (prev != 0 && prev != decision.target) {
-                    plannerTargetSwitchesTotal++;
-                }
-                lastPlannerTargetByAgent[decision.entityId] = decision.target;
-            }
-        }
+	        for (const auto& decision : telemetry.plannerDecisions) {
+	            if (decision.target == 0U || genesis::agents::isAgentPlannerTarget(static_cast<std::uint32_t>(decision.target))) {
+	                continue;
+	            }
+	            plannerTargetCounts[decision.target]++;
+	            if (decision.target != 0U) {
+	                const auto prev = lastPlannerTargetByAgent.contains(decision.entityId) ? lastPlannerTargetByAgent[decision.entityId] : 0U;
+	                if (prev != 0 && prev != decision.target) {
+	                    plannerTargetSwitchesTotal++;
+	                }
+	                lastPlannerTargetByAgent[decision.entityId] = decision.target;
+	            }
+	        }
 
         bool anyStockout = false;
         bool anyStockoutSource = false;

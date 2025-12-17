@@ -50,7 +50,7 @@ Headless 工具：仓库提供 `genesis-runtime-cli`（见 `docs/guides/headless
 - 变更集合（按需扩展）：
   - `resourceChanges[]` / `needChanges[]` / `plannerChanges[]` / `actionChanges[]` / `agentChanges[]` / `movementChanges[]`
 
-## TickTelemetry 契约（v5）
+## TickTelemetry 契约（v6）
 最小字段集合，按需扩展；变更需提升 `schema_version` 并记录（GUI 以 schema 做兼容）。
 
 完整字段字典与变更记录见：`docs/architecture/foundation/telemetry-schema.md`。

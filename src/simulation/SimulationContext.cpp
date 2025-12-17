@@ -347,6 +347,7 @@ void SimulationContext::collectActionSnapshots(std::vector<telemetry::ActionSnap
         if (!queue.tasks.empty()) {
             const auto& task = queue.tasks.front();
             snap.target = task.interaction;
+            snap.targetEntityId = task.targetEntityId;
             snap.speed = task.speed;
             snap.resource = task.resource;
             snap.amount = task.amount;

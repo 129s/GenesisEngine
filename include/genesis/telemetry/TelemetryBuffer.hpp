@@ -49,6 +49,7 @@ struct ActionSnapshot {
     std::string currentAction;
     std::uint32_t queueLength{0};
     genesis::world::InteractionId target{0};
+    std::uint32_t targetEntityId{0}; // 仅对 SocializeWithAgent 有意义
     float speed{0.0f};
     genesis::world::ResourceType resource{genesis::world::ResourceType::Food};
     std::uint32_t amount{0};

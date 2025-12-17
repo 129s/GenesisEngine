@@ -123,7 +123,7 @@ def _render_event(e: Event) -> list[str]:
 
     if t == "social_attempt_end":
         return [
-            f"- t={e.step} 社交结束：partner={_fmt(p.get('partnerEntityId'))} inferredSuccess={_fmt(p.get('inferredSuccess'))} socialDelta={_fmt_float(p.get('socialDelta'))} intendedRelief={_fmt_float(p.get('intendedRelief'))}"
+            f"- t={e.step} 社交结束：partner={_fmt(p.get('partnerEntityId'))} socialDelta={_fmt_float(p.get('socialDelta'))} ({_fmt_float(p.get('socialStart'))}→{_fmt_float(p.get('socialEnd'))}) intendedRelief={_fmt_float(p.get('intendedRelief'))}"
         ]
 
     return [f"- t={e.step} {t}: {json.dumps(p, ensure_ascii=False)}"]
@@ -147,7 +147,7 @@ def render_markdown(eventline_path: Path, from_step: int | None, to_step: int | 
 
     social_starts = sum(1 for e in events if e.type == "social_attempt_start")
     social_ends = [e for e in events if e.type == "social_attempt_end"]
-    social_success = sum(1 for e in social_ends if bool(e.payload.get("inferredSuccess")))
+    # No inference in eventline; success can be derived in downstream lenses if desired.
 
     resource_attempts = [e for e in events if e.type == "resource_attempt"]
     resource_fail = 0
@@ -168,7 +168,7 @@ def render_markdown(eventline_path: Path, from_step: int | None, to_step: int | 
     out.append("## 摘要\n")
     out.append(f"- 事件总数: `{len(events)}`（截断上限 maxEvents={max_events}）")
     out.append(f"- 资源尝试: `{len(resource_attempts)}` 失败: `{resource_fail}`")
-    out.append(f"- 社交尝试: start `{social_starts}` end `{len(social_ends)}` inferredSuccess `{social_success}`\n")
+    out.append(f"- 社交尝试: start `{social_starts}` end `{len(social_ends)}`\n")
 
     out.append("## 事件计数（按类型）\n")
     for k in sorted(counts.keys()):
@@ -204,4 +204,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

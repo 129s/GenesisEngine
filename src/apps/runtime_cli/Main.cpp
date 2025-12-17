@@ -1012,8 +1012,7 @@ struct ResourceEconomy {
         }();
         meta["params"] = {
             {"needDeltaAbsMin", 8.0},
-            {"socialSuccessDeltaFrac", 0.25},
-            {"notes", "eventline is sparse facts for one observed agent; not a full log"},
+            {"notes", "eventline is sparse facts for one observed agent; no outcome inference is performed"},
         };
         (*eventlineOut) << meta.dump() << "\n";
     }
@@ -1141,13 +1140,12 @@ struct ResourceEconomy {
                     }
                     const float delta = socialNow - eventlineState.socialPrevNeedValue;
                     const float intended = std::max(0.0f, eventlineState.socialIntendedRelief);
-                    const float successDeltaThreshold = -0.25f * intended;
-                    const bool inferredSuccess = (intended > 0.0f) ? (delta <= successDeltaThreshold) : (delta < -0.5f);
                     emit("social_attempt_end",
                          {{"partnerEntityId", eventlineState.socialPartner},
                           {"intendedRelief", intended},
-                          {"socialDelta", delta},
-                          {"inferredSuccess", inferredSuccess}});
+                          {"socialStart", eventlineState.socialPrevNeedValue},
+                          {"socialEnd", socialNow},
+                          {"socialDelta", delta}});
                     eventlineState.socialInProgress = false;
                     eventlineState.socialPartner = 0;
                     eventlineState.socialIntendedRelief = 0.0f;

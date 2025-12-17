@@ -86,6 +86,7 @@ endif()
 # --- Runtime tests ---
 add_executable(genesis_runtime_tests
     test_contract_docs_schema_versions.cpp
+    test_namespace_bridges.cpp
     test_runtime_events.cpp
     test_runtime_simulation_service.cpp
     test_runtime_e2e_smoke.cpp

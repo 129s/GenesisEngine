@@ -168,6 +168,7 @@ add_executable(genesis_agents_tests
     test_agents_production_planner.cpp
     test_agents_action_preemption.cpp
     test_agents_learning_beliefs.cpp
+    test_agents_relationship_memory.cpp
     test_agents_social_interaction.cpp
 )
 

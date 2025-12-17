@@ -1,6 +1,7 @@
 #include "genesis/agents/LearningSystem.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <unordered_map>
 #include <utility>
@@ -10,6 +11,7 @@
 #include "genesis/agents/Experience.hpp"
 #include "genesis/agents/Outcomes.hpp"
 #include "genesis/agents/Personality.hpp"
+#include "genesis/agents/Relations.hpp"
 
 namespace genesis::agents {
 
@@ -86,6 +88,32 @@ void decayBeliefs(entt::registry& registry, float deltaSeconds, float forgetPerS
     }
 }
 
+void decayRelations(entt::registry& registry,
+                    float deltaSeconds,
+                    float forgetPerSecond,
+                    float minAbsToKeep) {
+    if (!(deltaSeconds > 0.0f) || !(forgetPerSecond > 0.0f)) {
+        return;
+    }
+    const float k = std::clamp(forgetPerSecond * deltaSeconds, 0.0f, 1.0f);
+    if (k <= 0.0f) {
+        return;
+    }
+    const float keepAbs = std::max(0.0f, minAbsToKeep);
+    auto view = registry.view<components::AgentRelations>();
+    for (auto entity : view) {
+        auto& rel = view.get<components::AgentRelations>(entity);
+        for (auto it = rel.affinityByPartner.begin(); it != rel.affinityByPartner.end();) {
+            it->second = std::clamp(it->second * (1.0f - k), -1.0f, 1.0f);
+            if (keepAbs > 0.0f && std::abs(it->second) < keepAbs) {
+                it = rel.affinityByPartner.erase(it);
+                continue;
+            }
+            ++it;
+        }
+    }
+}
+
 [[nodiscard]] float learningScale(entt::entity entity, const entt::registry& registry) noexcept {
     if (const auto* p = registry.try_get<AgentPersonalityBig5>(entity)) {
         const float n = std::clamp(p->neuroticism, 0.0f, 1.0f);
@@ -108,6 +136,17 @@ void decayBeliefs(entt::registry& registry, float deltaSeconds, float forgetPerS
     return std::clamp(w, 0.0f, 1.0f);
 }
 
+[[nodiscard]] float relationshipScale(entt::entity entity, const entt::registry& registry) noexcept {
+    float agreeableness = 0.5f;
+    float neuroticism = 0.5f;
+    if (const auto* p = registry.try_get<AgentPersonalityBig5>(entity)) {
+        agreeableness = std::clamp(p->agreeableness, 0.0f, 1.0f);
+        neuroticism = std::clamp(p->neuroticism, 0.0f, 1.0f);
+    }
+    // Agreeable agents form bonds faster; neurotic agents punish snubs harder (handled in update).
+    return std::clamp(0.70f + 0.60f * agreeableness, 0.35f, 1.35f);
+}
+
 } // namespace
 
 LearningSystem::LearningSystem(LearningSystemConfig config)
@@ -116,8 +155,74 @@ LearningSystem::LearningSystem(LearningSystemConfig config)
 void LearningSystem::update(entt::registry& registry, float deltaSeconds) const {
     decayExperience(registry, deltaSeconds, m_config.experienceMinMultiplier, m_config.experienceMaxMultiplier);
     decayBeliefs(registry, deltaSeconds, m_config.beliefForgetPerSecond);
+    decayRelations(registry, deltaSeconds, m_config.relationshipForgetPerSecond, m_config.relationshipMinAbsToKeep);
 
     auto view = registry.view<components::AgentOutcomeBuffer>();
+
+    // --- Relationship memory update (agent-to-agent affinity) ---
+    struct DirectedSocial {
+        entt::entity src{entt::null};
+        entt::entity dst{entt::null};
+        bool success{true};
+
+        [[nodiscard]] bool operator<(const DirectedSocial& other) const noexcept {
+            const auto si = static_cast<std::uint32_t>(entt::to_integral(src));
+            const auto di = static_cast<std::uint32_t>(entt::to_integral(dst));
+            const auto sj = static_cast<std::uint32_t>(entt::to_integral(other.src));
+            const auto dj = static_cast<std::uint32_t>(entt::to_integral(other.dst));
+            if (si != sj) return si < sj;
+            if (di != dj) return di < dj;
+            return static_cast<int>(success) < static_cast<int>(other.success);
+        }
+    };
+
+    std::vector<DirectedSocial> directedSocial;
+    directedSocial.reserve(64);
+    for (auto entity : view) {
+        const auto& outcomes = view.get<components::AgentOutcomeBuffer>(entity);
+        for (const auto& s : outcomes.socialInteractions) {
+            if (s.partnerEntityId == 0U) {
+                continue;
+            }
+            const auto partner = static_cast<entt::entity>(s.partnerEntityId);
+            if (partner == entt::null || !registry.valid(partner) || partner == entity) {
+                continue;
+            }
+            directedSocial.push_back(DirectedSocial{entity, partner, s.success});
+        }
+    }
+    std::sort(directedSocial.begin(), directedSocial.end());
+
+    if (!directedSocial.empty()
+        && (m_config.relationshipBondGain != 0.0f
+            || m_config.relationshipBondGainReciprocal != 0.0f
+            || m_config.relationshipSnubPenalty != 0.0f)) {
+        auto bumpAffinity = [&](entt::entity who, entt::entity toward, float delta) {
+            if (!(delta != 0.0f)) {
+                return;
+            }
+            auto& rel = registry.get_or_emplace<components::AgentRelations>(who);
+            const auto key = static_cast<std::uint32_t>(entt::to_integral(toward));
+            float& v = rel.affinityByPartner[key];
+            v = std::clamp(v + delta, -1.0f, 1.0f);
+        };
+
+        for (const auto& e : directedSocial) {
+            const float srcScale = relationshipScale(e.src, registry);
+            if (e.success) {
+                bumpAffinity(e.src, e.dst, m_config.relationshipBondGain * srcScale);
+                const float dstScale = relationshipScale(e.dst, registry);
+                bumpAffinity(e.dst, e.src, m_config.relationshipBondGainReciprocal * dstScale);
+            } else {
+                float neuroticism = 0.5f;
+                if (const auto* p = registry.try_get<AgentPersonalityBig5>(e.src)) {
+                    neuroticism = std::clamp(p->neuroticism, 0.0f, 1.0f);
+                }
+                const float penaltyScale = std::clamp(0.70f + 0.80f * neuroticism, 0.35f, 1.60f);
+                bumpAffinity(e.src, e.dst, -m_config.relationshipSnubPenalty * srcScale * penaltyScale);
+            }
+        }
+    }
 
     // --- Social belief sharing: build a stable set of unique interaction pairs for this tick. ---
     struct SocialPair {

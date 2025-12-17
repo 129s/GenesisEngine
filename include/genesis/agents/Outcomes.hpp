@@ -33,6 +33,7 @@ struct CriticalPreemptOutcome {
 
 struct SocialInteractionOutcome {
     std::uint32_t partnerEntityId{0};
+    bool success{true};
 };
 
 } // namespace genesis::agents

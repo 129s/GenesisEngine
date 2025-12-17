@@ -16,6 +16,7 @@
 #include "genesis/agents/Movement2D.hpp"
 #include "genesis/agents/Personality.hpp"
 #include "genesis/agents/Planner.hpp"
+#include "genesis/agents/Relations.hpp"
 #include "genesis/world/MapPathfinding.hpp"
 
 namespace genesis::agents {
@@ -397,6 +398,20 @@ void NeedSatisfier::update(entt::registry& registry,
             // Prefer partners who also want social contact (more "natural" interactions).
             const float partnerBonus = 160.0f * std::clamp(partnerUrgency01, 0.0f, 1.0f);
 
+            float affinity = 0.0f;
+            if (const auto* rel = registry.try_get<components::AgentRelations>(entity)) {
+                const auto partnerKey = static_cast<std::uint32_t>(entt::to_integral(partnerEntity));
+                if (const auto it = rel->affinityByPartner.find(partnerKey); it != rel->affinityByPartner.end()) {
+                    affinity = std::clamp(it->second, -1.0f, 1.0f);
+                }
+            }
+
+            const float affinityWeight =
+                std::max(0.0f, m_config.socialPartnerAffinityBonus)
+                * std::clamp(0.25f + 0.75f * agreeableness, 0.0f, 1.0f)
+                * std::clamp(0.25f + 0.75f * (1.0f - openness), 0.0f, 1.0f);
+            const float affinityBonus = affinityWeight * affinity;
+
             Candidate c{};
             c.need = need;
             c.resource = world::ResourceType::Social;
@@ -407,6 +422,7 @@ void NeedSatisfier::update(entt::registry& registry,
             c.reliefPerUnit = reliefPerUnit;
             c.score = urgency * 1000.0f
                 + partnerBonus
+                + affinityBonus
                 - wDist * travelCost
                 - wCrowd * crowdPenalty
                 + jitter;

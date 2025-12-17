@@ -1282,6 +1282,11 @@ void ActionExecutor::processSocialize(entt::entity entity,
     auto& task = queue.tasks.front();
     const auto partner = static_cast<entt::entity>(task.targetEntityId);
     if (partner == entt::null || !registry.valid(partner) || !registry.all_of<components::AgentLocation2D>(partner)) {
+        // Record failed attempt as a learning signal (handled by LearningSystem).
+        if (task.targetEntityId != 0U) {
+            auto& outcomes = ensureOutcomeBuffer(entity, registry);
+            outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId, false});
+        }
         queue.tasks.pop_front();
         if (registry.any_of<components::SocialJob>(entity)) {
             registry.remove<components::SocialJob>(entity);
@@ -1291,6 +1296,11 @@ void ActionExecutor::processSocialize(entt::entity entity,
 
     const auto& partnerLoc = registry.get<components::AgentLocation2D>(partner);
     if (partnerLoc.mapId != location.mapId) {
+        // Record failed attempt as a learning signal (handled by LearningSystem).
+        if (task.targetEntityId != 0U) {
+            auto& outcomes = ensureOutcomeBuffer(entity, registry);
+            outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId, false});
+        }
         queue.tasks.pop_front();
         if (registry.any_of<components::SocialJob>(entity)) {
             registry.remove<components::SocialJob>(entity);
@@ -1357,7 +1367,7 @@ void ActionExecutor::processSocialize(entt::entity entity,
     // Record social interaction as a learning signal (handled by LearningSystem).
     {
         auto& outcomes = ensureOutcomeBuffer(entity, registry);
-        outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId});
+        outcomes.socialInteractions.push_back(SocialInteractionOutcome{task.targetEntityId, true});
     }
 
     registry.remove<components::SocialJob>(entity);

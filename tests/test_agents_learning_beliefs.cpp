@@ -68,6 +68,7 @@ TEST(LearningSystemBeliefs, SharesStockoutRiskViaSocialInteraction) {
     auto& outcomes = registry.emplace<genesis::agents::components::AgentOutcomeBuffer>(a);
     outcomes.socialInteractions.push_back(genesis::agents::SocialInteractionOutcome{
         static_cast<std::uint32_t>(entt::to_integral(b)),
+        true,
     });
 
     genesis::agents::LearningSystemConfig cfg{};

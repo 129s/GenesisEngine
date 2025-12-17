@@ -21,6 +21,13 @@ struct LearningSystemConfig {
     float socialBeliefShareStrength{0.06f}; // 0 disables sharing
     float socialBeliefShareMinDeviation{0.10f}; // ignore near-prior beliefs
     std::uint32_t socialBeliefShareTopK{2}; // top-K interactions to share per partner
+
+    // --- Social relationship memory (agent-to-agent affinity) ---
+    float relationshipForgetPerSecond{0.03f}; // decay toward neutral (0.0)
+    float relationshipBondGain{0.08f}; // initiator gain on successful socialize
+    float relationshipBondGainReciprocal{0.04f}; // partner gain on successful socialize
+    float relationshipSnubPenalty{0.10f}; // initiator penalty on failed socialize
+    float relationshipMinAbsToKeep{0.01f}; // prune small magnitudes
 };
 
 class LearningSystem {

@@ -39,6 +39,9 @@
   - `genesis::agents::components::AgentRelations`：对他人形成亲和度记忆（`include/genesis/agents/Relations.hpp`）。
   - 写入时机：LearningSystem 消费社交 outcome（成功/失败）更新，并随时间衰减回中性。
   - 读取时机：NeedSatisfier 在社交选伴评分中加入亲和度项（用于打破“随机社交”并允许形成稳定互动结构）。
+- **承诺（Commitment v0）**
+  - `genesis::agents::components::AgentCommitment`：对当前选择的目标形成“短期持有”的承诺（`include/genesis/agents/Commitments.hpp`）。
+  - 作用：把“保持目标/减少抖动”的行为从特殊分支抽象为承诺对象；切换目标存在 break 代价（在 hold 窗口内更强，窗口外弱化）。
 - **位置/移动**
   - `genesis::agents::components::AgentLocation2D`：Agent 当前所在 `mapId` 与 2D 坐标（`include/genesis/agents/Movement2D.hpp`）。
   - `genesis::agents::components::MovementIntent2D`：当前运动目标与速度（`include/genesis/agents/Movement2D.hpp`）。
@@ -95,6 +98,9 @@ NeedSatisfier 当前实现是“规则打分 + 人格扰动”（非 Traits、�
   - 候选集：同地图的其他 Agent（不再硬过滤 partner 的移动/待执行动作；改为在评分里降低“可用性/成功率”，为后续显式承诺/协商机制留接口）。
   - `partnerBonus`：偏好与“也想社交”的 partner 互动（更自然的相遇）。
   - `affinityBonus`：偏好与历史亲和度更高的 partner 互动（来自 `AgentRelations`）。
+- 目标承诺（Commitment v0）：
+  - NeedSatisfier 会把当前选择写入 `AgentCommitment` 并设置短期 `holdUntilStep`；
+  - 在 hold 窗口内切换目标需要克服更大的 break 代价（通过 score margin 表达），窗口外切换更容易。
 - 行为倾向（宏观效果）：
   - 高 `conscientiousness/neuroticism`：更早开始准备（更大的 prepareMargin）、更难切换目标（更高 switch margin）。
   - 高 `openness`：跨图成本更低、噪声更大（更“游走/探索”）。

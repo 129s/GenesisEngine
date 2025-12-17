@@ -124,6 +124,10 @@ Learning 的职责是把 outcome 写回可学习参数（“怎么做/怎么预�
 - 把“临界抢占/切换粘性”从特殊逻辑抽象为 commitment 的统一约束。
 - 为后续“协商/交易/合同”打底。
 
+当前落地进度：
+- Commitment v0 已落地“目标持有窗口 + 切换代价（score margin）”：`include/genesis/agents/Commitments.hpp`、`src/agents/NeedSatisfier.cpp`
+  - v0 仍未覆盖：协商/违约后果/显式预计完成时间（仅有 holdUntilStep 作为短期约束）
+
 ### Phase 3：Negotiation（多 agent 的提议/接受/爽约）
 - 取消“对方在移动就过滤掉”的硬规则；用 success 概率、等待成本与违约后果表达。
 - 引入 outcome：拒绝/爽约/延期，进入 beliefs/attitudes 学习。

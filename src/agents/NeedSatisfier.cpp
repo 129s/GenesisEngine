@@ -11,6 +11,7 @@
 
 #include "genesis/agents/ActionSystem.hpp"
 #include "genesis/agents/Affordances.hpp"
+#include "genesis/agents/Commitments.hpp"
 #include "genesis/agents/PlannerTargetEncoding.hpp"
 #include "genesis/agents/Beliefs.hpp"
 #include "genesis/agents/Experience.hpp"
@@ -162,6 +163,8 @@ void NeedSatisfier::update(entt::registry& registry,
 
         const float switchMargin = std::max(0.0f, m_config.switchScoreMargin)
             * std::clamp(0.65f + 0.85f * conscientiousness + 0.25f * neuroticism, 0.25f, 2.25f);
+
+        auto& commitment = registry.get_or_emplace<components::AgentCommitment>(entity);
 
         const auto quantize01u16 = [](float v) -> std::uint64_t {
             const float clamped = std::clamp(v, 0.0f, 1.0f);
@@ -586,114 +589,49 @@ void NeedSatisfier::update(entt::registry& registry,
             }
         }
 
-        std::optional<Candidate> keep;
-        if (previousTarget != 0 && !isAgentTarget(previousTarget)) {
-            const auto spawnIt = spawnByInteraction.find(previousTarget);
-            bool keepAllowed = false;
-            if (spawnIt != spawnByInteraction.end()) {
-                if (spawnIt->second.current > 0U) {
-                    keepAllowed = true;
+        auto committedCandidate = [&]() -> std::optional<Candidate> {
+            if (commitment.targetInteractionId == 0U) {
+                return std::nullopt;
+            }
+            for (const auto& a : affordances) {
+                if (a.interactionId != commitment.targetInteractionId) {
+                    continue;
+                }
+                if (a.kind != commitment.kind) {
+                    continue;
+                }
+                if (a.kind == AffordanceKind::SocializeWithAgent) {
+                    if (a.targetEntityId != commitment.targetEntityId) {
+                        continue;
+                    }
                 } else {
-                    const auto inter = db.findInteraction(previousTarget);
-                    keepAllowed = inter && isWorkshopInteraction(*inter);
-                }
-            }
-            if (spawnIt != spawnByInteraction.end() && keepAllowed) {
-                const auto& spawn = spawnIt->second;
-                const auto evalKeep = [&](NeedType need,
-                                         world::ResourceType resource,
-                                         std::uint32_t unitsPerRequest,
-                                         float reliefPerUnit,
-                                         float prepareMargin) {
-                    if (spawn.type != resource) {
-                        return;
-                    }
-                    auto* state = component.needs.state(need);
-                    const auto* descriptor = component.needs.descriptor(need);
-                    if (!state || !descriptor) {
-                        return;
-                    }
-                    const float prepareThreshold = descriptor->satisfiedThreshold + prepareMargin;
-                    const float activation = activation01_with_prepare(need, *state, *descriptor, prepareThreshold);
-                    if (activation <= 0.0f) {
-                        return;
-                    }
-                    if (auto candidate = buildCandidate(need,
-                                                        resource,
-                                                        unitsPerRequest,
-                                                        reliefPerUnit,
-                                                        activation,
-                                                        previousTarget,
-                                                        spawn)) {
-                        if (!keep || candidate->score > keep->score) {
-                            keep = std::move(candidate);
-                        }
-                    }
-                };
-
-                evalKeep(NeedType::Hunger,
-                         world::ResourceType::Food,
-                         scaledUnits(NeedType::Hunger, m_config.hungerUnitsPerRequest),
-                         m_config.hungerReliefPerUnit,
-                         scaledPrepare(NeedType::Hunger, m_config.hungerPrepareMargin));
-
-                evalKeep(NeedType::Thirst,
-                         world::ResourceType::Water,
-                         scaledUnits(NeedType::Thirst, m_config.thirstUnitsPerRequest),
-                         m_config.thirstReliefPerUnit,
-                         scaledPrepare(NeedType::Thirst, m_config.thirstPrepareMargin));
-
-                evalKeep(NeedType::Social,
-                         world::ResourceType::Social,
-                         scaledUnits(NeedType::Social, m_config.socialUnitsPerRequest),
-                         m_config.socialReliefPerUnit,
-                         scaledPrepare(NeedType::Social, m_config.socialPrepareMargin));
-            }
-        } else if (previousTarget != 0 && isAgentTarget(previousTarget)) {
-            const auto partner = decodeAgentTarget(previousTarget);
-            if (registry.valid(partner) && registry.all_of<components::AgentLocation2D>(partner)) {
-                auto* state = component.needs.state(NeedType::Social);
-                const auto* descriptor = component.needs.descriptor(NeedType::Social);
-                if (state && descriptor) {
-                    const float prepareThreshold = descriptor->satisfiedThreshold + scaledPrepare(NeedType::Social, m_config.socialPrepareMargin);
-                    const float activation = activation01_with_prepare(NeedType::Social, *state, *descriptor, prepareThreshold);
-                    if (activation > 0.0f) {
-                        float partnerUrgency = 0.0f;
-                        if (auto* pNeeds = registry.try_get<NeedComponent>(partner)) {
-                            auto* pState = pNeeds->needs.state(NeedType::Social);
-                            const auto* pDesc = pNeeds->needs.descriptor(NeedType::Social);
-                            if (pState && pDesc) {
-                                partnerUrgency = urgency01(*pState, *pDesc);
-                            }
-                        }
-                        float partnerAvailability = 1.0f;
-                        if (registry.any_of<components::MovementIntent2D>(partner)) {
-                            partnerAvailability *= 0.35f;
-                        }
-                        if (actionExecutor && actionExecutor->hasPendingActions(partner, registry)) {
-                            partnerAvailability *= 0.45f;
-                        }
-                        keep = buildSocialPartnerCandidate(NeedType::Social,
-                                                           scaledUnits(NeedType::Social, m_config.socialUnitsPerRequest),
-                                                           m_config.socialReliefPerUnit,
-                                                           activation,
-                                                           partner,
-                                                           partnerUrgency,
-                                                           partnerAvailability);
+                    if (a.resource != commitment.resource) {
+                        continue;
                     }
                 }
+                return a;
             }
-        }
+            return std::nullopt;
+        }();
 
-        if (best && keep && best->interactionId != keep->interactionId) {
-            if (best->score < keep->score + switchMargin) {
-                best = keep;
+        if (committedCandidate.has_value()) {
+            const float marginFactor = (stepIndex < commitment.holdUntilStep)
+                ? 1.0f
+                : std::clamp(m_config.commitmentExpiredMarginFactor, 0.0f, 1.0f);
+            const float breakMargin = switchMargin * marginFactor;
+
+            if (!best) {
+                best = committedCandidate;
+            } else if (best->interactionId != committedCandidate->interactionId || best->kind != committedCandidate->kind) {
+                if (best->score < committedCandidate->score + breakMargin) {
+                    best = committedCandidate;
+                }
             }
-        } else if (!best && keep) {
-            best = keep;
         }
 
         if (!best || best->interactionId == 0) {
+            commitment.targetInteractionId = 0U;
+            commitment.targetEntityId = 0U;
             if (previousTarget != 0) {
                 auto it = demandByInteraction.find(previousTarget);
                 if (it != demandByInteraction.end() && it->second > 0U) {
@@ -707,6 +645,26 @@ void NeedSatisfier::update(entt::registry& registry,
                 registry.remove<components::PlannerDecision>(entity);
             }
             continue;
+        }
+
+        {
+            const float hold01 = std::clamp(0.25f + 0.75f * conscientiousness, 0.0f, 1.0f);
+            const auto minHold = std::max<std::uint32_t>(1U, m_config.commitmentHoldMinSteps);
+            const auto maxHold = std::max<std::uint32_t>(minHold, m_config.commitmentHoldMaxSteps);
+            const float holdStepsF = static_cast<float>(minHold)
+                + (static_cast<float>(maxHold - minHold) * hold01);
+            std::uint64_t holdSteps = static_cast<std::uint64_t>(std::llround(static_cast<double>(holdStepsF)));
+            if (best->kind == AffordanceKind::SocializeWithAgent) {
+                holdSteps = static_cast<std::uint64_t>(std::llround(static_cast<double>(holdSteps) * std::max(0.0f, m_config.commitmentSocialHoldFactor)));
+                holdSteps = std::max<std::uint64_t>(1ull, holdSteps);
+            }
+
+            commitment.targetInteractionId = best->interactionId;
+            commitment.kind = best->kind;
+            commitment.targetEntityId = best->targetEntityId;
+            commitment.resource = best->resource;
+            commitment.startedAtStep = stepIndex;
+            commitment.holdUntilStep = stepIndex + holdSteps;
         }
 
         if (previousTarget != 0 && previousTarget != best->interactionId) {

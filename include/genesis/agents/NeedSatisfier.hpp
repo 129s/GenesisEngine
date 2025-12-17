@@ -20,6 +20,12 @@ struct NeedSatisfierConfig {
     float switchScoreMargin{50.0f};
     float stockoutRiskPenalty{80.0f};
 
+    // Commitment v0: selection stickiness expressed as an explicit commitment.
+    std::uint32_t commitmentHoldMinSteps{16};
+    std::uint32_t commitmentHoldMaxSteps{120};
+    float commitmentExpiredMarginFactor{0.25f}; // margin multiplier after holdUntilStep
+    float commitmentSocialHoldFactor{0.65f}; // shorter hold for social contact
+
     std::uint32_t hungerUnitsPerRequest{2};
     float hungerReliefPerUnit{12.0f};
     float hungerPrepareMargin{5.0f};

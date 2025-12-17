@@ -30,7 +30,7 @@ namespace genesis { namespace world { class WorldDatabase; } }
 namespace Genesis::Runtime {
 
 namespace simulation = Genesis::Simulation;
-namespace telemetry = genesis::telemetry;
+namespace telemetry = Genesis::Telemetry;
 namespace world = Genesis::World;
 
 struct RuntimeConfig {

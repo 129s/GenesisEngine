@@ -13,7 +13,7 @@
 
 namespace Genesis::Runtime {
 
-namespace telemetry = genesis::telemetry;
+namespace telemetry = Genesis::Telemetry;
 
 
 struct SimulationSnapshot {

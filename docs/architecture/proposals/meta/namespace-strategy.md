@@ -3,13 +3,22 @@
 > 目标：明确 GenesisEngine 代码库的命名空间标准，为后续逐步迁移提供依据。
 
 ## 已落地（Phase 1：过渡别名）
-当前仓库已加入 **namespace alias 过渡层**，以便新代码/工具可以统一使用 `Genesis::` 写法，同时保持 ABI 与实现命名空间不变：
-- 头文件：`include/genesis/NamespaceAliases.hpp`
-- 约定：仅引入 alias，不进行 `namespace genesis::x` → `namespace Genesis::X` 的破坏性重命名。
+当前仓库已在部分模块加入 **namespace 过渡层**，以便新代码/工具可以统一使用 `Genesis::` 写法，同时保持 ABI 与实现命名空间不变：
+- `include/genesis/agents/Namespace.hpp`：`Genesis::Agents`（并保留 `Genesis::Agents::Components`）
+- `include/genesis/base/Namespace.hpp`：`Genesis::Base = ::genesis::base`
+- `include/genesis/core/Namespace.hpp`：`Genesis::Core = ::genesis::core`
+- `include/genesis/diagnostics/Namespace.hpp`：`Genesis::Diagnostics = ::genesis::diagnostics`
+- `include/genesis/messaging/Namespace.hpp`：`Genesis::Messaging = ::genesis::messaging`
+- `include/genesis/world/Namespace.hpp`：`Genesis::World = ::genesis::world`
+- `include/genesis/worldgen/Namespace.hpp`：`Genesis::Worldgen = ::genesis::worldgen`
+- `include/genesis/simulation/Namespace.hpp`：`Genesis::Simulation = ::genesis::simulation`
+- `include/genesis/telemetry/Namespace.hpp`：`Genesis::Telemetry = ::genesis::telemetry`
+
+约定：Phase 1 只做过渡别名，不进行 `namespace genesis::x` → `namespace Genesis::X` 的破坏性重命名。
 
 示例：
 ```cpp
-#include "genesis/NamespaceAliases.hpp"
+#include "genesis/agents/Namespace.hpp"
 #include "genesis/agents/Needs.hpp"
 
 Genesis::Agents::NeedType t = Genesis::Agents::NeedType::Hunger;

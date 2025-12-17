@@ -17,6 +17,11 @@ struct LearningSystemConfig {
     float beliefStockoutAlpha{0.22f};
     float beliefForgetPerSecond{0.06f};
 
+    // --- Partner beliefs (EMA) ---
+    float beliefPartnerReliabilityAlpha{0.18f};
+    float beliefPartnerForgetPerSecond{0.03f};
+    float beliefPartnerMinAbsDeviationToKeep{0.01f};
+
     // --- Social belief sharing (when agents socialize) ---
     float socialBeliefShareStrength{0.06f}; // 0 disables sharing
     float socialBeliefShareMinDeviation{0.10f}; // ignore near-prior beliefs

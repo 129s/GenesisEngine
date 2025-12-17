@@ -88,6 +88,36 @@ void decayBeliefs(entt::registry& registry, float deltaSeconds, float forgetPerS
     }
 }
 
+void decayPartnerBeliefs(entt::registry& registry,
+                         float deltaSeconds,
+                         float forgetPerSecond,
+                         float minAbsDeviationToKeep) {
+    if (!(deltaSeconds > 0.0f) || !(forgetPerSecond > 0.0f)) {
+        return;
+    }
+    const float k = std::clamp(forgetPerSecond * deltaSeconds, 0.0f, 1.0f);
+    if (k <= 0.0f) {
+        return;
+    }
+    const float keepAbs = std::max(0.0f, minAbsDeviationToKeep);
+    auto view = registry.view<components::AgentBeliefs>();
+    for (auto entity : view) {
+        auto& beliefs = view.get<components::AgentBeliefs>(entity);
+        for (auto it = beliefs.partners.begin(); it != beliefs.partners.end();) {
+            auto& b = it->second;
+            b.meetReliabilityEma = std::clamp(
+                b.meetReliabilityEma + (beliefs.priorMeetReliability - b.meetReliabilityEma) * k,
+                0.0f,
+                1.0f);
+            if (keepAbs > 0.0f && std::abs(b.meetReliabilityEma - beliefs.priorMeetReliability) < keepAbs) {
+                it = beliefs.partners.erase(it);
+                continue;
+            }
+            ++it;
+        }
+    }
+}
+
 void decayRelations(entt::registry& registry,
                     float deltaSeconds,
                     float forgetPerSecond,
@@ -155,6 +185,10 @@ LearningSystem::LearningSystem(LearningSystemConfig config)
 void LearningSystem::update(entt::registry& registry, float deltaSeconds) const {
     decayExperience(registry, deltaSeconds, m_config.experienceMinMultiplier, m_config.experienceMaxMultiplier);
     decayBeliefs(registry, deltaSeconds, m_config.beliefForgetPerSecond);
+    decayPartnerBeliefs(registry,
+                        deltaSeconds,
+                        m_config.beliefPartnerForgetPerSecond,
+                        m_config.beliefPartnerMinAbsDeviationToKeep);
     decayRelations(registry, deltaSeconds, m_config.relationshipForgetPerSecond, m_config.relationshipMinAbsToKeep);
 
     auto view = registry.view<components::AgentOutcomeBuffer>();
@@ -221,6 +255,32 @@ void LearningSystem::update(entt::registry& registry, float deltaSeconds) const 
                 const float penaltyScale = std::clamp(0.70f + 0.80f * neuroticism, 0.35f, 1.60f);
                 bumpAffinity(e.src, e.dst, -m_config.relationshipSnubPenalty * srcScale * penaltyScale);
             }
+        }
+    }
+
+    // --- Partner beliefs update (meet reliability) ---
+    if (!directedSocial.empty() && m_config.beliefPartnerReliabilityAlpha > 0.0f) {
+        for (const auto& e : directedSocial) {
+            auto* beliefs = registry.try_get<components::AgentBeliefs>(e.src);
+            if (!beliefs) {
+                continue;
+            }
+            const float scale = learningScale(e.src, registry);
+            const float alpha = std::clamp(m_config.beliefPartnerReliabilityAlpha * scale, 0.0f, 1.0f);
+            if (alpha <= 0.0f) {
+                continue;
+            }
+
+            const auto partnerKey = static_cast<std::uint32_t>(entt::to_integral(e.dst));
+            if (partnerKey == 0U) {
+                continue;
+            }
+            auto& entry = beliefs->partners[partnerKey];
+            if (entry.meetReliabilityEma < 0.0f || entry.meetReliabilityEma > 1.0f) {
+                entry.meetReliabilityEma = beliefs->priorMeetReliability;
+            }
+            const float obs = e.success ? 1.0f : 0.0f;
+            entry.meetReliabilityEma = std::clamp(entry.meetReliabilityEma + (obs - entry.meetReliabilityEma) * alpha, 0.0f, 1.0f);
         }
     }
 

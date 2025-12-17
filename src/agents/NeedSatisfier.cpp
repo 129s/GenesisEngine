@@ -423,7 +423,15 @@ void NeedSatisfier::update(entt::registry& registry,
 
             Candidate c{};
             const float availability01 = std::clamp(partnerAvailability01, 0.0f, 1.0f);
-            const float availabilityPenalty = (1.0f - availability01)
+            const float reliability01 = [&]() -> float {
+                const auto partnerKey = static_cast<std::uint32_t>(entt::to_integral(partnerEntity));
+                if (const auto* beliefs = registry.try_get<components::AgentBeliefs>(entity)) {
+                    return std::clamp(beliefs->meetReliability(partnerKey), 0.0f, 1.0f);
+                }
+                return 0.65f;
+            }();
+            const float predicted01 = availability01 * reliability01;
+            const float predictedPenalty = (1.0f - predicted01)
                 * 240.0f
                 * std::clamp(0.35f + 0.65f * conscientiousness, 0.0f, 1.0f);
 
@@ -436,10 +444,10 @@ void NeedSatisfier::update(entt::registry& registry,
             c.units = unitsPerRequest;
             c.reliefPerUnit = reliefPerUnit;
             c.score = std::clamp(activation, 0.0f, 1.0f) * 1000.0f
-                + availability01 * (partnerBonus + affinityBonus)
+                + predicted01 * (partnerBonus + affinityBonus)
                 - wDist * travelCost
                 - wCrowd * crowdPenalty
-                - availabilityPenalty
+                - predictedPenalty
                 + jitter;
             return c;
         };

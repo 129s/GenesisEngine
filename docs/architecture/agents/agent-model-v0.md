@@ -92,7 +92,7 @@ NeedSatisfier 当前实现是“规则打分 + 人格扰动”（非 Traits、�
   - `riskPenalty`：对目标交互点的主观缺货风险惩罚（来自 `AgentBeliefs.stockoutRisk`；权重受人格缩放）。
   - `decisionJitter`：每次选点会注入小幅确定性噪声（由 `stepIndex` 与 `entityId` 导出），用于打破“全体收敛到同一最优点”的稳态。
 - 社交选伴（Need=Social）额外要素：
-  - 候选集：同地图的其他 Agent（会跳过 partner 的移动/待执行动作；该部分未来可能抽象为更原子的“可交互性/承诺”机制）。
+  - 候选集：同地图的其他 Agent（不再硬过滤 partner 的移动/待执行动作；改为在评分里降低“可用性/成功率”，为后续显式承诺/协商机制留接口）。
   - `partnerBonus`：偏好与“也想社交”的 partner 互动（更自然的相遇）。
   - `affinityBonus`：偏好与历史亲和度更高的 partner 互动（来自 `AgentRelations`）。
 - 行为倾向（宏观效果）：

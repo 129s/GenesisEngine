@@ -31,7 +31,11 @@
 
 #include "genesis/world/WorldDatabase.hpp"
 #include "genesis/world/WorldDatabaseLoader.hpp"
+#include "genesis/world/Namespace.hpp"
 #include "genesis/simulation/Namespace.hpp"
+#include "genesis/telemetry/Namespace.hpp"
+#include "genesis/worldgen/Namespace.hpp"
+#include "genesis/agents/Namespace.hpp"
 #include "genesis/world/WorldDatabaseSaver.hpp"
 #include "genesis/world/ResourceTypeStrings.hpp"
 #include "genesis/worldgen/ConfigLoader.hpp"
@@ -40,12 +44,13 @@
 namespace Genesis::Runtime {
 
 namespace simulation = Genesis::Simulation;
-namespace telemetry = genesis::telemetry;
+namespace telemetry = Genesis::Telemetry;
 namespace world = Genesis::World;
+namespace worldgen = Genesis::Worldgen;
 namespace agents = Genesis::Agents;
 namespace agent_components = Genesis::Agents::Components;
 
-WorldAtlas buildWorldAtlasFromDatabase(const genesis::world::WorldDatabase& db, std::uint32_t worldVersion);
+WorldAtlas buildWorldAtlasFromDatabase(const world::WorldDatabase& db, std::uint32_t worldVersion);
 
 namespace {
 
@@ -159,7 +164,7 @@ struct CoordNormalization {
     std::unordered_map<std::size_t, std::pair<int, int>> coordsByLocalId;
 };
 
-CoordNormalization normalizeNodePlacements(const genesis::worldgen::LayoutDraft& layout, int baseExtent) {
+CoordNormalization normalizeNodePlacements(const worldgen::LayoutDraft& layout, int baseExtent) {
     CoordNormalization result{};
     if (baseExtent < 4) {
         baseExtent = 4;
@@ -198,9 +203,9 @@ CoordNormalization normalizeNodePlacements(const genesis::worldgen::LayoutDraft&
     return result;
 }
 
-world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::GeneratorConfig& config,
-                                                    const genesis::worldgen::TopologyDraft& topology,
-                                                    const genesis::worldgen::LayoutDraft& layout) {
+world::InMemoryWorldDatabase buildWorldDbFromDrafts(const worldgen::GeneratorConfig& config,
+                                                    const worldgen::TopologyDraft& topology,
+                                                    const worldgen::LayoutDraft& layout) {
     world::InMemoryWorldDatabase db;
     db.clear();
 
@@ -220,11 +225,11 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
     bool hasExplicitResources = false;
     bool hasInteractivePortals = false;
     for (const auto& node : topology.nodes) {
-        if (node.kind == genesis::worldgen::DraftNodeKind::Scene) {
+        if (node.kind == worldgen::DraftNodeKind::Scene) {
             sceneLocalIds.insert(node.local_id);
-        } else if (node.kind == genesis::worldgen::DraftNodeKind::InteractiveResource) {
+        } else if (node.kind == worldgen::DraftNodeKind::InteractiveResource) {
             hasExplicitResources = true;
-        } else if (node.kind == genesis::worldgen::DraftNodeKind::InteractivePortal) {
+        } else if (node.kind == worldgen::DraftNodeKind::InteractivePortal) {
             hasInteractivePortals = true;
         }
     }
@@ -253,7 +258,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
     mapCenters.reserve(topology.nodes.size());
 
     for (const auto& node : topology.nodes) {
-        if (node.kind != genesis::worldgen::DraftNodeKind::Scene) {
+        if (node.kind != worldgen::DraftNodeKind::Scene) {
             continue;
         }
 
@@ -280,7 +285,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         nextInteractionId.emplace(mapId, static_cast<world::InteractionId>(mapId * 1000U));
     }
 
-    auto workshopSpecFor = [&](world::ResourceType type) -> const genesis::worldgen::WorldDbResourceSettings::Workshop* {
+    auto workshopSpecFor = [&](world::ResourceType type) -> const worldgen::WorldDbResourceSettings::Workshop* {
         for (const auto& spec : config.worlddb.resources.workshops)
         {
             if (spec.output == type)
@@ -309,7 +314,7 @@ world::InMemoryWorldDatabase buildWorldDbFromDrafts(const genesis::worldgen::Gen
         resource.meta = std::move(meta);
     };
 
-    auto shouldMarkWorkshop = [&](const genesis::worldgen::WorldDbResourceSettings::Workshop& spec, std::uint64_t ordinal) -> bool {
+    auto shouldMarkWorkshop = [&](const worldgen::WorldDbResourceSettings::Workshop& spec, std::uint64_t ordinal) -> bool {
         const double chance = std::clamp(spec.chance, 0.0, 1.0);
         if (chance <= 0.0) {
             return false;

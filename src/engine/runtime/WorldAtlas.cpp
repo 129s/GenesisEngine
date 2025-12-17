@@ -8,10 +8,12 @@ namespace Genesis::Runtime {
 
 namespace {
 
-using MapId = genesis::world::MapId;
-using SceneId = genesis::world::SceneId;
+namespace world = Genesis::World;
 
-[[nodiscard]] std::optional<std::pair<int, int>> resolveSceneOrigin(const genesis::world::Scene& scene) {
+using MapId = world::MapId;
+using SceneId = world::SceneId;
+
+[[nodiscard]] std::optional<std::pair<int, int>> resolveSceneOrigin(const world::Scene& scene) {
     if (scene.origin) {
         return scene.origin;
     }
@@ -20,7 +22,7 @@ using SceneId = genesis::world::SceneId;
 
 } // namespace
 
-WorldAtlas buildWorldAtlasFromDatabase(const genesis::world::WorldDatabase& db, std::uint32_t worldVersion) {
+WorldAtlas buildWorldAtlasFromDatabase(const world::WorldDatabase& db, std::uint32_t worldVersion) {
     WorldAtlas atlas{};
     atlas.schema_version = kWorldAtlasSchemaVersion;
     atlas.world_version = worldVersion;
